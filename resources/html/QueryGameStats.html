@@ -1,231 +1,211 @@
-<style>
-    :root {
-        --bg-color: #121212;
-        --card-bg-color: #1e1e1e;
-        --text-color: #e0e0e0;
-        --primary-color: #bb86fc;
-        --secondary-color: #03dac6;
-        --success-color: #00c853;
-        --danger-color: #cf6679;
-        --neutral-color: #757575;
-    }
-
-    body {
-        font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
-        background-color: var(--bg-color);
-        color: var(--text-color);
-        line-height: 1.6;
-        margin: 0;
-        padding: 20px;
-        transition: all 0.3s ease;
-    }
-
-    .container {
-        max-width: 900px;
-        margin: 0 auto;
-        background-color: var(--card-bg-color);
-        border-radius: 16px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-        overflow: hidden;
-    }
-
-    header {
-        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-        padding: 40px 20px;
-        text-align: center;
-        position: relative;
-        overflow: hidden;
-    }
-
-    header::before {
-        content: '';
-        position: absolute;
-        top: -50%;
-        left: -50%;
-        width: 200%;
-        height: 200%;
-        background: repeating-linear-gradient(45deg,
-                transparent,
-                transparent 10px,
-                rgba(255, 255, 255, 0.1) 10px,
-                rgba(255, 255, 255, 0.1) 20px);
-        animation: shine 20s linear infinite;
-    }
-
-    @keyframes shine {
-        0% {
-            transform: translateX(-50%) translateY(-50%) rotate(0deg);
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>游戏战绩</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg-color: #1e1e1e;
+            --text-color: #e0e0e0;
+            --primary-color: #bb86fc;
+            --secondary-color: #03dac6;
+            --success-color: #00c853;
+            --danger-color: #cf6679;
+            --neutral-color: #757575;
         }
 
-        100% {
-            transform: translateX(-50%) translateY(-50%) rotate(360deg);
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            transition: all 0.3s ease;
         }
-    }
 
-    h1 {
-        font-size: 2.5em;
-        margin: 0;
-        position: relative;
-        color: var(--bg-color);
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-    }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: var(--card-bg-color);
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
 
-    .stats {
-        display: flex;
-        justify-content: space-around;
-        padding: 20px;
-        background-color: rgba(0, 0, 0, 0.1);
-    }
-
-    .stat-item {
-        text-align: center;
-    }
-
-    .stat-value {
-        font-size: 1.5em;
-        font-weight: bold;
-        color: var(--primary-color);
-    }
-
-    .stat-label {
-        font-size: 0.9em;
-        color: var(--text-color);
-    }
-
-    .results {
-        padding: 20px;
-    }
-
-    .result-item {
-        display: flex;
-        align-items: center;
-        margin-bottom: 20px;
-        padding: 15px;
-        border-radius: 12px;
-        background-color: rgba(255, 255, 255, 0.05);
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        transition: all 0.3s ease;
-    }
-
-    .result-item:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
-    }
-
-    .avatar {
-        width: 70px;
-        height: 70px;
-        border-radius: 50%;
-        margin-right: 20px;
-        object-fit: cover;
-        border: 3px solid var(--secondary-color);
-        transition: transform 0.3s ease;
-    }
-
-    .result-item:hover .avatar {
-        transform: scale(1.1) rotate(5deg);
-    }
-
-    .result-info {
-        flex-grow: 1;
-    }
-
-    .result-date {
-        font-size: 0.9em;
-        color: var(--neutral-color);
-    }
-
-    .result-opponent {
-        font-size: 1.2em;
-        font-weight: bold;
-        margin: 5px 0;
-        color: var(--text-color);
-    }
-
-    .result-score {
-        font-size: 1.4em;
-        color: var(--primary-color);
-        font-weight: bold;
-    }
-
-    .result-outcome {
-        padding: 5px 15px;
-        border-radius: 20px;
-        font-weight: bold;
-        text-transform: uppercase;
-        font-size: 0.8em;
-        margin-left: 10px;
-    }
-
-    .win {
-        background-color: var(--success-color);
-        color: var(--bg-color);
-    }
-
-    .loss {
-        background-color: var(--danger-color);
-        color: var(--text-color);
-    }
-
-    .draw {
-        background-color: var(--neutral-color);
-        color: var(--text-color);
-    }
-
-    .tags {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 10px;
-    }
-
-    .tag {
-        padding: 3px 10px;
-        border-radius: 12px;
-        font-size: 0.75em;
-        font-weight: bold;
-        background-color: var(--secondary-color);
-        color: var(--bg-color);
-        transition: all 0.3s ease;
-    }
-
-    .tag:hover {
-        transform: scale(1.05);
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    }
-
-    @media (max-width: 768px) {
-        .result-item {
-            flex-direction: column;
+        header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            padding: 40px 20px;
             text-align: center;
+            position: relative;
+            overflow: hidden;
         }
 
-        .avatar {
-            margin-right: 0;
-            margin-bottom: 15px;
+        header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: repeating-linear-gradient(45deg,
+                    transparent,
+                    transparent 10px,
+                    rgba(255, 255, 255, 0.1) 10px,
+                    rgba(255, 255, 255, 0.1) 20px);
+            animation: shine 20s linear infinite;
         }
 
-        .tags {
-            justify-content: center;
+        @keyframes shine {
+            0% { transform: translateX(-50%) translateY(-50%) rotate(0deg); }
+            100% { transform: translateX(-50%) translateY(-50%) rotate(360deg); }
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin: 0;
+            position: relative;
+            color: var(--bg-color);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
         }
 
         .stats {
+            display: flex;
             flex-wrap: wrap;
+            justify-content: space-around;
+            padding: 20px;
+            background-color: rgba(0, 0, 0, 0.1);
         }
 
         .stat-item {
-            width: 50%;
-            margin-bottom: 15px;
+            text-align: center;
+            flex: 1 1 120px;
+            margin: 10px;
         }
-    }
 
-    .result-duration, .result-rating {
-        font-size: 0.9em;
-        color: var(--text-color);
-        margin-top: 5px;
-    }
-</style>
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
 
+        .stat-label {
+            font-size: 0.9em;
+            color: var(--text-color);
+        }
+
+        .results {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .result-item {
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            border-radius: 12px;
+            background-color: rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .result-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            margin-right: 15px;
+            object-fit: cover;
+            border: 3px solid var(--secondary-color);
+            transition: transform 0.3s ease;
+        }
+
+        .result-item:hover .avatar {
+            transform: scale(1.1) rotate(5deg);
+        }
+
+        .result-info {
+            flex-grow: 1;
+        }
+
+        .result-date {
+            font-size: 0.8em;
+            color: var(--neutral-color);
+        }
+
+        .result-opponent {
+            font-size: 1.1em;
+            font-weight: bold;
+            margin: 5px 0;
+            color: var(--text-color);
+        }
+
+        .result-score, .result-duration, .result-rating {
+            font-size: 0.9em;
+            color: var(--text-color);
+            margin-top: 5px;
+        }
+
+        .result-outcome {
+            align-self: flex-start;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.8em;
+            margin-top: 10px;
+        }
+
+        .win { background-color: var(--success-color); color: var(--bg-color); }
+        .loss { background-color: var(--danger-color); color: var(--text-color); }
+
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .tag {
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: bold;
+            background-color: var(--secondary-color);
+            color: var(--bg-color);
+            transition: all 0.3s ease;
+        }
+
+        .tag:hover {
+            transform: scale(1.05);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        @media (max-width: 768px) {
+            .results {
+                grid-template-columns: 1fr;
+            }
+
+            .stat-item {
+                flex-basis: calc(50% - 20px);
+            }
+        }
+    </style>
+</head>
 <body>
     <div class="container">
         <header>
@@ -252,23 +232,25 @@
         <div class="results">
             {{each data item}}
             <div class="result-item">
-                <img src="{{item.heroIcon}}" alt="英雄头像" class="avatar">
-                <div class="result-info">
-                    <div class="result-date">{{item.gameTime}}</div>
-                    <div class="result-opponent">{{item.gameTpye}}</div>
-                    <div class="result-score">击杀: {{item.killCnt}}/{{item.deadCnt}}/{{item.assistCnt}}</div>
-                    <div class="result-duration">时长: {{item.gameDuration}} 分钟</div>
-                    <div class="result-rating">评分: {{item.gradeGame}}</div>
-                    <div class="tags">
-                        {{each item.tags tag}}
-                        <span class="tag">{{tag}}</span>
-                        {{/each}}
+                <div class="result-header">
+                    <img src="{{item.heroIcon}}" alt="英雄头像" class="avatar">
+                    <div class="result-info">
+                        <div class="result-date">{{item.gameTime}}</div>
+                        <div class="result-opponent">{{item.gameTpye}}</div>
                     </div>
+                </div>
+                <div class="result-score">击杀: {{item.killCnt}}/{{item.deadCnt}}/{{item.assistCnt}}</div>
+                <div class="result-duration">时长: {{item.gameDuration}}</div>
+                <div class="result-rating">评分: {{item.gradeGame}}</div>
+                <div class="tags">
+                    {{each item.tags tag}}
+                    <span class="tag">{{tag}}</span>
+                    {{/each}}
                 </div>
                 <span class="result-outcome {{item.gameResult === '胜利' ? 'win' : 'loss'}}">{{item.gameResult}}</span>
             </div>
             {{/each}}
         </div>
     </div>
-    </div>
 </body>
+</html>
