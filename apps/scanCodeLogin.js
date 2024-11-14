@@ -2,6 +2,7 @@ import fetch from 'node-fetch'
 import fs from 'fs'
 import path from 'path'
 import common from '../../../lib/common/common.js'
+import YAML from 'yaml';
 
 function getCommonHeaders() {
     return {
@@ -43,20 +44,143 @@ export class ScanCodeLogin extends plugin {
 
     async scanCodeLogin(e) {
         const { user_id } = e;
-        await getQRCode(user_id);
-        const imagePath = path.join('data', 'qrcode.png');
-        await e.reply(['请在120秒内[打开王者营地-->我-->右上角扫码]扫描该二维码登录', segment.image(imagePath)]);
 
-        fs.unlinkSync(imagePath);
+        try {
+            const qrResponse = await fetch('https://kohcamp.qq.com/sso/getqrcode', {
+                method: 'POST',
+                headers: {
+                    ...getCommonHeaders(),
+                    'Content-Length': '0',
+                    'specialEncodeParam': 'rhIMIdd/m8fRrf5i/cQFxSdQkp+WAop5GN2SMAbFTDp0QvvG7eCJQjeBuJmyv4BT3nl0BS452F2XEQawpnfZaPpjVKdoA28/waERI7lJuPmLc8RVYiQ1SQpLFbc6eGsuoVqW//856jkWy4KuZEU03reL5mGkbIx1LpRcVkKM/3k='
+                }
+            });
+
+            if (!qrResponse.ok) {
+                await e.reply('获取二维码失败，请稍后重试。');
+                return;
+            }
+
+            const qrData = await qrResponse.json();
+            const { qrCodeFile } = qrData;
+
+            const buffer = Buffer.from(qrCodeFile, 'base64');
+            const imagePath = path.join('data', 'qrcode.png');
+            fs.writeFileSync(imagePath, buffer);
+
+            const dirPath = path.join('data', 'WzryData', 'ScanCodeLoginData');
+            if (!fs.existsSync(dirPath)) {
+                fs.mkdirSync(dirPath, { recursive: true });
+            }
+
+            writeJsonFile(getFilePath(user_id), qrData);
+
+            await e.reply(['请在120秒内[打开王者营地-->我-->右上角扫码]扫描该二维码登录', segment.image(imagePath)]);
+            fs.unlinkSync(imagePath);
+        } catch (error) {
+            logger.error(error);
+            await e.reply('获取二维码时发生错误，请稍后重试。');
+            return;
+        }
 
         let loginSuccess = false;
         for (let i = 0; i < 120; i++) {
-            const res = await checkQRCodeStatus(user_id);
-            await common.sleep(1000);
-            if (res === 100) {
-                await e.reply('登录成功，Token时效仅一天');
-                loginSuccess = true;
-                break;
+            try {
+                const scanCodeLoginData = readJsonFile(getFilePath(user_id));
+                const response = await fetch(`https://kohcamp.qq.com/sso/qrconnect`, {
+                    method: 'POST',
+                    headers: {
+                        ...getCommonHeaders(),
+                        'Content-Type': 'application/json;charset=UTF-8'
+                    },
+                    body: JSON.stringify({
+                        uUid: scanCodeLoginData.uUid
+                    })
+                });
+
+                if (!response.ok) {
+                    continue;
+                }
+
+                const data = await response.json();
+                const { statusCode, msg, code } = data;
+
+                if (statusCode === 408 && msg === "没扫码") {
+                    await common.sleep(1000);
+                    continue;
+                } else {
+                    scanCodeLoginData.code = code;
+                    writeJsonFile(getFilePath(user_id), scanCodeLoginData);
+
+                    const tokenResponse = await fetch('https://kohcamp.qq.com/sso/code2session', {
+                        method: 'POST',
+                        headers: {
+                            ...getCommonHeaders(),
+                            'Content-Type': 'application/json;charset=UTF-8',
+                            'specialEncodeParam': 'bDDKzNEKn6L7257wFRD1wGRoVTNfl1kh9BnWkLaDCCeA4U4XarSrk1OptC21Zj682xDFYtfWW4Ao5uOglwReOfCvFXkwo3piug4PLll/OwXlD5aSOLn/Ucbltfw9//xJvTWB+xb9qRT3Pu1M8vm0wxX2b5OTm7SrUJ5V2jkA594='
+                        },
+                        body: JSON.stringify({
+                            grantType: 'authorization_code',
+                            code: scanCodeLoginData.code
+                        })
+                    });
+
+                    if (!tokenResponse.ok) {
+                        continue;
+                    }
+
+                    const tokenData = await tokenResponse.json();
+                    const { ssoOpenId, ssoToken } = tokenData.session;
+                    scanCodeLoginData.ssoOpenId = ssoOpenId;
+                    scanCodeLoginData.ssoToken = ssoToken;
+                    writeJsonFile(getFilePath(user_id), scanCodeLoginData);
+
+                    const userInfoResponse = await fetch('https://kohcamp.qq.com/pc/user/infolist', {
+                        method: 'POST',
+                        headers: {
+                            ...getCommonHeaders(),
+                            'Content-Type': 'application/json',
+                            'ssoOpenId': ssoOpenId,
+                            'ssoToken': ssoToken
+                        }
+                    });
+
+                    if (!userInfoResponse.ok) {
+                        throw new Error('Failed to fetch user info');
+                    }
+
+                    const userInfoData = await userInfoResponse.json();
+                    const userId = userInfoData.list[0].userId;
+
+                    const filePath = path.join('data', 'WzryData', 'UserData.yaml');
+                    let userData = {};
+
+                    if (fs.existsSync(filePath)) {
+                        userData = YAML.parse(fs.readFileSync(filePath, 'utf8'));
+                    }
+
+                    userData[user_id] = userId;
+                    fs.writeFileSync(filePath, YAML.stringify(userData), 'utf8');
+
+                    function timestampToDate(timestamp) {
+                        const date = new Date(timestamp);
+                        const year = date.getFullYear();
+                        const month = ('0' + (date.getMonth() + 1)).slice(-2);
+                        const day = ('0' + date.getDate()).slice(-2);
+                        const hours = ('0' + date.getHours()).slice(-2);
+                        const minutes = ('0' + date.getMinutes()).slice(-2);
+                        const seconds = ('0' + date.getSeconds()).slice(-2);
+                        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+                    }
+
+                    const expireDate = timestampToDate(tokenData.expireTime);
+
+                    await e.reply(`登录成功,Token有效时间: ${expireDate}`);
+                    loginSuccess = true;
+                    break;
+                }
+            } catch (error) {
+                logger.error(error);
+                continue;
             }
         }
 
@@ -96,105 +220,4 @@ function readJsonFile(filePath) {
 
 function writeJsonFile(filePath, data) {
     fs.writeFileSync(filePath, JSON.stringify(data));
-}
-
-async function getQRCode(user_id) {
-    try {
-        const response = await fetch('https://kohcamp.qq.com/sso/getqrcode', {
-            method: 'POST',
-            headers: {
-                ...getCommonHeaders(),
-                'Content-Length': '0',
-                'specialEncodeParam': 'rhIMIdd/m8fRrf5i/cQFxSdQkp+WAop5GN2SMAbFTDp0QvvG7eCJQjeBuJmyv4BT3nl0BS452F2XEQawpnfZaPpjVKdoA28/waERI7lJuPmLc8RVYiQ1SQpLFbc6eGsuoVqW//856jkWy4KuZEU03reL5mGkbIx1LpRcVkKM/3k='
-            }
-        });
-
-        if (!response.ok) {
-            return -101;
-        }
-
-        const data = await response.json();
-        const { qrCodeFile } = data;
-
-        const buffer = Buffer.from(qrCodeFile, 'base64');
-        const imagePath = path.join('data', 'qrcode.png');
-        fs.writeFileSync(imagePath, buffer);
-
-        const dirPath = path.join('data', 'WzryData', 'ScanCodeLoginData');
-        if (!fs.existsSync(dirPath)) {
-            fs.mkdirSync(dirPath, { recursive: true });
-        }
-
-        writeJsonFile(getFilePath(user_id), data);
-        return 0;
-    } catch (error) {
-        logger.error(error);
-        return -100;
-    }
-}
-
-async function checkQRCodeStatus(user_id) {
-    try {
-        const scanCodeLoginData = readJsonFile(getFilePath(user_id));
-        const response = await fetch(`https://kohcamp.qq.com/sso/qrconnect`, {
-            method: 'POST',
-            headers: {
-                ...getCommonHeaders(),
-                'Content-Type': 'application/json;charset=UTF-8'
-            },
-            body: JSON.stringify({
-                uUid: scanCodeLoginData.uUid
-            })
-        });
-
-        if (!response.ok) {
-            return -101;
-        }
-
-        const data = await response.json();
-        const { statusCode, msg, code } = data;
-
-        if (statusCode === 408 && msg === "没扫码") { } else {
-            scanCodeLoginData.code = code;
-            writeJsonFile(getFilePath(user_id), scanCodeLoginData);
-            await getTokenAndOpenId(user_id);
-            return 100;
-        }
-        return 0;
-    } catch (error) {
-        logger.error(error);
-        return -100;
-    }
-}
-
-async function getTokenAndOpenId(user_id) {
-    try {
-        const scanCodeLoginData = readJsonFile(getFilePath(user_id));
-        const response = await fetch('https://kohcamp.qq.com/sso/code2session', {
-            method: 'POST',
-            headers: {
-                ...getCommonHeaders(),
-                'Content-Type': 'application/json;charset=UTF-8',
-                'specialEncodeParam': 'bDDKzNEKn6L7257wFRD1wGRoVTNfl1kh9BnWkLaDCCeA4U4XarSrk1OptC21Zj682xDFYtfWW4Ao5uOglwReOfCvFXkwo3piug4PLll/OwXlD5aSOLn/Ucbltfw9//xJvTWB+xb9qRT3Pu1M8vm0wxX2b5OTm7SrUJ5V2jkA594='
-            },
-            body: JSON.stringify({
-                grantType: 'authorization_code',
-                code: scanCodeLoginData.code
-            })
-        });
-
-        if (!response.ok) {
-            return -101;
-        }
-
-        const data = await response.json();
-        const { ssoOpenId, ssoToken } = data.session;
-        scanCodeLoginData.ssoOpenId = ssoOpenId;
-        scanCodeLoginData.ssoToken = ssoToken;
-        writeJsonFile(getFilePath(user_id), scanCodeLoginData);
-        return 100;
-    } catch (error) {
-        logger.error(error);
-        return -100;
-    }
 }
