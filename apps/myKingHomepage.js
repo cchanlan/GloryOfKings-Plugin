@@ -73,7 +73,7 @@ export class MyKingHomepage extends plugin {
         const mods_7 = head.mods[7]
 
         const data = {
-            tplFile: 'resources/html/MyKingHomepage.html',
+            tplFile: 'plugins/GloryOfKings-Plugin/resources/html/MyKingHomepage.html',
             roleIcon: firstRole.roleIcon,
             roleName: firstRole.roleName,
             gameLevel: firstRole.gameLevel,

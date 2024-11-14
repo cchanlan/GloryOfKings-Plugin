@@ -85,8 +85,8 @@ export class QueryGameStats extends plugin {
             })
         }
 
-        const inventoryImage = await puppeteer.screenshot('queryGameStats', {
-            tplFile: 'resources/html/queryGameStats.html',
+        const inventoryImage = await puppeteer.screenshot('QueryGameStats', {
+            tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameStats.html',
             data
         })
 
