@@ -65,6 +65,7 @@ export class MyKingHomepage extends plugin {
 
         const data = {
             tplFile: 'plugins/GloryOfKings-Plugin/resources/html/MyKingHomepage.html',
+            IP: profile.ipProperty,
             roleIcon: roleCard.roleBigIcon,
             roleName: roleCard.roleName,
             gameLevel: roleCard.level,
@@ -74,12 +75,12 @@ export class MyKingHomepage extends plugin {
             roleText: roleCard.serverName,
             flagImg: roleCard.flagImg,
             roleJobIcon: roleCard.roleJobIcon,
-            content_1: profile.fightPowerItem.value1,
-            content_2: profile.totalBattleCountItem.value1,
-            content_3: profile.mvpNumItem.value1,
-            content_4: profile.winRateItem.value1,
-            content_5: `${profile.heroNumItem.value1}/${profile.heroNumItem.value2}`,
-            content_6: `${profile.skinNumItem.value1}/${profile.skinNumItem.value2}`
+            content_1: roleCard.fightPowerItem.value1,
+            content_2: roleCard.totalBattleCountItem.value1,
+            content_3: roleCard.mvpNumItem.value1,
+            content_4: roleCard.winRateItem.value1,
+            content_5: `${roleCard.heroNumItem.value1}/${roleCard.heroNumItem.value2}`,
+            content_6: `${roleCard.skinNumItem.value1}/${roleCard.skinNumItem.value2}`
         }
 
         const inventoryImage = await puppeteer.screenshot('myKingHomepage', data)

@@ -1,5 +1,11 @@
 # 更新日志
 
+## [1.1.1] - 2024-11-15
+### 修复
+- 修复了 `myKingHomepage` 无 `value1` 的问题
+### 优化
+- 优化了 `myKingHomepage.html` 的样式
+
 ## [1.1.0] - 2024-11-15
 ### 优化
 - 优化了 `myKingHomepage.html` 的样式
