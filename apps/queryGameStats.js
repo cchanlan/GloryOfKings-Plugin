@@ -80,7 +80,8 @@ export class QueryGameStats extends plugin {
         const inventoryImage = await puppeteer.screenshot('QueryGameStats', {
             tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameStats.html',
             data,
-            roleJobName: response.data.list[0].roleJobName
+            roleJobName: response.data.list[0].roleJobName,
+            winningStreak: this.calculateWinningStreak(data.map(item => item.gameResult))
         });
 
         await e.reply(inventoryImage);
@@ -119,5 +120,23 @@ export class QueryGameStats extends plugin {
         if (mvpTags.includes(item.mvpUrlV2)) tags.push('MVP');
 
         return tags;
+    }
+
+    calculateWinningStreak(results) {
+        let maxStreak = 0;
+        let currentStreak = 0;
+
+        for (let result of results) {
+            if (result === 'win') {
+                currentStreak++;
+                if (currentStreak > maxStreak) {
+                    maxStreak = currentStreak;
+                }
+            } else {
+                currentStreak = 0;
+            }
+        }
+
+        return maxStreak;
     }
 }
