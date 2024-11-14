@@ -6,5 +6,5 @@
 #### 安装
 
 ```
-git clone https://github.com/Tloml-Starry/GloryOfKings-Plugin.git ./plugins/GloryOfKings-Plugin/
+git clone https://gitee.com/Tloml-Starry/GloryOfKings-Plugin.git ./plugins/GloryOfKings-Plugin/
 ```
