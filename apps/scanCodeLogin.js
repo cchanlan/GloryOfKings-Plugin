@@ -161,8 +161,8 @@ export class ScanCodeLogin extends plugin {
                     userData[user_id] = userId;
                     fs.writeFileSync(filePath, YAML.stringify(userData), 'utf8');
 
-                    function timestampToDate(timestamp) {
-                        const date = new Date(timestamp);
+                    function formatDateString(dateString) {
+                        const date = new Date(dateString);
                         const year = date.getFullYear();
                         const month = ('0' + (date.getMonth() + 1)).slice(-2);
                         const day = ('0' + date.getDate()).slice(-2);
@@ -172,7 +172,7 @@ export class ScanCodeLogin extends plugin {
                         return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
                     }
 
-                    const expireDate = timestampToDate(tokenData.expireTime);
+                    const expireDate = formatDateString(tokenData.expireTime);
 
                     await e.reply(`登录成功,Token有效时间: ${expireDate}`);
                     loginSuccess = true;
