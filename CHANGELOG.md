@@ -1,5 +1,10 @@
 # 更新日志
 
+## [1.1.0] - 2024-11-15
+### 优化
+- 优化了 `myKingHomepage.html` 的样式
+- 更改了 `myKingHomepage` 的请求地址
+
 ## [1.0.10] - 2024-11-15
 ### 优化
 - 优化了 `QueryGameStats.html` 的样式

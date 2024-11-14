@@ -43,7 +43,7 @@ export class MyKingHomepage extends plugin {
             return;
         }
 
-        const response = await ApiService.post('/game/profile/index', {
+        const response = await ApiService.post('/userprofile/profile', {
             lastTime: 0,
             recommendPrivacy: 0,
             apiVersion: 5,
@@ -61,35 +61,25 @@ export class MyKingHomepage extends plugin {
             return;
         }
 
-        const { roleList, head } = response.data;
-
-        const firstRole = roleList[0];
-
-        const mods_1 = head.mods[0]
-        const mods_2 = head.mods[2]
-        const mods_3 = head.mods[3]
-        const mods_4 = head.mods[4]
-        const mods_5 = head.mods[5]
-        const mods_6 = head.mods[6]
-        const mods_7 = head.mods[7]
+        const { profile, roleCard } = response.data;
 
         const data = {
             tplFile: 'plugins/GloryOfKings-Plugin/resources/html/MyKingHomepage.html',
-            roleIcon: firstRole.roleIcon,
-            roleName: firstRole.roleName,
-            gameLevel: firstRole.gameLevel,
-            gameOnline: firstRole.gameOnline,
-            roleJobName: firstRole.roleJobName,
-            areaName: firstRole.areaName,
-            roleText: firstRole.roleText,
-            icon_: JSON.parse(mods_1.param1).starImg,
-            icon: mods_1.icon,
-            content_1: mods_2.content,
-            content_2: mods_3.content,
-            content_3: mods_4.content,
-            content_4: mods_5.content,
-            content_5: mods_6.content,
-            content_6: mods_7.content
+            roleIcon: roleCard.roleBigIcon,
+            roleName: roleCard.roleName,
+            gameLevel: roleCard.level,
+            gameOnline: roleCard.gameOnline,
+            roleJobName: `${roleCard.roleJobName} ${roleCard.rankingStar}星`,
+            areaName: roleCard.areaName,
+            roleText: roleCard.serverName,
+            flagImg: roleCard.flagImg,
+            roleJobIcon: roleCard.roleJobIcon,
+            content_1: profile.fightPowerItem.value1,
+            content_2: profile.totalBattleCountItem.value1,
+            content_3: profile.mvpNumItem.value1,
+            content_4: profile.winRateItem.value1,
+            content_5: `${profile.heroNumItem.value1}/${profile.heroNumItem.value2}`,
+            content_6: `${profile.skinNumItem.value1}/${profile.skinNumItem.value2}`
         }
 
         const inventoryImage = await puppeteer.screenshot('myKingHomepage', data)
