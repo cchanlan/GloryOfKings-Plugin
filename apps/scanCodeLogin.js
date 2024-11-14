@@ -61,8 +61,8 @@ export class ScanCodeLogin extends plugin {
     }
 }
 
-function getFilePath(user_id, fileName = '') {
-    return path.join('data', 'WzryData', 'ScanCodeLoginData', `${user_id}${fileName}`);
+function getFilePath(user_id) {
+    return path.join('data', 'WzryData', 'ScanCodeLoginData', `${user_id}.json`);
 }
 
 function readJsonFile(filePath) {
