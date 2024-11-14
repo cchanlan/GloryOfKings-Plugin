@@ -76,10 +76,10 @@ export class MyKingHomepage extends plugin {
             flagImg: roleCard.flagImg,
             roleJobIcon: roleCard.roleJobIcon,
             content_1: roleCard.fightPowerItem.value1,
-            content_2: roleCard.totalBattleCountItem.value1,
-            content_3: roleCard.mvpNumItem.value1,
-            content_4: roleCard.winRateItem.value1,
-            content_5: `${roleCard.heroNumItem.value1}/${roleCard.heroNumItem.value2}`,
+            content_2: roleCard.mvpNumItem.value1,
+            content_3: roleCard.totalBattleCountItem.value1,
+            content_4: `${roleCard.heroNumItem.value1}/${roleCard.heroNumItem.value2}`,
+            content_5: roleCard.winRateItem.value1,
             content_6: `${roleCard.skinNumItem.value1}/${roleCard.skinNumItem.value2}`
         }
 

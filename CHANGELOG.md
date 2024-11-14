@@ -1,5 +1,11 @@
 # 更新日志
 
+
+## [1.1.2] - 2024-11-15
+### 修复
+- 修复了 `myKingHomepage` 信息展示错位的问题
+- 修复了 `myKingHomepage.html` 段位图片错位问题
+
 ## [1.1.1] - 2024-11-15
 ### 修复
 - 修复了 `myKingHomepage` 无 `value1` 的问题

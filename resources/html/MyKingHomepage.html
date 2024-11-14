@@ -96,27 +96,39 @@
     }
 
     .rank-image-container {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 20px;
+        position: relative;
+        width: 200px;
+        height: auto;
     }
 
     .rank-image {
-        width: 200px;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 100%;
         height: auto;
-        margin-bottom: -30px;
-        transition: transform 0.3s ease;
     }
 
-    .rank-image:first-of-type {
-        margin-bottom: 10px;
+    .rank-image-background {
+        position: relative;
+        width: 100%;
+        height: auto;
     }
 
     .rank-badge {
-        margin-top: 10px;
+        position: absolute;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #ffd700;
+        color: #333;
+        padding: 5px 10px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: bold;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        white-space: nowrap;
     }
 
     .stats-grid {
@@ -207,9 +219,9 @@
                     </div>
                 </div>
             </div>
-            <div class="rank-image-container">
+            <div class="rank-image-container"></div>
+                <img src="{{flagImg}}" alt="段位图片" class="rank-image-background">
                 <img src="{{roleJobIcon}}" alt="段位图片" class="rank-image">
-                <img src="{{flagImg}}" alt="段位图片" class="rank-image">
                 <span class="rank-badge">{{roleJobName}}</span>
             </div>
         </div>
