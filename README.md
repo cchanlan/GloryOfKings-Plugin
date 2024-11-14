@@ -24,4 +24,4 @@ git clone https://gitee.com/Tloml-Starry/GloryOfKings-Plugin.git ./plugins/Glory
  - 使用Yunzai自带指令`#全部更新`
 
 ## 功能
- - 发送`NL帮助`查看
+ - 发送`王者帮助`查看
