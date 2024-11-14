@@ -170,9 +170,9 @@ export class ScanCodeLogin extends plugin {
                         const minutes = ('0' + date.getMinutes()).slice(-2);
                         const seconds = ('0' + date.getSeconds()).slice(-2);
                         return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-                    }
+                      }
 
-                    const expireDate = formatDateString(tokenData.expireTime);
+                    const expireDate = formatDateString(parseInt(tokenData.expireTime) * 1000);
 
                     await e.reply(`登录成功,Token有效时间: ${expireDate}`);
                     loginSuccess = true;
