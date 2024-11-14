@@ -63,33 +63,61 @@ export class QueryGameStats extends plugin {
 
         await e.reply(`共查询到${response.data.list.length}条游戏记录`);
 
-        let data = []
-        for (const item of response.data.list) {
-            let type = item.gametype
-            if (type === 6) type = '1V1'
-            else if (type === 4) type = '排位赛'
-            else if (type === 5) type = '王者峡谷'
-            else if (type === 9) type = '火焰山大战'
-            else if (type === 20) type = '10V10排位赛'
-            else type = '未知'
-            data.push({
-                gameTpye: type,
-                gameTime: item.gametime,
-                gameDuration: Math.floor(item.usedTime / 60) + '分' + item.usedTime % 60 + '秒',
-                killCnt: item.killcnt,
-                deadCnt: item.deadcnt,
-                assistCnt: item.assistcnt,
-                gameResult: item.gameresult === 1 ? '胜利' : item.gameresult === 2 ? '失败' : item.gameresult,
-                heroIcon: item.heroIcon,
-                desc: item.desc
-            })
-        }
+        const data = response.data.list.map(item => ({
+            gameTpye: this.getGameType(item.gametype),
+            gameTime: item.gametime,
+            gameDuration: `${Math.floor(item.usedTime / 60)}分${item.usedTime % 60}秒`,
+            killCnt: item.killcnt,
+            deadCnt: item.deadcnt,
+            assistCnt: item.assistcnt,
+            gameResult: this.getGameResult(item.gameresult),
+            heroIcon: item.heroIcon,
+            desc: item.desc,
+            tags: this.getTags(item),
+            gradeGame: item.gradeGame
+        }));
 
         const inventoryImage = await puppeteer.screenshot('QueryGameStats', {
             tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameStats.html',
-            data
-        })
+            data,
+            roleJobName: response.data.list[0].roleJobName
+        });
 
-        await e.reply(inventoryImage)
+        await e.reply(inventoryImage);
+    }
+
+    getGameType(type) {
+        switch (type) {
+            case 6: return '1V1';
+            case 4: return '排位赛';
+            case 5: return '王者峡谷';
+            case 9: return '火焰山大战';
+            case 20: return '10V10排位赛';
+            default: return `未知: ${type}`;
+        }
+    }
+
+    getGameResult(result) {
+        return result === 1 ? '胜利' : result === 2 ? '失败' : result;
+    }
+
+    getTags(item) {
+        const tags = [];
+        const descTags = ['实力局', '翻盘局', '暴走局', '尽力局'];
+        const evaluateTags = {
+            'https://camp.qq.com/battle/common/evaluateV3/gold_warrior.png': '金牌战士',
+            'https://camp.qq.com/battle/common/evaluateV3/gold_mage.png': '金牌法师',
+            'https://camp.qq.com/battle/common/evaluateV3/gold_support.png': '金牌辅助',
+            'https://camp.qq.com/battle/common/evaluateV3/silver_warrior.png': '银牌战士',
+            'https://camp.qq.com/battle/common/evaluateV3/silver_mage.png': '银牌法师',
+            'https://camp.qq.com/battle/common/evaluateV3/silver_support.png': '银牌辅助'
+        };
+        const mvpTags = ['https://camp.qq.com/battle/common/mvpV3/svp.png', 'https://camp.qq.com/battle/common/mvpV3/mvp.png'];
+
+        if (descTags.includes(item.desc)) tags.push(item.desc);
+        if (evaluateTags[item.evaluateUrlV2]) tags.push(evaluateTags[item.evaluateUrlV2]);
+        if (mvpTags.includes(item.mvpUrlV2)) tags.push('MVP');
+
+        return tags;
     }
 }

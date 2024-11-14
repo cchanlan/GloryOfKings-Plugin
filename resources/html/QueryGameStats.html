@@ -218,6 +218,12 @@
             margin-bottom: 15px;
         }
     }
+
+    .result-duration, .result-rating {
+        font-size: 0.9em;
+        color: var(--text-color);
+        margin-top: 5px;
+    }
 </style>
 
 <body>
@@ -239,7 +245,7 @@
                 <div class="stat-label">总积分</div>
             </div>
             <div class="stat-item">
-                <div class="stat-value">****</div>
+                <div class="stat-value">{{roleJobName}}</div>
                 <div class="stat-label">当前段位</div>
             </div>
         </div>
@@ -250,9 +256,13 @@
                 <div class="result-info">
                     <div class="result-date">{{item.gameTime}}</div>
                     <div class="result-opponent">{{item.gameTpye}}</div>
-                    <div class="result-score">{{item.killCnt}}/{{item.deadCnt}}/{{item.assistCnt}}</div>
+                    <div class="result-score">击杀: {{item.killCnt}}/{{item.deadCnt}}/{{item.assistCnt}}</div>
+                    <div class="result-duration">时长: {{item.gameDuration}} 分钟</div>
+                    <div class="result-rating">评分: {{item.gradeGame}}</div>
                     <div class="tags">
-                        <span class="tag">{{item.gameResult}}</span>
+                        {{each item.tags tag}}
+                        <span class="tag">{{tag}}</span>
+                        {{/each}}
                     </div>
                 </div>
                 <span class="result-outcome {{item.gameResult === '胜利' ? 'win' : 'loss'}}">{{item.gameResult}}</span>
