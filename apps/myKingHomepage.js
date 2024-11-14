@@ -2,6 +2,7 @@ import puppeteer from '../../../lib/puppeteer/puppeteer.js';
 import YAML from 'yaml';
 import ApiService from '../utils/api.js';
 import path from 'path';
+import fs from 'fs';
 
 export class MyKingHomepage extends plugin {
     constructor() {
