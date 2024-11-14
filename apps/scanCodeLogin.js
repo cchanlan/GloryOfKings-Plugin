@@ -35,7 +35,8 @@ export class ScanCodeLogin extends plugin {
             event: 'message',
             priority: 1,
             rule: [
-                { reg: /^#营地扫码$/, fnc: 'scanCodeLogin' }
+                { reg: /^#营地扫码$/, fnc: 'scanCodeLogin' },
+                { reg: /^#我的王者Tk$/, fnc: 'getMyTokenAndOpenId' }
             ]
         })
     }
@@ -62,6 +63,26 @@ export class ScanCodeLogin extends plugin {
         if (!loginSuccess) {
             await e.reply('扫码超时，请重新尝试');
         }
+    }
+
+    async getMyTokenAndOpenId(e) {
+        const { user_id } = e;
+        const filePath = getFilePath(user_id);
+
+        if (!fs.existsSync(filePath)) {
+            await e.reply('未找到登录信息，请先扫码登录。');
+            return;
+        }
+
+        const userData = readJsonFile(filePath);
+        const { ssoOpenId, ssoToken } = userData;
+
+        if (!ssoOpenId || !ssoToken) {
+            await e.reply('未找到有效的Token或OpenId，请重新扫码登录。');
+            return;
+        }
+
+        await e.reply(`您的Token: ${ssoToken}\n您的OpenId: ${ssoOpenId}`);
     }
 }
 
