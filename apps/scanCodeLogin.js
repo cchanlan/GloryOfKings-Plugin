@@ -48,15 +48,19 @@ export class ScanCodeLogin extends plugin {
 
         fs.unlinkSync(imagePath);
 
+        let loginSuccess = false;
         for (let i = 0; i < 120; i++) {
             const res = await checkQRCodeStatus(user_id);
             await common.sleep(1000);
             if (res === 100) {
-                await e.reply('登录成功，正在获取token和openId');
-                const { ssoOpenId, ssoToken, ssoappid, ssobusinessid } = JSON.parse(fs.readFileSync(path.join('data', 'WzryData', 'ScanCodeLoginData', `${user_id}.json`), 'utf8'));
-                await e.reply(`ssoOpenId: ${ssoOpenId}\nssoToken: ${ssoToken}\rssobusinessid${ssobusinessid}\nssoappid${ssoappid}`);
+                await e.reply('登录成功，Token时效仅一天');
+                loginSuccess = true;
                 break;
             }
+        }
+
+        if (!loginSuccess) {
+            await e.reply('扫码超时，请重新尝试');
         }
     }
 }
