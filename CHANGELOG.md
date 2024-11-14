@@ -1,9 +1,15 @@
 # 更新日志
 
+## [1.0.3] - 2024-11-14
+### 修复
+- 修复了 `myKingHomepage` 功能
+- 修复了 `queryGameStats` 功能
+- 修复了 `scanCodeLogin` 功能
+
 ## [1.0.2] - 2024-11-14
-### 新增
-- 优化了 `myKingHomepage` 功能
-- 优化了 `queryGameStats` 功能
+### 修复
+- 修复了 `myKingHomepage` 功能
+- 修复了 `queryGameStats` 功能
 
 ## [1.0.1] - 2024-11-14
 ### 新增

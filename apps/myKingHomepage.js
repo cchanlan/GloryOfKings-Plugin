@@ -1,5 +1,4 @@
-import fetch from 'node-fetch';
-import puppeteer from '../../lib/puppeteer/puppeteer.js';
+import puppeteer from '../../../lib/puppeteer/puppeteer.js';
 import YAML from 'yaml';
 import ApiService from '../utils/api.js';
 

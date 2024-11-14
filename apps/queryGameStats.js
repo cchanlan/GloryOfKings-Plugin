@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import puppeteer from '../../lib/puppeteer/puppeteer.js';
+import puppeteer from '../../../lib/puppeteer/puppeteer.js';
 import YAML from 'yaml';
 import ApiService from '../utils/api.js';
 

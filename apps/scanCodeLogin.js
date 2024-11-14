@@ -1,9 +1,8 @@
 import fetch from 'node-fetch'
 import fs from 'fs'
 import path from 'path'
-import common from '../../lib/common/common.js'
+import common from '../../../lib/common/common.js'
 
-// 获取通用请求头
 function getCommonHeaders() {
     return {
         'Accept': 'application/json, text/plain, */*',
