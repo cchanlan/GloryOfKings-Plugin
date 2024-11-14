@@ -174,7 +174,7 @@ export class ScanCodeLogin extends plugin {
 
                     const expireDate = formatDateString(parseInt(tokenData.expireTime) * 1000);
 
-                    await e.reply(`登录成功,Token有效时间: ${expireDate}`);
+                    await e.reply(`登录成功\rToken过期时间: ${expireDate}\r过期之后需要重新扫码登录`);
                     loginSuccess = true;
                     break;
                 }
