@@ -272,7 +272,7 @@
             <div>{{mapName}}   {{startTime}}    {{usedTime}}分    {{matchDesc}}</div>
             <div>经济</div>
             <div class="economy-bar">
-                <div class="economy-progress" style="width: {{economyRate}}">{{myMoney}}%</div>
+                <div class="economy-progress" style="width: {{economyRate}}%">{{myMoney}}%</div>
                 <div class="economy-remaining">{{enemyMoney}}%</div>
             </div>
             <div class="resources">
@@ -281,11 +281,11 @@
                     <div class="resource-score">{{myTowerCnt}}:{{enemyTowerCnt}}</div>
                 </div>
                 <div class="resource-item">
-                    <div class="resource-icon">待添加</div>
+                    <div class="resource-icon"></div>
                     <div class="resource-score">{{}}</div>
                 </div>
                 <div class="resource-item">
-                    <div class="resource-icon">待添加</div>
+                    <div class="resource-icon"></div>
                     <div class="resource-score">{{}}</div>
                 </div>
             </div>
@@ -296,11 +296,16 @@
             <div class="player-list">
                 {{each myRoles item}}
                 <div class="player-card">
-                    <img src="{{item.battleRecords.usedHero.heroIcon}}" alt="英雄头像" class="player-avatar">
-                    <span class="player-level">{{item.battleStats.heroLevel}}</span>
+                    <div class="player-avatar">
+                        <img src="{{item.battleRecords.usedHero.heroIcon}}" alt="英雄头像">
+                        <div class="player-level">{{item.battleStats.heroLevel}}</div>
+                    </div>
                     <div class="player-info">
                         <div class="player-name">
                             {{item.basicInfo.roleName}}
+                        </div>
+                        <div class="hero-name" style="color: gray;">
+                            {{item.battleRecords.usedHero.heroName}}
                         </div>
                         <div class="player-stats">{{item.battleStats.killCnt}}/{{item.battleStats.deadCnt}}/{{item.battleStats.assistCnt}}</div>
                         <div class="equipment-list">
@@ -321,11 +326,16 @@
            <div class="player-list">
                 {{each enemyRoles item}}
                 <div class="player-card">
-                    <img src="{{item.battleRecords.usedHero.heroIcon}}" alt="英雄头像" class="player-avatar">
-                    <span class="player-level">{{item.battleStats.heroLevel}}</span>
+                    <div class="player-avatar">
+                        <img src="{{item.battleRecords.usedHero.heroIcon}}" alt="英雄头像">
+                        <div class="player-level">{{item.battleStats.heroLevel}}</div>
+                    </div>
                     <div class="player-info">
                         <div class="player-name">
                             {{item.basicInfo.roleName}}
+                        </div>
+                        <div class="hero-name" style="color: gray;">
+                            {{item.battleRecords.usedHero.heroName}}
                         </div>
                         <div class="player-stats">{{item.battleStats.killCnt}}/{{item.battleStats.deadCnt}}/{{item.battleStats.assistCnt}}</div>
                         <div class="equipment-list">

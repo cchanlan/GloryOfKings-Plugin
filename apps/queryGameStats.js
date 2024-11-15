@@ -89,6 +89,14 @@ export class QueryGameStats extends plugin {
 
             const { head, battle, redTeam, blueTeam, redRoles, blueRoles } = response.data;
 
+            if (response.returnCode === -102) {
+                return e.reply('参数错误，请求失败')
+            }
+
+            if (response.returnCode !== 0) {
+                return e.reply(response.returnMsg)
+            }
+
             let myTeamColor = '';
             let enemyTeamColor = '';
             if (head.acntCamp === redTeam.acntCamp) {
