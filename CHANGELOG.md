@@ -1,5 +1,9 @@
 # 更新日志
 
+## [1.2.1] - 2024-11-16
+### 修复
+- 修复了 `queryGameRecordDetails` 的问题
+
 ## [1.2.0] - 2024-11-16
 ### 新增
 - 新增了 `queryGameRecordDetails` 功能，用户可以查看对局详情

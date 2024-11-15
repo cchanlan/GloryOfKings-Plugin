@@ -49,7 +49,7 @@ export class QueryGameStats extends plugin {
             index = false;
         }
 
-        const response = await ApiService.post('/game/morebattlelist', {
+        const response_ = await ApiService.post('/game/morebattlelist', {
             lastTime: 0,
             recommendPrivacy: 0,
             apiVersion: 5,
@@ -60,13 +60,13 @@ export class QueryGameStats extends plugin {
             ssotoken: ssoToken
         });
 
-        if (response.returnCode === -30003) {
+        if (response_.returnCode === -30003) {
             e.reply('登陆状态失效，请重新扫码登录');
             return;
         }
 
         if (index) {
-            const { battleType, gameSvrId: gameSvr, relaySvrId: relaySvr, battleDetailUrl, gameSeq } = response.data.list[index - 1];
+            const { battleType, gameSvrId: gameSvr, relaySvrId: relaySvr, battleDetailUrl, gameSeq } = response_.data.list[index - 1];
 
             let targetRoleId = null;
             if (battleDetailUrl.length > 0) {
@@ -107,11 +107,12 @@ export class QueryGameStats extends plugin {
             });
 
             await e.reply(inventoryImage);
+            return;
         }
 
-        await e.reply(`共查询到${response.data.list.length}条游戏记录`);
+        await e.reply(`共查询到${response_.data.list.length}条游戏记录`);
 
-        const data = response.data.list.map(item => ({
+        const data = response_.data.list.map(item => ({
             gameTpye: this.getGameType(item.gametype),
             gameTime: item.gametime,
             gameDuration: `${Math.floor(item.usedTime / 60)}分${item.usedTime % 60}秒`,
@@ -128,7 +129,7 @@ export class QueryGameStats extends plugin {
         const inventoryImage = await puppeteer.screenshot('QueryGameRecordList', {
             tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordList.html',
             data,
-            roleJobName: response.data.list[0].roleJobName,
+            roleJobName: response_.data.list[0].roleJobName,
             winningStreak: this.calculateWinningStreak(data.map(item => item.gameResult))
         });
 
