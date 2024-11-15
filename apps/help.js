@@ -17,6 +17,7 @@ export class Help extends plugin {
             '1. #王者主页 - 查看你的王者主页',
             '2. #查询战绩 - 查询你的游戏战绩',
             '3. #营地扫码 - 扫码登录',
+            '4. #王者更新/农药更新 - 更新插件'
         ];
         await e.reply(helpMessage.join('\n'));
     }
