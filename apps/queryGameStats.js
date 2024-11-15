@@ -148,9 +148,13 @@ export class QueryGameStats extends plugin {
                 us.myBdragon1 = blueTeam.bdragon1
                 us.myBdragon2 = blueTeam.bdragon2
                 us.myBdragon3 = blueTeam.bdragon3
+                us.myLdragon1 = blueTeam.ldragon1
+                us.myLdragon2 = blueTeam.ldragon2
                 us.enemyBdragon1 = redTeam.bdragon1
                 us.enemyBdragon2 = redTeam.bdragon2
                 us.enemyBdragon3 = redTeam.bdragon3
+                us.enemyLdragon1 = redTeam.ldragon1
+                us.enemyLdragon2 = redTeam.ldragon2
                 us.myKillDeadAssistCnt = blueTeam.killCnt + '/' + blueTeam.deadCnt + '/' + blueTeam.assistCnt
                 us.enemyKillDeadAssistCnt = redTeam.killCnt + '/' + redTeam.deadCnt + '/' + redTeam.assistCnt
                 us.myRoles = blueRoles
@@ -164,9 +168,13 @@ export class QueryGameStats extends plugin {
                 us.myBdragon1 = redTeam.bdragon1
                 us.myBdragon2 = redTeam.bdragon2
                 us.myBdragon3 = redTeam.bdragon3
+                us.myLdragon1 = redTeam.ldragon1
+                us.myLdragon2 = redTeam.ldragon2
                 us.enemyBdragon1 = blueTeam.bdragon1
                 us.enemyBdragon2 = blueTeam.bdragon2
                 us.enemyBdragon3 = blueTeam.bdragon3
+                us.enemyLdragon1 = blueTeam.ldragon1
+                us.enemyLdragon2 = blueTeam.ldragon2
                 us.myKillDeadAssistCnt = redTeam.killCnt + '/' + redTeam.deadCnt + '/' + redTeam.assistCnt
                 us.enemyKillDeadAssistCnt = blueTeam.killCnt + '/' + blueTeam.deadCnt + '/' + blueTeam.assistCnt
                 us.myRoles = redRoles
