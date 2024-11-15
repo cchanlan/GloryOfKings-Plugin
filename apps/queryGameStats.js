@@ -132,7 +132,7 @@ export class QueryGameStats extends plugin {
             us.matchDesc = head.matchDesc
 
             if (myTeamColor === '蓝') {
-                us.myEconomyRate = `${(blueTeam.money / (blueTeam.money + redTeam.money)) * 100}%`;
+                us.myEconomyRate = (blueTeam.money / (blueTeam.money + redTeam.money)) * 100;
                 us.myMoney = blueTeam.money > 1000 ? (blueTeam.money / 1000).toFixed(1) + 'k' : blueTeam.money;
                 us.myTowerCnt = blueTeam.towerCnt
                 us.enemyMoney = redTeam.money > 1000 ? (redTeam.money / 1000).toFixed(1) + 'k' : redTeam.money;
@@ -142,7 +142,7 @@ export class QueryGameStats extends plugin {
                 us.myRoles = blueRoles
                 us.enemyRoles = redRoles
             } else {
-                us.myEconomyRate = `${(redTeam.money / (blueTeam.money + redTeam.money)) * 100}%`;
+                us.myEconomyRate = (redTeam.money / (blueTeam.money + redTeam.money)) * 100;
                 us.myMoney = redTeam.money > 1000 ? (redTeam.money / 1000).toFixed(1) + 'k' : redTeam.money;
                 us.myTowerCnt = redTeam.towerCnt
                 us.enemyMoney = blueTeam.money > 1000 ? (blueTeam.money / 1000).toFixed(1) + 'k' : blueTeam.money;
