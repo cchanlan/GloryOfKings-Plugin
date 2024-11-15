@@ -296,10 +296,7 @@
             <div class="player-list">
                 {{each myRoles item}}
                 <div class="player-card">
-                    <div class="player-avatar">
-                        <img src="{{item.battleRecords.usedHero.heroIcon}}" alt="英雄头像">
-                        <div class="player-level">{{item.battleStats.heroLevel}}</div>
-                    </div>
+                    <img src="{{item.battleRecords.usedHero.heroIcon}}" alt="英雄头像" class="player-avatar">
                     <div class="player-info">
                         <div class="player-name">
                             {{item.basicInfo.roleName}}
@@ -326,10 +323,7 @@
            <div class="player-list">
                 {{each enemyRoles item}}
                 <div class="player-card">
-                    <div class="player-avatar">
-                        <img src="{{item.battleRecords.usedHero.heroIcon}}" alt="英雄头像">
-                        <div class="player-level">{{item.battleStats.heroLevel}}</div>
-                    </div>
+                    <img src="{{item.battleRecords.usedHero.heroIcon}}" alt="英雄头像" class="player-avatar">
                     <div class="player-info">
                         <div class="player-name">
                             {{item.basicInfo.roleName}}
