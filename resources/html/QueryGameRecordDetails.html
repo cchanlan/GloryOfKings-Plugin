@@ -259,7 +259,7 @@
 <body>
     <div class="match-header">
         <div class="victory-text">
-            {{data.head.gameResult === false ? '失败' : '胜利'}} <span>{{data.head.gameResult === false ? 'DEFEAT' : 'VICTORY'}}</span>
+            {{gameResult}} <span>{{gameResultEn}}</span>
         </div>
     </div>
 
@@ -269,78 +269,78 @@
 
     <div class="match-content">
         <div class="stats-card">
-            <div>{{data.head.mapName}} {{data.battle.dtEventTime}} {{data.battle.usedTime}}秒 {{data.head.matchDesc}}</div>
+            <div>{{mapName}}   {{startTime}}    {{usedTime}}分    {{matchDesc}}</div>
             <div>经济</div>
             <div class="economy-bar">
-                <div class="economy-progress" style="width: {{data.redTeamEconomy}}%">{{data.redTeamEconomy}}%</div>
-                <div class="economy-remaining">{{data.blueTeamEconomy}}%</div>
+                <div class="economy-progress" style="width: {{economyRate}}">{{myMoney}}%</div>
+                <div class="economy-remaining">{{enemyMoney}}%</div>
             </div>
             <div class="resources">
                 <div class="resource-item">
-                    <div class="resource-icon">🏰</div>
-                    <div class="resource-score">{{data.redTeam.towerCnt}}:{{data.blueTeam.towerCnt}}</div>
+                    <div class="resource-icon">塔</div>
+                    <div class="resource-score">{{myTowerCnt}}:{{enemyTowerCnt}}</div>
                 </div>
                 <div class="resource-item">
-                    <div class="resource-icon">🐉</div>
-                    <div class="resource-score">{{data.redTeam.bdragon1 + data.redTeam.bdragon2 + data.redTeam.bdragon3}}:{{data.blueTeam.bdragon1 + data.blueTeam.bdragon2 + data.blueTeam.bdragon3}}</div>
+                    <div class="resource-icon">待添加</div>
+                    <div class="resource-score">{{}}</div>
                 </div>
                 <div class="resource-item">
-                    <div class="resource-icon">🗼</div>
-                    <div class="resource-score">{{data.redTeam.ldragon1 + data.redTeam.ldragon2}}:{{data.blueTeam.ldragon1 + data.blueTeam.ldragon2}}</div>
+                    <div class="resource-icon">待添加</div>
+                    <div class="resource-score">{{}}</div>
                 </div>
             </div>
         </div>
 
         <div class="stats-card">
-            <h3 class="team-header">红队{{data.redTeamResult}} {{data.redTeam.killCnt}}/{{data.redTeam.deadCnt}}/{{data.redTeam.assistCnt}}</h3>
-            <div class="player-list">
-                {{@each data.redRoles}}
+            <h3 class="team-header">{{myTeamColor}}队{{myKillDeadAssistCnt}}</h3>
+            <!-- <div class="player-list">
+                {{@each data.redRoles item}}
                 <div class="player-card">
-                    <img src="{{this.basicInfo.roleIcon}}" alt="{{this.basicInfo.roleName}}" class="player-avatar">
-                    <span class="player-level">{{this.battleStats.heroLevel}}</span>
+                    <img src="{{item.basicInfo.roleIcon}}" alt="{{item.basicInfo.roleName}}" class="player-avatar">
+                    <span class="player-level">{{item.battleStats.heroLevel}}</span>
                     <div class="player-info">
                         <div class="player-name">
-                            {{this.basicInfo.roleName}}
-                            <img src="{{this.battleStats.evaluateIcon}}" alt="段位" style="width: 20px; height: 20px;">
+                            {{item.basicInfo.roleName}}
+                            <img src="{{item.battleStats.evaluateIcon}}" alt="段位" style="width: 20px; height: 20px;">
                         </div>
-                        <div class="player-stats">{{this.battleStats.killCnt}}/{{this.battleStats.deadCnt}}/{{this.battleStats.assistCnt}}</div>
+                        <div class="player-stats">{{item.battleStats.killCnt}}/{{item.battleStats.deadCnt}}/{{item.battleStats.assistCnt}}</div>
                         <div class="equipment-list">
-                            <div class="equipment-item"><img src="{{this.battleRecords.skill.skillIcon}}" alt="技能"></div>
-                            {{@each this.battleRecords.finalEquips}}
-                            <div class="equipment-item"><img src="{{this.equipIcon}}" alt="装备"></div>
+                            <div class="equipment-item"><img src="{{item.battleRecords.skill.skillIcon}}" alt="技能"></div>
+                            {{@each item.battleRecords.finalEquips}}
+                            <div class="equipment-item"><img src="{{item.equipIcon}}" alt="装备"></div>
                             {{/each}}
                         </div>
                     </div>
-                    <div class="score">{{this.battleStats.gradeGame}}分</div>
+                    <div class="score">{{item.battleStats.gradeGame}}分</div>
                 </div>
                 {{/each}}
-            </div>
+            </div> -->
         </div>
 
         <div class="stats-card">
-            <h3 class="team-header">蓝队{{data.blueTeamResult}} {{data.blueTeam.killCnt}}/{{data.blueTeam.deadCnt}}/{{data.blueTeam.assistCnt}}</h3>
-            <div class="player-list">
-                {{@each data.blueRoles}}
+            <h3 class="team-header">{{enemyTeamColor}}队{{enemyKillDeadAssistCnt}}</h3>
+           <!--  <div class="player-list">
+                {{@each data.blueRoles item}}
                 <div class="player-card">
-                    <img src="{{this.basicInfo.roleIcon}}" alt="{{this.basicInfo.roleName}}" class="player-avatar">
-                    <span class="player-level">{{this.battleStats.heroLevel}}</span>
+                    <img src="{{item.basicInfo.roleIcon}}" alt="{{item.basicInfo.roleName}}" class="player-avatar">
+                    <span class="player-level">{{item.battleStats.heroLevel}}</span>
                     <div class="player-info">
                         <div class="player-name">
-                            {{this.basicInfo.roleName}}
-                            <img src="{{this.battleStats.evaluateIcon}}" alt="段位" style="width: 20px; height: 20px;">
+                            {{item.basicInfo.roleName}}
+                            <img src="{{item.battleStats.evaluateIcon}}" alt="段位" style="width: 20px; height: 20px;">
                         </div>
-                        <div class="player-stats">{{this.battleStats.killCnt}}/{{this.battleStats.deadCnt}}/{{this.battleStats.assistCnt}}</div>
+                        <div class="player-stats">{{item.battleStats.killCnt}}/{{item.battleStats.deadCnt}}/{{item.battleStats.assistCnt}}</div>
                         <div class="equipment-list">
-                            <div class="equipment-item"><img src="{{this.battleRecords.skill.skillIcon}}" alt="技能"></div>
-                            {{@each this.battleRecords.finalEquips}}
-                            <div class="equipment-item"><img src="{{this.equipIcon}}" alt="装备"></div>
+                            <div class="equipment-item"><img src="{{item.battleRecords.skill.skillIcon}}" alt="技能"></div>
+                            {{@each item.battleRecords.finalEquips}}
+                            <div class="equipment-item"><img src="{{item.equipIcon}}" alt="装备"></div>
                             {{/each}}
                         </div>
                     </div>
-                    <div class="score">{{this.battleStats.gradeGame}}分</div>
+                    <div class="score">{{item.battleStats.gradeGame}}分</div>
                 </div>
                 {{/each}}
-            </div>
+            </div> -->
         </div>
     </div>
 </body>

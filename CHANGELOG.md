@@ -1,5 +1,9 @@
 # 更新日志
 
+## [1.2.2] - 2024-11-16
+### 修复
+- 修复了 `queryGameRecordDetails` 的胜负展示
+
 ## [1.2.1] - 2024-11-16
 ### 修复
 - 修复了 `queryGameRecordDetails` 的问题

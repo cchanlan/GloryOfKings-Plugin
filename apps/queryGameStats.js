@@ -87,24 +87,77 @@ export class QueryGameStats extends plugin {
                 ssotoken: ssoToken
             })
 
-            const redTeamMoney = response.data.redTeam.money;
-            const blueTeamMoney = response.data.blueTeam.money;
-            const totalMoney = redTeamMoney + blueTeamMoney;
-            const redTeamEconomy = (redTeamMoney / totalMoney) * 100;
-            const blueTeamEconomy = (blueTeamMoney / totalMoney) * 100;
+            const { head,battle, redTeam, blueTeam } = response.data;
+
+            let myTeamColor = '';
+            let enemyTeamColor = '';
+            if (head.acntCamp === redTeam.acntCamp) {
+                myTeamColor = '红';
+                enemyTeamColor = '蓝';
+            } else if (head.acntCamp === blueTeam.acntCamp) {
+                myTeamColor = '蓝';
+                enemyTeamColor = '红';
+            }
+
+            /**
+             * gameResult 游戏结果  
+             * gameResultEn 游戏结果英文  
+             * mapName 地图名称  
+             * startTime 游戏开始时间  
+             * usedTime 游戏时长  
+             * matchDesc 对局描述  
+             * economyRate 经济百分比  
+             *   
+             * myMoney 我方经济  
+             * myTowerCnt 我方推塔数量  
+             * myKillDeadAssistCnt 我方击杀死亡助攻数量  
+             *   
+             * enemyMoney 敌方经济  
+             * enemyTowerCnt 敌方推塔数量  
+             * enemyKillDeadAssistCnt 敌方击杀死亡助攻数量  
+             */
+            let us = {}
+            
+            if (head.gameResult) {
+                us.gameResult = '胜利'
+                us.gameResultEn = 'VICTORY';
+            } else {
+                us.gameResult = '失败';
+                us.gameResultEn = 'DEFEAT';
+            }
+
+            us.mapName = head.mapName
+            us.startTime = battle.startTime
+            us.usedTime = Math.ceil(battle.usedTime / 60)
+            us.matchDesc = head.matchDesc
+
+            if (myTeamColor === '蓝') {
+                us.myMoney = blueTeam.money
+                us.myTowerCnt = blueTeam.towerCnt
+                us.enemyMoney = redTeam.money
+                us.enemyTowerCnt = redTeam.towerCnt
+                us.myKillDeadAssistCnt = redTeam.killCnt + '/' + redTeam.deadCnt + '/' + redTeam.assistCnt
+                us.enemyKillDeadAssistCnt = blueTeam.killCnt + '/' + blueTeam.deadCnt + '/' + blueTeam.assistCnt
+            } else {
+                us.myMoney = redTeam.money
+                us.myTowerCnt = redTeam.towerCnt
+                us.enemyMoney = blueTeam.money
+                us.enemyTowerCnt = blueTeam.towerCnt
+                us.myKillDeadAssistCnt = blueTeam.killCnt + '/' + blueTeam.deadCnt + '/' + blueTeam.assistCnt
+                us.enemyKillDeadAssistCnt = redTeam.killCnt + '/' + redTeam.deadCnt + '/' + redTeam.assistCnt
+            }
+            
+            us.myEconomyRate = (us.myMoney / (us.myMoney + us.enemyMoney)) * 100;
 
             const data = {
-                ...response.data,
-                redTeamEconomy,
-                blueTeamEconomy,
-                redTeamResult: response.data.redTeam.gameResult ? '胜利' : '失败',
-                blueTeamResult: response.data.blueTeam.gameResult ? '胜利' : '失败'
+                tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordDetails.html',
+                ...us,
+                myTeamColor,
+                enemyTeamColor,
+                battle: response.data.battle
             };
 
-            const inventoryImage = await puppeteer.screenshot('QueryGameRecordDetails', {
-                tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordDetails.html',
-                data
-            });
+            const inventoryImage = await puppeteer.screenshot('QueryGameRecordDetails', data);
 
             await e.reply(inventoryImage);
             return;
