@@ -361,7 +361,7 @@
         </div>
 
         <div class="stats-card">
-            <div class="team-header-container">
+            <div class="{{gameResult === '胜利' ? 'team-header-container' : 'team-header-container1'}}">
                 <h3 class="team-header {{gameResult === '胜利' ? 'victory' : 'defeat'}}">我方{{gameResult}}</h3>
                 <h3 class="team-header stats">{{myKillDeadAssistCnt}}</h3>
             </div>
@@ -394,7 +394,7 @@
         </div>
 
         <div class="stats-card">
-            <div class="team-header-container">
+            <div class="{{gameResult === '胜利' ? 'team-header-container' : 'team-header-container1'}}">
                 <h3 class="team-header {{gameResult === '胜利' ? 'defeat' : 'victory'}}">敌方{{gameResult === '胜利' ? '失败' : '胜利'}}</h3>
                 <h3 class="team-header stats">{{enemyKillDeadAssistCnt}}</h3>
             </div>
