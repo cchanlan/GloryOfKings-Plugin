@@ -145,17 +145,21 @@
 
     .player-list {
         display: flex;
-        flex-direction: column;
+        flex-direction: row;
         gap: 10px;
+        flex-wrap: wrap;
     }
 
     .player-card {
+        flex: 1 1 calc(50% - 10px);
+        max-width: calc(50% - 10px);
         display: flex;
         align-items: center;
         padding: 15px;
         background: white;
         border-radius: 12px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        margin-bottom: 10px;
     }
 
     .player-avatar {
@@ -337,7 +341,6 @@
         </div>
 
         <div class="stats-card">
-            <div>{{mapName}} {{startTime}} {{usedTime}}分 {{matchDesc}}</div>
             <div>经济</div>
             <div class="economy-bar">
                 <div class="economy-progress" style="width: {{myEconomyRate}}%">{{myMoney}}%</div>
