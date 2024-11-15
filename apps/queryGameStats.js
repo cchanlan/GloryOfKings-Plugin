@@ -43,6 +43,12 @@ export class QueryGameStats extends plugin {
             return;
         }
 
+        let index = e.msg.match(/#查询战绩(\d+)?/)[1];
+        index = Number(index);
+        if (isNaN(index)) {
+            index = false;
+        }
+
         const response = await ApiService.post('/game/morebattlelist', {
             lastTime: 0,
             recommendPrivacy: 0,
@@ -50,8 +56,6 @@ export class QueryGameStats extends plugin {
             friendUserId: ID,
             option: 0
         }, {
-            ssoappid: 'campAuthor',
-            ssobusinessid: 'web',
             ssoopenid: ssoOpenId,
             ssotoken: ssoToken
         });
@@ -59,6 +63,50 @@ export class QueryGameStats extends plugin {
         if (response.returnCode === -30003) {
             e.reply('登陆状态失效，请重新扫码登录');
             return;
+        }
+
+        if (index) {
+            const { battleType, gameSvrId: gameSvr, relaySvrId: relaySvr, battleDetailUrl, gameSeq } = response.data.list[index - 1];
+
+            let targetRoleId = null;
+            if (battleDetailUrl.length > 0) {
+                let i0 = battleDetailUrl.indexOf("&toAppRoleId=");
+                let i1 = battleDetailUrl.indexOf("&toGameRoleId=");
+                targetRoleId = battleDetailUrl.substring(i0 + 13, i1);
+            }
+
+            const response = await ApiService.post('/game/battledetail', {
+                recommendPrivacy: 0,
+                battleType,
+                gameSvr,
+                relaySvr,
+                targetRoleId,
+                gameSeq
+            }, {
+                ssoopenid: ssoOpenId,
+                ssotoken: ssoToken
+            })
+
+            const redTeamMoney = response.data.redTeam.money;
+            const blueTeamMoney = response.data.blueTeam.money;
+            const totalMoney = redTeamMoney + blueTeamMoney;
+            const redTeamEconomy = (redTeamMoney / totalMoney) * 100;
+            const blueTeamEconomy = (blueTeamMoney / totalMoney) * 100;
+
+            const data = {
+                ...response.data,
+                redTeamEconomy,
+                blueTeamEconomy,
+                redTeamResult: response.data.redTeam.gameResult ? '胜利' : '失败',
+                blueTeamResult: response.data.blueTeam.gameResult ? '胜利' : '失败'
+            };
+
+            const inventoryImage = await puppeteer.screenshot('QueryGameRecordDetails', {
+                tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordDetails.html',
+                data
+            });
+
+            await e.reply(inventoryImage);
         }
 
         await e.reply(`共查询到${response.data.list.length}条游戏记录`);
@@ -77,8 +125,8 @@ export class QueryGameStats extends plugin {
             gradeGame: item.gradeGame
         }));
 
-        const inventoryImage = await puppeteer.screenshot('QueryGameStats', {
-            tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameStats.html',
+        const inventoryImage = await puppeteer.screenshot('QueryGameRecordList', {
+            tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordList.html',
             data,
             roleJobName: response.data.list[0].roleJobName,
             winningStreak: this.calculateWinningStreak(data.map(item => item.gameResult))

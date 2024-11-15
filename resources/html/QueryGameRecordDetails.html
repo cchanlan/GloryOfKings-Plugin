@@ -1,0 +1,346 @@
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f6f7;
+        }
+
+        .match-header {
+            background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+            color: white;
+            padding: 20px;
+            position: relative;
+            height: 200px;
+            overflow: hidden;
+        }
+
+        .match-header::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 50%;
+            height: 100%;
+            background: url('') no-repeat;
+            background-size: cover;
+            background-position: center;
+            opacity: 0.3;
+        }
+
+        .victory-text {
+            font-size: 48px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .victory-text span {
+            font-size: 24px;
+        }
+
+        .tabs {
+            background: white;
+            display: flex;
+            padding: 10px 20px;
+            border-bottom: 1px solid #eee;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            position: relative;
+            color: #666;
+        }
+
+        .tab.active {
+            color: #1890ff;
+            font-weight: bold;
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: #1890ff;
+        }
+
+        .match-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .stats-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .economy-bar {
+            height: 24px;
+            background: white;
+            margin: 10px 0;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+        }
+
+        .economy-progress {
+            height: 100%;
+            background: linear-gradient(90deg, #096dd9 0%, #1890ff 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            padding-left: 15px;
+            font-weight: bold;
+        }
+
+        .economy-remaining {
+            height: 100%;
+            background: red;
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 15px;
+            color: white;
+            font-weight: bold;
+        }
+
+        .economy-progress::before,
+        .economy-progress::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            width: 5px;
+            height: 100%;
+            background: white;
+        }
+
+        .economy-progress::before {
+            left: 0;
+        }
+
+        .economy-progress::after {
+            right: 0;
+        }
+
+        .player-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .player-card {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .player-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            margin-right: 15px;
+            position: relative;
+        }
+
+        .player-level {
+            position: absolute;
+            bottom: -5px;
+            right: -5px;
+            background: #ffd700;
+            color: white;
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 8px;
+        }
+
+        .player-info {
+            flex: 1;
+        }
+
+        .player-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .player-stats {
+            color: #0f1612;
+            font-size: 14px;
+        }
+
+        .equipment-list {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .equipment-item {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #f5f6f7;
+            overflow: hidden;
+        }
+
+        .equipment-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .score {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1890ff;
+            margin-left: auto;
+            padding-left: 20px;
+        }
+
+        .resources {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+
+        .resource-item {
+            text-align: center;
+            flex: 1;
+        }
+
+        .resource-icon {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 5px;
+            background: #f0f0f0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .resource-score {
+            font-weight: bold;
+        }
+
+        .team-header {
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            color: #1890ff;
+        }
+    </style>
+<body>
+    <div class="match-header">
+        <div class="victory-text">
+            {{data.head.gameResult === false ? '失败' : '胜利'}} <span>{{data.head.gameResult === false ? 'DEFEAT' : 'VICTORY'}}</span>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <div class="tab active">总览</div>
+    </div>
+
+    <div class="match-content">
+        <div class="stats-card">
+            <div>{{data.head.mapName}} {{data.battle.dtEventTime}} {{data.battle.usedTime}}秒 {{data.head.matchDesc}}</div>
+            <div>经济</div>
+            <div class="economy-bar">
+                <div class="economy-progress" style="width: {{data.redTeamEconomy}}%">{{data.redTeamEconomy}}%</div>
+                <div class="economy-remaining">{{data.blueTeamEconomy}}%</div>
+            </div>
+            <div class="resources">
+                <div class="resource-item">
+                    <div class="resource-icon">🏰</div>
+                    <div class="resource-score">{{data.redTeam.towerCnt}}:{{data.blueTeam.towerCnt}}</div>
+                </div>
+                <div class="resource-item">
+                    <div class="resource-icon">🐉</div>
+                    <div class="resource-score">{{data.redTeam.bdragon1 + data.redTeam.bdragon2 + data.redTeam.bdragon3}}:{{data.blueTeam.bdragon1 + data.blueTeam.bdragon2 + data.blueTeam.bdragon3}}</div>
+                </div>
+                <div class="resource-item">
+                    <div class="resource-icon">🗼</div>
+                    <div class="resource-score">{{data.redTeam.ldragon1 + data.redTeam.ldragon2}}:{{data.blueTeam.ldragon1 + data.blueTeam.ldragon2}}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-card">
+            <h3 class="team-header">红队{{data.redTeamResult}} {{data.redTeam.killCnt}}/{{data.redTeam.deadCnt}}/{{data.redTeam.assistCnt}}</h3>
+            <div class="player-list">
+                {{@each data.redRoles}}
+                <div class="player-card">
+                    <img src="{{this.basicInfo.roleIcon}}" alt="{{this.basicInfo.roleName}}" class="player-avatar">
+                    <span class="player-level">{{this.battleStats.heroLevel}}</span>
+                    <div class="player-info">
+                        <div class="player-name">
+                            {{this.basicInfo.roleName}}
+                            <img src="{{this.battleStats.evaluateIcon}}" alt="段位" style="width: 20px; height: 20px;">
+                        </div>
+                        <div class="player-stats">{{this.battleStats.killCnt}}/{{this.battleStats.deadCnt}}/{{this.battleStats.assistCnt}}</div>
+                        <div class="equipment-list">
+                            <div class="equipment-item"><img src="{{this.battleRecords.skill.skillIcon}}" alt="技能"></div>
+                            {{@each this.battleRecords.finalEquips}}
+                            <div class="equipment-item"><img src="{{this.equipIcon}}" alt="装备"></div>
+                            {{/each}}
+                        </div>
+                    </div>
+                    <div class="score">{{this.battleStats.gradeGame}}分</div>
+                </div>
+                {{/each}}
+            </div>
+        </div>
+
+        <div class="stats-card">
+            <h3 class="team-header">蓝队{{data.blueTeamResult}} {{data.blueTeam.killCnt}}/{{data.blueTeam.deadCnt}}/{{data.blueTeam.assistCnt}}</h3>
+            <div class="player-list">
+                {{@each data.blueRoles}}
+                <div class="player-card">
+                    <img src="{{this.basicInfo.roleIcon}}" alt="{{this.basicInfo.roleName}}" class="player-avatar">
+                    <span class="player-level">{{this.battleStats.heroLevel}}</span>
+                    <div class="player-info">
+                        <div class="player-name">
+                            {{this.basicInfo.roleName}}
+                            <img src="{{this.battleStats.evaluateIcon}}" alt="段位" style="width: 20px; height: 20px;">
+                        </div>
+                        <div class="player-stats">{{this.battleStats.killCnt}}/{{this.battleStats.deadCnt}}/{{this.battleStats.assistCnt}}</div>
+                        <div class="equipment-list">
+                            <div class="equipment-item"><img src="{{this.battleRecords.skill.skillIcon}}" alt="技能"></div>
+                            {{@each this.battleRecords.finalEquips}}
+                            <div class="equipment-item"><img src="{{this.equipIcon}}" alt="装备"></div>
+                            {{/each}}
+                        </div>
+                    </div>
+                    <div class="score">{{this.battleStats.gradeGame}}分</div>
+                </div>
+                {{/each}}
+            </div>
+        </div>
+    </div>
+</body>

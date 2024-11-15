@@ -50,8 +50,6 @@ export class MyKingHomepage extends plugin {
             friendUserId: ID,
             option: 0
         }, {
-            ssoappid: 'campAuthor',
-            ssobusinessid: 'web',
             ssoopenid: ssoOpenId,
             ssotoken: ssoToken
         });

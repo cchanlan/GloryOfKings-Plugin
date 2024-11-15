@@ -20,7 +20,9 @@ class ApiService {
             'sec-ch-ua-platform': '"Android"',
             'sec-fetch-dest': 'empty',
             'sec-fetch-mode': 'cors',
-            'sec-fetch-site': 'same-site'
+            'sec-fetch-site': 'same-site',
+            'ssoappid': 'campAuthor',
+            'ssobusinessid': 'web'
         };
 
         if (url.includes(this.baseUrls.main)) {
