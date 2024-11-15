@@ -21,8 +21,8 @@ function getCommonHeaders() {
         'sec-ch-ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
         'sec-ch-ua-mobile': '?0',
         'sec-ch-ua-platform': '"Windows"',
-        'ssoAppId': 'campPc',
-        'ssoBusinessId': 'pc',
+        'ssoAppId': 'campAuthor',
+        'ssoBusinessId': 'web',
         'ssoOpenId': '',
         'ssoToken': ''
     };
