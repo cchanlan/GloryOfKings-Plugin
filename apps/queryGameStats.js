@@ -87,7 +87,7 @@ export class QueryGameStats extends plugin {
                 ssotoken: ssoToken
             })
 
-            const { head,battle, redTeam, blueTeam } = response.data;
+            const { head, battle, redTeam, blueTeam, redRoles, blueRoles } = response.data;
 
             let myTeamColor = '';
             let enemyTeamColor = '';
@@ -117,7 +117,7 @@ export class QueryGameStats extends plugin {
              * enemyKillDeadAssistCnt 敌方击杀死亡助攻数量  
              */
             let us = {}
-            
+
             if (head.gameResult) {
                 us.gameResult = '胜利'
                 us.gameResultEn = 'VICTORY';
@@ -132,29 +132,32 @@ export class QueryGameStats extends plugin {
             us.matchDesc = head.matchDesc
 
             if (myTeamColor === '蓝') {
-                us.myMoney = blueTeam.money
+                us.myEconomyRate = `${(blueTeam.money / (blueTeam.money + redTeam.money)) * 100}%`;
+                us.myMoney = blueTeam.money > 1000 ? (blueTeam.money / 1000).toFixed(1) + 'k' : blueTeam.money;
                 us.myTowerCnt = blueTeam.towerCnt
-                us.enemyMoney = redTeam.money
+                us.enemyMoney = redTeam.money > 1000 ? (redTeam.money / 1000).toFixed(1) + 'k' : redTeam.money;
                 us.enemyTowerCnt = redTeam.towerCnt
-                us.myKillDeadAssistCnt = redTeam.killCnt + '/' + redTeam.deadCnt + '/' + redTeam.assistCnt
-                us.enemyKillDeadAssistCnt = blueTeam.killCnt + '/' + blueTeam.deadCnt + '/' + blueTeam.assistCnt
-            } else {
-                us.myMoney = redTeam.money
-                us.myTowerCnt = redTeam.towerCnt
-                us.enemyMoney = blueTeam.money
-                us.enemyTowerCnt = blueTeam.towerCnt
                 us.myKillDeadAssistCnt = blueTeam.killCnt + '/' + blueTeam.deadCnt + '/' + blueTeam.assistCnt
                 us.enemyKillDeadAssistCnt = redTeam.killCnt + '/' + redTeam.deadCnt + '/' + redTeam.assistCnt
+                us.myRoles = blueRoles
+                us.enemyRoles = redRoles
+            } else {
+                us.myEconomyRate = `${(redTeam.money / (blueTeam.money + redTeam.money)) * 100}%`;
+                us.myMoney = redTeam.money > 1000 ? (redTeam.money / 1000).toFixed(1) + 'k' : redTeam.money;
+                us.myTowerCnt = redTeam.towerCnt
+                us.enemyMoney = blueTeam.money > 1000 ? (blueTeam.money / 1000).toFixed(1) + 'k' : blueTeam.money;
+                us.enemyTowerCnt = blueTeam.towerCnt
+                us.myKillDeadAssistCnt = redTeam.killCnt + '/' + redTeam.deadCnt + '/' + redTeam.assistCnt
+                us.enemyKillDeadAssistCnt = blueTeam.killCnt + '/' + blueTeam.deadCnt + '/' + blueTeam.assistCnt
+                us.myRoles = redRoles
+                us.enemyRoles = blueRoles
             }
-            
-            us.myEconomyRate = (us.myMoney / (us.myMoney + us.enemyMoney)) * 100;
 
             const data = {
                 tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordDetails.html',
                 ...us,
                 myTeamColor,
-                enemyTeamColor,
-                battle: response.data.battle
+                enemyTeamColor
             };
 
             const inventoryImage = await puppeteer.screenshot('QueryGameRecordDetails', data);
