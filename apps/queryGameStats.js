@@ -145,6 +145,12 @@ export class QueryGameStats extends plugin {
                 us.myTowerCnt = blueTeam.towerCnt
                 us.enemyMoney = redTeam.money > 1000 ? (redTeam.money / 1000).toFixed(1) + 'k' : redTeam.money;
                 us.enemyTowerCnt = redTeam.towerCnt
+                us.myBdragon1 = blueTeam.bdragon1
+                us.myBdragon2 = blueTeam.bdragon2
+                us.myBdragon3 = blueTeam.bdragon3
+                us.enemyBdragon1 = redTeam.bdragon1
+                us.enemyBdragon2 = redTeam.bdragon2
+                us.enemyBdragon3 = redTeam.bdragon3
                 us.myKillDeadAssistCnt = blueTeam.killCnt + '/' + blueTeam.deadCnt + '/' + blueTeam.assistCnt
                 us.enemyKillDeadAssistCnt = redTeam.killCnt + '/' + redTeam.deadCnt + '/' + redTeam.assistCnt
                 us.myRoles = blueRoles
@@ -155,6 +161,12 @@ export class QueryGameStats extends plugin {
                 us.myTowerCnt = redTeam.towerCnt
                 us.enemyMoney = blueTeam.money > 1000 ? (blueTeam.money / 1000).toFixed(1) + 'k' : blueTeam.money;
                 us.enemyTowerCnt = blueTeam.towerCnt
+                us.myBdragon1 = redTeam.bdragon1
+                us.myBdragon2 = redTeam.bdragon2
+                us.myBdragon3 = redTeam.bdragon3
+                us.enemyBdragon1 = blueTeam.bdragon1
+                us.enemyBdragon2 = blueTeam.bdragon2
+                us.enemyBdragon3 = blueTeam.bdragon3
                 us.myKillDeadAssistCnt = redTeam.killCnt + '/' + redTeam.deadCnt + '/' + redTeam.assistCnt
                 us.enemyKillDeadAssistCnt = blueTeam.killCnt + '/' + blueTeam.deadCnt + '/' + blueTeam.assistCnt
                 us.myRoles = redRoles
