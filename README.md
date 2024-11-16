@@ -1,8 +1,8 @@
 # GloryOfKings-Plugin
 ![动态访问量](https://count.kjchmc.cn/get/@GloryOfKings-Plugin?theme=rule34)  
-为[Yunzai-Bot V3](https://gitee.com/Le-niao/Yunzai-Bot)提供`王者荣耀相关功能等`  
-如出现插件报错或功能不适配等情况请及时联系[作者](https://gitee.com/Tloml-Starry)或发起[issues](https://gitee.com/Tloml-Starry/Slave-Market/issues)  
-参与贡献请Fock本仓库修改代码后发起[Pull Request](https://gitee.com/Tloml-Starry/Slave-Market/pulls)  
+为[Yunzai-Bot V3](https://gitee.com/Le-niao/Yunzai-Bot)提供`王者荣耀`相关功能等  
+如出现插件报错或功能不适配等情况请及时联系[作者](https://gitee.com/Tloml-Starry)或发起[issues](https://gitee.com/Tloml-Starry/GloryOfKings-Plugin/issues)  
+参与贡献请Fock本仓库修改代码后发起[Pull Request](https://gitee.com/Tloml-Starry/GloryOfKings-Plugin/pulls)或直接修改代码提交  
 如果你对本仓库表示支持，请点点你手中的Star
 ## 联系我
 点开我的主页私信我
