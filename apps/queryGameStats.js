@@ -141,6 +141,7 @@ export class QueryGameStats extends plugin {
         return {
             gameResult: head.gameResult ? '胜利' : '失败',
             gameResultEn: head.gameResult ? 'VICTORY' : 'DEFEAT',
+            tips: head.tips,
             mapName: head.mapName,
             startTime: battle.startTime,
             usedTime: Math.floor(battle.usedTime / 60),
