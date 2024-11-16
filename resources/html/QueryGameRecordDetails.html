@@ -387,7 +387,7 @@
             <div class="player-list">
                 {{each myRoles item}}
                 <div class="player-card">
-                    <img src="{{item.battleRecords.usedHero.heroIcon}}" alt="英雄头像" class="player-avatar">
+                    <img src="{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroIcon : item.battleRecords.usedSkin.skinIcon128128}}" alt="英雄头像" class="player-avatar">
                     <div class="player-info">
                         <div class="player-name">
                             {{item.basicInfo.roleName}}
