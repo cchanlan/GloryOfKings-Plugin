@@ -1,3 +1,5 @@
+import puppeteer from '../../../lib/puppeteer/puppeteer.js';
+
 export class Help extends plugin {
     constructor() {
         super({
@@ -12,13 +14,10 @@ export class Help extends plugin {
     }
 
     async showHelp(e) {
-        const helpMessage = [
-            '王者菜单(文字版)',
-            '1. #王者主页 - 查看你的王者主页',
-            '2. #查询战绩 - 查询你的游戏战绩,附带数字查看战绩详细数据',
-            '3. #营地扫码 - 扫码登录',
-            '4. #王者更新/农药更新 - 更新插件'
-        ];
-        await e.reply(helpMessage.join('\n'));
+        const inventoryImage = await puppeteer.screenshot('help', {
+            tplFile: 'plugins/GloryOfKings-Plugin/resources/html/help.html',
+        })
+
+        await e.reply(inventoryImage)
     }
 } 

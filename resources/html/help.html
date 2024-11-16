@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>王者荣耀菜单帮助</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            transition: all 0.5s ease;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+            transition: all 0.5s ease;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            transition: all 0.5s ease;
+        }
+        .menu-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .menu-item {
+            margin-bottom: 15px;
+            padding: 15px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+        .menu-item:hover {
+            transform: translateX(5px);
+        }
+        .command {
+            font-weight: bold;
+            transition: all 0.5s ease;
+        }
+        .description {
+            margin-top: 5px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            transition: all 0.5s ease;
+        }
+        #style-name {
+            text-align: center;
+            font-style: italic;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>王者荣耀菜单帮助</h1>
+        <div id="style-name"></div>
+        <ul class="menu-list">
+            <li class="menu-item">
+                <div class="command">#王者主页</div>
+                <div class="description">查看游戏信息概览，段位，总场次，MVP次数，英雄和皮肤数量等</div>
+            </li>
+            <li class="menu-item">
+                <div class="command">#查询战绩</div>
+                <div class="description">查询最近的30条战绩，附带数字可查看指定场次的详细数据</div>
+            </li>
+            <li class="menu-item">
+                <div class="command">#营地扫码</div>
+                <div class="description">扫码登录</div>
+            </li>
+            <li class="menu-item">
+                <div class="command">#王者更新 / #农药更新</div>
+                <div class="description">更新本插件</div>
+            </li>
+        </ul>
+        <div class="footer">
+            Yunzai-Bot | GloryOfKings-Plugin
+        </div>
+    </div>
+
+    <script>
+        const styles = [
+            {
+                name: "经典红",
+                bodyBg: "#f4f4f4",
+                containerBg: "#ffffff",
+                headerColor: "#ff4d4f",
+                textColor: "#333333",
+                commandColor: "#ff4d4f",
+                itemBg: "#f9f9f9",
+                itemHoverBg: "#ffe8e8"
+            },
+            {
+                name: "科技蓝",
+                bodyBg: "#001529",
+                containerBg: "#002140",
+                headerColor: "#1890ff",
+                textColor: "#ffffff",
+                commandColor: "#1890ff",
+                itemBg: "#003a8c",
+                itemHoverBg: "#002766"
+            },
+            {
+                name: "自然绿",
+                bodyBg: "#f0f9eb",
+                containerBg: "#ffffff",
+                headerColor: "#67c23a",
+                textColor: "#606266",
+                commandColor: "#67c23a",
+                itemBg: "#e1f3d8",
+                itemHoverBg: "#f0f9eb"
+            },
+            {
+                name: "典雅紫",
+                bodyBg: "#f9f0ff",
+                containerBg: "#ffffff",
+                headerColor: "#722ed1",
+                textColor: "#595959",
+                commandColor: "#722ed1",
+                itemBg: "#f4e3ff",
+                itemHoverBg: "#f9f0ff"
+            },
+            {
+                name: "阳光橙",
+                bodyBg: "#fff7e6",
+                containerBg: "#ffffff",
+                headerColor: "#fa8c16",
+                textColor: "#614700",
+                commandColor: "#fa8c16",
+                itemBg: "#fff1b8",
+                itemHoverBg: "#ffe58f"
+            }
+        ];
+
+        function applyRandomStyle() {
+            const style = styles[Math.floor(Math.random() * styles.length)];
+            document.body.style.backgroundColor = style.bodyBg;
+            document.body.style.color = style.textColor;
+            document.querySelector('.container').style.backgroundColor = style.containerBg;
+            document.querySelector('h1').style.color = style.headerColor;
+            document.querySelectorAll('.command').forEach(el => el.style.color = style.commandColor);
+            document.querySelectorAll('.menu-item').forEach(el => {
+                el.style.backgroundColor = style.itemBg;
+                el.addEventListener('mouseover', () => el.style.backgroundColor = style.itemHoverBg);
+                el.addEventListener('mouseout', () => el.style.backgroundColor = style.itemBg);
+            });
+            document.querySelector('.footer').style.color = style.textColor;
+            document.getElementById('style-name').textContent = `当前风格：${style.name}`;
+        }
+
+        window.onload = applyRandomStyle;
+    </script>
+</body>
+</html>
