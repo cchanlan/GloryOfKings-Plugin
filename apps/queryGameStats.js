@@ -141,7 +141,7 @@ export class QueryGameStats extends plugin {
             gameResultEn: head.gameResult ? 'VICTORY' : 'DEFEAT',
             mapName: head.mapName,
             startTime: battle.startTime,
-            usedTime: Math.ceil(battle.usedTime / 60),
+            usedTime: Math.floor(battle.usedTime / 60),
             matchDesc: head.matchDesc,
             myEconomyRate: (myTeam.money / (myTeam.money + enemyTeam.money)) * 100,
             myMoney: myTeam.money > 1000 ? `${(myTeam.money / 1000).toFixed(1)}k` : myTeam.money,
