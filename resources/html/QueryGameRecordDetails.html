@@ -338,7 +338,7 @@
 </style>
 
 <body>
-    <div class="match-header">
+    <div class="match-header {{gameResult === '胜利' ? 'victory' : 'defeat'}}">
         <div class="victory-text">
             {{gameResult}} <span>{{gameResultEn}}</span>
         </div>
