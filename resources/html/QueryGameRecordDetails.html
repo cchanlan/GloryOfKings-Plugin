@@ -393,7 +393,7 @@
                             {{item.basicInfo.roleName}}
                         </div>
                         <div class="hero-name" style="color: gray;">
-                            {{item.battleRecords.usedHero.heroName}}
+                            {{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}
                         </div>
                         <div class="player-stats">
                             {{item.battleStats.killCnt}}/{{item.battleStats.deadCnt}}/{{item.battleStats.assistCnt}}
@@ -426,7 +426,7 @@
                             {{item.basicInfo.roleName}}
                         </div>
                         <div class="hero-name" style="color: gray;">
-                            {{item.battleRecords.usedHero.heroName}}
+                            {{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}
                         </div>
                         <div class="player-stats">
                             {{item.battleStats.killCnt}}/{{item.battleStats.deadCnt}}/{{item.battleStats.assistCnt}}
