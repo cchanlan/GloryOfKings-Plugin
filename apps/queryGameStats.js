@@ -24,7 +24,7 @@ export class QueryGameStats extends plugin {
         const userFilePath = path.join('data', 'WzryData', 'UserData.yaml');
 
         if (!fs.existsSync(loginFilePath)) {
-            await e.reply('未找到登录信息，请先扫码登录。');
+            await e.reply('未找到登录信息，请先扫码登录。\r发送【#营地扫码】');
             return;
         }
 
