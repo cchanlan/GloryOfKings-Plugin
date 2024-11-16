@@ -34,18 +34,30 @@ class ApiService {
         return headers;
     }
 
-    async post(endpoint, body, additionalHeaders = {}) {
+    async request(method, endpoint, body = null, additionalHeaders = {}) {
         const url = `${this.baseUrls.main}${endpoint}`;
         const headers = {
             ...this.getCommonHeaders(url),
             ...additionalHeaders
         };
-        const response = await fetch(url, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(body)
-        });
-        return response.json();
+        try {
+            const response = await fetch(url, {
+                method,
+                headers,
+                body: body ? JSON.stringify(body) : null
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('API request failed:', error);
+            throw error;
+        }
+    }
+
+    async post(endpoint, body, additionalHeaders = {}) {
+        return this.request('POST', endpoint, body, additionalHeaders);
     }
 }
 

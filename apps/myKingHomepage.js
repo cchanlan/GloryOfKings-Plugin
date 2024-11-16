@@ -1,8 +1,9 @@
 import puppeteer from '../../../lib/puppeteer/puppeteer.js';
-import YAML from 'yaml';
 import ApiService from '../utils/api.js';
 import path from 'path';
 import fs from 'fs';
+import { readJsonFile, getFilePath } from '../utils/fileUtils.js';
+import { readYamlFile } from '../utils/yamlUtils.js';
 
 export class MyKingHomepage extends plugin {
     constructor() {
@@ -19,7 +20,7 @@ export class MyKingHomepage extends plugin {
 
     async myKingHomepage(e) {
         const { user_id } = e;
-        const loginFilePath = path.join('data', 'WzryData', 'ScanCodeLoginData', `${user_id}.json`);
+        const loginFilePath = getFilePath(user_id);
         const userFilePath = path.join('data', 'WzryData', 'UserData.yaml');
 
         if (!fs.existsSync(loginFilePath)) {
@@ -27,7 +28,7 @@ export class MyKingHomepage extends plugin {
             return;
         }
 
-        const userData = JSON.parse(fs.readFileSync(loginFilePath, 'utf8'));
+        const userData = readJsonFile(loginFilePath);
         const { ssoOpenId, ssoToken } = userData;
 
         if (!fs.existsSync(userFilePath)) {
@@ -35,7 +36,7 @@ export class MyKingHomepage extends plugin {
             return;
         }
 
-        const allUserData = YAML.parse(fs.readFileSync(userFilePath, 'utf8'));
+        const allUserData = readYamlFile(userFilePath);
         const ID = allUserData[user_id];
 
         if (!ID) {

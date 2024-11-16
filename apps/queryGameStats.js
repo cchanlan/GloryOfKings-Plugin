@@ -1,8 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import puppeteer from '../../../lib/puppeteer/puppeteer.js';
-import YAML from 'yaml';
 import ApiService from '../utils/api.js';
+import { readJsonFile, getFilePath } from '../utils/fileUtils.js';
+import { readYamlFile } from '../utils/yamlUtils.js';
 
 export class QueryGameStats extends plugin {
     constructor() {
@@ -19,7 +20,7 @@ export class QueryGameStats extends plugin {
 
     async queryGameStats(e) {
         const { user_id } = e;
-        const loginFilePath = path.join('data', 'WzryData', 'ScanCodeLoginData', `${user_id}.json`);
+        const loginFilePath = getFilePath(user_id);
         const userFilePath = path.join('data', 'WzryData', 'UserData.yaml');
 
         if (!fs.existsSync(loginFilePath)) {
@@ -27,7 +28,7 @@ export class QueryGameStats extends plugin {
             return;
         }
 
-        const userData = JSON.parse(fs.readFileSync(loginFilePath, 'utf8'));
+        const userData = readJsonFile(loginFilePath);
         const { ssoOpenId, ssoToken } = userData;
 
         if (!fs.existsSync(userFilePath)) {
@@ -35,7 +36,7 @@ export class QueryGameStats extends plugin {
             return;
         }
 
-        const allUserData = YAML.parse(fs.readFileSync(userFilePath, 'utf8'));
+        const allUserData = readYamlFile(userFilePath);
         const ID = allUserData[user_id];
 
         if (!ID) {
@@ -43,11 +44,7 @@ export class QueryGameStats extends plugin {
             return;
         }
 
-        let index = e.msg.match(/#查询战绩(\d+)?/)[1];
-        index = Number(index);
-        if (isNaN(index)) {
-            index = false;
-        }
+        let index = Number(e.msg.match(/#查询战绩(\d+)?/)[1]) || false;
 
         const response_ = await ApiService.post('/game/morebattlelist', {
             lastTime: 0,
@@ -66,14 +63,11 @@ export class QueryGameStats extends plugin {
         }
 
         if (index) {
-            const { battleType, gameSvrId: gameSvr, relaySvrId: relaySvr, battleDetailUrl, gameSeq } = response_.data.list[index - 1];
+            const battleDetails = response_.data.list[index - 1];
+            const { battleType, gameSvrId: gameSvr, relaySvrId: relaySvr, battleDetailUrl, gameSeq } = battleDetails;
 
-            let targetRoleId = null;
-            if (battleDetailUrl.length > 0) {
-                let i0 = battleDetailUrl.indexOf("&toAppRoleId=");
-                let i1 = battleDetailUrl.indexOf("&toGameRoleId=");
-                targetRoleId = battleDetailUrl.substring(i0 + 13, i1);
-            }
+            const targetRoleId = battleDetailUrl.includes("&toAppRoleId=") ? 
+                battleDetailUrl.substring(battleDetailUrl.indexOf("&toAppRoleId=") + 13, battleDetailUrl.indexOf("&toGameRoleId=")) : null;
 
             const response = await ApiService.post('/game/battledetail', {
                 recommendPrivacy: 0,
@@ -85,101 +79,17 @@ export class QueryGameStats extends plugin {
             }, {
                 ssoopenid: ssoOpenId,
                 ssotoken: ssoToken
-            })
-
-            const { head, battle, redTeam, blueTeam, redRoles, blueRoles } = response.data;
-
-            if (response.returnCode === -102) {
-                return e.reply('参数错误，请求失败')
-            }
+            });
 
             if (response.returnCode !== 0) {
-                return e.reply(response.returnMsg)
+                return e.reply(response.returnCode === -102 ? '参数错误，请求失败' : response.returnMsg);
             }
 
-            let myTeamColor = '';
-            let enemyTeamColor = '';
-            if (head.acntCamp === redTeam.acntCamp) {
-                myTeamColor = '红';
-                enemyTeamColor = '蓝';
-            } else if (head.acntCamp === blueTeam.acntCamp) {
-                myTeamColor = '蓝';
-                enemyTeamColor = '红';
-            }
+            const { head, battle, redTeam, blueTeam, redRoles, blueRoles } = response.data;
+            const myTeamColor = head.acntCamp === redTeam.acntCamp ? '红' : '蓝';
+            const enemyTeamColor = myTeamColor === '红' ? '蓝' : '红';
 
-            /**
-             * gameResult 游戏结果  
-             * gameResultEn 游戏结果英文  
-             * mapName 地图名称  
-             * startTime 游戏开始时间  
-             * usedTime 游戏时长  
-             * matchDesc 对局描述  
-             * economyRate 经济百分比  
-             *   
-             * myMoney 我方经济  
-             * myTowerCnt 我方推塔数量  
-             * myKillDeadAssistCnt 我方击杀死亡助攻数量  
-             *   
-             * enemyMoney 敌方经济  
-             * enemyTowerCnt 敌方推塔数量  
-             * enemyKillDeadAssistCnt 敌方击杀死亡助攻数量  
-             */
-            let us = {}
-
-            if (head.gameResult) {
-                us.gameResult = '胜利'
-                us.gameResultEn = 'VICTORY';
-            } else {
-                us.gameResult = '失败';
-                us.gameResultEn = 'DEFEAT';
-            }
-
-            us.mapName = head.mapName
-            us.startTime = battle.startTime
-            us.usedTime = Math.ceil(battle.usedTime / 60)
-            us.matchDesc = head.matchDesc
-
-            if (myTeamColor === '蓝') {
-                us.myEconomyRate = (blueTeam.money / (blueTeam.money + redTeam.money)) * 100;
-                us.myMoney = blueTeam.money > 1000 ? (blueTeam.money / 1000).toFixed(1) + 'k' : blueTeam.money;
-                us.myTowerCnt = blueTeam.towerCnt
-                us.enemyMoney = redTeam.money > 1000 ? (redTeam.money / 1000).toFixed(1) + 'k' : redTeam.money;
-                us.enemyTowerCnt = redTeam.towerCnt
-                us.myBdragon1 = blueTeam.bdragon1
-                us.myBdragon2 = blueTeam.bdragon2
-                us.myBdragon3 = blueTeam.bdragon3
-                us.myLdragon1 = blueTeam.ldragon1
-                us.myLdragon2 = blueTeam.ldragon2
-                us.enemyBdragon1 = redTeam.bdragon1
-                us.enemyBdragon2 = redTeam.bdragon2
-                us.enemyBdragon3 = redTeam.bdragon3
-                us.enemyLdragon1 = redTeam.ldragon1
-                us.enemyLdragon2 = redTeam.ldragon2
-                us.myKillDeadAssistCnt = blueTeam.killCnt + '/' + blueTeam.deadCnt + '/' + blueTeam.assistCnt
-                us.enemyKillDeadAssistCnt = redTeam.killCnt + '/' + redTeam.deadCnt + '/' + redTeam.assistCnt
-                us.myRoles = blueRoles
-                us.enemyRoles = redRoles
-            } else {
-                us.myEconomyRate = (redTeam.money / (blueTeam.money + redTeam.money)) * 100;
-                us.myMoney = redTeam.money > 1000 ? (redTeam.money / 1000).toFixed(1) + 'k' : redTeam.money;
-                us.myTowerCnt = redTeam.towerCnt
-                us.enemyMoney = blueTeam.money > 1000 ? (blueTeam.money / 1000).toFixed(1) + 'k' : blueTeam.money;
-                us.enemyTowerCnt = blueTeam.towerCnt
-                us.myBdragon1 = redTeam.bdragon1
-                us.myBdragon2 = redTeam.bdragon2
-                us.myBdragon3 = redTeam.bdragon3
-                us.myLdragon1 = redTeam.ldragon1
-                us.myLdragon2 = redTeam.ldragon2
-                us.enemyBdragon1 = blueTeam.bdragon1
-                us.enemyBdragon2 = blueTeam.bdragon2
-                us.enemyBdragon3 = blueTeam.bdragon3
-                us.enemyLdragon1 = blueTeam.ldragon1
-                us.enemyLdragon2 = blueTeam.ldragon2
-                us.myKillDeadAssistCnt = redTeam.killCnt + '/' + redTeam.deadCnt + '/' + redTeam.assistCnt
-                us.enemyKillDeadAssistCnt = blueTeam.killCnt + '/' + blueTeam.deadCnt + '/' + blueTeam.assistCnt
-                us.myRoles = redRoles
-                us.enemyRoles = blueRoles
-            }
+            const us = this.extractTeamData(myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles);
 
             const data = {
                 tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordDetails.html',
@@ -189,7 +99,6 @@ export class QueryGameStats extends plugin {
             };
 
             const inventoryImage = await puppeteer.screenshot('QueryGameRecordDetails', data);
-
             await e.reply(inventoryImage);
             return;
         }
@@ -218,6 +127,42 @@ export class QueryGameStats extends plugin {
         });
 
         await e.reply(inventoryImage);
+    }
+
+    extractTeamData(myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles) {
+        const isBlue = myTeamColor === '蓝';
+        const myTeam = isBlue ? blueTeam : redTeam;
+        const enemyTeam = isBlue ? redTeam : blueTeam;
+        const myRoles = isBlue ? blueRoles : redRoles;
+        const enemyRoles = isBlue ? redRoles : blueRoles;
+
+        return {
+            gameResult: head.gameResult ? '胜利' : '失败',
+            gameResultEn: head.gameResult ? 'VICTORY' : 'DEFEAT',
+            mapName: head.mapName,
+            startTime: battle.startTime,
+            usedTime: Math.ceil(battle.usedTime / 60),
+            matchDesc: head.matchDesc,
+            myEconomyRate: (myTeam.money / (myTeam.money + enemyTeam.money)) * 100,
+            myMoney: myTeam.money > 1000 ? `${(myTeam.money / 1000).toFixed(1)}k` : myTeam.money,
+            myTowerCnt: myTeam.towerCnt,
+            enemyMoney: enemyTeam.money > 1000 ? `${(enemyTeam.money / 1000).toFixed(1)}k` : enemyTeam.money,
+            enemyTowerCnt: enemyTeam.towerCnt,
+            myBdragon1: myTeam.bdragon1,
+            myBdragon2: myTeam.bdragon2,
+            myBdragon3: myTeam.bdragon3,
+            myLdragon1: myTeam.ldragon1,
+            myLdragon2: myTeam.ldragon2,
+            enemyBdragon1: enemyTeam.bdragon1,
+            enemyBdragon2: enemyTeam.bdragon2,
+            enemyBdragon3: enemyTeam.bdragon3,
+            enemyLdragon1: enemyTeam.ldragon1,
+            enemyLdragon2: enemyTeam.ldragon2,
+            myKillDeadAssistCnt: `${myTeam.killCnt}/${myTeam.deadCnt}/${myTeam.assistCnt}`,
+            enemyKillDeadAssistCnt: `${enemyTeam.killCnt}/${enemyTeam.deadCnt}/${enemyTeam.assistCnt}`,
+            myRoles,
+            enemyRoles
+        };
     }
 
     getGameType(type) {
