@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import puppeteer from '../../../lib/puppeteer/puppeteer.js';
 import ApiService from '../utils/api.js';
-import { readJsonFile, getFilePath } from '../utils/fileUtils.js';
+import { getFilePath, readJsonFile, writeJsonFile } from '../utils/fileUtils.js';
 import { readYamlFile } from '../utils/yamlUtils.js';
 
 export class QueryGameStats extends plugin {
@@ -66,7 +66,7 @@ export class QueryGameStats extends plugin {
             const battleDetails = response_.data.list[index - 1];
             const { battleType, gameSvrId: gameSvr, relaySvrId: relaySvr, battleDetailUrl, gameSeq } = battleDetails;
 
-            const targetRoleId = battleDetailUrl.includes("&toAppRoleId=") ? 
+            const targetRoleId = battleDetailUrl.includes("&toAppRoleId=") ?
                 battleDetailUrl.substring(battleDetailUrl.indexOf("&toAppRoleId=") + 13, battleDetailUrl.indexOf("&toGameRoleId=")) : null;
 
             const response = await ApiService.post('/game/battledetail', {
@@ -84,6 +84,8 @@ export class QueryGameStats extends plugin {
             if (response.returnCode !== 0) {
                 return e.reply(response.returnCode === -102 ? '参数错误，请求失败' : response.returnMsg);
             }
+
+            writeJsonFile(path.join('data', 'WzryData', 'BattleDetails.json'), response.data);
 
             const { head, battle, redTeam, blueTeam, redRoles, blueRoles } = response.data;
             const myTeamColor = head.acntCamp === redTeam.acntCamp ? '红' : '蓝';
