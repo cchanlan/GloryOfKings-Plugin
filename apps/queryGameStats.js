@@ -62,6 +62,8 @@ export class QueryGameStats extends plugin {
             return;
         }
 
+        writeJsonFile(path.join('data', 'WzryData', 'BattleList.json'), response_.data);
+
         if (index) {
             const battleDetails = response_.data.list[index - 1];
             const { battleType, gameSvrId: gameSvr, relaySvrId: relaySvr, battleDetailUrl, gameSeq } = battleDetails;
