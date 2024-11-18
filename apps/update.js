@@ -18,7 +18,7 @@ export class GloryOfKings_update extends plugin {
 			rule: [
 				{
 					/** 命令正则匹配 */
-					reg: '^#?(王者|农药|)(插件)?(强制)?更新$',
+					reg: '^#?(王者|农药)(插件)?(强制)?更新$',
 					/** 执行方法 */
 					fnc: 'update_plugin',
 					permission: 'master'
