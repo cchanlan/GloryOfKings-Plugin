@@ -14,7 +14,8 @@ export class ScanCodeLogin extends plugin {
             priority: 1,
             rule: [
                 { reg: /^#营地扫码$/, fnc: 'scanCodeLogin' },
-                { reg: /^#我的王者Tk$/, fnc: 'getMyTokenAndOpenId' }
+                { reg: /^#我的王者Tk$/, fnc: 'getMyTokenAndOpenId' },
+                { reg: /^#绑定营地ID\s+(\d+)$/, fnc: 'bindWzryId' }
             ]
         })
     }
@@ -140,5 +141,22 @@ export class ScanCodeLogin extends plugin {
         }
 
         await e.reply(`您的Token: ${ssoToken}\n您的OpenId: ${ssoOpenId}`);
+    }
+
+    async bindWzryId(e) {
+        const { user_id } = e;
+        const wzryId = e.msg.match(/^#绑定营地ID\s+(\d+)$/)[1];
+
+        const filePath = path.join('data', 'WzryData', 'UserData.yaml');
+        let userData = {};
+
+        if (fs.existsSync(filePath)) {
+            userData = readYamlFile(filePath);
+        }
+
+        userData[user_id] = wzryId;
+        writeYamlFile(filePath, userData);
+
+        await e.reply(`成功绑定您的王者ID: ${wzryId}`);
     }
 }

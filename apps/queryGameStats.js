@@ -40,7 +40,7 @@ export class QueryGameStats extends plugin {
         const ID = allUserData[user_id];
 
         if (!ID) {
-            await e.reply('未找到角色ID，绑定营地ID后重试。');
+            await e.reply('未找到角色ID，扫码登录绑定或手动绑定');
             return;
         }
 

@@ -1,5 +1,14 @@
 import fs from 'node:fs'
+import path from 'node:path'
+import { writeYamlFile } from './utils/yamlUtils.js'
+
 logger.info('王者荣耀插件...')
+
+const userDataFilePath = path.join('data', 'WzryData', 'UserData.yaml');
+if (!fs.existsSync(userDataFilePath)) {
+    writeYamlFile(userDataFilePath, {});
+    logger.info('UserData.yaml 文件不存在，已自动创建。');
+}
 
 const files = fs.readdirSync('./plugins/GloryOfKings-Plugin/apps').filter(file => file.endsWith('.js'))
 
