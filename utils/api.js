@@ -61,7 +61,7 @@ class ApiService {
     }
 
     async getPublicTokenAndOpenID() {
-        const response = await (fetch('https://gitee.com/Tloml-Starry/resources/raw/master/resources/json/WzryToken.json')).json();
+        const response = await (await fetch('https://gitee.com/Tloml-Starry/resources/raw/master/resources/json/WzryToken.json')).json();
         const { Token, OpenID } = response;
         return { Token, OpenID };
     }
