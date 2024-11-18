@@ -20,27 +20,12 @@ export class QueryGameStats extends plugin {
 
     async queryGameStats(e) {
         const { user_id } = e;
-        const loginFilePath = getFilePath(user_id);
         const userFilePath = path.join('data', 'WzryData', 'UserData.yaml');
-
-        if (!fs.existsSync(loginFilePath)) {
-            await e.reply('未找到登录信息，请先扫码登录。\r发送【#营地扫码】');
-            return;
-        }
-
-        const userData = readJsonFile(loginFilePath);
-        const { ssoOpenId, ssoToken } = userData;
-
-        if (!fs.existsSync(userFilePath)) {
-            await e.reply('未找到用户数据文件，请先绑定营地ID。');
-            return;
-        }
-
         const allUserData = readYamlFile(userFilePath);
         const ID = allUserData[user_id];
 
         if (!ID) {
-            await e.reply('未找到角色ID，扫码登录绑定或手动绑定');
+            await e.reply('未找到角色ID，扫码登录绑定或手动绑定\r发送【王者帮助】查看');
             return;
         }
 
@@ -60,6 +45,14 @@ export class QueryGameStats extends plugin {
         });
 
         if (response_.returnCode === -30003) {
+            const loginFilePath = getFilePath(user_id);
+            if (!fs.existsSync(loginFilePath)) {
+                await e.reply('公共Token&OpenID失效. \r且未找到您的登录信息，请先扫码登录。\r发送【#营地扫码】');
+                return;
+            }
+
+            const userData = readJsonFile(loginFilePath);
+            const { ssoOpenId, ssoToken } = userData;
             response_ = await ApiService.post('/game/morebattlelist', {
                 lastTime: 0,
                 recommendPrivacy: 0,

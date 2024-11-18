@@ -26,7 +26,7 @@ export class MyKingHomepage extends plugin {
         const ID = allUserData[user_id];
 
         if (!ID) {
-            await e.reply('未找到角色ID，扫码登录绑定或手动绑定');
+            await e.reply('未找到角色ID，扫码登录绑定或手动绑定\r发送【王者帮助】查看');
             return;
         }
 
