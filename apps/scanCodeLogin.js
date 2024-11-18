@@ -15,7 +15,7 @@ export class ScanCodeLogin extends plugin {
             rule: [
                 { reg: /^#营地扫码$/, fnc: 'scanCodeLogin' },
                 { reg: /^#我的王者Tk$/, fnc: 'getMyTokenAndOpenId' },
-                { reg: /^#绑定营地ID\s+(\d+)$/, fnc: 'bindWzryId' }
+                { reg: /^#绑定营地\s+(\d+)$/, fnc: 'bindWzryId' }
             ]
         })
     }
@@ -145,7 +145,7 @@ export class ScanCodeLogin extends plugin {
 
     async bindWzryId(e) {
         const { user_id } = e;
-        const wzryId = e.msg.match(/^#绑定营地ID\s+(\d+)$/)[1];
+        const wzryId = e.msg.match(/^#绑定营地\s+(\d+)$/)[1];
 
         const filePath = path.join('data', 'WzryData', 'UserData.yaml');
         let userData = {};
