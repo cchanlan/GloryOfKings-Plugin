@@ -129,8 +129,6 @@ export class QueryGameStats extends plugin {
             return;
         }
 
-        await e.reply(`共查询到${response_.data.list.length}条游戏记录`);
-
         const data = response_.data.list.map(item => ({
             gameTpye: this.getGameType(item.gametype),
             gameTime: item.gametime,
