@@ -4,7 +4,14 @@ import { writeYamlFile } from './utils/yamlUtils.js'
 
 logger.info('王者荣耀插件...')
 
-const userDataFilePath = path.join('data', 'WzryData', 'UserData.yaml');
+const userDataDirPath = path.join('data', 'WzryData');
+const userDataFilePath = path.join(userDataDirPath, 'UserData.yaml');
+
+if (!fs.existsSync(userDataDirPath)) {
+    fs.mkdirSync(userDataDirPath, { recursive: true });
+    logger.info('WzryData 文件夹不存在，已自动创建。');
+}
+
 if (!fs.existsSync(userDataFilePath)) {
     writeYamlFile(userDataFilePath, {});
     logger.info('UserData.yaml 文件不存在，已自动创建。');
