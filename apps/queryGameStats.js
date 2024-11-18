@@ -44,22 +44,37 @@ export class QueryGameStats extends plugin {
             return;
         }
 
+        const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID();
+
         let index = Number(e.msg.match(/#查询战绩(\d+)?/)[1]) || false;
 
-        const response_ = await ApiService.post('/game/morebattlelist', {
+        let response_ = await ApiService.post('/game/morebattlelist', {
             lastTime: 0,
             recommendPrivacy: 0,
             apiVersion: 5,
             friendUserId: ID,
             option: 0
         }, {
-            ssoopenid: ssoOpenId,
-            ssotoken: ssoToken
+            ssoopenid: OpenID,
+            ssotoken: Token
         });
 
         if (response_.returnCode === -30003) {
-            e.reply('登陆状态失效，请重新扫码登录');
-            return;
+            response_ = await ApiService.post('/game/morebattlelist', {
+                lastTime: 0,
+                recommendPrivacy: 0,
+                apiVersion: 5,
+                friendUserId: ID,
+                option: 0
+            }, {
+                ssoopenid: ssoOpenId,
+                ssotoken: ssoToken
+            });
+
+            if (response_.returnCode === -30003) {
+                e.reply('登陆状态失效，请重新扫码登录');
+                return;
+            }
         }
 
         writeJsonFile(path.join('data', 'WzryData', 'BattleList.json'), response_.data);
@@ -71,7 +86,7 @@ export class QueryGameStats extends plugin {
             const targetRoleId = battleDetailUrl.includes("&toAppRoleId=") ?
                 battleDetailUrl.substring(battleDetailUrl.indexOf("&toAppRoleId=") + 13, battleDetailUrl.indexOf("&toGameRoleId=")) : null;
 
-            const response = await ApiService.post('/game/battledetail', {
+            let response = await ApiService.post('/game/battledetail', {
                 recommendPrivacy: 0,
                 battleType,
                 gameSvr,
@@ -79,12 +94,26 @@ export class QueryGameStats extends plugin {
                 targetRoleId,
                 gameSeq
             }, {
-                ssoopenid: ssoOpenId,
-                ssotoken: ssoToken
+                ssoopenid: OpenID,
+                ssotoken: Token
             });
 
-            if (response.returnCode !== 0) {
-                return e.reply(response.returnCode === -102 ? '参数错误，请求失败' : response.returnMsg);
+            if (response.returnCode === -30003) {
+                response = await ApiService.post('/game/battledetail', {
+                    recommendPrivacy: 0,
+                    battleType,
+                    gameSvr,
+                    relaySvr,
+                    targetRoleId,
+                    gameSeq
+                }, {
+                    ssoopenid: ssoOpenId,
+                    ssotoken: ssoToken
+                });
+
+                if (response.returnCode !== 0) {
+                    return e.reply(response.returnMsg);
+                }
             }
 
             writeJsonFile(path.join('data', 'WzryData', 'BattleDetails.json'), response.data);

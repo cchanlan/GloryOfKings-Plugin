@@ -20,21 +20,7 @@ export class MyKingHomepage extends plugin {
 
     async myKingHomepage(e) {
         const { user_id } = e;
-        const loginFilePath = getFilePath(user_id);
         const userFilePath = path.join('data', 'WzryData', 'UserData.yaml');
-
-        if (!fs.existsSync(loginFilePath)) {
-            await e.reply('未找到登录信息，请先扫码登录。\r发送【#营地扫码】');
-            return;
-        }
-
-        const userData = readJsonFile(loginFilePath);
-        const { ssoOpenId, ssoToken } = userData;
-
-        if (!fs.existsSync(userFilePath)) {
-            await e.reply('未找到用户数据文件，请先绑定营地ID。');
-            return;
-        }
 
         const allUserData = readYamlFile(userFilePath);
         const ID = allUserData[user_id];
@@ -44,20 +30,15 @@ export class MyKingHomepage extends plugin {
             return;
         }
 
-        const response = await ApiService.post('/userprofile/profile', {
-            lastTime: 0,
-            recommendPrivacy: 0,
-            apiVersion: 5,
-            friendUserId: ID,
-            option: 0
-        }, {
-            ssoopenid: ssoOpenId,
-            ssotoken: ssoToken
-        });
+        const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID();
 
-        if (response.returnCode === -30003) {
-            e.reply('登陆状态失效，请重新扫码登录');
-            return;
+        const response = await this.fetchUserProfile(ID, OpenID, Token, user_id);
+
+        if (response === -1) {
+            return e.reply('公共Token&OpenID失效. \r且未找到您的登录信息，请先扫码登录。\r发送【#营地扫码】');
+        }
+        if (response === -2) {
+            return e.reply('您的登录信息已过期，请重新扫码登录。');
         }
 
         const { profile, roleCard } = response.data;
@@ -80,10 +61,54 @@ export class MyKingHomepage extends plugin {
             content_4: `${roleCard.heroNumItem.value1}/${roleCard.heroNumItem.value2}`,
             content_5: roleCard.winRateItem.value1,
             content_6: `${roleCard.skinNumItem.value1}/${roleCard.skinNumItem.value2}`
+        };
+
+        const inventoryImage = await puppeteer.screenshot('myKingHomepage', data);
+
+        await e.reply(inventoryImage);
+    }
+
+    async fetchUserProfile(ID, OpenID, Token, user_id) {
+        try {
+            let response = await ApiService.post('/userprofile/profile', {
+                lastTime: 0,
+                recommendPrivacy: 0,
+                apiVersion: 5,
+                friendUserId: ID,
+                option: 0
+            }, {
+                ssoopenid: OpenID,
+                ssotoken: Token
+            });
+
+            if (response.returnCode === -30003) {
+                const loginFilePath = getFilePath(user_id);
+                if (!fs.existsSync(loginFilePath)) {
+                    return -1;
+                }
+
+                const userData = readJsonFile(loginFilePath);
+                const { ssoOpenId, ssoToken } = userData;
+                response = await ApiService.post('/userprofile/profile', {
+                    lastTime: 0,
+                    recommendPrivacy: 0,
+                    apiVersion: 5,
+                    friendUserId: ID,
+                    option: 0
+                }, {
+                    ssoopenid: ssoOpenId,
+                    ssotoken: ssoToken
+                });
+
+                if (response.returnCode === -30003) {
+                    return -2;
+                }
+            }
+
+            return response;
+        } catch (error) {
+            console.error('Error fetching user profile:', error);
+            return null;
         }
-
-        const inventoryImage = await puppeteer.screenshot('myKingHomepage', data)
-
-        await e.reply(inventoryImage)
     }
 }
