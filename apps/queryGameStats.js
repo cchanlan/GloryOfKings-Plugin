@@ -70,6 +70,10 @@ export class QueryGameStats extends plugin {
             }
         }
 
+        if (response_.data.list.length === 0) {
+            return e.reply(response_.invisDes);
+        }
+
         writeJsonFile(path.join('data', 'WzryData', 'BattleList.json'), response_.data);
 
         if (index) {
