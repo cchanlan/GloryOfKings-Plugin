@@ -134,7 +134,7 @@ export class QueryGameStats extends plugin {
         }
 
         const data = response_.data.list.map(item => ({
-            gameTpye: this.getGameType(item.gametype),
+            gameTpye: item.mapName,
             gameTime: item.gametime,
             gameDuration: `${Math.floor(item.usedTime / 60)}分${item.usedTime % 60}秒`,
             killCnt: item.killcnt,
@@ -192,17 +192,6 @@ export class QueryGameStats extends plugin {
             myRoles,
             enemyRoles
         };
-    }
-
-    getGameType(type) {
-        switch (type) {
-            case 6: return '1V1';
-            case 4: return '排位赛';
-            case 5: return '王者峡谷';
-            case 9: return '火焰山大战';
-            case 20: return '10V10排位赛';
-            default: return `未知: ${type}`;
-        }
     }
 
     getGameResult(result) {
