@@ -76,6 +76,7 @@ export class ScanCodeLogin extends plugin {
                     const { ssoOpenId, ssoToken } = tokenData.session;
                     scanCodeLoginData.ssoOpenId = ssoOpenId;
                     scanCodeLoginData.ssoToken = ssoToken;
+                    scanCodeLoginData.expireTime = tokenData.expireTime;
                     writeJsonFile(getFilePath(user_id), scanCodeLoginData);
 
                     const userInfoData = await ApiService.post('/pc/user/infolist', null, {
