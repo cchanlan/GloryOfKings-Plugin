@@ -4,6 +4,7 @@ import path from 'path'
 import common from '../../../lib/common/common.js'
 import { readJsonFile, writeJsonFile, getFilePath } from '../utils/fileUtils.js'
 import { readYamlFile, writeYamlFile } from '../utils/yamlUtils.js'
+import puppeteer from '../../../lib/puppeteer/puppeteer.js';
 
 export class ScanCodeLogin extends plugin {
     constructor() {
@@ -30,9 +31,6 @@ export class ScanCodeLogin extends plugin {
             });
 
             const { qrCodeFile } = qrData;
-            const buffer = Buffer.from(qrCodeFile, 'base64');
-            const imagePath = path.join('data', 'qrcode.png');
-            fs.writeFileSync(imagePath, buffer);
 
             const dirPath = path.join('data', 'WzryData', 'ScanCodeLoginData');
             if (!fs.existsSync(dirPath)) {
@@ -41,8 +39,10 @@ export class ScanCodeLogin extends plugin {
 
             writeJsonFile(getFilePath(user_id), qrData);
 
-            await e.reply(['请在120秒内[打开王者营地-->我-->右上角扫码]扫描该二维码登录', segment.image(imagePath)]);
-            fs.unlinkSync(imagePath);
+            e.reply(await puppeteer.screenshot('scanCodeLogin', {
+                tplFile: 'plugins/GloryOfKings-Plugin/resources/html/scanCodeLogin.html',
+                qrCodeFile
+            }));
         } catch (error) {
             logger.error(error);
             await e.reply('获取二维码时发生错误，请稍后重试。');

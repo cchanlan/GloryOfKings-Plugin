@@ -4,6 +4,8 @@ import { writeYamlFile } from './utils/yamlUtils.js'
 
 logger.info('王者荣耀插件...')
 
+global.wzryIdImg = 'https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/%E7%8E%8B%E8%80%85%E8%90%A5%E5%9C%B0ID%E8%8E%B7%E5%8F%96.png'
+
 const userDataDirPath = path.join('data', 'WzryData');
 const userDataFilePath = path.join(userDataDirPath, 'UserData.yaml');
 
