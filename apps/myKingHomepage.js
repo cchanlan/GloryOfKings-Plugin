@@ -81,7 +81,7 @@ export class MyKingHomepage extends plugin {
                 ssotoken: Token
             });
 
-            if (response.returnCode === -30003) {
+            if (response.returnCode === -30003 || response.returnCode === '-30314') {
                 const loginFilePath = getFilePath(user_id);
                 if (!fs.existsSync(loginFilePath)) {
                     return -1;

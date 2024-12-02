@@ -95,7 +95,7 @@ export class QueryGameStats extends plugin {
                 ssotoken: Token
             });
 
-            if (response.returnCode === -30003) {
+            if (response.returnCode === -30003 || response.returnCode === '-30314') {
                 response = await ApiService.post('/game/battledetail', {
                     recommendPrivacy: 0,
                     battleType,
