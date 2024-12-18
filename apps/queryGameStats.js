@@ -223,7 +223,7 @@ export class QueryGameStats extends plugin {
         let currentStreak = 0;
 
         for (let result of results) {
-            if (result === '胜利') {
+            if (result === 1) {
                 currentStreak++;
                 if (currentStreak > maxStreak) {
                     maxStreak = currentStreak;
