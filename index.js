@@ -8,6 +8,7 @@ global.wzryIdImg = 'https://gitee.com/Tloml-Starry/resources/raw/master/resource
 
 const userDataDirPath = path.join('data', 'WzryData');
 const userDataFilePath = path.join(userDataDirPath, 'UserData.yaml');
+const gameRecordPushFilePath = path.join(userDataDirPath, 'GameRecordPush.yaml');
 
 if (!fs.existsSync(userDataDirPath)) {
     fs.mkdirSync(userDataDirPath, { recursive: true });
@@ -17,6 +18,13 @@ if (!fs.existsSync(userDataDirPath)) {
 if (!fs.existsSync(userDataFilePath)) {
     writeYamlFile(userDataFilePath, {});
     logger.info('UserData.yaml 文件不存在，已自动创建。');
+}
+
+if (!fs.existsSync(gameRecordPushFilePath)) {
+    writeYamlFile(gameRecordPushFilePath, {
+        pushList: {}
+    });
+    logger.info('GameRecordPush.yaml 文件不存在，已自动创建。');
 }
 
 const files = fs.readdirSync('./plugins/GloryOfKings-Plugin/apps').filter(file => file.endsWith('.js'))
