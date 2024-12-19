@@ -2,7 +2,7 @@ import puppeteer from '../../../lib/puppeteer/puppeteer.js';
 import ApiService from '../utils/api.js';
 import path from 'path';
 import fs from 'fs';
-import { readJsonFile, getFilePath } from '../utils/fileUtils.js';
+import { readJsonFile, getFilePath, writeJsonFile } from '../utils/fileUtils.js';
 import { readYamlFile } from '../utils/yamlUtils.js';
 
 export class MyKingHomepage extends plugin {
@@ -13,9 +13,74 @@ export class MyKingHomepage extends plugin {
             event: 'message',
             priority: 1,
             rule: [
-                { reg: /^#王者主页/, fnc: 'myKingHomepage' }
+                { reg: /^#王者主页$/, fnc: 'myKingHomepage' },
+                { reg: /#(开启|关闭)上下线提醒$/, fnc: 'toggleOnlineReminder' }
             ]
         })
+        this.task = {
+            name: '[定时任务]王者上下线提醒',
+            fnc: () => this.onlineReminder(),
+            cron: '0 * * * * *'
+        }
+    }
+
+    async onlineReminder() {
+        const { userFilePath, settingsFilePath, settingsUserFilePath } = {
+            userFilePath: path.join('data', 'WzryData', 'UserData.yaml'),
+            settingsFilePath: path.join('data', 'WzryData', 'user_settings.yaml'),
+            settingsUserFilePath: path.join('data', 'WzryData', 'user_settings', `${user_id}.json`)
+        }
+
+        const { userData, settingsData } = {
+            userData: readYamlFile(userFilePath),
+            settingsData: readYamlFile(settingsFilePath)
+        }
+
+        for (const user of Object.keys(settingsData)) {
+            const ID = userData[user];
+
+            const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID();
+
+            const response = await this.fetchUserProfile(ID, OpenID, Token, user);
+            if (response === -1 || response === -2) continue
+
+            const { roleCard } = response.data;
+            if (!settingsUserFilePath) {
+                writeJsonFile(settingsUserFilePath, { gameOnline: roleCard.gameOnline });
+            }
+            const { gameOnline } = readJsonFile(settingsUserFilePath);
+            if (gameOnline === roleCard.gameOnline) continue;
+
+            writeJsonFile(settingsUserFilePath, { gameOnline: roleCard.gameOnline });
+
+            Bot.pickGroup(settingsData[user]).sendMessage(roleCard.gameOnline === 1 ? '上线了' : '下线了');
+        }
+    }
+
+    async toggleOnlineReminder(e) {
+        const { user_id, group_id, isGroup } = e;
+        if (!isGroup) return false;
+
+        const { userFilePath, settingsFilePath } = {
+            userFilePath: path.join('data', 'WzryData', 'UserData.yaml'),
+            settingsFilePath: path.join('data', 'WzryData', 'user_settings.yaml')
+        }
+
+        const { userData, settingsData } = {
+            userData: readYamlFile(userFilePath),
+            settingsData: readYamlFile(settingsFilePath)
+        }
+
+        if (!userData[user_id]) {
+            await e.reply(segment.image(wzryIdImg));
+            return;
+        }
+
+        const isEnabled = /^#开启/.test(e.msg);
+        settingsData[user_id] = isEnabled ? group_id : null;
+
+        fs.writeFileSync(settingsFilePath, JSON.stringify(settingsData, null, 2));
+        await e.reply(`上下线提醒已${isEnabled ? '开启' : '关闭'}。`);
     }
 
     async myKingHomepage(e) {

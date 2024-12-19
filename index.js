@@ -5,27 +5,25 @@ import { writeYamlFile } from './utils/yamlUtils.js'
 logger.info('王者荣耀插件...')
 
 global.wzryIdImg = 'https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/%E7%8E%8B%E8%80%85%E8%90%A5%E5%9C%B0ID%E8%8E%B7%E5%8F%96.png'
+const paths = {
+    userDataDir: path.join('data', 'WzryData'),
+    userSettingsDir: path.join('data', 'WzryData', 'user_settings'),
+    userDataFile: path.join('data', 'WzryData', 'UserData.yaml'),
+    gameRecordPushFile: path.join('data', 'WzryData', 'GameRecordPush.yaml'),
+    userSettingsFile: path.join('data', 'WzryData', 'user_settings.yaml')
+};
 
-const userDataDirPath = path.join('data', 'WzryData');
-const userDataFilePath = path.join(userDataDirPath, 'UserData.yaml');
-const gameRecordPushFilePath = path.join(userDataDirPath, 'GameRecordPush.yaml');
-
-if (!fs.existsSync(userDataDirPath)) {
-    fs.mkdirSync(userDataDirPath, { recursive: true });
-    logger.info('WzryData 文件夹不存在，已自动创建。');
-}
-
-if (!fs.existsSync(userDataFilePath)) {
-    writeYamlFile(userDataFilePath, {});
-    logger.info('UserData.yaml 文件不存在，已自动创建。');
-}
-
-if (!fs.existsSync(gameRecordPushFilePath)) {
-    writeYamlFile(gameRecordPushFilePath, {
-        pushList: {}
-    });
-    logger.info('GameRecordPush.yaml 文件不存在，已自动创建。');
-}
+Object.entries(paths).forEach(([key, filePath]) => {
+    if (!fs.existsSync(filePath)) {
+        if (key.includes('Dir')) {
+            fs.mkdirSync(filePath, { recursive: true });
+            logger.info(`${key} 文件夹不存在，已自动创建。`);
+        } else {
+            writeYamlFile(filePath, key === 'gameRecordPushFile' ? { pushList: {} } : {});
+            logger.info(`${key} 文件不存在，已自动创建。`);
+        }
+    }
+});
 
 const files = fs.readdirSync('./plugins/GloryOfKings-Plugin/apps').filter(file => file.endsWith('.js'))
 
