@@ -25,10 +25,9 @@ export class MyKingHomepage extends plugin {
     }
 
     async onlineReminder() {
-        const { userFilePath, settingsFilePath, settingsUserFilePath } = {
+        const { userFilePath, settingsFilePath } = {
             userFilePath: path.join('data', 'WzryData', 'UserData.yaml'),
             settingsFilePath: path.join('data', 'WzryData', 'user_settings.yaml'),
-            settingsUserFilePath: path.join('data', 'WzryData', 'user_settings', `${user_id}.json`)
         }
 
         const { userData, settingsData } = {
@@ -38,6 +37,7 @@ export class MyKingHomepage extends plugin {
 
         for (const user of Object.keys(settingsData)) {
             const ID = userData[user];
+            const settingsUserFilePath = path.join('data', 'WzryData', 'user_settings', `${user}.json`);
 
             const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID();
 
