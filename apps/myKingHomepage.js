@@ -20,7 +20,7 @@ export class MyKingHomepage extends plugin {
         this.task = {
             name: '[定时任务]王者上下线提醒',
             fnc: () => this.onlineReminder(),
-            cron: '0 * * * * *'
+            cron: '*/30 * * * * *'
         }
     }
 
@@ -44,7 +44,8 @@ export class MyKingHomepage extends plugin {
             const response = await this.fetchUserProfile(ID, OpenID, Token, user);
             if (response === -1 || response === -2) continue
 
-            const { roleCard } = response.data;
+            const { profile, roleCard } = response.data;
+
             if (!fs.existsSync(settingsUserFilePath)) {
                 writeJsonFile(settingsUserFilePath, { gameOnline: roleCard.gameOnline });
             }
@@ -53,7 +54,27 @@ export class MyKingHomepage extends plugin {
 
             writeJsonFile(settingsUserFilePath, { gameOnline: roleCard.gameOnline });
 
-            Bot.pickGroup(settingsData[user]).sendMessage(roleCard.gameOnline === 1 ? '上线了' : '下线了');
+            const inventoryImage = await puppeteer.screenshot('myKingHomepage', {
+                tplFile: 'plugins/GloryOfKings-Plugin/resources/html/MyKingHomepage.html',
+                IP: profile.ipProperty,
+                roleIcon: roleCard.roleBigIcon,
+                roleName: roleCard.roleName,
+                gameLevel: roleCard.level,
+                gameOnline: roleCard.gameOnline,
+                roleJobName: `${roleCard.roleJobName} ${roleCard.rankingStar}星`,
+                areaName: roleCard.areaName,
+                roleText: roleCard.serverName,
+                flagImg: roleCard.flagImg,
+                roleJobIcon: roleCard.roleJobIcon,
+                content_1: roleCard.fightPowerItem.value1,
+                content_2: roleCard.mvpNumItem.value1,
+                content_3: roleCard.totalBattleCountItem.value1,
+                content_4: `${roleCard.heroNumItem.value1}/${roleCard.heroNumItem.value2}`,
+                content_5: roleCard.winRateItem.value1,
+                content_6: `${roleCard.skinNumItem.value1}/${roleCard.skinNumItem.value2}`
+            });
+
+            Bot.pickGroup(settingsData[user]).sendMsg([`${user} ${roleCard.gameOnline === 1 ? '登录了王者荣耀' : '下线了王者荣耀'}`, inventoryImage]);
         }
     }
 
