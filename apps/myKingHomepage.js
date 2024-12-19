@@ -74,7 +74,7 @@ export class MyKingHomepage extends plugin {
                 content_6: `${roleCard.skinNumItem.value1}/${roleCard.skinNumItem.value2}`
             });
 
-            Bot.pickGroup(settingsData[user]).sendMsg([`${roleCard.roleName} ${roleCard.gameOnline === 1 ? '登录了王者荣耀' : '下线了王者荣耀'}`, inventoryImage]);
+            Bot.pickGroup(settingsData[user]).sendMsg([`${roleCard.roleName} ${roleCard.gameOnline === 1 ? '登录了' : '下线了'}`, inventoryImage]);
         }
     }
 
