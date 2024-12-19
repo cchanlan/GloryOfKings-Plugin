@@ -45,7 +45,7 @@ export class MyKingHomepage extends plugin {
             if (response === -1 || response === -2) continue
 
             const { roleCard } = response.data;
-            if (!settingsUserFilePath) {
+            if (!fs.existsSync(settingsUserFilePath)) {
                 writeJsonFile(settingsUserFilePath, { gameOnline: roleCard.gameOnline });
             }
             const { gameOnline } = readJsonFile(settingsUserFilePath);
