@@ -1,51 +1,123 @@
-import fs from 'node:fs'
 import path from 'node:path'
 import { writeYamlFile } from './utils/yamlUtils.js'
+import { PluginName, PluginData } from './components/Path.js'
+import fs from 'node:fs/promises'
+import chalk from 'chalk'
+import { fileURLToPath, pathToFileURL } from 'url'
 
-logger.info('王者荣耀插件...')
-
-global.wzryIdImg = 'https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/%E7%8E%8B%E8%80%85%E8%90%A5%E5%9C%B0ID%E8%8E%B7%E5%8F%96.png'
 const paths = {
-    userDataDir: path.join('data', 'WzryData'),
-    userSettingsDir: path.join('data', 'WzryData', 'user_settings'),
-    userDataFile: path.join('data', 'WzryData', 'UserData.yaml'),
-    gameRecordPushFile: path.join('data', 'WzryData', 'GameRecordPush.yaml'),
-    userSettingsFile: path.join('data', 'WzryData', 'user_settings.yaml')
-};
-
-Object.entries(paths).forEach(([key, filePath]) => {
-    if (!fs.existsSync(filePath)) {
-        if (key.includes('Dir')) {
-            fs.mkdirSync(filePath, { recursive: true });
-            logger.info(`${key} 文件夹不存在，已自动创建。`);
-        } else {
-            writeYamlFile(filePath, key === 'gameRecordPushFile' ? { pushList: {} } : {});
-            logger.info(`${key} 文件不存在，已自动创建。`);
-        }
-    }
-});
-
-const files = fs.readdirSync('./plugins/GloryOfKings-Plugin/apps').filter(file => file.endsWith('.js'))
-
-let ret = []
-
-files.forEach((file) => {
-    ret.push(import(`./apps/${file}`))
-})
-
-ret = await Promise.allSettled(ret)
-
-let apps = {}
-for (let i in files) {
-    let name = files[i].replace('.js', '')
-
-    if (ret[i].status != 'fulfilled') {
-        logger.error(`载入插件错误：${logger.red(name)}`)
-        logger.error(ret[i].reason)
-        continue
-    }
-    apps[name] = ret[i].value[Object.keys(ret[i].value)[0]]
+  userSettingsDir: path.join(PluginData, 'user_settings'),
+  userDataFile: path.join(PluginData, 'UserData.yaml'),
+  gameRecordPushFile: path.join(PluginData, 'GameRecordPush.yaml'),
+  userSettingsFile: path.join(PluginData, 'user_settings.yaml')
 }
 
+async function checkAndCreatePaths () {
+  for (const [key, filePath] of Object.entries(paths)) {
+    try {
+      await fs.access(filePath).catch(() => {
+        if (key.includes('Dir')) {
+          return fs.mkdir(filePath, { recursive: true })
+        } else {
+          const content = key === 'gameRecordPushFile' ? { pushList: {} } : {}
+          return writeYamlFile(filePath, content)
+        }
+      })
+      logger.info(`${key} 文件已创建`)
+    } catch (error) {
+      logger.error(`处理路径 ${filePath} 时发生错误: ${error.message}`)
+    }
+  }
+}
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const appsDir = path.join(__dirname, 'apps')
+
+const startTime = Date.now()
+const apps = {}
+
+let successCount = 0
+let failureCount = 0
+
+logger.info(chalk.cyan('王者荣耀插件载入中...'))
+
+async function scanDirectory (directory) {
+  const entries = await fs.readdir(directory, { withFileTypes: true })
+  const tasks = []
+
+  for (const entry of entries) {
+    const fullPath = path.join(directory, entry.name)
+    if (entry.isDirectory()) {
+      tasks.push(scanDirectory(fullPath))
+    } else if (entry.isFile() && entry.name.endsWith('.js')) {
+      tasks.push({
+        name: path.basename(entry.name, '.js'),
+        filePath: pathToFileURL(fullPath).href
+      })
+    }
+  }
+
+  return (await Promise.all(tasks)).flat()
+}
+
+async function loadModules () {
+  try {
+    const filePaths = await scanDirectory(appsDir)
+    logger.debug(`[${PluginName}] 构建模块路径完成，共计 ${filePaths.length} 个模块。`)
+
+    logger.debug(`[${PluginName}] 开始并发加载所有模块...`)
+
+    const loadModules = filePaths.map(async ({ name, filePath }) => {
+      const loadStartTime = Date.now()
+
+      try {
+        const moduleExports = await import(filePath)
+        const defaultExport = moduleExports?.default || moduleExports[Object.keys(moduleExports)[0]]
+
+        if (!defaultExport) {
+          logger.debug(`[${PluginName}] 模块 ${name} 没有有效的导出内容`)
+          return
+        }
+
+        let newName = name
+        let counter = 1
+
+        while (apps[newName]) {
+          newName = `${name}_${counter}`
+          counter++
+        }
+
+        apps[newName] = defaultExport
+
+        const loadTime = Date.now() - loadStartTime
+        logger.debug(chalk.green(`[${PluginName}] 成功载入模块：${newName}，耗时 ${loadTime} ms`))
+        successCount++
+      } catch (error) {
+        logger.error(chalk.red(`[${PluginName}] 加载模块失败：${name}`))
+        logger.error(error)
+        failureCount++
+      }
+    })
+
+    await Promise.all(loadModules)
+  } catch (error) {
+    logger.error(`[${PluginName}] 扫描或加载文件时出错：${chalk.red(error.message)}`)
+    logger.debug(error)
+  }
+}
+
+await checkAndCreatePaths()
+await loadModules()
+
+const endTime = Date.now()
+const elapsedTime = endTime - startTime
+
+logger.info('----------------------')
+logger.info(chalk.green('王者荣耀插件载入完成'))
+logger.info(`成功加载：${chalk.green(successCount)} 个`)
+logger.info(`加载失败：${chalk.red(failureCount)} 个`)
+logger.info(`总耗时：${chalk.yellow(elapsedTime)} 毫秒`)
+logger.info('----------------------')
+
 export { apps }
-logger.mark('王者荣耀插件载入成功')

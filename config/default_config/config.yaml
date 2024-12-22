@@ -1,0 +1,4 @@
+#*是否启用王者上下线提醒
+onlineReminder: true
+#*王者上下线提醒的cron表达式
+onlineReminderCron: '*/10 * * * * *'
