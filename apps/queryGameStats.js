@@ -25,13 +25,15 @@ export class QueryGameStats extends plugin {
     const allUserData = readYamlFile(userFilePath)
     const ID = allUserData[e.user_id]
 
+    logger.info('[王者荣耀插件]ID', ID)
     if (!ID) {
       await e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png'))
       return
     }
 
     const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID()
-
+    logger.info('[王者荣耀插件]OpenID', OpenID)
+    logger.info('[王者荣耀插件]Token', Token)
     let index = Number(e.msg.match(/#查询战绩(\d+)?/)[1]) || false
 
     let response_ = await ApiService.post('/game/morebattlelist', {
