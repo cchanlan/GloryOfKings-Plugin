@@ -6,6 +6,10 @@ export function readJsonFile (filePath) {
 }
 
 export function writeJsonFile (filePath, data) {
+  const dir = path.dirname(filePath)
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true })
+  }
   fs.writeFileSync(filePath, JSON.stringify(data))
 }
 
