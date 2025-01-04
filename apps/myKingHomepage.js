@@ -28,7 +28,8 @@ export class MyKingHomepage extends plugin {
       this.task = {
         name: '[定时任务]王者上下线提醒',
         fnc: () => this.onlineReminder(),
-        cron: onlineReminderCron
+        cron: onlineReminderCron,
+        log: false
       }
     }
   }
