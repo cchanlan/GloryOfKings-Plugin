@@ -9,7 +9,8 @@ const paths = {
   userSettingsDir: path.join(PluginData, 'user_settings'),
   userDataFile: path.join(PluginData, 'UserData.yaml'),
   gameRecordPushFile: path.join(PluginData, 'GameRecordPush.yaml'),
-  userSettingsFile: path.join(PluginData, 'user_settings.yaml')
+  userSettingsFile: path.join(PluginData, 'user_settings.yaml'),
+  gameStatsPushSettingsFile: path.join(PluginData, 'gameStatsPushSettings.yaml')
 }
 
 async function checkAndCreatePaths () {
