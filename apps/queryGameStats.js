@@ -1,9 +1,8 @@
 import fs from 'fs'
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { PluginData, Config } from '#components'
+import { PluginData } from '#components'
 import { ApiService, readYamlFile, getFilePath, readJsonFile, writeJsonFile, writeYamlFile } from '#utils'
-import { Bot } from '#components'
 
 export class QueryGameStats extends plugin {
   constructor () {
