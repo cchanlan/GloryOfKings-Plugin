@@ -1,8 +1,9 @@
 import fs from 'fs'
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { PluginData } from '#components'
-import { ApiService, readYamlFile, getFilePath, readJsonFile, writeJsonFile } from '#utils'
+import { PluginData, Config } from '#components'
+import { ApiService, readYamlFile, getFilePath, readJsonFile, writeJsonFile, writeYamlFile } from '#utils'
+import { Bot } from '#components'
 
 export class QueryGameStats extends plugin {
   constructor () {
@@ -15,9 +16,60 @@ export class QueryGameStats extends plugin {
         {
           reg: /^#查询战绩(\d+)?/,
           fnc: 'queryGameStats'
+        },
+        {
+          reg: /^#(开启|关闭)战绩推送$/,
+          fnc: 'toggleGameStatsPush'
         }
       ]
     })
+
+    this.task = {
+      name: '[定时任务]战绩推送',
+      fnc: () => this.checkAndPushGameStats(),
+      cron: '0 */5 * * * *',
+      log: false
+    }
+  }
+
+  async checkAndPushGameStats() {
+    const userFilePath = path.join(PluginData, 'UserData.yaml')
+    const allUserData = readYamlFile(userFilePath)
+
+    for (const userId in allUserData) {
+      const ID = allUserData[userId]
+      const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID()
+
+      let response_ = await ApiService.post('/game/morebattlelist', {
+        lastTime: 0,
+        recommendPrivacy: 0,
+        apiVersion: 5,
+        friendUserId: ID,
+        option: 0
+      }, {
+        ssoopenid: OpenID,
+        ssotoken: Token
+      })
+
+      if (response_.data.list.length > 0) {
+        this.pushGameStats(response_.data.list, { user_id: userId })
+      }
+    }
+  }
+
+  async toggleGameStatsPush(e) {
+    const isEnabled = /^#开启/.test(e.msg)
+    const settingsFilePath = path.join(PluginData, 'gameStatsPushSettings.yaml')
+    let settingsData = {}
+
+    if (fs.existsSync(settingsFilePath)) {
+      settingsData = readYamlFile(settingsFilePath)
+    }
+
+    settingsData[e.user_id] = isEnabled ? true : false
+    writeYamlFile(settingsFilePath, settingsData)
+
+    await e.reply(`战绩推送已${isEnabled ? '开启' : '关闭'}。`)
   }
 
   async queryGameStats (e) {
@@ -76,6 +128,8 @@ export class QueryGameStats extends plugin {
     }
 
     writeJsonFile(path.join(PluginData, 'BattleList.json'), response_.data)
+
+    this.pushGameStats(response_.data.list, e)
 
     if (index) {
       const battleDetails = response_.data.list[index - 1]
@@ -240,5 +294,24 @@ export class QueryGameStats extends plugin {
     }
 
     return maxStreak
+  }
+
+  /**
+   * 推送战绩到指定群聊或用户
+   * @param {Array} battleList - 战绩列表
+   * @param {Object} e - 事件对象
+   */
+  pushGameStats(battleList, e) {
+    const settingsFilePath = path.join(PluginData, 'gameStatsPushSettings.yaml')
+    const settingsData = readYamlFile(settingsFilePath)
+
+    if (!settingsData[e.user_id]) return
+
+    const groupId = settingsData[e.user_id] || '123456789' // 替换为实际的群聊ID
+    const message = battleList.map(item => {
+      return `游戏类型: ${item.mapName}, 结果: ${this.getGameResult(item.gameresult)}, 时间: ${item.gametime}`
+    }).join('\n')
+
+    Bot.pickGroup(groupId).sendMsg(`最新战绩推送:\n${message}`)
   }
 }
