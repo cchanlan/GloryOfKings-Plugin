@@ -118,6 +118,9 @@ export class QueryGameStats extends plugin {
       writeJsonFile(path.join(PluginData, 'BattleDetails.json'), response.data)
 
       const { head, battle, redTeam, blueTeam, redRoles, blueRoles } = response.data
+      if (!head.acntCamp) {
+        return e.reply('查询失败，疑似不可查询战绩模式');
+      }
       const myTeamColor = head.acntCamp === redTeam.acntCamp ? '红' : '蓝'
       const enemyTeamColor = myTeamColor === '红' ? '蓝' : '红'
 
