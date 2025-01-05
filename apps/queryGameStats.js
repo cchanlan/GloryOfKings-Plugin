@@ -3,6 +3,9 @@ import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { PluginData } from '#components'
 import { ApiService, readYamlFile, getFilePath, readJsonFile, writeJsonFile } from '#utils'
+import logger from '../utils/logger.js'
+import monitor from '../utils/monitor.js'
+import cache from '../utils/cache.js'
 
 export class QueryGameStats extends plugin {
   constructor() {
@@ -21,6 +24,7 @@ export class QueryGameStats extends plugin {
   }
 
   async queryGameStats(e) {
+    monitor.startTimer('queryGameStats')
     try {
       const userFilePath = path.join(PluginData, 'UserData.yaml')
       const ID = readYamlFile(userFilePath)?.[e.user_id]
@@ -31,7 +35,17 @@ export class QueryGameStats extends plugin {
       }
 
       const index = Number(e.msg.match(/#查询战绩(\d+)?/)?.[1]) || false
-      const battleList = await this.fetchBattleList(e, ID)
+      
+      // 尝试从缓存获取战绩列表
+      const cacheKey = `battleList:${ID}`
+      let battleList = cache.get(cacheKey)
+      
+      if (!battleList) {
+        battleList = await this.fetchBattleList(e, ID)
+        if (battleList?.data?.list?.length) {
+          cache.set(cacheKey, battleList, 300) // 缓存5分钟
+        }
+      }
       
       if (!battleList?.data?.list?.length) {
         return e.reply(battleList?.invisDes || '未获取到战绩数据')
@@ -45,8 +59,10 @@ export class QueryGameStats extends plugin {
 
       return await this.handleBattleList(e, battleList.data)
     } catch (error) {
-      logger.error(`查询战绩出错: ${error}`)
+      logger.error(`查询战绩出错: ${error.message}`)
       return e.reply('查询战绩时发生错误，请稍后重试')
+    } finally {
+      monitor.endTimer('queryGameStats')
     }
   }
 
@@ -213,5 +229,43 @@ export class QueryGameStats extends plugin {
     })
 
     await e.reply(image)
+  }
+
+  async fetchBattleDetails(battleDetails) {
+    try {
+      let { OpenID, Token } = await ApiService.getPublicTokenAndOpenID()
+      const body = {
+        gameSeq: battleDetails.gameSeq,
+        battleType: battleDetails.battleType,
+        apiVersion: 5
+      }
+      
+      let response = await ApiService.post('/game/battledetail', body, {
+        ssoopenid: OpenID,
+        ssotoken: Token
+      })
+
+      if (response.returnCode === -30003) {
+        const loginData = await this.getUserLoginData(e)
+        if (!loginData) return null
+
+        response = await ApiService.post('/game/battledetail', body, {
+          ssoopenid: loginData.ssoOpenId,
+          ssotoken: loginData.ssoToken
+        })
+
+        if (response.returnCode === -30003) {
+          await e.reply('登录状态失效，请重新扫码登录')
+          return null
+        }
+      }
+
+      return response
+    } catch (error) {
+      logger.error(`获取战绩详情失败: ${error.message}`, {
+        battleDetails: JSON.stringify(battleDetails)
+      })
+      return null
+    }
   }
 }
