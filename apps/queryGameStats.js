@@ -312,7 +312,7 @@ export class QueryGameStats extends plugin {
    * @param {Array} battleList - 战绩列表
    * @param {Object} e - 事件对象
    */
-  pushGameStats(battleList, e) {
+  async pushGameStats(battleList, e) {
     const settingsFilePath = path.join(PluginData, 'gameStatsPushSettings.yaml')
     const settingsData = readYamlFile(settingsFilePath)
 
@@ -326,17 +326,19 @@ export class QueryGameStats extends plugin {
       ? battleDetailUrl.substring(battleDetailUrl.indexOf('&toAppRoleId=') + 13, battleDetailUrl.indexOf('&toGameRoleId=')) 
       : null
 
-    ApiService.post('/game/battledetail', {
-      recommendPrivacy: 0,
-      battleType,
-      gameSvr,
-      relaySvr,
-      targetRoleId,
-      gameSeq
-    }, {
-      ssoopenid: OpenID,
-      ssotoken: Token
-    }).then(response => {
+    try {
+      const response = await ApiService.post('/game/battledetail', {
+        recommendPrivacy: 0,
+        battleType,
+        gameSvr,
+        relaySvr,
+        targetRoleId,
+        gameSeq
+      }, {
+        ssoopenid: OpenID,
+        ssotoken: Token
+      })
+
       if (response.returnCode === 0) {
         const data = {
           tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordDetails.html',
@@ -344,10 +346,13 @@ export class QueryGameStats extends plugin {
           myTeamColor: '红',
           enemyTeamColor: '蓝'
         }
-        puppeteer.screenshot('QueryGameRecordDetails', data).then(inventoryImage => {
-          Bot.pickGroup(groupId).sendMsg(`最新战绩推送:\n`, inventoryImage)
-        })
+        const inventoryImage = await puppeteer.screenshot('QueryGameRecordDetails', data)
+        await Bot.pickGroup(groupId).sendMsg(`最新战绩推送:\n`, inventoryImage)
+      } else {
+        console.error(`Failed to fetch battle details: ${response.returnMsg}`)
       }
-    })
+    } catch (error) {
+      console.error(`Error in pushGameStats: ${error.message}`)
+    }
   }
 }
