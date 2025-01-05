@@ -1,3 +1,4 @@
+// 请使用中文提交信息
 import fs from 'fs'
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
@@ -51,7 +52,18 @@ export class QueryGameStats extends plugin {
       })
 
       if (response_.data.list.length > 0) {
-        this.pushGameStats(response_.data.list, { user_id: userId })
+        const latestBattle = response_.data.list[0]
+        const lastPushedBattleFilePath = path.join(PluginData, `lastPushedBattle_${userId}.json`)
+        
+        let lastPushedBattle = {}
+        if (fs.existsSync(lastPushedBattleFilePath)) {
+          lastPushedBattle = readJsonFile(lastPushedBattleFilePath)
+        }
+
+        if (lastPushedBattle.gameSeq !== latestBattle.gameSeq) {
+          this.pushGameStats([latestBattle], { user_id: userId })
+          writeJsonFile(lastPushedBattleFilePath, latestBattle)
+        }
       }
     }
   }
@@ -306,11 +318,36 @@ export class QueryGameStats extends plugin {
 
     if (!settingsData[e.user_id]) return
 
-    const groupId = settingsData[e.user_id] || '123456789' // 替换为实际的群聊ID
-    const message = battleList.map(item => {
-      return `游戏类型: ${item.mapName}, 结果: ${this.getGameResult(item.gameresult)}, 时间: ${item.gametime}`
-    }).join('\n')
+    const groupId = settingsData[e.user_id] || '123456789'
+    const battleDetails = battleList[0]
+    const { battleType, gameSvrId: gameSvr, relaySvrId: relaySvr, battleDetailUrl, gameSeq } = battleDetails
 
-    Bot.pickGroup(groupId).sendMsg(`最新战绩推送:\n${message}`)
+    const targetRoleId = battleDetailUrl.includes('&toAppRoleId=') 
+      ? battleDetailUrl.substring(battleDetailUrl.indexOf('&toAppRoleId=') + 13, battleDetailUrl.indexOf('&toGameRoleId=')) 
+      : null
+
+    ApiService.post('/game/battledetail', {
+      recommendPrivacy: 0,
+      battleType,
+      gameSvr,
+      relaySvr,
+      targetRoleId,
+      gameSeq
+    }, {
+      ssoopenid: OpenID,
+      ssotoken: Token
+    }).then(response => {
+      if (response.returnCode === 0) {
+        const data = {
+          tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordDetails.html',
+          ...this.extractTeamData('红', response.data.head, response.data.battle, response.data.redTeam, response.data.blueTeam, response.data.redRoles, response.data.blueRoles),
+          myTeamColor: '红',
+          enemyTeamColor: '蓝'
+        }
+        puppeteer.screenshot('QueryGameRecordDetails', data).then(inventoryImage => {
+          Bot.pickGroup(groupId).sendMsg(`最新战绩推送:\n`, inventoryImage)
+        })
+      }
+    })
   }
 }
