@@ -34,24 +34,44 @@ class ApiService {
     return headers
   }
 
-  async request (method, endpoint, body = null, additionalHeaders = {}) {
+  async requestWithRetry(method, endpoint, body = null, additionalHeaders = {}, retries = 3) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        return await this.request(method, endpoint, body, additionalHeaders)
+      } catch (error) {
+        if (i === retries - 1) throw error
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)))
+      }
+    }
+  }
+
+  async request(method, endpoint, body = null, additionalHeaders = {}) {
     const url = `${this.baseUrls.main}${endpoint}`
     const headers = {
       ...this.getCommonHeaders(url),
       ...additionalHeaders
     }
+    
     try {
       const response = await fetch(url, {
         method,
         headers,
-        body: body ? JSON.stringify(body) : null
+        body: body ? JSON.stringify(body) : null,
+        timeout: 10000
       })
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(`HTTP ${response.status}: ${errorData.message || response.statusText}`)
       }
+      
       return await response.json()
     } catch (error) {
-      console.error('API request failed:', error)
+      logger.error(`API请求失败: ${error.message}`, {
+        url,
+        method,
+        body: JSON.stringify(body)
+      })
       throw error
     }
   }

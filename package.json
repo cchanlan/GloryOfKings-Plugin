@@ -7,6 +7,7 @@
         "fix": "npx prettier --write **/*.js && npx prettier --write *.js"
     },
     "dependencies": {
+        "node-cache": "^5.1.2",
         "yaml": "^2.2.2"
     },
     "imports": {
