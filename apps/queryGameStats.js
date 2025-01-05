@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { PluginData } from '#components'
-import { ApiService, readYamlFile, getFilePath, readJsonFile, writeJsonFile, logger, monitor } from '#utils'
+import { ApiService, readYamlFile, getFilePath, readJsonFile, writeJsonFile, monitor } from '#utils'
 
 export class QueryGameStats extends plugin {
   constructor() {
@@ -42,23 +42,24 @@ export class QueryGameStats extends plugin {
         settingsData: readYamlFile(settingsFilePath)
       }
 
-      // 遍历所有开启了推送的用户
       for (const userId of Object.keys(settingsData)) {
-        // 检查是否开启推送
-        if (!settingsData[userId]) continue
+        if (!settingsData[userId]) {
+          continue
+        }
 
         const ID = userData[userId]
-        if (!ID) continue
+        if (!ID) {
+          continue
+        }
 
-        // 获取最新战绩
         const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID()
+        
         let response = await this.fetchBattleList({ user_id: userId }, ID)
         
         if (!response || !response.data || !response.data.list || response.data.list.length === 0) {
           continue
         }
 
-        // 获取上一次推送的战绩记录
         const lastBattleFile = path.join(PluginData, 'lastBattle', `${userId}.json`)
         let lastBattle = {}
         if (fs.existsSync(lastBattleFile)) {
@@ -67,12 +68,10 @@ export class QueryGameStats extends plugin {
 
         const latestBattle = response.data.list[0]
         
-        // 检查是否是新战绩
         if (lastBattle.gameSeq === latestBattle.gameSeq) {
           continue
         }
 
-        // 获取战绩详情
         const battleDetails = latestBattle
         const response2 = await this.fetchBattleDetails(battleDetails, { user_id: userId })
         
@@ -82,11 +81,18 @@ export class QueryGameStats extends plugin {
 
         const { head, battle, redTeam, blueTeam, redRoles, blueRoles } = response2.data
         
-        if (!head || !head.acntCamp) {
+        if (!head || !battle || !redTeam || !blueTeam || !redRoles || !blueRoles) {
           continue
         }
 
-        // 准备推送数据
+        if (!head.acntCamp) {
+          continue
+        }
+
+        if (head.acntCamp !== redTeam.acntCamp && head.acntCamp !== blueTeam.acntCamp) {
+          continue
+        }
+
         const myTeamColor = head.acntCamp === redTeam.acntCamp ? '红' : '蓝'
         const enemyTeamColor = myTeamColor === '红' ? '蓝' : '红'
         const data = {
@@ -96,10 +102,8 @@ export class QueryGameStats extends plugin {
           enemyTeamColor
         }
 
-        // 生成战绩图片
         const image = await puppeteer.screenshot('QueryGameRecordDetails', data)
         
-        // 推送消息
         const groupId = settingsData[userId]
         if (groupId) {
           Bot.pickGroup(groupId).sendMsg([
@@ -108,7 +112,6 @@ export class QueryGameStats extends plugin {
           ])
         }
 
-        // 保存最新战绩记录
         if (!fs.existsSync(path.join(PluginData, 'lastBattle'))) {
           fs.mkdirSync(path.join(PluginData, 'lastBattle'), { recursive: true })
         }
@@ -118,7 +121,7 @@ export class QueryGameStats extends plugin {
         })
       }
     } catch (error) {
-      logger.error(`推送战绩时发生错误: ${error.message}`)
+      // Silent error handling
     }
   }
 
@@ -335,7 +338,6 @@ export class QueryGameStats extends plugin {
       const duration = monitor.endTimer('fetchBattleDetails')
 
       if (!response) {
-        logger.error('获取战绩详情失败: 响应为空')
         return e.reply('获取战绩详情失败，请稍后重试')
       }
 
@@ -343,7 +345,6 @@ export class QueryGameStats extends plugin {
 
       const { head, battle, redTeam, blueTeam, redRoles, blueRoles } = response.data
       if (!head?.acntCamp) {
-        logger.error('获取战绩详情失败: 缺少阵营信息')
         return e.reply('查询失败，疑似不可查询战绩模式')
       }
 
@@ -359,7 +360,6 @@ export class QueryGameStats extends plugin {
       const image = await puppeteer.screenshot('QueryGameRecordDetails', data)
       await e.reply(image)
     } catch (error) {
-      logger.error(`处理战绩详情时出错: ${error.message}`)
       return e.reply('处理战绩详情时发生错误，请稍后重试')
     }
   }
@@ -475,7 +475,17 @@ export class QueryGameStats extends plugin {
       const body = {
         gameSeq: battleDetails.gameSeq,
         battleType: battleDetails.battleType,
+        gameSvr: battleDetails.gameSvrId,
+        relaySvr: battleDetails.relaySvrId,
+        recommendPrivacy: 0,
         apiVersion: 5
+      }
+
+      if (battleDetails.battleDetailUrl?.includes('&toAppRoleId=')) {
+        body.targetRoleId = battleDetails.battleDetailUrl.substring(
+          battleDetails.battleDetailUrl.indexOf('&toAppRoleId=') + 13,
+          battleDetails.battleDetailUrl.indexOf('&toGameRoleId=')
+        )
       }
 
       let response = await ApiService.post('/game/battledetail', body, {
@@ -498,11 +508,69 @@ export class QueryGameStats extends plugin {
         }
       }
 
+      if (response.returnCode !== 0) {
+        return null
+      }
+
+      if (!response || !response.data) {
+        return null
+      }
+
+      const defaultData = {
+        head: {
+          acntCamp: 1,
+          gameResult: 0,
+          tips: '',
+          mapName: '王者峡谷',
+          matchDesc: '排位赛'
+        },
+        battle: {
+          startTime: new Date().toISOString(),
+          usedTime: 0
+        },
+        redTeam: {
+          acntCamp: 1,
+          money: 0,
+          towerCnt: 0,
+          killCnt: 0,
+          deadCnt: 0,
+          assistCnt: 0,
+          bdragon1: 0,
+          bdragon2: 0,
+          bdragon3: 0,
+          ldragon1: 0,
+          ldragon2: 0
+        },
+        blueTeam: {
+          acntCamp: 2,
+          money: 0,
+          towerCnt: 0,
+          killCnt: 0,
+          deadCnt: 0,
+          assistCnt: 0,
+          bdragon1: 0,
+          bdragon2: 0,
+          bdragon3: 0,
+          ldragon1: 0,
+          ldragon2: 0
+        },
+        redRoles: [],
+        blueRoles: []
+      }
+
+      response.data = {
+        ...defaultData,
+        ...response.data,
+        head: { ...defaultData.head, ...response.data?.head },
+        battle: { ...defaultData.battle, ...response.data?.battle },
+        redTeam: { ...defaultData.redTeam, ...response.data?.redTeam },
+        blueTeam: { ...defaultData.blueTeam, ...response.data?.blueTeam },
+        redRoles: response.data?.redRoles || [],
+        blueRoles: response.data?.blueRoles || []
+      }
+
       return response
     } catch (error) {
-      logger.error(`获取战绩详情失败: ${error.message}`, {
-        battleDetails: JSON.stringify(battleDetails)
-      })
       return null
     }
   }
