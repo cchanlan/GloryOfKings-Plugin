@@ -1,4 +1,3 @@
-// 请使用中文提交信息
 import fs from 'fs'
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
@@ -16,84 +15,12 @@ export class QueryGameStats extends plugin {
         {
           reg: /^#查询战绩(\d+)?/,
           fnc: 'queryGameStats'
-        },
-        {
-          reg: /^#(开启|关闭)战绩推送$/,
-          fnc: 'toggleGameStatsPush'
-        },
-        {
-          reg: /^#测试战绩推送$/,
-          fnc: 'testPushGameStats'
         }
       ]
     })
-
-    this.task = {
-      name: '[定时任务]战绩推送',
-      fnc: () => this.checkAndPushGameStats(),
-      cron: '0 */5 * * * *',
-      log: false
-    }
   }
 
-  async checkAndPushGameStats() {
-    const userFilePath = path.join(PluginData, 'UserData.yaml')
-    const allUserData = readYamlFile(userFilePath)
-
-    for (const userId in allUserData) {
-      const ID = allUserData[userId]
-      const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID()
-
-      try {
-        let response_ = await ApiService.post('/game/morebattlelist', {
-          lastTime: 0,
-          recommendPrivacy: 0,
-          apiVersion: 5,
-          friendUserId: ID,
-          option: 0
-        }, {
-          ssoopenid: OpenID,
-          ssotoken: Token
-        })
-
-        if (response_ && response_.data && response_.data.list && response_.data.list.length > 0) {
-          const latestBattle = response_.data.list[0]
-          const lastPushedBattleFilePath = path.join(PluginData, `lastPushedBattle_${userId}.json`)
-          
-          let lastPushedBattle = {}
-          if (fs.existsSync(lastPushedBattleFilePath)) {
-            lastPushedBattle = readJsonFile(lastPushedBattleFilePath)
-          }
-
-          if (lastPushedBattle.gameSeq !== latestBattle.gameSeq) {
-            this.pushGameStats([latestBattle], { user_id: userId })
-            writeJsonFile(lastPushedBattleFilePath, latestBattle)
-          }
-        } else {
-          console.error(`Unexpected response structure: ${JSON.stringify(response_)}`)
-        }
-      } catch (error) {
-        console.error(`Error fetching battle list for user ${userId}: ${error.message}`)
-      }
-    }
-  }
-
-  async toggleGameStatsPush(e) {
-    const isEnabled = /^#开启/.test(e.msg)
-    const settingsFilePath = path.join(PluginData, 'gameStatsPushSettings.yaml')
-    let settingsData = {}
-
-    if (fs.existsSync(settingsFilePath)) {
-      settingsData = readYamlFile(settingsFilePath)
-    }
-
-    settingsData[e.user_id] = isEnabled ? true : false
-    writeYamlFile(settingsFilePath, settingsData)
-
-    await e.reply(`战绩推送已${isEnabled ? '开启' : '关闭'}。`)
-  }
-
-  async queryGameStats (e) {
+  async queryGameStats(e) {
     const userFilePath = path.join(PluginData, 'UserData.yaml')
     const allUserData = readYamlFile(userFilePath)
     const ID = allUserData[e.user_id]
@@ -149,8 +76,6 @@ export class QueryGameStats extends plugin {
     }
 
     writeJsonFile(path.join(PluginData, 'BattleList.json'), response_.data)
-
-    this.pushGameStats(response_.data.list, e)
 
     if (index) {
       const battleDetails = response_.data.list[index - 1]
@@ -315,91 +240,5 @@ export class QueryGameStats extends plugin {
     }
 
     return maxStreak
-  }
-
-  /**
-   * 推送战绩到指定群聊或用户
-   * @param {Array} battleList - 战绩列表
-   * @param {Object} e - 事件对象
-   */
-  async pushGameStats(battleList, e) {
-    const settingsFilePath = path.join(PluginData, 'gameStatsPushSettings.yaml')
-    const settingsData = readYamlFile(settingsFilePath)
-
-    if (!settingsData[e.user_id]) return
-
-    const groupId = settingsData[e.user_id] || '123456789'
-    const battleDetails = battleList[0]
-    const { battleType, gameSvrId: gameSvr, relaySvrId: relaySvr, battleDetailUrl, gameSeq } = battleDetails
-    const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID()
-    
-    const targetRoleId = battleDetailUrl.includes('&toAppRoleId=') 
-      ? battleDetailUrl.substring(battleDetailUrl.indexOf('&toAppRoleId=') + 13, battleDetailUrl.indexOf('&toGameRoleId=')) 
-      : null
-
-    try {
-      const response = await ApiService.post('/game/battledetail', {
-        recommendPrivacy: 0,
-        battleType,
-        gameSvr,
-        relaySvr,
-        targetRoleId,
-        gameSeq
-      }, {
-        ssoopenid: OpenID,
-        ssotoken: Token
-      })
-
-      if (response.returnCode === 0) {
-        const data = {
-          tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordDetails.html',
-          ...this.extractTeamData('红', response.data.head, response.data.battle, response.data.redTeam, response.data.blueTeam, response.data.redRoles, response.data.blueRoles),
-          myTeamColor: '红',
-          enemyTeamColor: '蓝'
-        }
-        const inventoryImage = await puppeteer.screenshot('QueryGameRecordDetails', data)
-        await Bot.pickGroup(groupId).sendMsg(`最新战绩推送:\n`, inventoryImage)
-      } else {
-        console.error(`Failed to fetch battle details: ${response.returnMsg}`)
-      }
-    } catch (error) {
-      console.error(`Error in pushGameStats: ${error.message}`)
-    }
-  }
-
-  async testPushGameStats(e) {
-    const userFilePath = path.join(PluginData, 'UserData.yaml')
-    const allUserData = readYamlFile(userFilePath)
-    const ID = allUserData[e.user_id]
-
-    if (!ID) {
-      await e.reply('未找到您的用户数据，请先注册。')
-      return
-    }
-
-    const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID()
-
-    try {
-      let response_ = await ApiService.post('/game/morebattlelist', {
-        lastTime: 0,
-        recommendPrivacy: 0,
-        apiVersion: 5,
-        friendUserId: ID,
-        option: 0
-      }, {
-        ssoopenid: OpenID,
-        ssotoken: Token
-      })
-
-      if (response_ && response_.data && response_.data.list && response_.data.list.length > 0) {
-        const latestBattle = response_.data.list[0]
-        await this.pushGameStats([latestBattle], e)
-      } else {
-        await e.reply('未找到最近的战绩。')
-      }
-    } catch (error) {
-      console.error(`Error testing push game stats: ${error.message}`)
-      await e.reply('推送测试失败，请检查日志。')
-    }
   }
 }
