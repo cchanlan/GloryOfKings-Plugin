@@ -109,27 +109,39 @@ export class QueryGameStats extends plugin {
   }
 
   async handleDetailedStats(e, battleDetails) {
-    const response = await this.fetchBattleDetails(battleDetails)
-    if (!response) return
+    try {
+      monitor.startTimer('fetchBattleDetails')
+      const response = await this.fetchBattleDetails(battleDetails, e)
+      const duration = monitor.endTimer('fetchBattleDetails')
+      
+      if (!response) {
+        logger.error('获取战绩详情失败: 响应为空')
+        return e.reply('获取战绩详情失败，请稍后重试')
+      }
 
-    writeJsonFile(path.join(PluginData, 'BattleDetails.json'), response.data)
+      writeJsonFile(path.join(PluginData, 'BattleDetails.json'), response.data)
 
-    const { head, battle, redTeam, blueTeam, redRoles, blueRoles } = response.data
-    if (!head?.acntCamp) {
-      return e.reply('查询失败，疑似不可查询战绩模式')
+      const { head, battle, redTeam, blueTeam, redRoles, blueRoles } = response.data
+      if (!head?.acntCamp) {
+        logger.error('获取战绩详情失败: 缺少阵营信息')
+        return e.reply('查询失败，疑似不可查询战绩模式')
+      }
+
+      const myTeamColor = head.acntCamp === redTeam.acntCamp ? '红' : '蓝'
+      const enemyTeamColor = myTeamColor === '红' ? '蓝' : '红'
+      const data = {
+        tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordDetails.html',
+        ...this.extractTeamData(myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles),
+        myTeamColor,
+        enemyTeamColor
+      }
+
+      const image = await puppeteer.screenshot('QueryGameRecordDetails', data)
+      await e.reply(image)
+    } catch (error) {
+      logger.error(`处理战绩详情时出错: ${error.message}`)
+      return e.reply('处理战绩详情时发生错误，请稍后重试')
     }
-
-    const myTeamColor = head.acntCamp === redTeam.acntCamp ? '红' : '蓝'
-    const enemyTeamColor = myTeamColor === '红' ? '蓝' : '红'
-    const data = {
-      tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordDetails.html',
-      ...this.extractTeamData(myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles),
-      myTeamColor,
-      enemyTeamColor
-    }
-
-    const image = await puppeteer.screenshot('QueryGameRecordDetails', data)
-    await e.reply(image)
   }
 
   extractTeamData(myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles) {
@@ -237,7 +249,7 @@ export class QueryGameStats extends plugin {
     await e.reply(image)
   }
 
-  async fetchBattleDetails(battleDetails) {
+  async fetchBattleDetails(battleDetails, e) {
     try {
       let { OpenID, Token } = await ApiService.getPublicTokenAndOpenID()
       const body = {
