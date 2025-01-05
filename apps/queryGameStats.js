@@ -40,30 +40,36 @@ export class QueryGameStats extends plugin {
       const ID = allUserData[userId]
       const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID()
 
-      let response_ = await ApiService.post('/game/morebattlelist', {
-        lastTime: 0,
-        recommendPrivacy: 0,
-        apiVersion: 5,
-        friendUserId: ID,
-        option: 0
-      }, {
-        ssoopenid: OpenID,
-        ssotoken: Token
-      })
+      try {
+        let response_ = await ApiService.post('/game/morebattlelist', {
+          lastTime: 0,
+          recommendPrivacy: 0,
+          apiVersion: 5,
+          friendUserId: ID,
+          option: 0
+        }, {
+          ssoopenid: OpenID,
+          ssotoken: Token
+        })
 
-      if (response_.data.list.length > 0) {
-        const latestBattle = response_.data.list[0]
-        const lastPushedBattleFilePath = path.join(PluginData, `lastPushedBattle_${userId}.json`)
-        
-        let lastPushedBattle = {}
-        if (fs.existsSync(lastPushedBattleFilePath)) {
-          lastPushedBattle = readJsonFile(lastPushedBattleFilePath)
-        }
+        if (response_ && response_.data && response_.data.list && response_.data.list.length > 0) {
+          const latestBattle = response_.data.list[0]
+          const lastPushedBattleFilePath = path.join(PluginData, `lastPushedBattle_${userId}.json`)
+          
+          let lastPushedBattle = {}
+          if (fs.existsSync(lastPushedBattleFilePath)) {
+            lastPushedBattle = readJsonFile(lastPushedBattleFilePath)
+          }
 
-        if (lastPushedBattle.gameSeq !== latestBattle.gameSeq) {
-          this.pushGameStats([latestBattle], { user_id: userId })
-          writeJsonFile(lastPushedBattleFilePath, latestBattle)
+          if (lastPushedBattle.gameSeq !== latestBattle.gameSeq) {
+            this.pushGameStats([latestBattle], { user_id: userId })
+            writeJsonFile(lastPushedBattleFilePath, latestBattle)
+          }
+        } else {
+          console.error(`Unexpected response structure: ${JSON.stringify(response_)}`)
         }
+      } catch (error) {
+        console.error(`Error fetching battle list for user ${userId}: ${error.message}`)
       }
     }
   }
