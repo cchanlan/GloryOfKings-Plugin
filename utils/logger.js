@@ -1,16 +1,27 @@
 class Logger {
   error(message, context = {}) {
-    logger.error(`[GloryOfKings-Plugin Error] ${message}`, context)
-    // 可以添加错误上报逻辑
+    if (typeof logger !== 'undefined') {
+      logger.error(`[GloryOfKings-Plugin] ${message}`, context)
+    } else {
+      console.error(`[GloryOfKings-Plugin] ${message}`, context)
+    }
   }
 
   info(message) {
-    logger.info(`[GloryOfKings-Plugin Info] ${message}`)
+    if (typeof logger !== 'undefined') {
+      logger.info(`[GloryOfKings-Plugin] ${message}`)
+    } else {
+      console.log(`[GloryOfKings-Plugin] ${message}`)
+    }
   }
 
   debug(message) {
     if (process.env.DEBUG) {
-      logger.debug(`[GloryOfKings-Plugin Debug] ${message}`)
+      if (typeof logger !== 'undefined') {
+        logger.debug(`[GloryOfKings-Plugin] ${message}`)
+      } else {
+        console.debug(`[GloryOfKings-Plugin] ${message}`)
+      }
     }
   }
 }

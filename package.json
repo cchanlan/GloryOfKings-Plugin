@@ -8,7 +8,8 @@
     },
     "dependencies": {
         "node-cache": "^5.1.2",
-        "yaml": "^2.2.2"
+        "yaml": "^2.2.2",
+        "node-fetch": "^3.3.0"
     },
     "imports": {
         "#components": "./components/index.js",
