@@ -1,27 +1,50 @@
-import NodeCache from 'node-cache'
-
 class Cache {
   constructor() {
-    this.cache = new NodeCache({
-      stdTTL: 300, // 默认缓存5分钟
-      checkperiod: 60
-    })
+    this.cache = new Map()
+    this.timeouts = new Map()
   }
 
   get(key) {
-    return this.cache.get(key)
+    if (this.cache.has(key)) {
+      return this.cache.get(key)
+    }
+    return undefined
   }
 
   set(key, value, ttl = 300) {
-    return this.cache.set(key, value, ttl)
+    this.cache.set(key, value)
+    
+    // 清除旧的超时
+    if (this.timeouts.has(key)) {
+      clearTimeout(this.timeouts.get(key))
+    }
+    
+    // 设置新的超时
+    const timeout = setTimeout(() => {
+      this.cache.delete(key)
+      this.timeouts.delete(key)
+    }, ttl * 1000)
+    
+    this.timeouts.set(key, timeout)
+    return true
   }
 
   del(key) {
-    return this.cache.del(key)
+    if (this.timeouts.has(key)) {
+      clearTimeout(this.timeouts.get(key))
+      this.timeouts.delete(key)
+    }
+    return this.cache.delete(key)
   }
 
   flush() {
-    return this.cache.flushAll()
+    // 清除所有超时
+    for (const timeout of this.timeouts.values()) {
+      clearTimeout(timeout)
+    }
+    this.timeouts.clear()
+    this.cache.clear()
+    return true
   }
 }
 
