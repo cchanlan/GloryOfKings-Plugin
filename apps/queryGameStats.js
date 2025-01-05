@@ -20,6 +20,10 @@ export class QueryGameStats extends plugin {
         {
           reg: /^#(开启|关闭)战绩推送$/,
           fnc: 'toggleGameStatsPush'
+        },
+        {
+          reg: /^#测试战绩推送$/,
+          fnc: 'testPushGameStats'
         }
       ]
     })
@@ -327,7 +331,8 @@ export class QueryGameStats extends plugin {
     const groupId = settingsData[e.user_id] || '123456789'
     const battleDetails = battleList[0]
     const { battleType, gameSvrId: gameSvr, relaySvrId: relaySvr, battleDetailUrl, gameSeq } = battleDetails
-
+    const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID()
+    
     const targetRoleId = battleDetailUrl.includes('&toAppRoleId=') 
       ? battleDetailUrl.substring(battleDetailUrl.indexOf('&toAppRoleId=') + 13, battleDetailUrl.indexOf('&toGameRoleId=')) 
       : null
@@ -359,6 +364,42 @@ export class QueryGameStats extends plugin {
       }
     } catch (error) {
       console.error(`Error in pushGameStats: ${error.message}`)
+    }
+  }
+
+  async testPushGameStats(e) {
+    const userFilePath = path.join(PluginData, 'UserData.yaml')
+    const allUserData = readYamlFile(userFilePath)
+    const ID = allUserData[e.user_id]
+
+    if (!ID) {
+      await e.reply('未找到您的用户数据，请先注册。')
+      return
+    }
+
+    const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID()
+
+    try {
+      let response_ = await ApiService.post('/game/morebattlelist', {
+        lastTime: 0,
+        recommendPrivacy: 0,
+        apiVersion: 5,
+        friendUserId: ID,
+        option: 0
+      }, {
+        ssoopenid: OpenID,
+        ssotoken: Token
+      })
+
+      if (response_ && response_.data && response_.data.list && response_.data.list.length > 0) {
+        const latestBattle = response_.data.list[0]
+        await this.pushGameStats([latestBattle], e)
+      } else {
+        await e.reply('未找到最近的战绩。')
+      }
+    } catch (error) {
+      console.error(`Error testing push game stats: ${error.message}`)
+      await e.reply('推送测试失败，请检查日志。')
     }
   }
 }
