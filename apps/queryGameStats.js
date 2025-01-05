@@ -2,10 +2,10 @@ import fs from 'fs'
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { PluginData } from '#components'
-import { ApiService, readYamlFile, getFilePath, readJsonFile, writeJsonFile, writeYamlFile } from '#utils'
+import { ApiService, readYamlFile, getFilePath, readJsonFile, writeJsonFile } from '#utils'
 
 export class QueryGameStats extends plugin {
-  constructor () {
+  constructor() {
     super({
       name: 'queryGameStats',
       dsc: '查询战绩',
@@ -21,148 +21,96 @@ export class QueryGameStats extends plugin {
   }
 
   async queryGameStats(e) {
-    const userFilePath = path.join(PluginData, 'UserData.yaml')
-    const allUserData = readYamlFile(userFilePath)
-    const ID = allUserData[e.user_id]
+    try {
+      const userFilePath = path.join(PluginData, 'UserData.yaml')
+      const ID = readYamlFile(userFilePath)?.[e.user_id]
 
-    if (!ID) {
-      await e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png'))
-      return
-    }
-
-    const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID()
-
-    let index = Number(e.msg.match(/#查询战绩(\d+)?/)[1]) || false
-
-    let response_ = await ApiService.post('/game/morebattlelist', {
-      lastTime: 0,
-      recommendPrivacy: 0,
-      apiVersion: 5,
-      friendUserId: ID,
-      option: 0
-    }, {
-      ssoopenid: OpenID,
-      ssotoken: Token
-    })
-
-    if (response_.returnCode === -30003) {
-      const loginFilePath = getFilePath(e.user_id)
-      if (!fs.existsSync(loginFilePath)) {
-        await e.reply('公共Token&OpenID失效. \r且未找到您的登录信息，请先扫码登录。\r发送【#营地扫码】')
+      if (!ID) {
+        await e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png'))
         return
       }
 
-      const userData = readJsonFile(loginFilePath)
-      const { ssoOpenId, ssoToken } = userData
-      response_ = await ApiService.post('/game/morebattlelist', {
-        lastTime: 0,
-        recommendPrivacy: 0,
-        apiVersion: 5,
-        friendUserId: ID,
-        option: 0
-      }, {
-        ssoopenid: ssoOpenId,
-        ssotoken: ssoToken
-      })
-
-      if (response_.returnCode === -30003) {
-        e.reply('登陆状态失效，请重新扫码登录')
-        return
+      const index = Number(e.msg.match(/#查询战绩(\d+)?/)?.[1]) || false
+      const battleList = await this.fetchBattleList(e, ID)
+      
+      if (!battleList?.data?.list?.length) {
+        return e.reply(battleList?.invisDes || '未获取到战绩数据')
       }
+
+      writeJsonFile(path.join(PluginData, 'BattleList.json'), battleList.data)
+
+      if (index) {
+        return await this.handleDetailedStats(e, battleList.data.list[index - 1])
+      }
+
+      return await this.handleBattleList(e, battleList.data)
+    } catch (error) {
+      logger.error(`查询战绩出错: ${error}`)
+      return e.reply('查询战绩时发生错误，请稍后重试')
     }
-
-    if (response_.data.list.length === 0) {
-      return e.reply(response_.invisDes)
-    }
-
-    writeJsonFile(path.join(PluginData, 'BattleList.json'), response_.data)
-
-    if (index) {
-      const battleDetails = response_.data.list[index - 1]
-      const { battleType, gameSvrId: gameSvr, relaySvrId: relaySvr, battleDetailUrl, gameSeq } = battleDetails
-
-      const targetRoleId = battleDetailUrl.includes('&toAppRoleId=')
-        ? battleDetailUrl.substring(battleDetailUrl.indexOf('&toAppRoleId=') + 13, battleDetailUrl.indexOf('&toGameRoleId='))
-        : null
-
-      let response = await ApiService.post('/game/battledetail', {
-        recommendPrivacy: 0,
-        battleType,
-        gameSvr,
-        relaySvr,
-        targetRoleId,
-        gameSeq
-      }, {
-        ssoopenid: OpenID,
-        ssotoken: Token
-      })
-
-      if (response.returnCode === -30003 || response.returnCode === '-30314') {
-        response = await ApiService.post('/game/battledetail', {
-          recommendPrivacy: 0,
-          battleType,
-          gameSvr,
-          relaySvr,
-          targetRoleId,
-          gameSeq
-        }, {
-          ssoopenid: ssoOpenId,
-          ssotoken: ssoToken
-        })
-
-        if (response.returnCode !== 0) {
-          return e.reply(response.returnMsg)
-        }
-      }
-
-      writeJsonFile(path.join(PluginData, 'BattleDetails.json'), response.data)
-
-      const { head, battle, redTeam, blueTeam, redRoles, blueRoles } = response.data
-      if (!head || !head.acntCamp) {
-        return e.reply('查询失败，疑似不可查询战绩模式');
-      }
-      const myTeamColor = head.acntCamp === redTeam.acntCamp ? '红' : '蓝'
-      const enemyTeamColor = myTeamColor === '红' ? '蓝' : '红'
-
-      const us = this.extractTeamData(myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles)
-
-      const data = {
-        tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordDetails.html',
-        ...us,
-        myTeamColor,
-        enemyTeamColor
-      }
-
-      const inventoryImage = await puppeteer.screenshot('QueryGameRecordDetails', data)
-      await e.reply(inventoryImage)
-      return
-    }
-
-    const data = response_.data.list.map(item => ({
-      gameTpye: item.mapName,
-      gameTime: item.gametime,
-      gameDuration: `${Math.floor(item.usedTime / 60)}分${item.usedTime % 60}秒`,
-      killCnt: item.killcnt,
-      deadCnt: item.deadcnt,
-      assistCnt: item.assistcnt,
-      gameResult: this.getGameResult(item.gameresult),
-      heroIcon: item.heroIcon,
-      desc: item.desc,
-      tags: this.getTags(item),
-      gradeGame: item.gradeGame
-    }))
-
-    const inventoryImage = await puppeteer.screenshot('QueryGameRecordList', {
-      tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordList.html',
-      data,
-      roleJobName: response_.data.list[0].roleJobName,
-      winningStreak: this.calculateWinningStreak(data.map(item => item.gameResult))
-    })
-
-    await e.reply(inventoryImage)
   }
 
-  extractTeamData (myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles) {
+  async fetchBattleList(e, ID) {
+    let { OpenID, Token } = await ApiService.getPublicTokenAndOpenID()
+    const body = { lastTime: 0, recommendPrivacy: 0, apiVersion: 5, friendUserId: ID, option: 0 }
+    
+    let response = await ApiService.post('/game/morebattlelist', body, { 
+      ssoopenid: OpenID, 
+      ssotoken: Token 
+    })
+
+    if (response.returnCode === -30003) {
+      const loginData = await this.getUserLoginData(e)
+      if (!loginData) return null
+
+      response = await ApiService.post('/game/morebattlelist', body, {
+        ssoopenid: loginData.ssoOpenId,
+        ssotoken: loginData.ssoToken
+      })
+
+      if (response.returnCode === -30003) {
+        await e.reply('登录状态失效，请重新扫码登录')
+        return null
+      }
+    }
+
+    return response
+  }
+
+  async getUserLoginData(e) {
+    const loginFilePath = getFilePath(e.user_id)
+    if (!fs.existsSync(loginFilePath)) {
+      await e.reply('查询失败，公共Token失效\r且未找到您的登录信息，请先扫码登录。\r发送【#营地扫码】')
+      return null
+    }
+    return readJsonFile(loginFilePath)
+  }
+
+  async handleDetailedStats(e, battleDetails) {
+    const response = await this.fetchBattleDetails(battleDetails)
+    if (!response) return
+
+    writeJsonFile(path.join(PluginData, 'BattleDetails.json'), response.data)
+
+    const { head, battle, redTeam, blueTeam, redRoles, blueRoles } = response.data
+    if (!head?.acntCamp) {
+      return e.reply('查询失败，疑似不可查询战绩模式')
+    }
+
+    const myTeamColor = head.acntCamp === redTeam.acntCamp ? '红' : '蓝'
+    const enemyTeamColor = myTeamColor === '红' ? '蓝' : '红'
+    const data = {
+      tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordDetails.html',
+      ...this.extractTeamData(myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles),
+      myTeamColor,
+      enemyTeamColor
+    }
+
+    const image = await puppeteer.screenshot('QueryGameRecordDetails', data)
+    await e.reply(image)
+  }
+
+  extractTeamData(myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles) {
     const isBlue = myTeamColor === '蓝'
     const myTeam = isBlue ? blueTeam : redTeam
     const enemyTeam = isBlue ? redTeam : blueTeam
@@ -199,11 +147,11 @@ export class QueryGameStats extends plugin {
     }
   }
 
-  getGameResult (result) {
+  getGameResult(result) {
     return result === 1 ? '胜利' : result === 2 ? '失败' : result
   }
 
-  getTags (item) {
+  getTags(item) {
     const tags = []
     const descTags = ['实力局', '翻盘局', '暴走局', '尽力局']
     const evaluateTags = {
@@ -223,7 +171,7 @@ export class QueryGameStats extends plugin {
     return tags
   }
 
-  calculateWinningStreak (results) {
+  calculateWinningStreak(results) {
     let maxStreak = 0
     let currentStreak = 0
 
@@ -240,5 +188,30 @@ export class QueryGameStats extends plugin {
     }
 
     return maxStreak
+  }
+
+  async handleBattleList(e, battleData) {
+    const data = battleData.list.map(item => ({
+      gameTpye: item.mapName,
+      gameTime: item.gametime,
+      gameDuration: `${Math.floor(item.usedTime / 60)}分${item.usedTime % 60}秒`,
+      killCnt: item.killcnt,
+      deadCnt: item.deadcnt,
+      assistCnt: item.assistcnt,
+      gameResult: this.getGameResult(item.gameresult),
+      heroIcon: item.heroIcon,
+      desc: item.desc,
+      tags: this.getTags(item),
+      gradeGame: item.gradeGame
+    }))
+
+    const image = await puppeteer.screenshot('QueryGameRecordList', {
+      tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordList.html',
+      data,
+      roleJobName: battleData.list[0].roleJobName,
+      winningStreak: this.calculateWinningStreak(data.map(item => item.gameResult))
+    })
+
+    await e.reply(image)
   }
 }
