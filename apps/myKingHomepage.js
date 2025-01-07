@@ -59,7 +59,7 @@ export class MyKingHomepage extends plugin {
       try {
         const profileData = await ApiService.getProfile(ID)
         if (!profileData || !profileData.data || !profileData.data.roleList) {
-          console.log(`获取用户 ${user} 的数据失败`)
+          console.log(`获取用户 ${user} 的数据失败，API返回:`, JSON.stringify(profileData, null, 2))
           continue
         }
 
@@ -228,8 +228,14 @@ export class MyKingHomepage extends plugin {
     }
 
     const profileData = await ApiService.getProfile(ID)
+
+    if (profileData.returnCode === -30107) {
+      await e.reply('获取数据失败,请稍后重试')
+      return
+    }
     
     if (!profileData || !profileData.data || !profileData.data.roleList) {
+      console.log('获取数据失败，API返回:', JSON.stringify(profileData, null, 2))
       await e.reply('获取数据失败,请稍后重试')
       return
     }
