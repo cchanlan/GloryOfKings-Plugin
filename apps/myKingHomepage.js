@@ -25,12 +25,12 @@ export class MyKingHomepage extends plugin {
       ]
     })
     if (onlineReminder) {
-      this.task = {
-        name: '[定时任务]王者上下线提醒',
-        fnc: () => this.onlineReminder(),
-        cron: onlineReminderCron,
-        log: false
-      }
+     // this.task = {
+     //   name: '[定时任务]王者上下线提醒',
+     //   fnc: () => this.onlineReminder(),
+     //   cron: onlineReminderCron,
+    //    log: false
+   //   }
     }
   }
 
