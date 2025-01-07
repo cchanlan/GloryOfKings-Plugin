@@ -90,21 +90,21 @@ export class MyKingHomepage extends plugin {
       }
 
       const savedData = readJsonFile(settingsUserFilePath)
-      const currentTime = Math.floor(Date.now() / 1000)
 
-      if (savedData.gameOnline === gameOnline) {
-        const timeThreshold = 24 * 60 * 60 // 24小时的秒数
-        const timeDiff = currentTime - (gameOnline ? onlineTimestamp : offlineTimestamp)
-        
-        if (timeDiff > timeThreshold) {
-          const timeString = new Date((gameOnline ? onlineTimestamp : offlineTimestamp) * 1000)
-            .toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-          
-          Bot.pickGroup(settingsData[user]).sendMsg([
-            `${roleName} ${gameOnline ? '已在线' : '已离线'}超过24小时\n上次${gameOnline ? '上线' : '离线'}时间：${timeString}`
-          ])
-        }
-        continue
+      if (savedData.gameOnline === gameOnline) continue
+
+      const lastTime = gameOnline ? savedData.lastOfflineTime : savedData.lastOnlineTime
+      const timeDiff = Math.floor((Date.now() / 1000) - lastTime)
+      
+      let timeString = ''
+      if (timeDiff < 60) {
+        timeString = `${timeDiff}秒`
+      } else if (timeDiff < 3600) {
+        timeString = `${Math.floor(timeDiff / 60)}分钟`
+      } else if (timeDiff < 86400) {
+        timeString = `${Math.floor(timeDiff / 3600)}小时`
+      } else {
+        timeString = `${Math.floor(timeDiff / 86400)}天`
       }
 
       writeJsonFile(settingsUserFilePath, { 
@@ -153,7 +153,7 @@ export class MyKingHomepage extends plugin {
       })
 
       Bot.pickGroup(settingsData[user]).sendMsg([
-        `${roleName} ${gameOnline === 1 ? '登录了' : '下线了'}`, 
+        `${roleName} ${gameOnline === 1 ? '登录了' : '下线了'}\n距离上次${gameOnline === 1 ? '离线' : '在线'}已经${timeString}`, 
         inventoryImage
       ])
     }
