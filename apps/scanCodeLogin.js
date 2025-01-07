@@ -57,7 +57,17 @@ export class ScanCodeLogin extends plugin {
 
       // 获取用户信息并保存
       await this.saveUserInfo(e.user_id, scanResult.data)
-      await e.reply(`登录成功\rToken过期时间: ${this.formatDate(scanResult.data.expireTime)}\r过期之后需要重新扫码登录`)
+      const message = [
+        '登陆成功',
+        `Token过期时间: ${this.formatDate(scanResult.data.expireTime)}`,
+        '过期之后需要重新扫码登录',
+        '----------',
+        '可用功能：',
+        '【#营地主页】查看部分王者信息',
+        '【#查询战绩】查询王者战绩',
+        '【#查询战绩1】查看第一条战绩具体数据'
+      ]
+      await e.reply(message.join('\r'))
 
     } catch (error) {
       logger.error(error)
