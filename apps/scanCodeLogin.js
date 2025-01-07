@@ -6,8 +6,16 @@ import { readJsonFile, writeJsonFile, getFilePath, writeYamlFile, readYamlFile }
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { PluginData } from '#components'
 
+const functionList = [
+  '----------',
+  '可用功能：',
+  '【#营地主页】查看部分王者信息',
+  '【#查询战绩】查询王者战绩',
+  '【#查询战绩1】查看第一条战绩具体数据'
+]
+
 export class ScanCodeLogin extends plugin {
-  constructor () {
+  constructor() {
     super({
       name: 'scanCodeLogin',
       dsc: '王者扫码登录',
@@ -30,7 +38,7 @@ export class ScanCodeLogin extends plugin {
     })
   }
 
-  async scanCodeLogin (e) {
+  async scanCodeLogin(e) {
     try {
       // 获取二维码
       const qrData = await ApiService.post('/sso/getqrcode', null, {
@@ -61,11 +69,7 @@ export class ScanCodeLogin extends plugin {
         '登陆成功',
         `Token过期时间: ${this.formatDate(scanResult.data.expireTime)}`,
         '过期之后需要重新扫码登录',
-        '----------',
-        '可用功能：',
-        '【#营地主页】查看部分王者信息',
-        '【#查询战绩】查询王者战绩',
-        '【#查询战绩1】查看第一条战绩具体数据'
+        ...functionList
       ]
       await e.reply(message.join('\r'))
 
@@ -79,7 +83,7 @@ export class ScanCodeLogin extends plugin {
     for (let i = 0; i < maxRetries; i++) {
       try {
         const data = await ApiService.post('/sso/qrconnect', { uUid })
-        
+
         if (data.statusCode === 408 && data.msg === '没扫码') {
           await common.sleep(1000)
           continue
@@ -128,7 +132,7 @@ export class ScanCodeLogin extends plugin {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
   }
 
-  async getMyTokenAndOpenId (e) {
+  async getMyTokenAndOpenId(e) {
     const filePath = getFilePath(e.user_id)
     if (!fs.existsSync(filePath)) {
       return await e.reply('未找到登录信息，请先扫码登录。')
@@ -142,13 +146,16 @@ export class ScanCodeLogin extends plugin {
     await e.reply(`您的Token: ${ssoToken}\n您的OpenId: ${ssoOpenId}`)
   }
 
-  async bindWzryId (e) {
+  async bindWzryId(e) {
     const wzryId = e.msg.match(/^#绑定营地\s+(\d+)$/)[1]
     const filePath = path.join(PluginData, 'UserData.yaml')
     const userData = fs.existsSync(filePath) ? readYamlFile(filePath) : {}
-    
+
     userData[e.user_id] = wzryId
     writeYamlFile(filePath, userData)
-    await e.reply(`成功绑定您的王者ID: ${wzryId}`)
+    await e.reply([
+      `成功绑定您的王者ID: ${wzryId}`,
+      ...functionList
+    ].join('\r'))
   }
 }
