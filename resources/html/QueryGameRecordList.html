@@ -114,6 +114,14 @@
             transition: all 0.3s ease;
         }
 
+        .result-item.win-bg {
+            background-color: rgba(0, 200, 83, 0.1);
+        }
+
+        .result-item.loss-bg {
+            background-color: rgba(207, 102, 121, 0.1);
+        }
+
         .result-item:hover {
             transform: translateY(-5px);
             box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
@@ -232,7 +240,7 @@
         </div>
         <div class="results">
             {{each data item}}
-            <div class="result-item">
+            <div class="result-item {{item.gameResult === '胜利' ? 'win-bg' : 'loss-bg'}}">
                 <div class="result-header">
                     <img src="{{item.heroIcon}}" alt="英雄头像" class="avatar">
                     <div class="result-info">
