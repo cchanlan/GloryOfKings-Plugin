@@ -106,8 +106,12 @@ export class QueryGameStats extends plugin {
         
         const groupId = settingsData[userId]
         if (groupId) {
+          const playerTeam = myTeamColor === '红' ? redRoles : blueRoles
+          const playerRole = playerTeam.find(role => role.acntCamp === head.acntCamp)
+          const playerName = playerRole?.name || '玩家'
+          
           Bot.pickGroup(groupId).sendMsg([
-            `${latestBattle.roleName} 的最新战绩`,
+            `${playerName} 的最新战绩`,
             image
           ])
         }
