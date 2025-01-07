@@ -49,113 +49,141 @@ export class MyKingHomepage extends plugin {
       if (!settingsData[user]) continue
 
       const ID = userData[user]
+      if (!ID) {
+        console.log(`用户 ${user} 未绑定王者ID`)
+        continue
+      }
+
       const settingsUserFilePath = path.join(PluginData, 'user_settings', `${user}.json`)
 
-      const profileData = await ApiService.getProfile(ID)
-      if (!profileData) continue
+      try {
+        const profileData = await ApiService.getProfile(ID)
+        if (!profileData || !profileData.data || !profileData.data.roleList) {
+          console.log(`获取用户 ${user} 的数据失败`)
+          continue
+        }
 
-      const { head: headData, targetRoleId } = profileData.data
-      const roleData = profileData.data.roleList.find(role => role.roleId === targetRoleId)
-      const { mods } = headData
-      const {
-        roleName,
-        roleIcon,
-        gameLevel,
-        gameOnline,
-        areaName,
-        roleText,
-        onlineTime: onlineTimestamp,
-        offlineTime: offlineTimestamp,
-      } = roleData
+        const { head: headData, targetRoleId } = profileData.data
+        if (!headData || !headData.mods) {
+          console.log(`用户 ${user} 的数据格式错误`)
+          continue
+        }
 
-      const [
-        mode10v10,
-        mode5v5,
-        modePeakRace,
-        fightPowerItem,
-        mvpNumItem,
-        totalBattleCountItem,
-        heroNumItem,
-        winRateItem,
-        skinNumItem,
-      ] = mods
+        const roleData = profileData.data.roleList.find(role => role.roleId === targetRoleId)
+        if (!roleData) {
+          console.log(`未找到用户 ${user} 的角色数据`)
+          continue
+        }
 
-      if (!fs.existsSync(settingsUserFilePath)) {
+        const { mods } = headData
+        if (!Array.isArray(mods) || mods.length < 9) {
+          console.log(`用户 ${user} 的游戏模式数据不完整`)
+          continue
+        }
+
+        const {
+          roleName,
+          roleIcon,
+          gameLevel,
+          gameOnline,
+          areaName,
+          roleText,
+          onlineTime: onlineTimestamp,
+          offlineTime: offlineTimestamp,
+        } = roleData
+
+        const [
+          mode10v10,
+          mode5v5,
+          modePeakRace,
+          fightPowerItem,
+          mvpNumItem,
+          totalBattleCountItem,
+          heroNumItem,
+          winRateItem,
+          skinNumItem,
+        ] = mods
+
+        if (!fs.existsSync(settingsUserFilePath)) {
+          writeJsonFile(settingsUserFilePath, { 
+            gameOnline,
+            lastOnlineTime: onlineTimestamp,
+            lastOfflineTime: offlineTimestamp
+          })
+          continue
+        }
+
+        const savedData = readJsonFile(settingsUserFilePath)
+
+        if (savedData.gameOnline === gameOnline) continue
+
+        const lastTime = gameOnline ? savedData.lastOfflineTime : savedData.lastOnlineTime
+        const timeDiff = Math.floor((Date.now() / 1000) - lastTime)
+        
+        let timeString = ''
+        if (timeDiff < 60) {
+          timeString = `${timeDiff}秒`
+        } else if (timeDiff < 3600) {
+          timeString = `${Math.floor(timeDiff / 60)}分钟`
+        } else if (timeDiff < 86400) {
+          timeString = `${Math.floor(timeDiff / 3600)}小时`
+        } else {
+          timeString = `${Math.floor(timeDiff / 86400)}天`
+        }
+
         writeJsonFile(settingsUserFilePath, { 
           gameOnline,
           lastOnlineTime: onlineTimestamp,
           lastOfflineTime: offlineTimestamp
         })
+
+        const rank10v10 = `${mode10v10.name} ${JSON.parse(mode10v10.param1).rankingStar}星`
+        const rank5v5 = `${mode5v5.name} ${JSON.parse(mode5v5.param1).rankingStar}星`
+        const rankIcon = mode5v5.icon
+
+        let flagImg = ''
+        if (rank5v5.includes('青铜') || rank5v5.includes('白银') || rank5v5.includes('黄金')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/1.png'
+        if (rank5v5.includes('钻石') || rank5v5.includes('星耀')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/2.png'
+        if (rank5v5.includes('最强王者')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/3.png'
+
+        function formatDate(timestamp) {
+          return new Date(timestamp * 1000).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+        }
+
+        const onlineTime = formatDate(onlineTimestamp)
+        const offlineTime = formatDate(offlineTimestamp)
+
+        const inventoryImage = await puppeteer.screenshot('myKingHomepage', {
+          tplFile: 'plugins/GloryOfKings-Plugin/resources/html/MyKingHomepage.html',
+          roleIcon,
+          roleName,
+          gameLevel,
+          gameOnline,
+          rank10v10,
+          rank5v5,
+          areaName,
+          roleText,
+          flagImg,
+          rankIcon,
+          onlineTime,
+          offlineTime,
+          content_1: fightPowerItem.content,
+          content_2: mvpNumItem.content,
+          content_3: totalBattleCountItem.content,
+          content_4: heroNumItem.content,
+          content_5: winRateItem.content,
+          content_6: skinNumItem.content,
+          content_7: modePeakRace.content
+        })
+
+        Bot.pickGroup(settingsData[user]).sendMsg([
+          `${roleName} ${gameOnline === 1 ? '登录了' : '下线了'}\n距离上次${gameOnline === 1 ? '离线' : '在线'}已经${timeString}`, 
+          inventoryImage
+        ])
+      } catch (error) {
+        console.log(`处理用户 ${user} 的数据时发生错误:`, error)
         continue
       }
-
-      const savedData = readJsonFile(settingsUserFilePath)
-
-      if (savedData.gameOnline === gameOnline) continue
-
-      const lastTime = gameOnline ? savedData.lastOfflineTime : savedData.lastOnlineTime
-      const timeDiff = Math.floor((Date.now() / 1000) - lastTime)
-      
-      let timeString = ''
-      if (timeDiff < 60) {
-        timeString = `${timeDiff}秒`
-      } else if (timeDiff < 3600) {
-        timeString = `${Math.floor(timeDiff / 60)}分钟`
-      } else if (timeDiff < 86400) {
-        timeString = `${Math.floor(timeDiff / 3600)}小时`
-      } else {
-        timeString = `${Math.floor(timeDiff / 86400)}天`
-      }
-
-      writeJsonFile(settingsUserFilePath, { 
-        gameOnline,
-        lastOnlineTime: onlineTimestamp,
-        lastOfflineTime: offlineTimestamp
-      })
-
-      const rank10v10 = `${mode10v10.name} ${JSON.parse(mode10v10.param1).rankingStar}星`
-      const rank5v5 = `${mode5v5.name} ${JSON.parse(mode5v5.param1).rankingStar}星`
-      const rankIcon = mode5v5.icon
-
-      let flagImg = ''
-      if (rank5v5.includes('青铜') || rank5v5.includes('白银') || rank5v5.includes('黄金')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/1.png'
-      if (rank5v5.includes('钻石') || rank5v5.includes('星耀')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/2.png'
-      if (rank5v5.includes('最强王者')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/3.png'
-
-      function formatDate(timestamp) {
-        return new Date(timestamp * 1000).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-      }
-
-      const onlineTime = formatDate(onlineTimestamp)
-      const offlineTime = formatDate(offlineTimestamp)
-
-      const inventoryImage = await puppeteer.screenshot('myKingHomepage', {
-        tplFile: 'plugins/GloryOfKings-Plugin/resources/html/MyKingHomepage.html',
-        roleIcon,
-        roleName,
-        gameLevel,
-        gameOnline,
-        rank10v10,
-        rank5v5,
-        areaName,
-        roleText,
-        flagImg,
-        rankIcon,
-        onlineTime,
-        offlineTime,
-        content_1: fightPowerItem.content,
-        content_2: mvpNumItem.content,
-        content_3: totalBattleCountItem.content,
-        content_4: heroNumItem.content,
-        content_5: winRateItem.content,
-        content_6: skinNumItem.content,
-        content_7: modePeakRace.content
-      })
-
-      Bot.pickGroup(settingsData[user]).sendMsg([
-        `${roleName} ${gameOnline === 1 ? '登录了' : '下线了'}\n距离上次${gameOnline === 1 ? '离线' : '在线'}已经${timeString}`, 
-        inventoryImage
-      ])
     }
   }
 
@@ -200,8 +228,20 @@ export class MyKingHomepage extends plugin {
     }
 
     const profileData = await ApiService.getProfile(ID)
+    
+    if (!profileData || !profileData.data || !profileData.data.roleList) {
+      await e.reply('获取数据失败,请稍后重试')
+      return
+    }
+
     const { head: headData, targetRoleId } = profileData.data
     const roleData = profileData.data.roleList.find(role => role.roleId === targetRoleId)
+    
+    if (!roleData) {
+      await e.reply('未找到角色数据')
+      return
+    }
+
     const { mods } = headData
     const {
       roleName, // 昵称
