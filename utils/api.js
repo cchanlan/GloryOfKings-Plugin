@@ -1,14 +1,46 @@
 import fetch from 'node-fetch'
 
 class ApiService {
-  constructor () {
+  constructor() {
     this.baseUrls = {
       main: 'https://kohcamp.qq.com',
-      game: 'https://ssl.kohsocialapp.qq.com:10001'
+      game: 'https://ssl.kohsocialapp.qq.com:10001',
+      token: 'https://api.t1qq.com/api/tool/wzrr/wztoken'
+    }
+    this.headers = {
+      ['game/koh/profile']: {
+        'Host': 'kohcamp.qq.com',
+        'cchannelid': '2002',
+        'cclientversioncode': '2037905606',
+        'cclientversionname': '8.101.1017',
+        'ccurrentgameid': '20001',
+        'cgameid': '20001',
+        'cgzip': '1',
+        'cisarm64': 'false',
+        'content-type': 'application/json',
+        'cpuhardware': 'unknown',
+        'crand': '1734580133908',
+        'csupportarm64': 'true',
+        'csystem': 'android',
+        'csystemversioncode': '32',
+        'csystemversionname': '12',
+        'gameareaid': '1',
+        'gameid': '20001',
+        'gameopenid': '54533036A3D6E4241440CBCD66694578',
+        'gameroleid': '2157931910',
+        'gameserverid': '1312',
+        'gameusersex': '2',
+        'kohdimgender': '1',
+        'noencrypt': '1',
+        'openid': '472AD0DD361C8EC026E52F445041F843',
+        'tinkerid': '2037905606_32_0',
+        'userid': '2118558336',
+        'x-client-proto': 'https'
+      }
     }
   }
 
-  getCommonHeaders (url) {
+  getCommonHeaders(url) {
     const headers = {
       'Content-Type': 'application/json',
       'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.71 Mobile Safari/537.36',
@@ -51,7 +83,7 @@ class ApiService {
       ...this.getCommonHeaders(url),
       ...additionalHeaders
     }
-    
+
     try {
       const response = await fetch(url, {
         method,
@@ -59,12 +91,12 @@ class ApiService {
         body: body ? JSON.stringify(body) : null,
         timeout: 10000
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(`HTTP ${response.status}: ${errorData.message || response.statusText}`)
       }
-      
+
       return await response.json()
     } catch (error) {
       logger.error(`API请求失败: ${error.message}`, {
@@ -76,11 +108,35 @@ class ApiService {
     }
   }
 
-  async post (endpoint, body, additionalHeaders = {}) {
+  async post(endpoint, body, additionalHeaders = {}) {
     return this.request('POST', endpoint, body, additionalHeaders)
   }
 
-  async getPublicTokenAndOpenID () {
+  async getToken() {
+    const response = await (await fetch(this.baseUrls.token)).json()
+    return response.token
+  }
+
+  async getProfile(ID) {
+    const response = await fetch(`${this.baseUrls.main}/game/koh/profile`, {
+      method: 'POST',
+      headers: {
+        ...this.headers['game/koh/profile'],
+        token: await this.getToken()
+      },
+      body: JSON.stringify({
+        targetUserId: ID,
+        targetRoleId: '0',
+        resVersion: '3',
+        recommendPrivacy: '0',
+        apiVersion: '2'
+      })
+    })
+
+    return response.json()
+  }
+
+  async getPublicTokenAndOpenID() {
     const response = await (await fetch('https://gitee.com/Tloml-Starry/resources/raw/master/resources/json/WzryToken.json')).json()
     const { Token, OpenID } = response
     return { Token, OpenID }

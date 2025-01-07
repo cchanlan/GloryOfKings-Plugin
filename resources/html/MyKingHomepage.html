@@ -99,21 +99,26 @@
         position: relative;
         width: 200px;
         height: auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .rank-image {
         position: absolute;
-        top: 50%;
+        top: 45%;
         left: 50%;
         transform: translate(-50%, -50%);
         width: 180%;
         height: auto;
+        z-index: 2;
     }
 
     .rank-image-background {
         position: relative;
         width: 100%;
         height: auto;
+        z-index: 1;
     }
 
     .rank-badge {
@@ -156,6 +161,33 @@
         font-size: 14px;
         color: #666;
     }
+
+    .peak-score {
+        grid-column: 1 / -1;
+        display: flex;
+        gap: 15px;
+        margin-top: 10px;
+    }
+
+    .peak-item {
+        flex: 1;
+        background-color: #f5f5f5;
+        padding: 12px;
+        border-radius: 6px;
+        text-align: center;
+    }
+
+    .peak-label {
+        font-size: 14px;
+        color: #666;
+        margin-bottom: 5px;
+    }
+
+    .peak-value {
+        font-size: 18px;
+        font-weight: bold;
+        color: #ff9800;
+    }
 </style>
 
 <body>
@@ -172,14 +204,14 @@
             <div class="info-section">
                 <div class="info-grid">
                     <div class="info-item">
-                        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 10.5a8.38 8.38 0 0 1-1.9.5 4.15 4.15 0 0 0 1.8-2.3 8.27 8.27 0 0 1-2.6 1 4.14 4.14 0 0 0-7.1 3.8 11.72 11.72 0 0 1-8.5-4.3 4.14 4.14 0 0 0 1.3 5.5 4.07 4.07 0 0 1-1.9-.5v.1a4.14 4.14 0 0 0 3.3 4 4.1 4.1 0 0 1-1.9.1 4.14 4.14 0 0 0 3.9 2.9 8.3 8.3 0 0 1-5.1 1.8 11.72 11.72 0 0 0 6.3 1.8c7.5 0 11.6-6.2 11.6-11.6v-.5a8.18 8.18 0 0 0 2-2.1z'/%3E%3C/svg%3E"
-                            alt="IP归属地图标" class="info-icon">
-                        <span>IP: {{IP}}</span>
+                        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9H4.5a2.5 2.5 0 0 1 0-5H6'/%3E%3Cpath d='M18 9h1.5a2.5 2.5 0 0 0 0-5H18'/%3E%3Cpath d='M4 22h16'/%3E%3Cpath d='M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22'/%3E%3Cpath d='M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22'/%3E%3Cpath d='M18 2H6v7a6 6 0 0 0 12 0V2Z'/%3E%3C/svg%3E"
+                            alt="奖杯图标" class="info-icon">
+                        <span>10v10段位：{{rank10v10}}</span>
                     </div>
                     <div class="info-item">
                         <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9H4.5a2.5 2.5 0 0 1 0-5H6'/%3E%3Cpath d='M18 9h1.5a2.5 2.5 0 0 0 0-5H18'/%3E%3Cpath d='M4 22h16'/%3E%3Cpath d='M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22'/%3E%3Cpath d='M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22'/%3E%3Cpath d='M18 2H6v7a6 6 0 0 0 12 0V2Z'/%3E%3C/svg%3E"
                             alt="奖杯图标" class="info-icon">
-                        <span>段位：{{roleJobName}}</span>
+                        <span>5v5段位：{{rank5v5}}</span>
                     </div>
                     <div class="info-item">
                         <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M2 12h20'/%3E%3Cpath d='M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z'/%3E%3C/svg%3E"
@@ -190,6 +222,22 @@
                         <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 20h.01'/%3E%3Cpath d='M7 20v-4'/%3E%3Cpath d='M12 20v-8'/%3E%3Cpath d='M17 20V8'/%3E%3Cpath d='M22 4v16'/%3E%3C/svg%3E"
                             alt="信号图标" class="info-icon">
                         <span>区服：{{roleText}}</span>
+                    </div>
+                    <div class="info-item">
+                        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpolyline points='12 6 12 12 16 14'/%3E%3C/svg%3E"
+                            alt="时钟图标" class="info-icon">
+                        <span>上次上线：{{onlineTime}}</span>
+                    </div>
+                    <div class="info-item">
+                        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18.36 6.64a9 9 0 1 1-12.73 0'/%3E%3Cline x1='12' y1='2' x2='12' y2='12'/%3E%3C/svg%3E"
+                            alt="关机图标" class="info-icon">
+                        <span>上次离线：{{offlineTime}}</span>
+                    </div>
+                    <div class="peak-score">
+                        <div class="peak-item">
+                            <div class="peak-label">巅峰赛分数</div>
+                            <div class="peak-value">{{content_7}}</div>
+                        </div>
                     </div>
                 </div>
                 <div class="stats-grid">
@@ -221,8 +269,8 @@
             </div>
             <div class="rank-image-container">
                 <img src="{{flagImg}}" alt="段位图片" class="rank-image-background">
-                <img src="{{roleJobIcon}}" alt="段位图片" class="rank-image">
-                <span class="rank-badge">{{roleJobName}}</span>
+                <img src="{{rankIcon}}" alt="段位图片" class="rank-image">
+                <span class="rank-badge">{{rank5v5}}</span>
             </div>
         </div>
     </div>
