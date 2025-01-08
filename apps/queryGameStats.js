@@ -182,7 +182,7 @@ export class QueryGameStats extends plugin {
       ssotoken: Token
     })
 
-    if (response_.returnCode === -10107) {
+    if (response_.returnCode === 0) {
       await e.reply(`ID: ${ID},召唤师隐藏了战绩，无法查看`)
       return
     }
