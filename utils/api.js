@@ -8,35 +8,33 @@ class ApiService {
       token: 'https://api.t1qq.com/api/tool/wzrr/wztoken'
     }
     this.headers = {
-      ['game/koh/profile']: {
-        'Host': 'kohcamp.qq.com',
-        'cchannelid': '2002',
-        'cclientversioncode': '2037905606',
-        'cclientversionname': '8.101.1017',
-        'ccurrentgameid': '20001',
-        'cgameid': '20001',
-        'cgzip': '1',
-        'cisarm64': 'false',
-        'content-type': 'application/json',
-        'cpuhardware': 'unknown',
-        'crand': '1734580133908',
-        'csupportarm64': 'true',
-        'csystem': 'android',
-        'csystemversioncode': '32',
-        'csystemversionname': '12',
-        'gameareaid': '1',
-        'gameid': '20001',
-        'gameopenid': '54533036A3D6E4241440CBCD66694578',
-        'gameroleid': '2157931910',
-        'gameserverid': '1312',
-        'gameusersex': '2',
-        'kohdimgender': '1',
-        'noencrypt': '1',
-        'openid': '472AD0DD361C8EC026E52F445041F843',
-        'tinkerid': '2037905606_32_0',
-        'userid': '2118558336',
-        'x-client-proto': 'https'
-      }
+      'Host': 'kohcamp.qq.com',
+      'cchannelid': '2002',
+      'cclientversioncode': '2037905606',
+      'cclientversionname': '8.101.1017',
+      'ccurrentgameid': '20001',
+      'cgameid': '20001',
+      'cgzip': '1',
+      'cisarm64': 'false',
+      'content-type': 'application/json',
+      'cpuhardware': 'unknown',
+      'crand': '1734580133908',
+      'csupportarm64': 'true',
+      'csystem': 'android',
+      'csystemversioncode': '32',
+      'csystemversionname': '12',
+      'gameareaid': '1',
+      'gameid': '20001',
+      'gameopenid': '54533036A3D6E4241440CBCD66694578',
+      'gameroleid': '2157931910',
+      'gameserverid': '1312',
+      'gameusersex': '2',
+      'kohdimgender': '1',
+      'noencrypt': '1',
+      'openid': '472AD0DD361C8EC026E52F445041F843',
+      'tinkerid': '2037905606_32_0',
+      'userid': '2118558336',
+      'x-client-proto': 'https'
     }
   }
 
@@ -117,11 +115,51 @@ class ApiService {
     return response.token
   }
 
+  async getMoreBattleList(ID) {
+    const response = await fetch(`${this.baseUrls.main}/game/morebattlelist`, {
+      method: 'POST',
+      headers: {
+        ...this.headers,
+        token: await this.getToken()
+      },
+      body: JSON.stringify({
+        lastTime: 0,
+        recommendPrivacy: 0,
+        apiVersion: 5,
+        friendUserId: ID,
+        option: 0
+      })
+    })
+
+    return response.json()
+  }
+
+  async getBattledetail(ID, battleType, gameSvr, relaySvr, targetRoleId, gameSeq) {
+    const response = await fetch(`${this.baseUrls.main}/game/battledetail`, {
+      method: 'POST',
+      headers: {
+        ...this.headers,
+        token: await this.getToken()
+      },
+      body: JSON.stringify({
+        recommendPrivacy: 0,
+        battleType,
+        gameSvr,
+        relaySvr,
+        targetRoleId,
+        gameSeq,
+        friendUserId: ID
+      })
+    })
+
+    return response.json()
+  }
+
   async getProfile(ID) {
     const response = await fetch(`${this.baseUrls.main}/game/koh/profile`, {
       method: 'POST',
       headers: {
-        ...this.headers['game/koh/profile'],
+        ...this.headers,
         token: await this.getToken()
       },
       body: JSON.stringify({
