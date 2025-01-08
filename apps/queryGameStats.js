@@ -182,6 +182,11 @@ export class QueryGameStats extends plugin {
       ssotoken: Token
     })
 
+    if (response_.returnCode === -10107) {
+      await e.reply(`ID: ${ID},召唤师隐藏了战绩，无法查看`)
+      return
+    }
+
     if (response_.returnCode === -30003) {
       const loginFilePath = getFilePath(e.user_id)
       if (!fs.existsSync(loginFilePath)) {

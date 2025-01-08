@@ -233,6 +233,10 @@ export class MyKingHomepage extends plugin {
       await e.reply('获取数据失败,请稍后重试')
       return
     }
+
+    if (profileData.returnCode === -10107) {
+      await e.reply(`ID: ${ID},召唤师隐藏了主页信息，无法查看`)
+    }
     
     if (!profileData || !profileData.data || !profileData.data.roleList) {
       console.log('获取数据失败，API返回:', JSON.stringify(profileData, null, 2))
