@@ -13,7 +13,7 @@ export class QueryGameStats extends plugin {
       priority: 1,
       rule: [
         {
-          reg: /^#查询战绩(\d+)?/,
+          reg: /^#(查询|王者)战绩(\d+)?/,
           fnc: 'queryGameStats'
         },
         {
@@ -227,7 +227,7 @@ export class QueryGameStats extends plugin {
       return;
     }
 
-    let index = Number(e.msg.match(/#查询战绩(\d+)?/)[1]) || false; // 获取查询的战绩索引
+    let index = Number(e.msg.match(/#(查询|王者)战绩(\d+)?/)[2]) || false; // 获取查询的战绩索引
 
     // 获取更多战斗列表数据
     const moreBattleListData = await ApiService.getMoreBattleList(ID); // 使用 getMoreBattleList 方法
