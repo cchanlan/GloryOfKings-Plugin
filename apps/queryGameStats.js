@@ -43,7 +43,7 @@ export class QueryGameStats extends plugin {
 
       return { userData, settingsData };
     } catch (error) {
-      console.error('加载用户数据和设置失败:', error);
+      logger.error('加载用户数据和设置失败:', error);
       return { userData: {}, settingsData: {} };
     }
   }
@@ -65,7 +65,7 @@ export class QueryGameStats extends plugin {
       const response = await this.fetchBattleDetails(latestBattle, { user_id: userId });
       
       if (!this.validateBattleResponse(response)) {
-        console.debug(`用户 ${userId} 的战斗详情数据无效`);
+        logger.debug(`用户 ${userId} 的战斗详情数据无效`);
         return;
       }
 
@@ -78,7 +78,7 @@ export class QueryGameStats extends plugin {
       await this.sendBattleReport(settingsData[userId], playerName, image);
       
     } catch (error) {
-      console.error(`处理战斗记录失败 (用户 ${userId}):`, error);
+      logger.error(`处理战斗记录失败 (用户 ${userId}):`, error);
     }
   }
 
@@ -109,7 +109,7 @@ export class QueryGameStats extends plugin {
     try {
       return await puppeteer.screenshot('QueryGameRecordDetails', data);
     } catch (error) {
-      console.error('生成战斗图片失败:', error);
+      logger.error('生成战斗图片失败:', error);
       throw error;
     }
   }
@@ -124,14 +124,14 @@ export class QueryGameStats extends plugin {
         image
       ]);
     } catch (error) {
-      console.error('发送战斗报告失败:', error);
+      logger.error('发送战斗报告失败:', error);
     }
   }
 
   // 更新推送战绩的函数
   async pushGameStats() {
     try {
-      console.debug('开始推送战绩...');
+      logger.debug('开始推送战绩...');
       const { userData, settingsData } = await this.loadUserDataAndSettings();
 
       for (const [userId, groupId] of Object.entries(settingsData)) {
@@ -140,18 +140,18 @@ export class QueryGameStats extends plugin {
         await this.processUserBattles(userId, userData[userId], groupId);
       }
     } catch (error) {
-      console.error('推送战绩时发生错误:', error);
+      logger.error('推送战绩时发生错误:', error);
     }
   }
 
   // 新增：检查是否应处理用户
   shouldProcessUser(userId, groupId, userData) {
     if (!groupId) {
-      console.debug(`用户 ${userId} 未开启战绩推送`);
+      logger.debug(`用户 ${userId} 未开启战绩推送`);
       return false;
     }
     if (!userData[userId]) {
-      console.debug(`用户 ${userId} 的 ID 未找到`);
+      logger.debug(`用户 ${userId} 的 ID 未找到`);
       return false;
     }
     return true;
@@ -162,7 +162,7 @@ export class QueryGameStats extends plugin {
     try {
       const response = await this.fetchBattleList({ user_id: userId }, ID);
       if (!this.validateBattleList(response)) {
-        console.debug(`用户 ${userId} 没有新的战斗记录`);
+        logger.debug(`用户 ${userId} 没有新的战斗记录`);
         return;
       }
 
@@ -172,7 +172,7 @@ export class QueryGameStats extends plugin {
         await this.updateLastBattle(userId, latestBattle);
       }
     } catch (error) {
-      console.error(`处理用户 ${userId} 的战斗时发生错误:`, error);
+      logger.error(`处理用户 ${userId} 的战斗时发生错误:`, error);
     }
   }
 
@@ -183,7 +183,7 @@ export class QueryGameStats extends plugin {
     const { isGroup } = e // 检查是否为群组消息
     if (!isGroup) return false // 如果不是群组消息，返回
 
-    console.debug(`用户 ${userId} 请求切换战绩推送状态...`);
+    logger.debug(`用户 ${userId} 请求切换战绩推送状态...`);
 
     // 定义用户数据和设置文件的路径
     const { userFilePath, settingsFilePath } = {
@@ -198,7 +198,7 @@ export class QueryGameStats extends plugin {
     }
 
     if (!userData[userId]) { // 如果用户 ID 未找到
-      console.debug(`用户 ${userId} 的 ID 未找到，发送提示...`);
+      logger.debug(`用户 ${userId} 的 ID 未找到，发送提示...`);
       await e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png')) // 发送提示图像
       return
     }
@@ -208,18 +208,18 @@ export class QueryGameStats extends plugin {
 
     fs.writeFileSync(settingsFilePath, JSON.stringify(settingsData, null, 2)) // 写入设置文件
     await e.reply(`战绩推送已${isEnabled ? '开启' : '关闭'}。`) // 回复用户
-    console.debug(`用户 ${userId} 的战绩推送状态已${isEnabled ? '开启' : '关闭'}`);
+    logger.debug(`用户 ${userId} 的战绩推送状态已${isEnabled ? '开启' : '关闭'}`);
   }
 
   // 查询战绩的函数
   async queryGameStats(e) {
-    console.debug(`用户 ${e.user_id} 请求查询战绩...`);
+    logger.debug(`用户 ${e.user_id} 请求查询战绩...`);
     const userFilePath = path.join(PluginData, 'UserData.yaml'); // 用户数据文件路径
     const allUserData = readYamlFile(userFilePath); // 读取所有用户数据
     const ID = allUserData[e.user_id]; // 获取用户 ID
 
     if (!ID) { // 如果用户 ID 未找到
-      console.debug(`用户 ${e.user_id} 的 ID 未找到，发送提示...`);
+      logger.debug(`用户 ${e.user_id} 的 ID 未找到，发送提示...`);
       await e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png')); // 发送提示图像
       return;
     }
@@ -230,7 +230,7 @@ export class QueryGameStats extends plugin {
     const moreBattleListData = await ApiService.getMoreBattleList(ID); // 使用 getMoreBattleList 方法
 
     if (!moreBattleListData.data) { // 如果战绩数据不可用
-      console.debug(`用户 ${e.user_id} 的战绩数据不可用，发送提示...`);
+      logger.debug(`用户 ${e.user_id} 的战绩数据不可用，发送提示...`);
       await e.reply(`ID: ${ID}，查询失败`); // 回复用户
       return;
     }
@@ -618,7 +618,7 @@ export class QueryGameStats extends plugin {
       const lastBattle = readJsonFile(lastBattleFile);
       return lastBattle.gameSeq !== latestBattle.gameSeq;
     } catch (error) {
-      console.error(`检查新战斗时发生错误 (用户 ${userId}):`, error);
+      logger.error(`检查新战斗时发生错误 (用户 ${userId}):`, error);
       return false;
     }
   }
@@ -629,7 +629,7 @@ export class QueryGameStats extends plugin {
       const lastBattleFile = path.join(PluginData, `lastBattle_${userId}.json`);
       writeJsonFile(lastBattleFile, battle);
     } catch (error) {
-      console.error(`更新最后战斗记录时发生错误 (用户 ${userId}):`, error);
+      logger.error(`更新最后战斗记录时发生错误 (用户 ${userId}):`, error);
     }
   }
 
@@ -653,7 +653,7 @@ export class QueryGameStats extends plugin {
       
       return playerRole?.name || '玩家';
     } catch (error) {
-      console.error('获取玩家昵称失败:', error);
+      logger.error('获取玩家昵称失败:', error);
       return '玩家';
     }
   }
