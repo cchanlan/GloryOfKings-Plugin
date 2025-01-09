@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
-    <link rel="stylesheet" href="../../../plugins/GloryOfKings-Plugin/resources/css/MyKingHomepage.css">
+    <link rel="stylesheet" href="{{_res_path}}css/MyKingHomepage.css">
 </head>
 
 <body>
@@ -15,8 +15,8 @@
             <div class="user-info">
                 <h2 class="username">{{roleName}}</h2>
                 <span class="badge level">等级 {{gameLevel}}</span>
-                <span class="badge online {{gameOnline !== 1 ? " offline": "" }}">{{gameOnline === 1 ? '在线' :
-                    '离线'}}</span>
+                <span class="badge role">{{roleText}}</span>
+                <span class="badge online {{gameOnline === 0 ? " offline": "" }}">{{gameOnline}}</span>
             </div>
         </div>
         <div class="card-content">
@@ -31,16 +31,6 @@
                         <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9H4.5a2.5 2.5 0 0 1 0-5H6'/%3E%3Cpath d='M18 9h1.5a2.5 2.5 0 0 0 0-5H18'/%3E%3Cpath d='M4 22h16'/%3E%3Cpath d='M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22'/%3E%3Cpath d='M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22'/%3E%3Cpath d='M18 2H6v7a6 6 0 0 0 12 0V2Z'/%3E%3C/svg%3E"
                             alt="奖杯图标" class="info-icon">
                         <span class="key">5v5段位：</span><span>{{rank5v5}}</span>
-                    </div>
-                    <div class="info-item">
-                        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M2 12h20'/%3E%3Cpath d='M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z'/%3E%3C/svg%3E"
-                            alt="地球图标" class="info-icon">
-                        <span class="key">分区：</span><span>{{areaName}}</span>
-                    </div>
-                    <div class="info-item">
-                        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 20h.01'/%3E%3Cpath d='M7 20v-4'/%3E%3Cpath d='M12 20v-8'/%3E%3Cpath d='M17 20V8'/%3E%3Cpath d='M22 4v16'/%3E%3C/svg%3E"
-                            alt="信号图标" class="info-icon">
-                        <span class="key">区服：</span><span>{{roleText}}</span>
                     </div>
                     <div class="info-item">
                         <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpolyline points='12 6 12 12 16 14'/%3E%3C/svg%3E"
@@ -89,6 +79,7 @@
             <div class="rank-image-container">
                 <img src="{{flagImg}}" alt="段位图片" class="rank-image-background">
                 <img src="{{rankIcon}}" alt="段位图片" class="rank-image">
+                <img src="{{_res_path}}/img/5-{{rankingStar}}.png" alt="" class="ranking-star">
                 <div class="rank-badge">{{rank5v5}}</div>
             </div>
         </div>
@@ -99,8 +90,12 @@
 
     doc.forEach((item) => {
         const s = item.textContent.split("/")
+        const a = item.textContent.split(".")
         if (s.length > 1) {
             item.innerHTML = `<span>${s[0]}</span>/<span class="all">${s[1]}</span>`
+        }
+        if (a.length > 1) {
+            item.innerHTML = `<span>${a[0]}</span><span class="all">.${a[1]}</span>`
         }
     });
 </script>
