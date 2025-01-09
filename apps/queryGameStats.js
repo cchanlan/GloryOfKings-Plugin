@@ -32,18 +32,20 @@ export class QueryGameStats extends plugin {
 
   // 新增方法：加载用户数据和设置数据
   async loadUserDataAndSettings() {
-    const { userFilePath, settingsFilePath } = {
-      userFilePath: path.join(PluginData, 'UserData.yaml'), // 用户数据文件路径
-      settingsFilePath: path.join(PluginData, 'gameStatsPushSettings.yaml') // 设置文件路径
-    }
+    try {
+      const { userFilePath, settingsFilePath } = {
+        userFilePath: path.join(PluginData, 'UserData.yaml'),
+        settingsFilePath: path.join(PluginData, 'gameStatsPushSettings.yaml')
+      }
 
-    // 读取用户数据和设置数据
-    const { userData, settingsData } = {
-      userData: readYamlFile(userFilePath), // 读取用户数据
-      settingsData: readYamlFile(settingsFilePath) // 读取设置数据
-    }
+      const userData = readYamlFile(userFilePath) || {};
+      const settingsData = readYamlFile(settingsFilePath) || {};
 
-    return { userData, settingsData };
+      return { userData, settingsData };
+    } catch (error) {
+      console.error('加载用户数据和设置失败:', error);
+      return { userData: {}, settingsData: {} };
+    }
   }
 
   // 新增方法：发送消息到群组
@@ -58,103 +60,122 @@ export class QueryGameStats extends plugin {
 
   // 新增方法：处理战斗记录
   async processBattleRecord(userId, ID, latestBattle) {
-    const { settingsData } = await this.loadUserDataAndSettings(); // 获取设置数据
-    const response2 = await this.fetchBattleDetails(latestBattle, { user_id: userId }); // 获取战斗详情
-    
-    if (!response2 || !response2.data) { // 如果获取战斗详情失败
-      return; // 跳过该用户
-    }
+    try {
+      const { settingsData } = await this.loadUserDataAndSettings();
+      const response = await this.fetchBattleDetails(latestBattle, { user_id: userId });
+      
+      if (!this.validateBattleResponse(response)) {
+        console.debug(`用户 ${userId} 的战斗详情数据无效`);
+        return;
+      }
 
-    const { head, battle, redTeam, blueTeam, redRoles, blueRoles } = response2.data; // 解构战斗详情
-    
-    if (!head || !battle || !redTeam || !blueTeam || !redRoles || !blueRoles) { // 如果战斗详情不完整
-      return; // 跳过该用户
+      const { head, battle, redTeam, blueTeam, redRoles, blueRoles } = response.data;
+      const myTeamColor = this.determineTeamColor(head, redTeam);
+      const data = this.prepareBattleData(myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles);
+      
+      const image = await this.generateBattleImage(data);
+      await this.sendBattleReport(settingsData[userId], data, image);
+      
+    } catch (error) {
+      console.error(`处理战斗记录失败 (用户 ${userId}):`, error);
     }
+  }
 
-    if (!head.acntCamp) { // 如果没有账户阵营信息
-      return; // 跳过该用户
-    }
+  // 新增：验证战斗响应数据
+  validateBattleResponse(response) {
+    if (!response?.data) return false;
+    const { head, battle, redTeam, blueTeam, redRoles, blueRoles } = response.data;
+    return head?.acntCamp && battle && redTeam && blueTeam && redRoles && blueRoles;
+  }
 
-    // 检查用户的阵营是否与战斗阵营匹配
-    if (head.acntCamp !== redTeam.acntCamp && head.acntCamp !== blueTeam.acntCamp) {
-      return; // 跳过该用户
-    }
+  // 新增：确定队伍颜色
+  determineTeamColor(head, redTeam) {
+    return head.acntCamp === redTeam.acntCamp ? '红' : '蓝';
+  }
 
-    const myTeamColor = head.acntCamp === redTeam.acntCamp ? '红' : '蓝'; // 确定我的阵营颜色
-    const enemyTeamColor = myTeamColor === '红' ? '蓝' : '红'; // 确定敌方阵营颜色
-    const data = {
-      tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordDetails.html', // 模板文件路径
-      ...this.extractTeamData(myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles), // 提取团队数据
-      myTeamColor, // 我的阵营颜色
-      enemyTeamColor // 敌方阵营颜色
+  // 新增：准备战斗数据
+  prepareBattleData(myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles) {
+    return {
+      tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordDetails.html',
+      ...this.extractTeamData(myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles),
+      myTeamColor,
+      enemyTeamColor: myTeamColor === '红' ? '蓝' : '红'
     };
+  }
 
-    // 截图并生成战斗记录详情图像
-    const image = await puppeteer.screenshot('QueryGameRecordDetails', data);
-    const groupId = settingsData[userId]; // 获取用户的群组 ID
-    const playerTeam = myTeamColor === '红' ? redRoles : blueRoles; // 获取玩家所在的团队角色
-    const playerRole = playerTeam.find(role => role.acntCamp === head.acntCamp); // 查找玩家角色
-    const playerName = playerRole?.name || '玩家'; // 获取玩家名称
+  // 新增：生成战斗图片
+  async generateBattleImage(data) {
+    try {
+      return await puppeteer.screenshot('QueryGameRecordDetails', data);
+    } catch (error) {
+      console.error('生成战斗图片失败:', error);
+      throw error;
+    }
+  }
 
-    // 发送消息到群组
-    await this.sendGroupMessage(groupId, playerName, image);
+  // 新增：发送战斗报告
+  async sendBattleReport(groupId, data, image) {
+    if (!groupId) return;
+    
+    const playerTeam = data.myTeamColor === '红' ? data.myRoles : data.enemyRoles;
+    const playerRole = playerTeam.find(role => role.acntCamp === data.head?.acntCamp);
+    const playerName = playerRole?.name || '玩家';
+
+    try {
+      await Bot.pickGroup(groupId).sendMsg([
+        `${playerName} 的最新战绩`,
+        image
+      ]);
+    } catch (error) {
+      console.error('发送战斗报告失败:', error);
+    }
   }
 
   // 更新推送战绩的函数
   async pushGameStats() {
     try {
       console.debug('开始推送战绩...');
-      const { userData, settingsData } = await this.loadUserDataAndSettings(); // 加载用户数据和设置数据
+      const { userData, settingsData } = await this.loadUserDataAndSettings();
 
-      // 遍历设置数据中的用户 ID
-      for (const userId of Object.keys(settingsData)) {
-        if (!settingsData[userId]) { // 如果用户未开启推送
-          console.debug(`用户 ${userId} 未开启战绩推送，跳过...`);
-          continue; // 跳过该用户
-        }
+      for (const [userId, groupId] of Object.entries(settingsData)) {
+        if (!this.shouldProcessUser(userId, groupId, userData)) continue;
 
-        const ID = userData[userId]; // 获取用户 ID
-        if (!ID) { // 如果用户 ID 未找到
-          console.debug(`用户 ${userId} 的 ID 未找到，跳过...`); 
-          continue; // 跳过该用户
-        }
-        
-        // 获取用户的战斗列表
-        let response = await this.fetchBattleList({ user_id: userId }, ID);
-        
-        // 如果没有新的战斗记录
-        if (!response || !response.data || !response.data.list || response.data.list.length === 0) {
-          console.debug(`用户 ${userId} 没有新的战斗记录，跳过...`);
-          continue; // 跳过该用户
-        }
-
-        const latestBattle = response.data.list[0]; // 获取最新的战斗记录
-        const lastBattleFile = path.join(PluginData, 'lastBattle', `${userId}.json`);
-        let lastBattle = {}; // 初始化上一次战斗记录
-        if (fs.existsSync(lastBattleFile)) { // 如果文件存在
-          lastBattle = readJsonFile(lastBattleFile); // 读取上一次战斗记录
-        }
-
-        // 如果最新战斗记录的序列号与上一次相同，跳过
-        if (lastBattle.gameSeq === latestBattle.gameSeq) {
-          continue;
-        }
-
-        // 处理战斗记录
-        await this.processBattleRecord(userId, ID, latestBattle);
-
-        // 如果上一次战斗记录文件夹不存在，则创建
-        if (!fs.existsSync(path.join(PluginData, 'lastBattle'))) {
-          fs.mkdirSync(path.join(PluginData, 'lastBattle'), { recursive: true }); // 创建文件夹
-        }
-        // 写入最新战斗记录
-        writeJsonFile(lastBattleFile, {
-          gameSeq: latestBattle.gameSeq, // 最新战斗序列号
-          timestamp: Date.now() // 当前时间戳
-        });
+        await this.processUserBattles(userId, userData[userId], groupId);
       }
     } catch (error) {
       console.error('推送战绩时发生错误:', error);
+    }
+  }
+
+  // 新增：检查是否应处理用户
+  shouldProcessUser(userId, groupId, userData) {
+    if (!groupId) {
+      console.debug(`用户 ${userId} 未开启战绩推送`);
+      return false;
+    }
+    if (!userData[userId]) {
+      console.debug(`用户 ${userId} 的 ID 未找到`);
+      return false;
+    }
+    return true;
+  }
+
+  // 新增：处理用户战斗
+  async processUserBattles(userId, ID, groupId) {
+    try {
+      const response = await this.fetchBattleList({ user_id: userId }, ID);
+      if (!this.validateBattleList(response)) {
+        console.debug(`用户 ${userId} 没有新的战斗记录`);
+        return;
+      }
+
+      const latestBattle = response.data.list[0];
+      if (await this.isNewBattle(userId, latestBattle)) {
+        await this.processBattleRecord(userId, ID, latestBattle);
+        await this.updateLastBattle(userId, latestBattle);
+      }
+    } catch (error) {
+      console.error(`处理用户 ${userId} 的战斗时发生错误:`, error);
     }
   }
 
