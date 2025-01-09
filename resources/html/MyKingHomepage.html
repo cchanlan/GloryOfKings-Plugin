@@ -1,194 +1,12 @@
-<style>
-    body {
-        font-family: Arial, sans-serif;
-        background-color: #f0f0f0;
-        margin: 0;
-        padding: 20px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 100vh;
-    }
+<!DOCTYPE html>
+<html lang="en">
 
-    .card {
-        background-color: white;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        width: 100%;
-        max-width: 800px;
-        overflow: hidden;
-    }
-
-    .card-header {
-        display: flex;
-        align-items: center;
-        padding: 20px;
-        border-bottom: 1px solid #e0e0e0;
-        background-color: #f8f8f8;
-    }
-
-    .avatar {
-        width: 80px;
-        height: 80px;
-        border-radius: 50%;
-        margin-right: 20px;
-        object-fit: cover;
-    }
-
-    .user-info {
-        flex-grow: 1;
-    }
-
-    .username {
-        font-size: 24px;
-        font-weight: bold;
-        margin: 0 0 5px 0;
-        color: #333;
-    }
-
-    .badge {
-        display: inline-block;
-        padding: 3px 8px;
-        border-radius: 12px;
-        font-size: 12px;
-        font-weight: bold;
-    }
-
-    .level {
-        background-color: #e0e0e0;
-        color: #333;
-    }
-
-    .online {
-        background-color: #4caf50;
-        color: white;
-        margin-left: 10px;
-    }
-
-    .card-content {
-        padding: 20px;
-        display: flex;
-    }
-
-    .info-section {
-        flex: 2;
-    }
-
-    .info-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 15px;
-        margin-bottom: 20px;
-    }
-
-    .info-item {
-        display: flex;
-        align-items: center;
-        background-color: #f5f5f5;
-        padding: 10px;
-        border-radius: 6px;
-    }
-
-    .info-icon {
-        width: 24px;
-        height: 24px;
-        margin-right: 10px;
-    }
-
-    .rank-image-container {
-        position: relative;
-        width: 200px;
-        height: auto;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .rank-image {
-        position: absolute;
-        top: 45%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 180%;
-        height: auto;
-        z-index: 2;
-    }
-
-    .rank-image-background {
-        position: relative;
-        width: 100%;
-        height: auto;
-        z-index: 1;
-    }
-
-    .rank-badge {
-        position: absolute;
-        bottom: 10px;
-        left: 50%;
-        transform: translateX(-50%);
-        background-color: #ffd700;
-        color: #333;
-        padding: 5px 10px;
-        border-radius: 20px;
-        font-size: 14px;
-        font-weight: bold;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-        white-space: nowrap;
-    }
-
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 15px;
-        margin-top: 20px;
-    }
-
-    .stat-item {
-        background-color: #f0f0f0;
-        border-radius: 8px;
-        padding: 15px;
-        text-align: center;
-    }
-
-    .stat-value {
-        font-size: 24px;
-        font-weight: bold;
-        color: #333;
-        margin-bottom: 5px;
-    }
-
-    .stat-label {
-        font-size: 14px;
-        color: #666;
-    }
-
-    .peak-score {
-        grid-column: 1 / -1;
-        display: flex;
-        gap: 15px;
-        margin-top: 10px;
-    }
-
-    .peak-item {
-        flex: 1;
-        background-color: #f5f5f5;
-        padding: 12px;
-        border-radius: 6px;
-        text-align: center;
-    }
-
-    .peak-label {
-        font-size: 14px;
-        color: #666;
-        margin-bottom: 5px;
-    }
-
-    .peak-value {
-        font-size: 18px;
-        font-weight: bold;
-        color: #ff9800;
-    }
-</style>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="../../../plugins/GloryOfKings-Plugin/resources/css/MyKingHomepage.css">
+</head>
 
 <body>
     <div class="card">
@@ -197,7 +15,8 @@
             <div class="user-info">
                 <h2 class="username">{{roleName}}</h2>
                 <span class="badge level">等级 {{gameLevel}}</span>
-                <span class="badge online">{{gameOnline === 1 ? '在线' : '离线'}}</span>
+                <span class="badge online {{gameOnline !== 1 ? " offline": "" }}">{{gameOnline === 1 ? '在线' :
+                    '离线'}}</span>
             </div>
         </div>
         <div class="card-content">
@@ -206,32 +25,32 @@
                     <div class="info-item">
                         <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9H4.5a2.5 2.5 0 0 1 0-5H6'/%3E%3Cpath d='M18 9h1.5a2.5 2.5 0 0 0 0-5H18'/%3E%3Cpath d='M4 22h16'/%3E%3Cpath d='M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22'/%3E%3Cpath d='M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22'/%3E%3Cpath d='M18 2H6v7a6 6 0 0 0 12 0V2Z'/%3E%3C/svg%3E"
                             alt="奖杯图标" class="info-icon">
-                        <span>10v10段位：{{rank10v10}}</span>
+                        <span class="key">10v10段位：</span><span>{{rank10v10}}</span>
                     </div>
                     <div class="info-item">
                         <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9H4.5a2.5 2.5 0 0 1 0-5H6'/%3E%3Cpath d='M18 9h1.5a2.5 2.5 0 0 0 0-5H18'/%3E%3Cpath d='M4 22h16'/%3E%3Cpath d='M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22'/%3E%3Cpath d='M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22'/%3E%3Cpath d='M18 2H6v7a6 6 0 0 0 12 0V2Z'/%3E%3C/svg%3E"
                             alt="奖杯图标" class="info-icon">
-                        <span>5v5段位：{{rank5v5}}</span>
+                        <span class="key">5v5段位：</span><span>{{rank5v5}}</span>
                     </div>
                     <div class="info-item">
                         <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M2 12h20'/%3E%3Cpath d='M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z'/%3E%3C/svg%3E"
                             alt="地球图标" class="info-icon">
-                        <span>分区：{{areaName}}</span>
+                        <span class="key">分区：</span><span>{{areaName}}</span>
                     </div>
                     <div class="info-item">
                         <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 20h.01'/%3E%3Cpath d='M7 20v-4'/%3E%3Cpath d='M12 20v-8'/%3E%3Cpath d='M17 20V8'/%3E%3Cpath d='M22 4v16'/%3E%3C/svg%3E"
                             alt="信号图标" class="info-icon">
-                        <span>区服：{{roleText}}</span>
+                        <span class="key">区服：</span><span>{{roleText}}</span>
                     </div>
                     <div class="info-item">
                         <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpolyline points='12 6 12 12 16 14'/%3E%3C/svg%3E"
                             alt="时钟图标" class="info-icon">
-                        <span>上次上线：{{onlineTime}}</span>
+                        <span class="key">上次上线：</span><span>{{onlineTime}}</span>
                     </div>
                     <div class="info-item">
                         <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18.36 6.64a9 9 0 1 1-12.73 0'/%3E%3Cline x1='12' y1='2' x2='12' y2='12'/%3E%3C/svg%3E"
                             alt="关机图标" class="info-icon">
-                        <span>上次离线：{{offlineTime}}</span>
+                        <span class="key">上次离线：</span><span>{{offlineTime}}</span>
                     </div>
                     <div class="peak-score">
                         <div class="peak-item">
@@ -247,7 +66,7 @@
                     </div>
                     <div class="stat-item">
                         <div class="stat-value">{{content_2}}</div>
-                        <div class="stat-label">MVP次数</div>
+                        <div class="stat-label">MVP</div>
                     </div>
                     <div class="stat-item">
                         <div class="stat-value">{{content_3}}</div>
@@ -270,8 +89,20 @@
             <div class="rank-image-container">
                 <img src="{{flagImg}}" alt="段位图片" class="rank-image-background">
                 <img src="{{rankIcon}}" alt="段位图片" class="rank-image">
-                <span class="rank-badge">{{rank5v5}}</span>
+                <div class="rank-badge">{{rank5v5}}</div>
             </div>
         </div>
     </div>
 </body>
+<script>
+    const doc = document.querySelectorAll(".stats-grid .stat-item .stat-value");
+
+    doc.forEach((item) => {
+        const s = item.textContent.split("/")
+        if (s.length > 1) {
+            item.innerHTML = `<span>${s[0]}</span>/<span class="all">${s[1]}</span>`
+        }
+    });
+</script>
+
+</html>
