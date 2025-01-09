@@ -74,7 +74,7 @@ export class QueryGameStats extends plugin {
       const data = this.prepareBattleData(myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles);
       
       const image = await this.generateBattleImage(data);
-      const playerName = this.getPlayerName(head, redRoles, blueRoles);
+      const playerName = this.getPlayerName(head, redRoles, blueRoles, latestBattle);
       await this.sendBattleReport(settingsData[userId], playerName, image);
       
     } catch (error) {
@@ -634,17 +634,23 @@ export class QueryGameStats extends plugin {
   }
 
   // 新增：获取玩家昵称
-  getPlayerName(head, redRoles, blueRoles) {
+  getPlayerName(head, redRoles, blueRoles, battleDetails) {
     try {
-      // 获取玩家所在阵营
+      // 1. 首先尝试从 analyseUrl 获取昵称
+      if (battleDetails?.analyseUrl) {
+        const roleNameMatch = battleDetails.analyseUrl.match(/roleName=([^&]+)/);
+        if (roleNameMatch) {
+          return decodeURIComponent(roleNameMatch[1]);
+        }
+      }
+
+      // 2. 如果没有 analyseUrl,则从阵营和角色列表获取
       const playerCamp = head?.acntCamp;
       if (!playerCamp) return '玩家';
 
-      // 根据阵营查找玩家角色
       const allRoles = [...redRoles, ...blueRoles];
       const playerRole = allRoles.find(role => role.acntCamp === playerCamp);
       
-      // 返回玩家昵称，如果未找到则返回默认值
       return playerRole?.name || '玩家';
     } catch (error) {
       console.error('获取玩家昵称失败:', error);
