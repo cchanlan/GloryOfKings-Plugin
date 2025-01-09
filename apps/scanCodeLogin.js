@@ -55,7 +55,7 @@ export class ScanCodeLogin extends plugin {
         specialEncodeParam: CONFIG.QR_ENCODE_PARAM
       })
       
-      await writeJsonFile(getFilePath(e.user_id), qrData)
+      writeJsonFile(getFilePath(e.user_id), qrData)
 
       const qrImage = await puppeteer.screenshot('scanCodeLogin', {
         tplFile: 'plugins/GloryOfKings-Plugin/resources/html/scanCodeLogin.html',
@@ -119,9 +119,9 @@ export class ScanCodeLogin extends plugin {
     const userData = await readYamlFile(filePath).catch(() => ({}))
     
     userData[userId] = userInfoData.list[0].userId
-    await writeYamlFile(filePath, userData)
+    writeYamlFile(filePath, userData)
 
-    await writeJsonFile(getFilePath(userId), {
+    writeJsonFile(getFilePath(userId), {
       ssoOpenId,
       ssoToken,
       expireTime: tokenData.expireTime
