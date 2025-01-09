@@ -58,6 +58,7 @@ export class QueryGameStats extends plugin {
 
   // 新增方法：处理战斗记录
   async processBattleRecord(userId, ID, latestBattle) {
+    const { settingsData } = await this.loadUserDataAndSettings(); // 获取设置数据
     const response2 = await this.fetchBattleDetails(latestBattle, { user_id: userId }); // 获取战斗详情
     
     if (!response2 || !response2.data) { // 如果获取战斗详情失败
