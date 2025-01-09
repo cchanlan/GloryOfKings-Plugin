@@ -14,6 +14,13 @@ const functionList = [
   '【#查询战绩1】查看第一条战绩具体数据'
 ]
 
+const CONFIG = {
+  MAX_SCAN_RETRIES: 120,
+  SCAN_INTERVAL: 1000,
+  QR_ENCODE_PARAM: 'rhIMIdd/m8fRrf5i/cQFxSdQkp+WAop5GN2SMAbFTDp0QvvG7eCJQjeBuJmyv4BT3nl0BS452F2XEQawpnfZaPpjVKdoA28/waERI7lJuPmLc8RVYiQ1SQpLFbc6eGsuoVqW//856jkWy4KuZEU03reL5mGkbIx1LpRcVkKM/3k=',
+  TOKEN_ENCODE_PARAM: 'bDDKzNEKn6L7257wFRD1wGRoVTNfl1kh9BnWkLaDCCeA4U4XarSrk1OptC21Zj682xDFYtfWW4Ao5uOglwReOfCvFXkwo3piug4PLll/OwXlD5aSOLn/Ucbltfw9//xJvTWB+xb9qRT3Pu1M8vm0wxX2b5OTm7SrUJ5V2jkA594='
+}
+
 export class ScanCodeLogin extends plugin {
   constructor() {
     super({
@@ -40,90 +47,85 @@ export class ScanCodeLogin extends plugin {
 
   async scanCodeLogin(e) {
     try {
-      // 获取二维码
+      const dirPath = path.join(PluginData, 'ScanCodeLoginData')
+      await fs.promises.mkdir(dirPath, { recursive: true })
+      
       const qrData = await ApiService.post('/sso/getqrcode', null, {
         'Content-Length': '0',
-        specialEncodeParam: 'rhIMIdd/m8fRrf5i/cQFxSdQkp+WAop5GN2SMAbFTDp0QvvG7eCJQjeBuJmyv4BT3nl0BS452F2XEQawpnfZaPpjVKdoA28/waERI7lJuPmLc8RVYiQ1SQpLFbc6eGsuoVqW//856jkWy4KuZEU03reL5mGkbIx1LpRcVkKM/3k='
+        specialEncodeParam: CONFIG.QR_ENCODE_PARAM
       })
+      
+      await writeJsonFile(getFilePath(e.user_id), qrData)
 
-      // 保存二维码数据
-      const dirPath = path.join(PluginData, 'ScanCodeLoginData')
-      fs.existsSync(dirPath) || fs.mkdirSync(dirPath, { recursive: true })
-      writeJsonFile(getFilePath(e.user_id), qrData)
-
-      // 发送二维码图片
-      await e.reply(await puppeteer.screenshot('scanCodeLogin', {
+      const qrImage = await puppeteer.screenshot('scanCodeLogin', {
         tplFile: 'plugins/GloryOfKings-Plugin/resources/html/scanCodeLogin.html',
         qrCodeFile: qrData.qrCodeFile
-      }))
+      })
+      await e.reply(qrImage)
 
-      // 等待扫码
       const scanResult = await this.waitForScan(e.user_id, qrData.uUid)
       if (!scanResult.success) {
         return await e.reply('扫码超时，请重新尝试')
       }
 
-      // 获取用户信息并保存
       await this.saveUserInfo(e.user_id, scanResult.data)
-      const message = [
+      await e.reply([
         '登陆成功',
         `Token过期时间: ${this.formatDate(scanResult.data.expireTime)}`,
         '过期之后需要重新扫码登录',
         ...functionList
-      ]
-      await e.reply(message.join('\r'))
+      ].join('\n'))
 
     } catch (error) {
-      logger.error(error)
+      logger.error('扫码登录失败:', error)
       await e.reply('操作失败，请稍后重试')
     }
   }
 
-  async waitForScan(userId, uUid, maxRetries = 120) {
-    for (let i = 0; i < maxRetries; i++) {
+  async waitForScan(userId, uUid) {
+    for (let i = 0; i < CONFIG.MAX_SCAN_RETRIES; i++) {
       try {
-        const data = await ApiService.post('/sso/qrconnect', { uUid })
-
-        if (data.statusCode === 408 && data.msg === '没扫码') {
-          await common.sleep(1000)
+        const scanData = await ApiService.post('/sso/qrconnect', { uUid })
+        
+        if (scanData.statusCode === 408 && scanData.msg === '没扫码') {
+          await common.sleep(CONFIG.SCAN_INTERVAL)
           continue
         }
 
         const tokenData = await ApiService.post('/sso/code2session', {
           grantType: 'authorization_code',
-          code: data.code
+          code: scanData.code
         }, {
-          specialEncodeParam: 'bDDKzNEKn6L7257wFRD1wGRoVTNfl1kh9BnWkLaDCCeA4U4XarSrk1OptC21Zj682xDFYtfWW4Ao5uOglwReOfCvFXkwo3piug4PLll/OwXlD5aSOLn/Ucbltfw9//xJvTWB+xb9qRT3Pu1M8vm0wxX2b5OTm7SrUJ5V2jkA594='
+          specialEncodeParam: CONFIG.TOKEN_ENCODE_PARAM
         })
 
-        return {
-          success: true,
-          data: tokenData
-        }
+        return { success: true, data: tokenData }
       } catch (error) {
-        logger.error(error)
+        logger.error('等待扫码出错:', error)
       }
     }
     return { success: false }
   }
 
   async saveUserInfo(userId, tokenData) {
+    const { ssoOpenId, ssoToken } = tokenData.session
+    
     const userInfoData = await ApiService.post('/pc/user/infolist', null, {
-      ssoOpenId: tokenData.session.ssoOpenId,
-      ssoToken: tokenData.session.ssoToken
+      ssoOpenId,
+      ssoToken
     })
 
     const filePath = path.join(PluginData, 'UserData.yaml')
-    const userData = fs.existsSync(filePath) ? readYamlFile(filePath) : {}
+    const userData = await readYamlFile(filePath).catch(() => ({}))
+    
     userData[userId] = userInfoData.list[0].userId
-    writeYamlFile(filePath, userData)
+    await writeYamlFile(filePath, userData)
 
-    const scanData = {
-      ssoOpenId: tokenData.session.ssoOpenId,
-      ssoToken: tokenData.session.ssoToken,
+    await writeJsonFile(getFilePath(userId), {
+      ssoOpenId,
+      ssoToken,
       expireTime: tokenData.expireTime
-    }
-    writeJsonFile(getFilePath(userId), scanData)
+    })
   }
 
   formatDate(timestamp) {
