@@ -1,5 +1,13 @@
+@font-face {
+  font-family: Number;
+  src: url(../font/tttgbnumber.woff) format("woff"), url(../font/tttgbnumber.ttf) format("truetype");
+}
+@font-face {
+  font-family: YS;
+  src: url(../font/HYWH-65W.woff) format("woff"), url(../font/HYWH-65W.ttf) format("truetype");
+}
 body {
-  font-family: Arial, sans-serif;
+  font-family: Number, YS, Arial, sans-serif;
   background-color: #efefef;
   margin: 0;
   padding: 30px;
