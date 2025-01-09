@@ -74,7 +74,8 @@ export class QueryGameStats extends plugin {
       const data = this.prepareBattleData(myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles);
       
       const image = await this.generateBattleImage(data);
-      await this.sendBattleReport(settingsData[userId], data, image);
+      const playerName = this.getPlayerName(head, redRoles, blueRoles);
+      await this.sendBattleReport(settingsData[userId], playerName, image);
       
     } catch (error) {
       console.error(`处理战斗记录失败 (用户 ${userId}):`, error);
@@ -114,13 +115,9 @@ export class QueryGameStats extends plugin {
   }
 
   // 新增：发送战斗报告
-  async sendBattleReport(groupId, data, image) {
+  async sendBattleReport(groupId, playerName, image) {
     if (!groupId) return;
     
-    const playerTeam = data.myTeamColor === '红' ? data.myRoles : data.enemyRoles;
-    const playerRole = playerTeam.find(role => role.acntCamp === data.head?.acntCamp);
-    const playerName = playerRole?.name || '玩家';
-
     try {
       await Bot.pickGroup(groupId).sendMsg([
         `${playerName} 的最新战绩`,
@@ -603,6 +600,55 @@ export class QueryGameStats extends plugin {
       return response // 返回响应
     } catch (error) {
       return null // 返回 null
+    }
+  }
+
+  // 新增：验证战斗列表响应
+  validateBattleList(response) {
+    if (!response?.data?.list?.length) return false;
+    return true;
+  }
+
+  // 新增：检查是否为新战斗
+  async isNewBattle(userId, latestBattle) {
+    try {
+      const lastBattleFile = path.join(PluginData, `lastBattle_${userId}.json`);
+      if (!fs.existsSync(lastBattleFile)) return true;
+
+      const lastBattle = readJsonFile(lastBattleFile);
+      return lastBattle.gameSeq !== latestBattle.gameSeq;
+    } catch (error) {
+      console.error(`检查新战斗时发生错误 (用户 ${userId}):`, error);
+      return false;
+    }
+  }
+
+  // 新增：更新最后一场战斗记录
+  async updateLastBattle(userId, battle) {
+    try {
+      const lastBattleFile = path.join(PluginData, `lastBattle_${userId}.json`);
+      writeJsonFile(lastBattleFile, battle);
+    } catch (error) {
+      console.error(`更新最后战斗记录时发生错误 (用户 ${userId}):`, error);
+    }
+  }
+
+  // 新增：获取玩家昵称
+  getPlayerName(head, redRoles, blueRoles) {
+    try {
+      // 获取玩家所在阵营
+      const playerCamp = head?.acntCamp;
+      if (!playerCamp) return '玩家';
+
+      // 根据阵营查找玩家角色
+      const allRoles = [...redRoles, ...blueRoles];
+      const playerRole = allRoles.find(role => role.acntCamp === playerCamp);
+      
+      // 返回玩家昵称，如果未找到则返回默认值
+      return playerRole?.name || '玩家';
+    } catch (error) {
+      console.error('获取玩家昵称失败:', error);
+      return '玩家';
     }
   }
 }
