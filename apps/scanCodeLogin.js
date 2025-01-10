@@ -22,7 +22,7 @@ const CONFIG = {
 }
 
 export class ScanCodeLogin extends plugin {
-  constructor() {
+  constructor () {
     super({
       name: 'scanCodeLogin',
       dsc: '王者扫码登录',
@@ -45,16 +45,16 @@ export class ScanCodeLogin extends plugin {
     })
   }
 
-  async scanCodeLogin(e) {
+  async scanCodeLogin (e) {
     try {
       const dirPath = path.join(PluginData, 'ScanCodeLoginData')
       await fs.promises.mkdir(dirPath, { recursive: true })
-      
+
       const qrData = await ApiService.post('/sso/getqrcode', null, {
         'Content-Length': '0',
         specialEncodeParam: CONFIG.QR_ENCODE_PARAM
       })
-      
+
       writeJsonFile(getFilePath(e.user_id), qrData)
 
       const qrImage = await puppeteer.screenshot('scanCodeLogin', {
@@ -75,18 +75,17 @@ export class ScanCodeLogin extends plugin {
         '过期之后需要重新扫码登录',
         ...functionList
       ].join('\n'))
-
     } catch (error) {
       logger.error('扫码登录失败:', error)
       await e.reply('操作失败，请稍后重试')
     }
   }
 
-  async waitForScan(userId, uUid) {
+  async waitForScan (userId, uUid) {
     for (let i = 0; i < CONFIG.MAX_SCAN_RETRIES; i++) {
       try {
         const scanData = await ApiService.post('/sso/qrconnect', { uUid })
-        
+
         if (scanData.statusCode === 408 && scanData.msg === '没扫码') {
           await common.sleep(CONFIG.SCAN_INTERVAL)
           continue
@@ -107,9 +106,9 @@ export class ScanCodeLogin extends plugin {
     return { success: false }
   }
 
-  async saveUserInfo(userId, tokenData) {
+  async saveUserInfo (userId, tokenData) {
     const { ssoOpenId, ssoToken } = tokenData.session
-    
+
     const userInfoData = await ApiService.post('/pc/user/infolist', null, {
       ssoOpenId,
       ssoToken
@@ -117,7 +116,7 @@ export class ScanCodeLogin extends plugin {
 
     const filePath = path.join(PluginData, 'UserData.yaml')
     const userData = await readYamlFile(filePath).catch(() => ({}))
-    
+
     userData[userId] = userInfoData.list[0].userId
     writeYamlFile(filePath, userData)
 
@@ -128,13 +127,13 @@ export class ScanCodeLogin extends plugin {
     })
   }
 
-  formatDate(timestamp) {
+  formatDate (timestamp) {
     const date = new Date(parseInt(timestamp) * 1000)
     const pad = num => String(num).padStart(2, '0')
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
   }
 
-  async getMyTokenAndOpenId(e) {
+  async getMyTokenAndOpenId (e) {
     const filePath = getFilePath(e.user_id)
     if (!fs.existsSync(filePath)) {
       return await e.reply('未找到登录信息，请先扫码登录。')
@@ -148,7 +147,7 @@ export class ScanCodeLogin extends plugin {
     await e.reply(`您的Token: ${ssoToken}\n您的OpenId: ${ssoOpenId}`)
   }
 
-  async bindWzryId(e) {
+  async bindWzryId (e) {
     const wzryId = e.msg.match(/^#绑定营地\s+(\d+)$/)[1]
     const filePath = path.join(PluginData, 'UserData.yaml')
     const userData = fs.existsSync(filePath) ? readYamlFile(filePath) : {}

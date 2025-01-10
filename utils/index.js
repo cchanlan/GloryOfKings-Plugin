@@ -8,7 +8,6 @@ import {
   readYamlFile,
   writeYamlFile
 } from './yamlUtils.js'
-import logger from './logger.js'
 import monitor from './monitor.js'
 import cache from './cache.js'
 
@@ -19,7 +18,6 @@ export {
   getFilePath,
   readYamlFile,
   writeYamlFile,
-  logger,
   monitor,
   cache
 }

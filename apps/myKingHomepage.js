@@ -7,7 +7,7 @@ import moment from 'moment'
 const { onlineReminderCron, onlineReminder } = Config.getConfig('config')
 
 export class MyKingHomepage extends plugin {
-  constructor() {
+  constructor () {
     super({
       name: 'myKingHomepage',
       dsc: '王者主页',
@@ -34,7 +34,7 @@ export class MyKingHomepage extends plugin {
     }
   }
 
-  async onlineReminder() {
+  async onlineReminder () {
     const { userFilePath, settingsFilePath } = {
       userFilePath: path.join(PluginData, 'UserData.yaml'),
       settingsFilePath: path.join(PluginData, 'user_settings.yaml')
@@ -88,7 +88,7 @@ export class MyKingHomepage extends plugin {
     }
   }
 
-  async toggleOnlineReminder(e) {
+  async toggleOnlineReminder (e) {
     let userId = e.user_id
     let groupId = e.group_id
     const { isGroup } = e
@@ -116,7 +116,7 @@ export class MyKingHomepage extends plugin {
     await e.reply(`上下线提醒已${isEnabled ? '开启' : '关闭'}。`)
   }
 
-  async myKingHomepage(e) {
+  async myKingHomepage (e) {
     let userId = e.user_id
     const userFilePath = path.join(PluginData, 'UserData.yaml')
 
@@ -158,11 +158,11 @@ export class MyKingHomepage extends plugin {
       roleName, // 昵称
       roleIcon, // 头像
       gameLevel, // 等级
-      gameOnline:_gameOnline, // 在线状态 【1:在线 0:离线】
+      gameOnline: _gameOnline, // 在线状态 【1:在线 0:离线】
       areaName, // 分区
       roleText, // 区服
       onlineTime: onlineTimestamp, // 最近一次上线
-      offlineTime: offlineTimestamp, // 最近一次离线
+      offlineTime: offlineTimestamp // 最近一次离线
     } = roleData
     const gameOnlineMap = {
       0: '离线',
@@ -170,8 +170,8 @@ export class MyKingHomepage extends plugin {
       2: '游戏中'
     }
     const gameOnline = gameOnlineMap[_gameOnline]
-    const onlineTime = moment(onlineTimestamp * 1000).locale("zh-cn").calendar()
-    const offlineTime = moment(offlineTimestamp * 1000).locale("zh-cn").calendar()
+    const onlineTime = moment(onlineTimestamp * 1000).locale('zh-cn').calendar()
+    const offlineTime = moment(offlineTimestamp * 1000).locale('zh-cn').calendar()
     const [
       mode10v10, // 10v10模式
       mode5v5, // 5v5模式
@@ -181,7 +181,7 @@ export class MyKingHomepage extends plugin {
       totalBattleCountItem, // 总场次
       heroNumItem, // 英雄数量
       winRateItem, // 胜率
-      skinNumItem, // 皮肤数量
+      skinNumItem // 皮肤数量
     ] = mods
     const { rankingStar } = JSON.parse(mode5v5.param1)
     const rank10v10 = `${mode10v10.name} ${JSON.parse(mode10v10.param1).rankingStar}星`
@@ -194,10 +194,20 @@ export class MyKingHomepage extends plugin {
     if (rank5v5.includes('最强王者')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/3.png'
     const data = {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/MyKingHomepage.html',
-      _res_path:"../../../plugins/GloryOfKings-Plugin/resources/",
-      roleIcon, roleName, gameLevel, gameOnline, rank10v10,
-      rank5v5, areaName, roleText, flagImg, rankIcon,
-      onlineTime, offlineTime, rankingStar,
+      _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
+      roleIcon,
+      roleName,
+      gameLevel,
+      gameOnline,
+      rank10v10,
+      rank5v5,
+      areaName,
+      roleText,
+      flagImg,
+      rankIcon,
+      onlineTime,
+      offlineTime,
+      rankingStar,
       content_1: fightPowerItem.content,
       content_2: mvpNumItem.content,
       content_3: totalBattleCountItem.content,
@@ -212,7 +222,7 @@ export class MyKingHomepage extends plugin {
     await e.reply(inventoryImage)
   }
 
-  async fetchUserProfile(ID, OpenID, Token, userId) {
+  async fetchUserProfile (ID, OpenID, Token, userId) {
     try {
       let response = await ApiService.post('/userprofile/profile', {
         lastTime: 0,

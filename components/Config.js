@@ -18,10 +18,10 @@ class Config {
     try {
       let path = `${PluginPath}/config/config/`
       if (!fs.existsSync(path)) fs.mkdirSync(path, { recursive: true })
-      
+
       const pathDef = `${PluginPath}/config/default_config/`
       const files = fs.readdirSync(pathDef).filter(file => file.endsWith('.yaml'))
-      
+
       for (let file of files) {
         this.loadConfigFile(file, path, pathDef)
       }
@@ -31,7 +31,7 @@ class Config {
     }
   }
 
-  loadConfigFile(file, path, pathDef) {
+  loadConfigFile (file, path, pathDef) {
     if (!fs.existsSync(`${path}${file}`)) {
       fs.copyFileSync(`${pathDef}${file}`, `${path}${file}`)
       return
@@ -39,11 +39,11 @@ class Config {
 
     const config = YAML.parse(fs.readFileSync(`${path}${file}`, 'utf8'))
     const defConfig = YAML.parse(fs.readFileSync(`${pathDef}${file}`, 'utf8'))
-    
+
     try {
       this.validateConfig(config)
       const { differences, result } = this.mergeObjectsWithPriority(config, defConfig)
-      
+
       if (differences) {
         fs.copyFileSync(`${pathDef}${file}`, `${path}${file}`)
         for (const key in result) {
@@ -263,10 +263,10 @@ class Config {
     }
   }
 
-  validateConfig(config) {
+  validateConfig (config) {
     const requiredFields = ['onlineReminder', 'onlineReminderCron']
     const missingFields = requiredFields.filter(field => !config.hasOwnProperty(field))
-    
+
     if (missingFields.length > 0) {
       throw new Error(`缺少必要的配置项: ${missingFields.join(', ')}`)
     }
