@@ -7,7 +7,7 @@ import moment from 'moment'
 const { onlineReminderCron, onlineReminder } = Config.getConfig('config')
 
 export class MyKingHomepage extends plugin {
-  constructor () {
+  constructor() {
     super({
       name: 'myKingHomepage',
       dsc: '王者主页',
@@ -34,7 +34,7 @@ export class MyKingHomepage extends plugin {
     }
   }
 
-  async onlineReminder () {
+  async onlineReminder() {
     const { userFilePath, settingsFilePath } = {
       userFilePath: path.join(PluginData, 'UserData.yaml'),
       settingsFilePath: path.join(PluginData, 'user_settings.yaml')
@@ -51,8 +51,8 @@ export class MyKingHomepage extends plugin {
 
       const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID()
 
-      const response = await this.fetchUserProfile(ID, OpenID, Token, user)
-      if (response === -1 || response === -2) continue
+      const response = await this.fetchUserProfile(ID, OpenID, Token)
+      if (!response) continue
 
       const { profile, roleCard } = response.data
 
@@ -88,7 +88,7 @@ export class MyKingHomepage extends plugin {
     }
   }
 
-  async toggleOnlineReminder (e) {
+  async toggleOnlineReminder(e) {
     let userId = e.user_id
     let groupId = e.group_id
     const { isGroup } = e
@@ -116,7 +116,7 @@ export class MyKingHomepage extends plugin {
     await e.reply(`上下线提醒已${isEnabled ? '开启' : '关闭'}。`)
   }
 
-  async myKingHomepage (e) {
+  async myKingHomepage(e) {
     let userId = e.user_id
     const userFilePath = path.join(PluginData, 'UserData.yaml')
 
@@ -193,7 +193,7 @@ export class MyKingHomepage extends plugin {
     if (rank5v5.includes('钻石') || rank5v5.includes('星耀')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/2.png'
     if (rank5v5.includes('最强王者')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/3.png'
     if (rank5v5.includes('绝世王者')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/4.png'
-    
+
     const data = {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/MyKingHomepage.html',
       _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
@@ -224,9 +224,9 @@ export class MyKingHomepage extends plugin {
     await e.reply(inventoryImage)
   }
 
-  async fetchUserProfile (ID, OpenID, Token, userId) {
+  async fetchUserProfile(ID, OpenID, Token) {
     try {
-      let response = await ApiService.post('/userprofile/profile', {
+      const response = await ApiService.post('/userprofile/profile', {
         lastTime: 0,
         recommendPrivacy: 0,
         apiVersion: 5,
@@ -237,34 +237,16 @@ export class MyKingHomepage extends plugin {
         ssotoken: Token
       })
 
-      if (response.returnCode === -30003 || response.returnCode === '-30314') {
-        const loginFilePath = getFilePath(userId)
-        if (!fs.existsSync(loginFilePath)) {
-          return -1
-        }
-
-        const userData = readJsonFile(loginFilePath)
-        const { ssoOpenId, ssoToken } = userData
-        response = await ApiService.post('/userprofile/profile', {
-          lastTime: 0,
-          recommendPrivacy: 0,
-          apiVersion: 5,
-          friendUserId: ID,
-          option: 0
-        }, {
-          ssoopenid: ssoOpenId,
-          ssotoken: ssoToken
-        })
-
-        if (response.returnCode === -30003) {
-          return -2
-        }
+      const errorCodes = [1, -30003, '-30314', -10107];
+      if (errorCodes.includes(response.returnCode)) {
+        logger.error('获取数据失败，API返回:', JSON.stringify(response, null, 2))
+        return false
       }
 
       return response
     } catch (error) {
       console.error('Error fetching user profile:', error)
-      return null
+      return false
     }
   }
 }
