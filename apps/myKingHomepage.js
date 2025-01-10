@@ -169,6 +169,7 @@ export class MyKingHomepage extends plugin {
       1: '在线',
       2: '游戏中'
     }
+    console.log(mods)
     const gameOnline = gameOnlineMap[_gameOnline]
     const onlineTime = moment(onlineTimestamp * 1000).locale('zh-cn').calendar()
     const offlineTime = moment(offlineTimestamp * 1000).locale('zh-cn').calendar()
@@ -183,7 +184,7 @@ export class MyKingHomepage extends plugin {
       winRateItem, // 胜率
       skinNumItem // 皮肤数量
     ] = mods
-    const { rankingStar } = JSON.parse(mode5v5.param1)
+    const { rankingStar, starImg } = JSON.parse(mode5v5.param1)
     const rank10v10 = `${mode10v10.name} ${JSON.parse(mode10v10.param1).rankingStar}星`
     const rank5v5 = `${mode5v5.name}`
     const rankIcon = mode5v5.icon
@@ -193,7 +194,8 @@ export class MyKingHomepage extends plugin {
     if (rank5v5.includes('钻石') || rank5v5.includes('星耀')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/2.png'
     if (rank5v5.includes('最强王者')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/3.png'
     if (rank5v5.includes('绝世王者')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/4.png'
-    
+    const isKing = rank5v5.includes('王者')
+    const isOffline = gameOnline === "离线"
     const data = {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/MyKingHomepage.html',
       _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
@@ -210,6 +212,9 @@ export class MyKingHomepage extends plugin {
       onlineTime,
       offlineTime,
       rankingStar,
+      starImg,
+      isKing,
+      isOffline,
       content_1: fightPowerItem.content,
       content_2: mvpNumItem.content,
       content_3: totalBattleCountItem.content,

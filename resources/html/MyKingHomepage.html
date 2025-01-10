@@ -16,7 +16,7 @@
                 <h2 class="username">{{roleName}}</h2>
                 <span class="badge level">等级 {{gameLevel}}</span>
                 <span class="badge role">{{roleText}}</span>
-                <span class="badge online {{gameOnline === "离线" ? " offline": "" }}">{{gameOnline}}</span>
+                <span class="badge online{{isOffline ? " offline" : "" }}">{{gameOnline}}</span>
             </div>
         </div>
         <div class="card-content">
@@ -79,7 +79,13 @@
             <div class="rank-image-container">
                 <img src="{{flagImg}}" alt="段位图片" class="rank-image-background">
                 <img src="{{rankIcon}}" alt="段位图片" class="rank-image">
-                <img src="{{_res_path}}/img/5-{{rankingStar}}.png" alt="" class="ranking-star">
+                <img src="{{starImg}}" alt="" class="ranking-star">
+                {{if isKing}}
+                <div class="star-number">
+                    <img src="{{_res_path}}img/star.png" alt="">
+                    × {{rankingStar}}
+                </div>
+                {{/if}}
                 <div class="rank-badge">{{rank5v5}}</div>
             </div>
         </div>

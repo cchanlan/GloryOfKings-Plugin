@@ -7,7 +7,7 @@
   src: url(../font/HYWH-65W.woff) format("woff"), url(../font/HYWH-65W.ttf) format("truetype");
 }
 body {
-  font-family: Number, YS, Arial, sans-serif;
+  font-family: YS, Arial, sans-serif;
   background-color: #efefef;
   margin: 0;
   padding: 30px;
@@ -123,9 +123,10 @@ body {
 }
 .rank-image-container .ranking-star {
   position: absolute;
-  top: 25px;
-  left: 0;
-  width: 100%;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 85%;
   z-index: 3;
 }
 .rank-image-container .rank-image-background {
@@ -139,14 +140,14 @@ body {
   top: 45%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 180%;
+  width: 190%;
   height: auto;
   z-index: 2;
 }
 .rank-image-container .rank-badge {
   position: absolute;
-  bottom: 60px;
-  background-color: rgba(237, 237, 237, 0.8235294118);
+  bottom: 40px;
+  background-color: #ffffff;
   color: #333;
   padding: 5px 25px;
   border-radius: 10px;
@@ -155,6 +156,19 @@ body {
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
   white-space: nowrap;
   z-index: 3;
+}
+.rank-image-container .star-number {
+  position: absolute;
+  top: 50px;
+  z-index: 3;
+  color: #ffffff;
+  display: flex;
+  font-size: 18px;
+}
+.rank-image-container .star-number img {
+  width: 20px;
+  height: 20px;
+  margin-right: 10px;
 }
 
 .stats-grid {
