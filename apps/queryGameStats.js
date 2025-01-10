@@ -47,7 +47,7 @@ export class QueryGameStats extends plugin {
     }
   }
 
-  async processBattleRecord(userId, latestBattle) {
+  async processBattleRecord(userId, latestBattle, groupId) {
     try {
       const response = await this.fetchBattleDetails(latestBattle)
 
@@ -94,7 +94,7 @@ export class QueryGameStats extends plugin {
       for (const [userId, groupId] of Object.entries(settingsData)) {
         if (!this.shouldProcessUser(userId, groupId, userData)) continue
 
-        await this.processUserBattles(userId, userData[userId])
+        await this.processUserBattles(userId, userData[userId], groupId)
       }
     } catch (error) {
       logger.error('推送战绩时发生错误:', error)
@@ -113,7 +113,7 @@ export class QueryGameStats extends plugin {
     return true
   }
 
-  async processUserBattles(userId, ID) {
+  async processUserBattles(userId, ID, groupId) {
     try {
       const response = await this.fetchBattleList({ user_id: userId }, ID)
       if (!this.validateBattleList(response)) {
@@ -123,7 +123,7 @@ export class QueryGameStats extends plugin {
 
       const latestBattle = response.data.list[0]
       if (await this.isNewBattle(userId, latestBattle)) {
-        await this.processBattleRecord(userId, latestBattle)
+        await this.processBattleRecord(userId, latestBattle, groupId)
         await this.updateLastBattle(userId, latestBattle)
       }
     } catch (error) {
