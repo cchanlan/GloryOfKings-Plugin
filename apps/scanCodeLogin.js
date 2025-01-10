@@ -115,7 +115,7 @@ export class ScanCodeLogin extends plugin {
     })
 
     const filePath = path.join(PluginData, 'UserData.yaml')
-    const userData = await readYamlFile(filePath).catch(() => ({}))
+    const userData = await readYamlFile(filePath)
 
     userData[userId] = userInfoData.list[0].userId
     writeYamlFile(filePath, userData)
