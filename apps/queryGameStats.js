@@ -349,7 +349,6 @@ export class QueryGameStats extends plugin {
     try {
       monitor.startTimer('fetchBattleDetails') // 开始计时
       const response = await this.fetchBattleDetails(battleDetails, e) // 获取战斗详情
-      const duration = monitor.endTimer('fetchBattleDetails') // 结束计时
 
       if (!response) { // 如果获取战斗详情失败
         return e.reply('获取战绩详情失败，请稍后重试') // 回复用户

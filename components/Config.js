@@ -265,7 +265,7 @@ class Config {
 
   validateConfig (config) {
     const requiredFields = ['onlineReminder', 'onlineReminderCron']
-    const missingFields = requiredFields.filter(field => !config.hasOwnProperty(field))
+    const missingFields = requiredFields.filter(field => !Object.prototype.hasOwnProperty.call(config, field))
 
     if (missingFields.length > 0) {
       throw new Error(`缺少必要的配置项: ${missingFields.join(', ')}`)

@@ -1,5 +1,5 @@
 import { update as Update } from '../../other/update.js'
-const PluginName = 'GloryOfKings-Plugin'
+import { PluginName } from '#components'
 
 export class GloryOfKingsUpdate extends plugin {
   constructor () {
