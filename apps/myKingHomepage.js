@@ -239,7 +239,7 @@ export class MyKingHomepage extends plugin {
 
       const errorCodes = [1, -30003, '-30314', -10107];
       if (errorCodes.includes(response.returnCode)) {
-        logger.error('获取数据失败，API返回:', JSON.stringify(response, null, 2))
+        logger.debug('[王者上下线提醒]获取数据失败，API返回:', JSON.stringify(response, null, 2))
         return false
       }
 

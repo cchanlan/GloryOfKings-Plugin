@@ -47,19 +47,9 @@ export class QueryGameStats extends plugin {
     }
   }
 
-  async sendGroupMessage(groupId, playerName, image) {
-    if (groupId) {
-      Bot.pickGroup(groupId).sendMsg([
-        `${playerName} 的最新战绩`,
-        image
-      ])
-    }
-  }
-
   async processBattleRecord(userId, latestBattle) {
     try {
-      const { settingsData } = await this.loadUserDataAndSettings()
-      const response = await this.fetchBattleDetails(latestBattle, { user_id: userId })
+      const response = await this.fetchBattleDetails(latestBattle)
 
       if (!this.validateBattleResponse(response)) {
         logger.debug(`用户 ${userId} 的战斗详情数据无效`)
@@ -276,25 +266,15 @@ export class QueryGameStats extends plugin {
     const body = { lastTime: 0, recommendPrivacy: 0, apiVersion: 5, friendUserId: ID, option: 0 } // 请求体
 
     // 发送请求获取战斗列表
-    let response = await ApiService.post('/game/morebattlelist', body, {
+    const response = await ApiService.post('/game/morebattlelist', body, {
       ssoopenid: OpenID,
       ssotoken: Token
     })
 
-    if (response.returnCode === -30003) { // 如果登录状态失效
-      const loginData = await this.getUserLoginData(e) // 获取用户登录数据
-      if (!loginData) return null // 如果未找到登录数据，返回 null
-
-      // 重新发送请求获取战斗列表
-      response = await ApiService.post('/game/morebattlelist', body, {
-        ssoopenid: loginData.ssoOpenId,
-        ssotoken: loginData.ssoToken
-      })
-
-      if (response.returnCode === -30003) { // 如果登录状态仍然失效
-        await e.reply('登录状态失效，请重新扫码登录') // 回复用户
-        return null // 返回 null
-      }
+    const errorCodes = [1, -30003, '-30314', -10107];
+    if (errorCodes.includes(response.returnCode)) {
+      logger.debug('[王者战绩列表]获取数据失败，API返回:', JSON.stringify(response, null, 2))
+      return false
     }
 
     return response // 返回响应
@@ -314,7 +294,7 @@ export class QueryGameStats extends plugin {
   async handleDetailedStats(e, battleDetails) {
     try {
       monitor.startTimer('fetchBattleDetails') // 开始计时
-      const response = await this.fetchBattleDetails(battleDetails, e) // 获取战斗详情
+      const response = await this.fetchBattleDetails(battleDetails) // 获取战斗详情
 
       if (!response) { // 如果获取战斗详情失败
         return e.reply('获取战绩详情失败，请稍后重试') // 回复用户
@@ -456,9 +436,9 @@ export class QueryGameStats extends plugin {
   }
 
   // 获取战斗详情的函数
-  async fetchBattleDetails(battleDetails, e) {
+  async fetchBattleDetails(battleDetails) {
     try {
-      let { OpenID, Token } = await ApiService.getPublicTokenAndOpenID() // 获取公共 Token 和 OpenID
+      const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID() // 获取公共 Token 和 OpenID
       const body = {
         gameSeq: battleDetails.gameSeq, // 游戏序列号
         battleType: battleDetails.battleType, // 战斗类型
@@ -477,33 +457,15 @@ export class QueryGameStats extends plugin {
       }
 
       // 发送请求获取战斗详情
-      let response = await ApiService.post('/game/battledetail', body, {
+      const response = await ApiService.post('/game/battledetail', body, {
         ssoopenid: OpenID,
         ssotoken: Token
       })
 
-      if (response.returnCode === -30003) { // 如果登录状态失效
-        const loginData = await this.getUserLoginData(e) // 获取用户登录数据
-        if (!loginData) return null // 如果未找到登录数据，返回 null
-
-        // 重新发送请求获取战斗详情
-        response = await ApiService.post('/game/battledetail', body, {
-          ssoopenid: loginData.ssoOpenId,
-          ssotoken: loginData.ssoToken
-        })
-
-        if (response.returnCode === -30003) { // 如果登录状态仍然失效
-          await e.reply('登录状态失效，请重新扫码登录') // 回复用户
-          return null // 返回 null
-        }
-      }
-
-      if (response.returnCode !== 0) { // 如果返回码不为 0
-        return null // 返回 null
-      }
-
-      if (!response || !response.data) { // 如果响应数据不完整
-        return null // 返回 null
+      const errorCodes = [1, -30003, '-30314', -10107];
+      if (errorCodes.includes(response.returnCode)) {
+        logger.debug('[王者战绩详情]获取数据失败，API返回:', JSON.stringify(response, null, 2))
+        return false
       }
 
       // 定义默认数据
