@@ -170,7 +170,6 @@ export class MyKingHomepage extends plugin {
       1: '在线',
       2: '游戏中'
     }
-    console.log(mods)
     const gameOnline = gameOnlineMap[_gameOnline]
     const onlineTime = moment(onlineTimestamp * 1000).locale('zh-cn').calendar()
     const offlineTime = moment(offlineTimestamp * 1000).locale('zh-cn').calendar()
@@ -187,10 +186,10 @@ export class MyKingHomepage extends plugin {
     ] = mods
     const { rankingStar, starImg } = JSON.parse(mode5v5.param1)
     const rank10v10 = `${mode10v10.name} ${JSON.parse(mode10v10.param1).rankingStar}星`
-    const rank5v5 = `${mode5v5.name}`
+    const rank5v5 = `${mode5v5.name} ${rankingStar}星`
     const rankIcon = mode5v5.icon
-
-    let flagImg = ''
+    // 默认为4 王者后都不再处理
+    let flagImg = 'https://camp.qq.com/battle/profile/flagV2/4.png'
     if (rank5v5.includes('青铜') || rank5v5.includes('白银') || rank5v5.includes('黄金')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/1.png'
     if (rank5v5.includes('钻石') || rank5v5.includes('星耀')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/2.png'
     if (rank5v5.includes('最强王者')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/3.png'

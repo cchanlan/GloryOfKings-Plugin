@@ -95,13 +95,11 @@
     const doc = document.querySelectorAll(".stats-grid .stat-item .stat-value");
 
     doc.forEach((item) => {
-        const s = item.textContent.split("/")
-        const a = item.textContent.split(".")
-        if (s.length > 1) {
-            item.innerHTML = `<span>${s[0]}</span>/<span class="all">${s[1]}</span>`
-        }
-        if (a.length > 1) {
-            item.innerHTML = `<span>${a[0]}</span><span class="all">.${a[1]}</span>`
+        if (/[\/\.]/.test(item.textContent)) {
+            const s = item.textContent.replace(/([\/\.])/, "_$1").split("_")
+            if (s.length > 1) {
+                item.innerHTML = `<span>${s[0]}</span><span class="all">${s[1]}</span>`
+            }
         }
     });
 </script>
