@@ -118,7 +118,7 @@ export class MyKingHomepage extends plugin {
 
   async myKingHomepage (e) {
     const msg = e.msg.replace(/^#王者主页\s*/, '')
-    let userId = e.user_id
+    let userId = e.at || e.user_id
     const userFilePath = path.join(PluginData, 'UserData.yaml')
 
     const allUserData = readYamlFile(userFilePath)
