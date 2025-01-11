@@ -1,5 +1,5 @@
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { ApiService, readJsonFile, getFilePath, writeJsonFile, readYamlFile } from '#utils'
+import { ApiService, readJsonFile, writeJsonFile, readYamlFile } from '#utils'
 import path from 'path'
 import fs from 'fs'
 import { PluginData, Config } from '#components'
@@ -7,7 +7,7 @@ import moment from 'moment'
 const { onlineReminderCron, onlineReminder } = Config.getConfig('config')
 
 export class MyKingHomepage extends plugin {
-  constructor() {
+  constructor () {
     super({
       name: 'myKingHomepage',
       dsc: '王者主页',
@@ -15,7 +15,7 @@ export class MyKingHomepage extends plugin {
       priority: 1,
       rule: [
         {
-          reg: /^#王者主页$/,
+          reg: '^#王者主页\\s*(.*)$',
           fnc: 'myKingHomepage'
         },
         {
@@ -34,7 +34,7 @@ export class MyKingHomepage extends plugin {
     }
   }
 
-  async onlineReminder() {
+  async onlineReminder () {
     const { userFilePath, settingsFilePath } = {
       userFilePath: path.join(PluginData, 'UserData.yaml'),
       settingsFilePath: path.join(PluginData, 'user_settings.yaml')
@@ -88,7 +88,7 @@ export class MyKingHomepage extends plugin {
     }
   }
 
-  async toggleOnlineReminder(e) {
+  async toggleOnlineReminder (e) {
     let userId = e.user_id
     let groupId = e.group_id
     const { isGroup } = e
@@ -116,12 +116,13 @@ export class MyKingHomepage extends plugin {
     await e.reply(`上下线提醒已${isEnabled ? '开启' : '关闭'}。`)
   }
 
-  async myKingHomepage(e) {
+  async myKingHomepage (e) {
+    const msg = e.msg.replace(/^#王者主页\s*/, '')
     let userId = e.user_id
     const userFilePath = path.join(PluginData, 'UserData.yaml')
 
     const allUserData = readYamlFile(userFilePath)
-    const ID = allUserData[userId]
+    const ID = msg || allUserData[userId]
 
     if (!ID) {
       await e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png'))
@@ -195,7 +196,7 @@ export class MyKingHomepage extends plugin {
     if (rank5v5.includes('最强王者')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/3.png'
     if (rank5v5.includes('绝世王者')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/4.png'
     const isKing = rank5v5.includes('王者')
-    const isOffline = gameOnline === "离线"
+    const isOffline = gameOnline === '离线'
     const data = {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/MyKingHomepage.html',
       _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
@@ -229,7 +230,7 @@ export class MyKingHomepage extends plugin {
     await e.reply(inventoryImage)
   }
 
-  async fetchUserProfile(ID, OpenID, Token) {
+  async fetchUserProfile (ID, OpenID, Token) {
     try {
       const response = await ApiService.post('/userprofile/profile', {
         lastTime: 0,
@@ -242,7 +243,7 @@ export class MyKingHomepage extends plugin {
         ssotoken: Token
       })
 
-      const errorCodes = [1, -30003, '-30314', -10107];
+      const errorCodes = [1, -30003, '-30314', -10107]
       if (errorCodes.includes(response.returnCode)) {
         logger.debug('[王者上下线提醒]获取数据失败，API返回:', JSON.stringify(response, null, 2))
         return false

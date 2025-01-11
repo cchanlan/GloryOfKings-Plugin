@@ -5,7 +5,7 @@ import { PluginData } from '#components'
 import { ApiService, readYamlFile, getFilePath, readJsonFile, writeJsonFile, monitor } from '#utils'
 
 export class QueryGameStats extends plugin {
-  constructor() {
+  constructor () {
     super({
       name: 'queryGameStats',
       dsc: '查询战绩',
@@ -30,7 +30,7 @@ export class QueryGameStats extends plugin {
     }
   }
 
-  async loadUserDataAndSettings() {
+  async loadUserDataAndSettings () {
     try {
       const { userFilePath, settingsFilePath } = {
         userFilePath: path.join(PluginData, 'UserData.yaml'),
@@ -47,7 +47,7 @@ export class QueryGameStats extends plugin {
     }
   }
 
-  async processBattleRecord(userId, latestBattle) {
+  async processBattleRecord (userId, latestBattle) {
     try {
       const response = await this.fetchBattleDetails(latestBattle)
 
@@ -71,13 +71,13 @@ export class QueryGameStats extends plugin {
     }
   }
 
-  validateBattleResponse(response) {
+  validateBattleResponse (response) {
     if (!response?.data) return false
     const { head, battle, redTeam, blueTeam, redRoles, blueRoles } = response.data
     return head?.acntCamp && battle && redTeam && blueTeam && redRoles && blueRoles
   }
 
-  prepareBattleData(myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles) {
+  prepareBattleData (myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles) {
     return {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordDetails.html',
       ...this.extractTeamData(myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles),
@@ -86,7 +86,7 @@ export class QueryGameStats extends plugin {
     }
   }
 
-  async pushGameStats() {
+  async pushGameStats () {
     try {
       logger.debug('开始推送战绩...')
       const { userData, settingsData } = await this.loadUserDataAndSettings()
@@ -101,7 +101,7 @@ export class QueryGameStats extends plugin {
     }
   }
 
-  shouldProcessUser(userId, groupId, userData) {
+  shouldProcessUser (userId, groupId, userData) {
     if (!groupId) {
       logger.debug(`用户 ${userId} 未开启战绩推送`)
       return false
@@ -113,7 +113,7 @@ export class QueryGameStats extends plugin {
     return true
   }
 
-  async processUserBattles(userId, ID) {
+  async processUserBattles (userId, ID) {
     try {
       const response = await this.fetchBattleList({ user_id: userId }, ID)
       if (!this.validateBattleList(response)) {
@@ -132,7 +132,7 @@ export class QueryGameStats extends plugin {
   }
 
   // 切换战绩推送状态的函数
-  async toggleGameStatsPush(e) {
+  async toggleGameStatsPush (e) {
     let userId = e.user_id // 获取用户 ID
     let groupId = e.group_id // 获取群组 ID
     const { isGroup } = e // 检查是否为群组消息
@@ -167,7 +167,7 @@ export class QueryGameStats extends plugin {
   }
 
   // 查询战绩的函数
-  async queryGameStats(e) {
+  async queryGameStats (e) {
     logger.debug(`用户 ${e.user_id} 请求查询战绩...`)
     const userFilePath = path.join(PluginData, 'UserData.yaml') // 用户数据文件路径
     const allUserData = readYamlFile(userFilePath) // 读取所有用户数据
@@ -261,7 +261,7 @@ export class QueryGameStats extends plugin {
   }
 
   // 获取战斗列表的函数
-  async fetchBattleList(e, ID) {
+  async fetchBattleList (e, ID) {
     let { OpenID, Token } = await ApiService.getPublicTokenAndOpenID() // 获取公共 Token 和 OpenID
     const body = { lastTime: 0, recommendPrivacy: 0, apiVersion: 5, friendUserId: ID, option: 0 } // 请求体
 
@@ -271,7 +271,7 @@ export class QueryGameStats extends plugin {
       ssotoken: Token
     })
 
-    const errorCodes = [1, -30003, '-30314', -10107];
+    const errorCodes = [1, -30003, '-30314', -10107]
     if (errorCodes.includes(response.returnCode)) {
       logger.debug('[王者战绩列表]获取数据失败，API返回:', JSON.stringify(response, null, 2))
       return false
@@ -281,7 +281,7 @@ export class QueryGameStats extends plugin {
   }
 
   // 获取用户登录数据的函数
-  async getUserLoginData(e) {
+  async getUserLoginData (e) {
     const loginFilePath = getFilePath(e.user_id) // 获取登录文件路径
     if (!fs.existsSync(loginFilePath)) { // 如果文件不存在
       await e.reply('查询失败，公共Token失效\r且未找到您的登录信息，请先扫码登录。\r发送【#营地扫码】') // 回复用户
@@ -291,7 +291,7 @@ export class QueryGameStats extends plugin {
   }
 
   // 处理详细战绩的函数
-  async handleDetailedStats(e, battleDetails) {
+  async handleDetailedStats (e, battleDetails) {
     try {
       monitor.startTimer('fetchBattleDetails') // 开始计时
       const response = await this.fetchBattleDetails(battleDetails) // 获取战斗详情
@@ -325,7 +325,7 @@ export class QueryGameStats extends plugin {
   }
 
   // 提取团队数据的函数
-  extractTeamData(myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles) {
+  extractTeamData (myTeamColor, head, battle, redTeam, blueTeam, redRoles, blueRoles) {
     const isBlue = myTeamColor === '蓝' // 检查是否为蓝队
     const myTeam = isBlue ? blueTeam : redTeam // 确定我的团队
     const enemyTeam = isBlue ? redTeam : blueTeam // 确定敌方团队
@@ -363,12 +363,12 @@ export class QueryGameStats extends plugin {
   }
 
   // 获取游戏结果的函数
-  getGameResult(result) {
+  getGameResult (result) {
     return result === 1 ? '胜利' : result === 2 ? '失败' : result // 返回游戏结果
   }
 
   // 获取标签的函数
-  getTags(item) {
+  getTags (item) {
     const tags = [] // 初始化标签数组
     const descTags = ['实力局', '翻盘局', '暴走局', '尽力局'] // 描述标签
     const evaluateTags = { // 评价标签
@@ -389,7 +389,7 @@ export class QueryGameStats extends plugin {
   }
 
   // 计算连胜的函数
-  calculateWinningStreak(results) {
+  calculateWinningStreak (results) {
     let maxStreak = 0 // 最大连胜
     let currentStreak = 0 // 当前连胜
 
@@ -409,7 +409,7 @@ export class QueryGameStats extends plugin {
   }
 
   // 处理战斗列表的函数
-  async handleBattleList(e, battleData) {
+  async handleBattleList (e, battleData) {
     const data = battleData.list.map(item => ({ // 处理战斗数据
       gameTpye: item.mapName, // 游戏类型
       gameTime: item.gametime, // 游戏时间
@@ -436,7 +436,7 @@ export class QueryGameStats extends plugin {
   }
 
   // 获取战斗详情的函数
-  async fetchBattleDetails(battleDetails) {
+  async fetchBattleDetails (battleDetails) {
     try {
       const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID() // 获取公共 Token 和 OpenID
       const body = {
@@ -462,7 +462,7 @@ export class QueryGameStats extends plugin {
         ssotoken: Token
       })
 
-      const errorCodes = [1, -30003, '-30314', -10107];
+      const errorCodes = [1, -30003, '-30314', -10107]
       if (errorCodes.includes(response.returnCode)) {
         logger.debug('[王者战绩详情]获取数据失败，API返回:', JSON.stringify(response, null, 2))
         return false
@@ -530,13 +530,13 @@ export class QueryGameStats extends plugin {
   }
 
   // 新增：验证战斗列表响应
-  validateBattleList(response) {
+  validateBattleList (response) {
     if (!response?.data?.list?.length) return false
     return true
   }
 
   // 新增：检查是否为新战斗
-  async isNewBattle(userId, latestBattle) {
+  async isNewBattle (userId, latestBattle) {
     try {
       const lastBattleFile = path.join(PluginData, `lastBattle_${userId}.json`)
       if (!fs.existsSync(lastBattleFile)) return true
@@ -550,7 +550,7 @@ export class QueryGameStats extends plugin {
   }
 
   // 新增：更新最后一场战斗记录
-  async updateLastBattle(userId, battle) {
+  async updateLastBattle (userId, battle) {
     try {
       const lastBattleFile = path.join(PluginData, `lastBattle_${userId}.json`)
       writeJsonFile(lastBattleFile, battle)
@@ -560,7 +560,7 @@ export class QueryGameStats extends plugin {
   }
 
   // 新增：获取玩家昵称
-  getPlayerName(head, redRoles, blueRoles, battleDetails) {
+  getPlayerName (head, redRoles, blueRoles, battleDetails) {
     try {
       // 1. 首先尝试从 analyseUrl 获取昵称
       if (battleDetails?.analyseUrl) {
