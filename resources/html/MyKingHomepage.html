@@ -77,9 +77,11 @@
                 </div>
             </div>
             <div class="rank-image-container">
-                <img src="{{flagImg}}" alt="段位图片" class="rank-image-background">
+                <!-- <img src="{{flagImg}}" alt="段位图片" class="rank-image-background"> -->
                 <img src="{{rankIcon}}" alt="段位图片" class="rank-image">
                 <img src="{{starImg}}" alt="" class="ranking-star">
+                <canvas class="rank-image-background" id="rank-image-background"></canvas>
+                <canvas class="rank-image-honor" id="rank-image-honor"></canvas>
                 {{if isKing}}
                 <div class="star-number">
                     <img src="{{_res_path}}img/star.png" alt="">
@@ -102,6 +104,38 @@
             }
         }
     });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/libpag@latest/lib/libpag.min.js"></script>
+<script>
+    window.onload = async () => {
+        // 实例化 PAG
+        const PAG = await window.libpag.PAGInit();
+
+        async function get(url, id, progress) {
+            const buff = await fetch(url).then((response) => response.arrayBuffer());
+            // 加载 PAG 素材为 PAGFile 对象
+            const pagFile = await PAG.PAGFile.load(buff);
+            // 将画布尺寸设置为 PAGFile的尺寸
+            const canvas = document.getElementById(id);
+            canvas.width = pagFile.width();
+            canvas.height = pagFile.height();
+            // 实例化 PAGView 对象
+            const pagView = await PAG.PAGView.init(pagFile, canvas, { useScale: false });
+            // pagView.setRepeatCount(0);
+            // // 播放 PAGView
+            // await pagView.play();
+        }
+        const flagUrl = "{{flagPag}}"
+        const honorUrl = "{{honorPag}}"
+
+        await Promise.all([
+            get(flagUrl, 'rank-image-background'),
+            honorUrl ? get(honorUrl, 'rank-image-honor') : false
+        ]);
+
+    };
+
 </script>
 
 </html>

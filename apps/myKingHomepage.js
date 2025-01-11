@@ -184,7 +184,7 @@ export class MyKingHomepage extends plugin {
       winRateItem, // 胜率
       skinNumItem // 皮肤数量
     ] = mods
-    const { rankingStar, starImg } = JSON.parse(mode5v5.param1)
+    const { rankingStar, starImg, flagPag, honorPag } = JSON.parse(mode5v5.param1)
     const rank10v10 = `${mode10v10.name} ${JSON.parse(mode10v10.param1).rankingStar}星`
     const rank5v5 = `${mode5v5.name} ${rankingStar}星`
     const rankIcon = mode5v5.icon
@@ -193,7 +193,7 @@ export class MyKingHomepage extends plugin {
     if (rank5v5.includes('青铜') || rank5v5.includes('白银') || rank5v5.includes('黄金') || rank5v5.includes('铂金')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/1.png'
     if (rank5v5.includes('钻石') || rank5v5.includes('星耀')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/2.png'
     if (rank5v5.includes('最强王者')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/3.png'
-    
+    console.log(mods)
     const isKing = rank5v5.includes('王者')
     const isOffline = gameOnline === '离线'
     const data = {
@@ -215,6 +215,7 @@ export class MyKingHomepage extends plugin {
       starImg,
       isKing,
       isOffline,
+      flagPag, honorPag,
       content_1: fightPowerItem.content,
       content_2: mvpNumItem.content,
       content_3: totalBattleCountItem.content,
