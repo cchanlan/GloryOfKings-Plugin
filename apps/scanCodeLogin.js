@@ -38,7 +38,7 @@ export class ScanCodeLogin extends plugin {
           fnc: 'getMyTokenAndOpenId'
         },
         {
-          reg: /^#绑定营地\s+(\d+)$/,
+          reg: '^#绑定营地\\s*(.*)$',
           fnc: 'bindWzryId'
         }
       ]
@@ -148,7 +148,7 @@ export class ScanCodeLogin extends plugin {
   }
 
   async bindWzryId (e) {
-    const wzryId = e.msg.match(/^#绑定营地\s+(\d+)$/)[1]
+    const wzryId = e.msg.replace(/^#绑定营地\s*/, '')
     const filePath = path.join(PluginData, 'UserData.yaml')
     const userData = fs.existsSync(filePath) ? readYamlFile(filePath) : {}
 
