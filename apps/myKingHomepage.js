@@ -7,7 +7,7 @@ import moment from 'moment'
 const { onlineReminderCron, onlineReminder } = Config.getConfig('config')
 
 export class MyKingHomepage extends plugin {
-  constructor () {
+  constructor() {
     super({
       name: 'myKingHomepage',
       dsc: '王者主页',
@@ -34,7 +34,7 @@ export class MyKingHomepage extends plugin {
     }
   }
 
-  async onlineReminder () {
+  async onlineReminder() {
     const { userFilePath, settingsFilePath } = {
       userFilePath: path.join(PluginData, 'UserData.yaml'),
       settingsFilePath: path.join(PluginData, 'user_settings.yaml')
@@ -88,7 +88,7 @@ export class MyKingHomepage extends plugin {
     }
   }
 
-  async toggleOnlineReminder (e) {
+  async toggleOnlineReminder(e) {
     let userId = e.user_id
     let groupId = e.group_id
     const { isGroup } = e
@@ -116,7 +116,7 @@ export class MyKingHomepage extends plugin {
     await e.reply(`上下线提醒已${isEnabled ? '开启' : '关闭'}。`)
   }
 
-  async myKingHomepage (e) {
+  async myKingHomepage(e) {
     const msg = e.msg.replace(/^#王者主页\s*/, '')
     let userId = e.at || e.user_id
     const userFilePath = path.join(PluginData, 'UserData.yaml')
@@ -190,10 +190,10 @@ export class MyKingHomepage extends plugin {
     const rankIcon = mode5v5.icon
     // 默认为4 王者后都不再处理
     let flagImg = 'https://camp.qq.com/battle/profile/flagV2/4.png'
-    if (rank5v5.includes('青铜') || rank5v5.includes('白银') || rank5v5.includes('黄金')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/1.png'
-    if (rank5v5.includes('铂金') || rank5v5.includes('钻石') || rank5v5.includes('星耀')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/2.png'
+    if (rank5v5.includes('青铜') || rank5v5.includes('白银') || rank5v5.includes('黄金') || rank5v5.includes('铂金')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/1.png'
+    if (rank5v5.includes('钻石') || rank5v5.includes('星耀')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/2.png'
     if (rank5v5.includes('最强王者')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/3.png'
-    if (rank5v5.includes('绝世王者')) flagImg = 'https://camp.qq.com/battle/profile/flagV2/4.png'
+    
     const isKing = rank5v5.includes('王者')
     const isOffline = gameOnline === '离线'
     const data = {
@@ -229,7 +229,7 @@ export class MyKingHomepage extends plugin {
     await e.reply(inventoryImage)
   }
 
-  async fetchUserProfile (ID, OpenID, Token) {
+  async fetchUserProfile(ID, OpenID, Token) {
     try {
       const response = await ApiService.post('/userprofile/profile', {
         lastTime: 0,
