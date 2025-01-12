@@ -47,7 +47,10 @@ export class MyKingHomepage extends plugin {
     }
 
     for (const user of Object.keys(settingsData)) {
-      const ID = userData[user]
+      const userInfo = userData[user]
+      if (!userInfo || !userInfo.ids || !userInfo.ids.length) continue
+      
+      const ID = userInfo.ids[userInfo.current]
       const settingsUserFilePath = path.join(PluginData, 'user_settings', `${user}.json`)
 
       const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID()
@@ -123,12 +126,14 @@ export class MyKingHomepage extends plugin {
     const userFilePath = path.join(PluginData, 'UserData.yaml')
 
     const allUserData = readYamlFile(userFilePath)
-    const ID = msg || getCurrentId(userId)
-
-    if (!ID) {
+    const userInfo = allUserData[userId]
+    
+    if (!userInfo || !userInfo.ids || !userInfo.ids.length) {
       await e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png'))
       return
     }
+
+    const ID = msg || userInfo.ids[userInfo.current]
 
     const profileData = await ApiService.getProfile(ID)
 
