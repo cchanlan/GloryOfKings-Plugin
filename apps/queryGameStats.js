@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { PluginData } from '#components'
-import { ApiService, readYamlFile, getFilePath, readJsonFile, writeJsonFile, monitor } from '#utils'
+import { ApiService, readYamlFile, getFilePath, readJsonFile, writeJsonFile, monitor, getCurrentId } from '#utils'
 
 export class QueryGameStats extends plugin {
   constructor () {
@@ -171,7 +171,7 @@ export class QueryGameStats extends plugin {
     logger.debug(`用户 ${e.user_id} 请求查询战绩...`)
     const userFilePath = path.join(PluginData, 'UserData.yaml') // 用户数据文件路径
     const allUserData = readYamlFile(userFilePath) // 读取所有用户数据
-    const ID = allUserData[e.user_id] // 获取用户 ID
+    const ID = getCurrentId(e.user_id)
 
     if (!ID) { // 如果用户 ID 未找到
       logger.debug(`用户 ${e.user_id} 的 ID 未找到，发送提示...`)

@@ -11,7 +11,7 @@ const functionList = [
   '可用功能：',
   '【#王者主页】查看部分王者信息',
   '【#查询战绩】查询王者战绩',
-  '【#查询战绩1】查看第一条战绩具体数据'
+  '【#王者帮助】查看更多'
 ]
 
 const CONFIG = {
@@ -40,9 +40,145 @@ export class ScanCodeLogin extends plugin {
         {
           reg: '^#绑定营地\\s*(.*)$',
           fnc: 'bindWzryId'
+        },
+        {
+          reg: '^#切换营地\\s*(.*)$',
+          fnc: 'switchWzryId'
+        },
+        {
+          reg: '^#删除营地\\s*(.*)$',
+          fnc: 'deleteWzryId'
         }
       ]
     })
+  }
+
+  // 获取用户数据
+  getUserData(userId) {
+    const filePath = path.join(PluginData, 'UserData.yaml')
+    const userData = readYamlFile(filePath) || {}
+    
+    if (!userData[userId]) {
+      userData[userId] = {
+        ids: [],
+        current: 0
+      }
+    }
+    
+    return { userData, filePath }
+  }
+
+  // 保存用户数据
+  saveUserData(filePath, userData) {
+    writeYamlFile(filePath, userData)
+  }
+
+  // 绑定ID
+  async bindWzryId(e) {
+    const wzryId = e.msg.replace(/^#绑定营地\s*/, '')
+    const { userData, filePath } = this.getUserData(e.user_id)
+
+    if (userData[e.user_id].ids.includes(wzryId)) {
+      await e.reply('该ID已经绑定过了')
+      return
+    }
+
+    userData[e.user_id].ids.push(wzryId)
+    if (userData[e.user_id].ids.length === 1) {
+      userData[e.user_id].current = 0
+    }
+
+    this.saveUserData(filePath, userData)
+    
+    const idList = this.formatIdList(userData[e.user_id])
+    await e.reply([
+      `成功绑定王者ID: ${wzryId}`,
+      '当前绑定的ID列表：',
+      idList,
+      ...functionList
+    ].join('\n'))
+  }
+
+  // 切换ID
+  async switchWzryId(e) {
+    const index = parseInt(e.msg.replace(/^#切换营地\s*/, '')) - 1
+    const { userData, filePath } = this.getUserData(e.user_id)
+
+    if (!userData[e.user_id].ids.length) {
+      await e.reply('您还没有绑定任何ID，请先绑定')
+      return
+    }
+
+    if (index < 0 || index >= userData[e.user_id].ids.length) {
+      await e.reply('序号无效，请输入正确的序号')
+      return
+    }
+
+    userData[e.user_id].current = index
+    this.saveUserData(filePath, userData)
+
+    const idList = this.formatIdList(userData[e.user_id])
+    await e.reply([
+      `已切换到ID: ${userData[e.user_id].ids[index]}`,
+      '当前绑定的ID列表：',
+      idList
+    ].join('\n'))
+  }
+
+  // 删除ID
+  async deleteWzryId(e) {
+    const index = parseInt(e.msg.replace(/^#删除营地\s*/, '')) - 1
+    const { userData, filePath } = this.getUserData(e.user_id)
+
+    if (!userData[e.user_id].ids.length) {
+      await e.reply('您还没有绑定任何ID')
+      return
+    }
+
+    if (index < 0 || index >= userData[e.user_id].ids.length) {
+      await e.reply('序号无效，请输入正确的序号')
+      return
+    }
+
+    const deletedId = userData[e.user_id].ids[index]
+    userData[e.user_id].ids.splice(index, 1)
+
+    // 调整current索引
+    if (userData[e.user_id].current >= userData[e.user_id].ids.length) {
+      userData[e.user_id].current = Math.max(0, userData[e.user_id].ids.length - 1)
+    }
+
+    this.saveUserData(filePath, userData)
+
+    const idList = this.formatIdList(userData[e.user_id])
+    await e.reply([
+      `已删除ID: ${deletedId}`,
+      userData[e.user_id].ids.length ? '当前绑定的ID列表：\n' + idList : '已删除所有绑定的ID'
+    ].join('\n'))
+  }
+
+  // 展示ID列表
+  async myWzryId(e) {
+    const { userData } = this.getUserData(e.user_id)
+
+    if (!userData[e.user_id]?.ids.length) {
+      return e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png'))
+    }
+
+    const idList = this.formatIdList(userData[e.user_id])
+    await e.reply([
+      segment.at(e.user_id),
+      '您的王者ID列表：',
+      idList
+    ].join('\n'))
+  }
+
+  // 格式化ID列表显示
+  formatIdList(userInfo) {
+    return userInfo.ids.map((id, index) => {
+      const prefix = index === userInfo.current ? '✅' : '☑️'
+      return `${prefix} ${index + 1}. ${id}`
+    }).join('\n')
   }
 
   async scanCodeLogin(e) {
@@ -131,28 +267,5 @@ export class ScanCodeLogin extends plugin {
     const date = new Date(parseInt(timestamp) * 1000)
     const pad = num => String(num).padStart(2, '0')
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
-  }
-
-  async myWzryId(e) {
-    const filePath = path.join(PluginData, 'UserData.yaml')
-    const userData = readYamlFile(filePath)
-    if (!userData[e.user_id]) {
-      return e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png'))
-    }
-
-    await e.reply([segment.at(e.user_id), '您的王者ID: ' + userData[e.user_id]].join('\n'))
-  }
-
-  async bindWzryId(e) {
-    const wzryId = e.msg.replace(/^#绑定营地\s*/, '')
-    const filePath = path.join(PluginData, 'UserData.yaml')
-    const userData = readYamlFile(filePath)
-
-    userData[e.user_id] = wzryId
-    writeYamlFile(filePath, userData)
-    await e.reply([
-      `成功绑定您的王者ID: ${wzryId}`,
-      ...functionList
-    ].join('\r'))
   }
 }

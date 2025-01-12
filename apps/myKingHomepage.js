@@ -4,6 +4,7 @@ import path from 'path'
 import fs from 'fs'
 import { PluginData, Config } from '#components'
 import moment from 'moment'
+import { getCurrentId } from '#utils'
 const { onlineReminderCron, onlineReminder } = Config.getConfig('config')
 
 export class MyKingHomepage extends plugin {
@@ -15,7 +16,7 @@ export class MyKingHomepage extends plugin {
       priority: 1,
       rule: [
         {
-          reg: '^#王者(主页|卡片|信息)?\\s*(.*)$',
+          reg: /^#王者(主页|卡片|信息)\\s*(.*)$/,
           fnc: 'myKingHomepage'
         },
         {
@@ -117,12 +118,12 @@ export class MyKingHomepage extends plugin {
   }
 
   async myKingHomepage(e) {
-    const msg = e.msg.replace(/^#王者(主页|卡片|信息)?\s*/, '')
+    const msg = e.msg.replace(/^#王者(主页|卡片|信息)\s*/, '')
     let userId = e.at || e.user_id
     const userFilePath = path.join(PluginData, 'UserData.yaml')
 
     const allUserData = readYamlFile(userFilePath)
-    const ID = msg || allUserData[userId]
+    const ID = msg || getCurrentId(userId)
 
     if (!ID) {
       await e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png'))
