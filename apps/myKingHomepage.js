@@ -185,6 +185,9 @@ export class MyKingHomepage extends plugin {
       mode5v5, // 5v5模式
       modePeakRace, // 巅峰赛
     ] = mods
+    modePeakRace.param1 = JSON.parse(modePeakRace.param1)
+    modePeakRace.param1.flagPag = modePeakRace.param1.flagPag.match(/(\d+).pag/)[1]
+    console.log(modePeakRace.param1)
     const mod = mods.filter(i => i.stype === 0)
     const combat = mods.find(i=>i.stype === 1)
     const { rankingStar, starImg } = JSON.parse(mode5v5.param1)
@@ -221,6 +224,8 @@ export class MyKingHomepage extends plugin {
       isOffline,
       honor,
       content_7: modePeakRace.content,
+      modePeakRace,
+
       mod,
       combat
     }
