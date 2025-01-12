@@ -184,8 +184,9 @@ export class MyKingHomepage extends plugin {
       mode10v10, // 10v10模式
       mode5v5, // 5v5模式
       modePeakRace, // 巅峰赛
-      ...mod
     ] = mods
+    const mod = mods.filter(i => i.stype === 0)
+    const combat = mods.find(i=>i.stype === 1)
     const { rankingStar, starImg } = JSON.parse(mode5v5.param1)
     const rank10v10 = `${mode10v10.name} ${JSON.parse(mode10v10.param1).rankingStar}星`
     const rank5v5 = `${mode5v5.name} ${rankingStar}星`
@@ -220,7 +221,8 @@ export class MyKingHomepage extends plugin {
       isOffline,
       honor,
       content_7: modePeakRace.content,
-      mod
+      mod,
+      combat
     }
 
     const inventoryImage = await puppeteer.screenshot('myKingHomepage', data)

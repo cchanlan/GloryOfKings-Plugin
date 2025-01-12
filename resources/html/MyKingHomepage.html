@@ -61,31 +61,13 @@
                         <div class="stat-label">{{v.name}}</div>
                     </div>
                     {{/each}}
-                    <!-- <div class="stat-item">
-                        <div class="stat-value">{{content_1}}</div>
-                        <div class="stat-label">战斗力</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value">{{content_2}}</div>
-                        <div class="stat-label">MVP</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value">{{content_3}}</div>
-                        <div class="stat-label">总场次</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value">{{content_4}}</div>
-                        <div class="stat-label">英雄数量</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value">{{content_5}}</div>
-                        <div class="stat-label">胜率</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value">{{content_6}}</div>
-                        <div class="stat-label">皮肤数量</div>
-                    </div> -->
                 </div>
+                {{if combat}}
+                <div class="stat-combat">
+                    <img src="{{combat.icon}}" alt="" class="icon">
+                    {{combat.name}}: {{combat.content}}
+                </div>
+                {{/if}}
             </div>
             <div class="rank-image-container">
                 <img src="{{_res_path}}img/flag{{flagImg}}.png" alt="段位图片" class="rank-image-background">

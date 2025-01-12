@@ -142,6 +142,7 @@ body {
     justify-content: center;
     margin-left: 50px;
     margin-right: 25px;
+    top: 40px;
 
     .ranking-star {
         position: absolute;
@@ -155,7 +156,7 @@ body {
     .rank-image-background {
         position: relative;
         width: 100%;
-        height: 111%;
+        top: -92px;
         z-index: 1;
     }
 
@@ -178,10 +179,10 @@ body {
 
     .rank-badge {
         position: absolute;
-        bottom: 40px;
+        top: 60%;
         background-color: #ffffffd3;
         color: #333;
-        padding: 5px 25px;
+        padding: 5px 30px;
         border-radius: 5px;
         font-size: 15px;
         font-weight: bold;
@@ -238,18 +239,20 @@ body {
             }
 
             .icon {
-                width: 50%;
+                width: 49%;
             }
 
             .content {
                 z-index: 1;
+                
 
                 &.style113 {
                     position: absolute;
                     font-size: 13px;
                     color: #ffffff;
-                    left: 64px;
-                    top: 19px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    top: 20px;
                 }
 
                 &.style112 {
@@ -258,7 +261,7 @@ body {
                     color: #ffffff;
                     left: 50%;
                     transform: translateX(-50%);
-                    top: 23px;
+                    top: 24px;
                 }
 
                 &.style110 {
@@ -269,7 +272,8 @@ body {
                     position: absolute;
                     font-size: 13px;
                     color: #ffffff;
-                    left: 60px;
+                    left: 50%;
+                    transform: translateX(-50%);
                     top: 31px;
                 }
 
@@ -284,9 +288,27 @@ body {
             color: #666;
         }
     }
+
+
 }
 
+.stat-combat {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+    align-items: center;
+    margin-top: 20px;
+    border-top: 1px dashed #6c6c6c;
+    padding-top: 10px;
+    font-size: 20px;
 
+    .icon {
+        width: 40px;
+        border-radius: 10px;
+        border: 1px solid #fff;
+        margin-right: 10px;
+    }
+}
 
 
 
