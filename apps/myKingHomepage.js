@@ -20,7 +20,7 @@ export class MyKingHomepage extends plugin {
           fnc: 'myKingHomepage'
         },
         {
-          reg: /#(开启|关闭)上下线提醒$/,
+          reg: /^#(开启|关闭)上下线提醒$/,
           fnc: 'toggleOnlineReminder'
         }
       ]
