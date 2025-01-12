@@ -16,7 +16,7 @@ export class MyKingHomepage extends plugin {
       priority: 1,
       rule: [
         {
-          reg: /^#王者(主页|卡片|信息)\\s*(.*)$/,
+          reg: '^#王者(主页|卡片|信息)\\s*(.*)$',
           fnc: 'myKingHomepage'
         },
         {
