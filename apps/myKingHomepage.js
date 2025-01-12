@@ -4,6 +4,7 @@ import path from 'path'
 import fs from 'fs'
 import { PluginData, Config } from '#components'
 import moment from 'moment'
+import { getCurrentId } from '#utils'
 const { onlineReminderCron, onlineReminder } = Config.getConfig('config')
 
 export class MyKingHomepage extends plugin {
@@ -15,11 +16,11 @@ export class MyKingHomepage extends plugin {
       priority: 1,
       rule: [
         {
-          reg: '^#王者主页\\s*(.*)$',
+          reg: '^#王者(主页|卡片|信息)\\s*(.*)$',
           fnc: 'myKingHomepage'
         },
         {
-          reg: /#(开启|关闭)上下线提醒$/,
+          reg: /^#(开启|关闭)上下线提醒$/,
           fnc: 'toggleOnlineReminder'
         }
       ]
@@ -46,7 +47,10 @@ export class MyKingHomepage extends plugin {
     }
 
     for (const user of Object.keys(settingsData)) {
-      const ID = userData[user]
+      const userInfo = userData[user]
+      if (!userInfo || !userInfo.ids || !userInfo.ids.length) continue
+      
+      const ID = userInfo.ids[userInfo.current]
       const settingsUserFilePath = path.join(PluginData, 'user_settings', `${user}.json`)
 
       const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID()
@@ -117,17 +121,19 @@ export class MyKingHomepage extends plugin {
   }
 
   async myKingHomepage(e) {
-    const msg = e.msg.replace(/^#王者主页\s*/, '')
+    const msg = e.msg.replace(/^#王者(主页|卡片|信息)\s*/, '')
     let userId = e.at || e.user_id
     const userFilePath = path.join(PluginData, 'UserData.yaml')
 
     const allUserData = readYamlFile(userFilePath)
-    const ID = msg || allUserData[userId]
-
-    if (!ID) {
+    const userInfo = allUserData[userId]
+    
+    if (!userInfo || !userInfo.ids || !userInfo.ids.length) {
       await e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png'))
       return
     }
+
+    const ID = msg || userInfo.ids[userInfo.current]
 
     const profileData = await ApiService.getProfile(ID)
 
@@ -193,7 +199,7 @@ export class MyKingHomepage extends plugin {
     if (rank5v5.includes('青铜') || rank5v5.includes('白银') || rank5v5.includes('黄金') || rank5v5.includes('铂金')) flagImg = '1'
     if (rank5v5.includes('钻石') || rank5v5.includes('星耀')) flagImg = '2'
     if (rank5v5.includes('最强王者')) flagImg = '3'
-    console.log(mods)
+
     const isKing = rank5v5.includes('王者')
     const isOffline = gameOnline === '离线'
     const honor = isKing? "honor" : "roleJob"
@@ -243,6 +249,8 @@ export class MyKingHomepage extends plugin {
         ssoopenid: OpenID,
         ssotoken: Token
       })
+
+      logger.debug('[王者上下线提醒]获取数据成功，API返回:', JSON.stringify(response, null, 2))
 
       const errorCodes = [1, -30003, '-30314', -10107]
       if (errorCodes.includes(response.returnCode)) {

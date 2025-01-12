@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { PluginData } from '#components'
-import { ApiService, readYamlFile, getFilePath, readJsonFile, writeJsonFile, monitor } from '#utils'
+import { ApiService, readYamlFile, getFilePath, readJsonFile, writeJsonFile, monitor, getCurrentId } from '#utils'
 
 export class QueryGameStats extends plugin {
   constructor () {
@@ -94,7 +94,14 @@ export class QueryGameStats extends plugin {
       for (const [userId, groupId] of Object.entries(settingsData)) {
         if (!this.shouldProcessUser(userId, groupId, userData)) continue
 
-        await this.processUserBattles(userId, userData[userId], groupId)
+        const userInfo = userData[userId]
+        if (!userInfo || !userInfo.ids || !userInfo.ids.length) {
+          logger.debug(`用户 ${userId} 未绑定ID`)
+          continue
+        }
+        const ID = userInfo.ids[userInfo.current]
+        
+        await this.processUserBattles(userId, ID, groupId)
       }
     } catch (error) {
       logger.error('推送战绩时发生错误:', error)
@@ -106,10 +113,13 @@ export class QueryGameStats extends plugin {
       logger.debug(`用户 ${userId} 未开启战绩推送`)
       return false
     }
-    if (!userData[userId]) {
-      logger.debug(`用户 ${userId} 的 ID 未找到`)
+    
+    const userInfo = userData[userId]
+    if (!userInfo || !userInfo.ids || !userInfo.ids.length) {
+      logger.debug(`用户 ${userId} 未绑定ID`)
       return false
     }
+    
     return true
   }
 
@@ -152,9 +162,10 @@ export class QueryGameStats extends plugin {
       settingsData: readYamlFile(settingsFilePath) // 读取设置数据
     }
 
-    if (!userData[userId]) { // 如果用户 ID 未找到
-      logger.debug(`用户 ${userId} 的 ID 未找到，发送提示...`)
-      await e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png')) // 发送提示图像
+    // 修改检查用户数据的方式
+    const userInfo = userData[userId]
+    if (!userInfo || !userInfo.ids || !userInfo.ids.length) {
+      await e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png'))
       return
     }
 
@@ -169,20 +180,22 @@ export class QueryGameStats extends plugin {
   // 查询战绩的函数
   async queryGameStats (e) {
     logger.debug(`用户 ${e.user_id} 请求查询战绩...`)
-    const userFilePath = path.join(PluginData, 'UserData.yaml') // 用户数据文件路径
-    const allUserData = readYamlFile(userFilePath) // 读取所有用户数据
-    const ID = allUserData[e.user_id] // 获取用户 ID
-
-    if (!ID) { // 如果用户 ID 未找到
-      logger.debug(`用户 ${e.user_id} 的 ID 未找到，发送提示...`)
-      await e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png')) // 发送提示图像
+    const userFilePath = path.join(PluginData, 'UserData.yaml')
+    const allUserData = readYamlFile(userFilePath)
+    
+    // 修改获取ID的方式
+    const userInfo = allUserData[e.user_id]
+    if (!userInfo || !userInfo.ids || !userInfo.ids.length) {
+      logger.debug(`用户 ${e.user_id} 未绑定ID`)
+      await e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png'))
       return
     }
+    const ID = userInfo.ids[userInfo.current]
 
-    let index = Number(e.msg.match(/#(查询|王者)战绩(\d+)?/)[2]) || false // 获取查询的战绩索引
+    let index = Number(e.msg.match(/#(查询|王者)战绩(\d+)?/)[2]) || false
 
     // 获取更多战斗列表数据
-    const moreBattleListData = await ApiService.getMoreBattleList(ID) // 使用 getMoreBattleList 方法
+    const moreBattleListData = await ApiService.getMoreBattleList(ID)
 
     if (!moreBattleListData.data) { // 如果战绩数据不可用
       logger.debug(`用户 ${e.user_id} 的战绩数据不可用，发送提示...`)
