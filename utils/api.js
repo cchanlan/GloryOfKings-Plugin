@@ -1,7 +1,7 @@
 import fetch from 'node-fetch'
 
 class ApiService {
-  constructor () {
+  constructor() {
     this.baseUrls = {
       main: 'https://kohcamp.qq.com',
       game: 'https://ssl.kohsocialapp.qq.com:10001',
@@ -38,7 +38,7 @@ class ApiService {
     }
   }
 
-  getCommonHeaders (url) {
+  getCommonHeaders(url) {
     const headers = {
       'Content-Type': 'application/json',
       'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.71 Mobile Safari/537.36',
@@ -64,7 +64,7 @@ class ApiService {
     return headers
   }
 
-  async requestWithRetry (method, endpoint, body = null, additionalHeaders = {}, retries = 3) {
+  async requestWithRetry(method, endpoint, body = null, additionalHeaders = {}, retries = 3) {
     for (let i = 0; i < retries; i++) {
       try {
         return await this.request(method, endpoint, body, additionalHeaders)
@@ -75,7 +75,7 @@ class ApiService {
     }
   }
 
-  async request (method, endpoint, body = null, additionalHeaders = {}) {
+  async request(method, endpoint, body = null, additionalHeaders = {}) {
     const url = `${this.baseUrls.main}${endpoint}`
     const headers = {
       ...this.getCommonHeaders(url),
@@ -106,16 +106,16 @@ class ApiService {
     }
   }
 
-  async post (endpoint, body, additionalHeaders = {}) {
+  async post(endpoint, body, additionalHeaders = {}) {
     return this.request('POST', endpoint, body, additionalHeaders)
   }
 
-  async getToken () {
+  async getToken() {
     const response = await (await fetch(this.baseUrls.token)).json()
     return response.token
   }
 
-  async getMoreBattleList (ID) {
+  async getMoreBattleList(ID) {
     const response = await fetch(`${this.baseUrls.main}/game/morebattlelist`, {
       method: 'POST',
       headers: {
@@ -134,7 +134,7 @@ class ApiService {
     return response.json()
   }
 
-  async getBattledetail (ID, battleType, gameSvr, relaySvr, targetRoleId, gameSeq) {
+  async getBattledetail(ID, battleType, gameSvr, relaySvr, targetRoleId, gameSeq) {
     const response = await fetch(`${this.baseUrls.main}/game/battledetail`, {
       method: 'POST',
       headers: {
@@ -155,7 +155,7 @@ class ApiService {
     return response.json()
   }
 
-  async getProfile (ID) {
+  async getProfile(ID) {
     const response = await fetch(`${this.baseUrls.main}/game/koh/profile`, {
       method: 'POST',
       headers: {
@@ -174,7 +174,24 @@ class ApiService {
     return response.json()
   }
 
-  async getPublicTokenAndOpenID () {
+  async getSeasonpage(ID) {
+    const response = await fetch(`${this.baseUrls.main}/game/seasonpage`, {
+      method: 'POST',
+      headers: {
+        ...this.headers,
+        token: await this.getToken()
+      },
+      body: JSON.stringify({
+        recommendPrivacy: 0,
+        seasonId: 0,
+        roleId: ID
+      })
+    })
+
+    return response.json()
+  }
+
+  async getPublicTokenAndOpenID() {
     const response = await (await fetch('https://gitee.com/Tloml-Starry/resources/raw/master/resources/json/WzryToken.json')).json()
     const { Token, OpenID } = response
     return { Token, OpenID }
