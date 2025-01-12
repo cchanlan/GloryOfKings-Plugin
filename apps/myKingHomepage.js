@@ -49,7 +49,7 @@ export class MyKingHomepage extends plugin {
     for (const user of Object.keys(settingsData)) {
       const userInfo = userData[user]
       if (!userInfo || !userInfo.ids || !userInfo.ids.length) continue
-      
+
       const ID = userInfo.ids[userInfo.current]
       const settingsUserFilePath = path.join(PluginData, 'user_settings', `${user}.json`)
 
@@ -127,7 +127,7 @@ export class MyKingHomepage extends plugin {
 
     const allUserData = readYamlFile(userFilePath)
     const userInfo = allUserData[userId]
-    
+
     if (!userInfo || !userInfo.ids || !userInfo.ids.length) {
       await e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png'))
       return
@@ -202,7 +202,7 @@ export class MyKingHomepage extends plugin {
 
     const isKing = rank5v5.includes('王者')
     const isOffline = gameOnline === '离线'
-    const honor = isKing? "honor" : "roleJob"
+    const honor = isKing ? "honor" : "roleJob"
     const data = {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/MyKingHomepage.html',
       _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
@@ -252,7 +252,7 @@ export class MyKingHomepage extends plugin {
 
       logger.debug('[王者上下线提醒]获取数据成功，API返回:', JSON.stringify(response, null, 2))
 
-      const errorCodes = [1, -30003, '-30314', -10107]
+      const errorCodes = [1, -30003, '-30314', -10107, -51001]
       if (errorCodes.includes(response.returnCode)) {
         logger.debug('[王者上下线提醒]获取数据失败，API返回:', JSON.stringify(response, null, 2))
         return false

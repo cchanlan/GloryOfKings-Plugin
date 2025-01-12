@@ -284,7 +284,7 @@ export class QueryGameStats extends plugin {
       ssotoken: Token
     })
 
-    const errorCodes = [1, -30003, '-30314', -10107]
+    const errorCodes = [1, -30003, '-30314', -10107, -51001]
     if (errorCodes.includes(response.returnCode)) {
       logger.debug('[王者战绩列表]获取数据失败，API返回:', JSON.stringify(response, null, 2))
       return false
@@ -475,7 +475,7 @@ export class QueryGameStats extends plugin {
         ssotoken: Token
       })
 
-      const errorCodes = [1, -30003, '-30314', -10107]
+      const errorCodes = [1, -30003, '-30314', -10107, -51001]
       if (errorCodes.includes(response.returnCode)) {
         logger.debug('[王者战绩详情]获取数据失败，API返回:', JSON.stringify(response, null, 2))
         return false
