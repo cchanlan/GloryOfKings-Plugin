@@ -161,6 +161,7 @@ export class MyKingHomepage extends plugin {
     }
 
     const { mods } = headData
+    console.log(mods)
     const {
       roleName, // 昵称
       roleIcon, // 头像
@@ -183,12 +184,7 @@ export class MyKingHomepage extends plugin {
       mode10v10, // 10v10模式
       mode5v5, // 5v5模式
       modePeakRace, // 巅峰赛
-      fightPowerItem, // 战斗力
-      mvpNumItem, // MVP次数
-      totalBattleCountItem, // 总场次
-      heroNumItem, // 英雄数量
-      winRateItem, // 胜率
-      skinNumItem // 皮肤数量
+      ...mod
     ] = mods
     const { rankingStar, starImg } = JSON.parse(mode5v5.param1)
     const rank10v10 = `${mode10v10.name} ${JSON.parse(mode10v10.param1).rankingStar}星`
@@ -223,13 +219,8 @@ export class MyKingHomepage extends plugin {
       isKing,
       isOffline,
       honor,
-      content_1: fightPowerItem.content,
-      content_2: mvpNumItem.content,
-      content_3: totalBattleCountItem.content,
-      content_4: heroNumItem.content,
-      content_5: winRateItem.content,
-      content_6: skinNumItem.content,
-      content_7: modePeakRace.content
+      content_7: modePeakRace.content,
+      mod
     }
 
     const inventoryImage = await puppeteer.screenshot('myKingHomepage', data)

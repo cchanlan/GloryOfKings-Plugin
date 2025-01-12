@@ -50,7 +50,18 @@
                     </div>
                 </div>
                 <div class="stats-grid">
+                    {{each mod v}}
                     <div class="stat-item">
+                        <div class="stat-value">
+                            {{if v.icon}}
+                            <img src="{{v.icon}}" alt="" class="icon">
+                            {{/if}}
+                            <div class="content style{{v.showStyle}}">{{v.content}}</div>
+                        </div>
+                        <div class="stat-label">{{v.name}}</div>
+                    </div>
+                    {{/each}}
+                    <!-- <div class="stat-item">
                         <div class="stat-value">{{content_1}}</div>
                         <div class="stat-label">战斗力</div>
                     </div>
@@ -73,7 +84,7 @@
                     <div class="stat-item">
                         <div class="stat-value">{{content_6}}</div>
                         <div class="stat-label">皮肤数量</div>
-                    </div>
+                    </div> -->
                 </div>
             </div>
             <div class="rank-image-container">
@@ -99,7 +110,7 @@
         if (/[\/\.]/.test(item.textContent)) {
             const s = item.textContent.replace(/([\/\.])/, "_$1").split("_")
             if (s.length > 1) {
-                item.innerHTML = `<span>${s[0]}</span><span class="all">${s[1]}</span>`
+                item.innerHTML = `<div class="content style102"><span>${s[0]}</span><span class="all">${s[1]}</span><div>`
             }
         }
     });
