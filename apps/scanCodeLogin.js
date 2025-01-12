@@ -22,7 +22,7 @@ const CONFIG = {
 }
 
 export class ScanCodeLogin extends plugin {
-  constructor () {
+  constructor() {
     super({
       name: 'scanCodeLogin',
       dsc: '王者扫码登录',
@@ -34,8 +34,8 @@ export class ScanCodeLogin extends plugin {
           fnc: 'scanCodeLogin'
         },
         {
-          reg: /^#我的王者Tk$/,
-          fnc: 'getMyTokenAndOpenId'
+          reg: /^#我的ID$/,
+          fnc: 'myWzryId'
         },
         {
           reg: '^#绑定营地\\s*(.*)$',
@@ -45,7 +45,7 @@ export class ScanCodeLogin extends plugin {
     })
   }
 
-  async scanCodeLogin (e) {
+  async scanCodeLogin(e) {
     try {
       const dirPath = path.join(PluginData, 'ScanCodeLoginData')
       await fs.promises.mkdir(dirPath, { recursive: true })
@@ -81,7 +81,7 @@ export class ScanCodeLogin extends plugin {
     }
   }
 
-  async waitForScan (userId, uUid) {
+  async waitForScan(userId, uUid) {
     for (let i = 0; i < CONFIG.MAX_SCAN_RETRIES; i++) {
       try {
         const scanData = await ApiService.post('/sso/qrconnect', { uUid })
@@ -106,7 +106,7 @@ export class ScanCodeLogin extends plugin {
     return { success: false }
   }
 
-  async saveUserInfo (userId, tokenData) {
+  async saveUserInfo(userId, tokenData) {
     const { ssoOpenId, ssoToken } = tokenData.session
 
     const userInfoData = await ApiService.post('/pc/user/infolist', null, {
@@ -127,30 +127,26 @@ export class ScanCodeLogin extends plugin {
     })
   }
 
-  formatDate (timestamp) {
+  formatDate(timestamp) {
     const date = new Date(parseInt(timestamp) * 1000)
     const pad = num => String(num).padStart(2, '0')
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
   }
 
-  async getMyTokenAndOpenId (e) {
-    const filePath = getFilePath(e.user_id)
-    if (!fs.existsSync(filePath)) {
-      return await e.reply('未找到登录信息，请先扫码登录。')
+  async myWzryId(e) {
+    const filePath = path.join(PluginData, 'UserData.yaml')
+    const userData = readYamlFile(filePath)
+    if (!userData[e.user_id]) {
+      return e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png'))
     }
 
-    const { ssoOpenId, ssoToken } = readJsonFile(filePath)
-    if (!ssoOpenId || !ssoToken) {
-      return await e.reply('未找到有效的Token或OpenId，请重新扫码登录。')
-    }
-
-    await e.reply(`您的Token: ${ssoToken}\n您的OpenId: ${ssoOpenId}`)
+    await e.reply([segment.at(e.user_id), '您的王者ID: ' + userData[e.user_id]].join('\n'))
   }
 
-  async bindWzryId (e) {
+  async bindWzryId(e) {
     const wzryId = e.msg.replace(/^#绑定营地\s*/, '')
     const filePath = path.join(PluginData, 'UserData.yaml')
-    const userData = fs.existsSync(filePath) ? readYamlFile(filePath) : {}
+    const userData = readYamlFile(filePath)
 
     userData[e.user_id] = wzryId
     writeYamlFile(filePath, userData)
