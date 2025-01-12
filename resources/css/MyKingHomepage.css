@@ -131,8 +131,8 @@ body {
 }
 .rank-image-container .rank-image-background {
   position: relative;
-  width: 135%;
-  height: 110%;
+  width: 100%;
+  height: 111%;
   z-index: 1;
 }
 .rank-image-container .rank-image-honor {
