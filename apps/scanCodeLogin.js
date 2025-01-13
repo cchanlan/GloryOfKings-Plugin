@@ -75,22 +75,23 @@ export class ScanCodeLogin extends plugin {
 
   // 绑定ID
   async bindWzryId (e) {
+    let userId = (e.at && e.isMaster) ? e.at : e.user_id
     const wzryId = e.msg.replace(/^#绑定营地\s*/, '')
-    const { userData, filePath } = this.getUserData(e.user_id)
+    const { userData, filePath } = this.getUserData(userId)
 
-    if (userData[e.user_id].ids.includes(wzryId)) {
+    if (userData[userId].ids.includes(wzryId)) {
       await e.reply('该ID已经绑定过了')
       return
     }
 
-    userData[e.user_id].ids.push(wzryId)
-    if (userData[e.user_id].ids.length === 1) {
-      userData[e.user_id].current = 0
+    userData[userId].ids.push(wzryId)
+    if (userData[userId].ids.length === 1) {
+      userData[userId].current = 0
     }
 
     this.saveUserData(filePath, userData)
 
-    const idList = this.formatIdList(userData[e.user_id])
+    const idList = this.formatIdList(userData[userId])
     await e.reply([
       `成功绑定王者ID: ${wzryId}`,
       '当前绑定的ID列表：',
@@ -101,25 +102,26 @@ export class ScanCodeLogin extends plugin {
 
   // 切换ID
   async switchWzryId (e) {
+    let userId = (e.at && e.isMaster) ? e.at : e.user_id
     const index = parseInt(e.msg.replace(/^#切换营地\s*/, '')) - 1
-    const { userData, filePath } = this.getUserData(e.user_id)
+    const { userData, filePath } = this.getUserData(userId)
 
-    if (!userData[e.user_id].ids.length) {
+    if (!userData[userId].ids.length) {
       await e.reply('您还没有绑定任何ID，请先绑定')
       return
     }
 
-    if (index < 0 || index >= userData[e.user_id].ids.length) {
+    if (index < 0 || index >= userData[userId].ids.length) {
       await e.reply('序号无效，请输入正确的序号')
       return
     }
 
-    userData[e.user_id].current = index
+    userData[userId].current = index
     this.saveUserData(filePath, userData)
 
-    const idList = this.formatIdList(userData[e.user_id])
+    const idList = this.formatIdList(userData[userId])
     await e.reply([
-      `已切换到ID: ${userData[e.user_id].ids[index]}`,
+      `已切换到ID: ${userData[userId].ids[index]}`,
       '当前绑定的ID列表：',
       idList
     ].join('\n'))
@@ -127,48 +129,50 @@ export class ScanCodeLogin extends plugin {
 
   // 删除ID
   async deleteWzryId (e) {
+    let userId = (e.at && e.isMaster) ? e.at : e.user_id
     const index = parseInt(e.msg.replace(/^#删除营地\s*/, '')) - 1
-    const { userData, filePath } = this.getUserData(e.user_id)
+    const { userData, filePath } = this.getUserData(userId)
 
-    if (!userData[e.user_id].ids.length) {
+    if (!userData[userId].ids.length) {
       await e.reply('您还没有绑定任何ID')
       return
     }
 
-    if (index < 0 || index >= userData[e.user_id].ids.length) {
+    if (index < 0 || index >= userData[userId].ids.length) {
       await e.reply('序号无效，请输入正确的序号')
       return
     }
 
-    const deletedId = userData[e.user_id].ids[index]
-    userData[e.user_id].ids.splice(index, 1)
+    const deletedId = userData[userId].ids[index]
+    userData[userId].ids.splice(index, 1)
 
     // 调整current索引
-    if (userData[e.user_id].current >= userData[e.user_id].ids.length) {
-      userData[e.user_id].current = Math.max(0, userData[e.user_id].ids.length - 1)
+    if (userData[userId].current >= userData[userId].ids.length) {
+      userData[userId].current = Math.max(0, userData[userId].ids.length - 1)
     }
 
     this.saveUserData(filePath, userData)
 
-    const idList = this.formatIdList(userData[e.user_id])
+    const idList = this.formatIdList(userData[userId])
     await e.reply([
       `已删除ID: ${deletedId}`,
-      userData[e.user_id].ids.length ? '当前绑定的ID列表：\n' + idList : '已删除所有绑定的ID'
+      userData[userId].ids.length ? '当前绑定的ID列表：\n' + idList : '已删除所有绑定的ID'
     ].join('\n'))
   }
 
   // 展示ID列表
   async myWzryId (e) {
-    const { userData } = this.getUserData(e.user_id)
+    let userId = (e.at && e.isMaster) ? e.at : e.user_id
+    const { userData } = this.getUserData(userId)
 
-    if (!userData[e.user_id]?.ids.length) {
+    if (!userData[userId]?.ids.length) {
       return e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png'))
     }
 
-    const idList = this.formatIdList(userData[e.user_id])
+    const idList = this.formatIdList(userData[userId])
     await e.reply([
-      segment.at(e.user_id),
-      '您的王者ID列表：',
+      segment.at(userId),
+      `${userId}的王者ID列表：`,
       idList
     ].join('\n'))
   }
