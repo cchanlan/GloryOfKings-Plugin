@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { PluginData } from '#components'
-import { ApiService, readYamlFile, getFilePath, readJsonFile, writeJsonFile, monitor, getCurrentId } from '#utils'
+import { ApiService, readYamlFile, getFilePath, readJsonFile, writeJsonFile, monitor } from '#utils'
 
 export class QueryGameStats extends plugin {
   constructor () {
@@ -13,7 +13,7 @@ export class QueryGameStats extends plugin {
       priority: 1,
       rule: [
         {
-          reg: /^#(查询|王者)战绩(\d+)?/,
+          reg: '^#?(查询|王者)战绩\\s*(.*)$',
           fnc: 'queryGameStats'
         },
         {
@@ -100,7 +100,7 @@ export class QueryGameStats extends plugin {
           continue
         }
         const ID = userInfo.ids[userInfo.current]
-        
+
         await this.processUserBattles(userId, ID, groupId)
       }
     } catch (error) {
@@ -113,13 +113,13 @@ export class QueryGameStats extends plugin {
       logger.debug(`用户 ${userId} 未开启战绩推送`)
       return false
     }
-    
+
     const userInfo = userData[userId]
     if (!userInfo || !userInfo.ids || !userInfo.ids.length) {
       logger.debug(`用户 ${userId} 未绑定ID`)
       return false
     }
-    
+
     return true
   }
 
@@ -184,19 +184,22 @@ export class QueryGameStats extends plugin {
     logger.debug(`用户 ${userId} 请求查询战绩...`)
     const userFilePath = path.join(PluginData, 'UserData.yaml')
     const allUserData = readYamlFile(userFilePath)
-    
-    // 修改获取ID的方式
-    const userInfo = allUserData[userId]
-    if (!userInfo || !userInfo.ids || !userInfo.ids.length) {
-      logger.debug(`用户 ${userId} 未绑定ID`)
-      await e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png'))
-      return
+
+    let index = Number(e.msg.replace(/^#?(查询|王者)战绩\s*/, '')) || false
+
+    let ID
+    if (index > 9999) {
+      ID = index
+    } else {
+      const userInfo = allUserData[userId]
+      if (!userInfo || !userInfo.ids || !userInfo.ids.length) {
+        logger.debug(`用户 ${userId} 未绑定ID`)
+        await e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png'))
+        return
+      }
+      ID = userInfo.ids[userInfo.current]
     }
-    const ID = userInfo.ids[userInfo.current]
 
-    let index = Number(e.msg.match(/#(查询|王者)战绩(\d+)?/)[2]) || false
-
-    // 获取更多战斗列表数据
     const moreBattleListData = await ApiService.getMoreBattleList(ID)
 
     if (!moreBattleListData.data) { // 如果战绩数据不可用
@@ -212,7 +215,7 @@ export class QueryGameStats extends plugin {
     // 写入战斗列表数据
     writeJsonFile(path.join(PluginData, 'BattleList.json'), moreBattleListData.data)
 
-    if (index) { // 如果索引存在
+    if (index && index < 9999) {
       const battleDetails = moreBattleListData.data.list[index - 1] // 获取战斗详情
       const { battleType, gameSvrId: gameSvr, relaySvrId: relaySvr, battleDetailUrl, gameSeq } = battleDetails // 解构战斗详情
 

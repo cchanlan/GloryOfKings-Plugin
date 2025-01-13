@@ -24,13 +24,13 @@ export {
   cache
 }
 
-export function getCurrentId(userId) {
+export function getCurrentId (userId) {
   const filePath = path.join(PluginData, 'UserData.yaml')
   const userData = readYamlFile(filePath)
-  
+
   if (!userData[userId] || !userData[userId].ids.length) {
     return null
   }
-  
+
   return userData[userId].ids[userData[userId].current]
 }
