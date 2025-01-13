@@ -93,7 +93,7 @@ export class MyKingHomepage extends plugin {
   }
 
   async toggleOnlineReminder (e) {
-    let userId = (e.at && e.isMaster) ? e.at : e.user_id
+    let userId = (e.at && e.isMaster && !e.atme) ? e.at : e.user_id
     let groupId = e.group_id
     if (!e.isGroup) return e.reply('只支持群聊中使用', true)
 
@@ -121,7 +121,7 @@ export class MyKingHomepage extends plugin {
 
   async myKingHomepage (e) {
     const msg = e.msg.replace(/^#王者(主页|卡片|信息)\s*/, '')
-    let userId = e.at || e.user_id
+    let userId = (e.at && !e.atme) ? e.at : e.user_id
     const userFilePath = path.join(PluginData, 'UserData.yaml')
 
     const allUserData = readYamlFile(userFilePath)

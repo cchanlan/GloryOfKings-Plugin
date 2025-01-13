@@ -179,7 +179,7 @@ export class QueryGameStats extends plugin {
 
   // 查询战绩的函数
   async queryGameStats (e) {
-    let userId = e.at || e.user_id
+    let userId = (e.at && !e.atme) ? e.at : e.user_id
 
     logger.debug(`用户 ${userId} 请求查询战绩...`)
     const userFilePath = path.join(PluginData, 'UserData.yaml')

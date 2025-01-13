@@ -75,7 +75,7 @@ export class ScanCodeLogin extends plugin {
 
   // 绑定ID
   async bindWzryId (e) {
-    let userId = (e.at && e.isMaster) ? e.at : e.user_id
+    let userId = (e.at && e.isMaster && !e.atme) ? e.at : e.user_id
     const wzryId = e.msg.replace(/^#绑定营地\s*/, '')
     const { userData, filePath } = this.getUserData(userId)
 
@@ -102,7 +102,7 @@ export class ScanCodeLogin extends plugin {
 
   // 切换ID
   async switchWzryId (e) {
-    let userId = (e.at && e.isMaster) ? e.at : e.user_id
+    let userId = (e.at && e.isMaster && !e.atme) ? e.at : e.user_id
     const index = parseInt(e.msg.replace(/^#切换营地\s*/, '')) - 1
     const { userData, filePath } = this.getUserData(userId)
 
@@ -129,7 +129,7 @@ export class ScanCodeLogin extends plugin {
 
   // 删除ID
   async deleteWzryId (e) {
-    let userId = (e.at && e.isMaster) ? e.at : e.user_id
+    let userId = (e.at && e.isMaster && !e.atme) ? e.at : e.user_id
     const index = parseInt(e.msg.replace(/^#删除营地\s*/, '')) - 1
     const { userData, filePath } = this.getUserData(userId)
 
@@ -162,7 +162,7 @@ export class ScanCodeLogin extends plugin {
 
   // 展示ID列表
   async myWzryId (e) {
-    let userId = (e.at && e.isMaster) ? e.at : e.user_id
+    let userId = (e.at && e.isMaster && !e.atme) ? e.at : e.user_id
     const { userData } = this.getUserData(userId)
 
     if (!userData[userId]?.ids.length) {
