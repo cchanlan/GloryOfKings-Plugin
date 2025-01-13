@@ -93,10 +93,9 @@ export class MyKingHomepage extends plugin {
   }
 
   async toggleOnlineReminder (e) {
-    let userId = e.user_id
+    let userId = (e.at && e.isMaster) ? e.at : e.user_id
     let groupId = e.group_id
-    const { isGroup } = e
-    if (!isGroup) return false
+    if (!e.isGroup) return e.reply('只支持群聊中使用', true)
 
     const { userFilePath, settingsFilePath } = {
       userFilePath: path.join(PluginData, 'UserData.yaml'),
@@ -117,7 +116,7 @@ export class MyKingHomepage extends plugin {
     settingsData[userId] = isEnabled ? groupId : null
 
     fs.writeFileSync(settingsFilePath, JSON.stringify(settingsData, null, 2))
-    await e.reply(`上下线提醒已${isEnabled ? '开启' : '关闭'}。`)
+    await e.reply(`用户${userId}的上下线提醒已${isEnabled ? '开启' : '关闭'}。`)
   }
 
   async myKingHomepage (e) {

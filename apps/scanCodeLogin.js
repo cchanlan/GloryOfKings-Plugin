@@ -2,7 +2,7 @@ import ApiService from '../utils/api.js'
 import fs from 'fs'
 import path from 'path'
 import common from '../../../lib/common/common.js'
-import { readJsonFile, writeJsonFile, getFilePath, writeYamlFile, readYamlFile } from '#utils'
+import { writeJsonFile, getFilePath, writeYamlFile, readYamlFile } from '#utils'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { PluginData } from '#components'
 
@@ -22,7 +22,7 @@ const CONFIG = {
 }
 
 export class ScanCodeLogin extends plugin {
-  constructor() {
+  constructor () {
     super({
       name: 'scanCodeLogin',
       dsc: '王者扫码登录',
@@ -54,27 +54,27 @@ export class ScanCodeLogin extends plugin {
   }
 
   // 获取用户数据
-  getUserData(userId) {
+  getUserData (userId) {
     const filePath = path.join(PluginData, 'UserData.yaml')
     const userData = readYamlFile(filePath) || {}
-    
+
     if (!userData[userId]) {
       userData[userId] = {
         ids: [],
         current: 0
       }
     }
-    
+
     return { userData, filePath }
   }
 
   // 保存用户数据
-  saveUserData(filePath, userData) {
+  saveUserData (filePath, userData) {
     writeYamlFile(filePath, userData)
   }
 
   // 绑定ID
-  async bindWzryId(e) {
+  async bindWzryId (e) {
     const wzryId = e.msg.replace(/^#绑定营地\s*/, '')
     const { userData, filePath } = this.getUserData(e.user_id)
 
@@ -89,7 +89,7 @@ export class ScanCodeLogin extends plugin {
     }
 
     this.saveUserData(filePath, userData)
-    
+
     const idList = this.formatIdList(userData[e.user_id])
     await e.reply([
       `成功绑定王者ID: ${wzryId}`,
@@ -100,7 +100,7 @@ export class ScanCodeLogin extends plugin {
   }
 
   // 切换ID
-  async switchWzryId(e) {
+  async switchWzryId (e) {
     const index = parseInt(e.msg.replace(/^#切换营地\s*/, '')) - 1
     const { userData, filePath } = this.getUserData(e.user_id)
 
@@ -126,7 +126,7 @@ export class ScanCodeLogin extends plugin {
   }
 
   // 删除ID
-  async deleteWzryId(e) {
+  async deleteWzryId (e) {
     const index = parseInt(e.msg.replace(/^#删除营地\s*/, '')) - 1
     const { userData, filePath } = this.getUserData(e.user_id)
 
@@ -158,7 +158,7 @@ export class ScanCodeLogin extends plugin {
   }
 
   // 展示ID列表
-  async myWzryId(e) {
+  async myWzryId (e) {
     const { userData } = this.getUserData(e.user_id)
 
     if (!userData[e.user_id]?.ids.length) {
@@ -174,14 +174,14 @@ export class ScanCodeLogin extends plugin {
   }
 
   // 格式化ID列表显示
-  formatIdList(userInfo) {
+  formatIdList (userInfo) {
     return userInfo.ids.map((id, index) => {
       const prefix = index === userInfo.current ? '✅' : '☑️'
       return `${prefix} ${index + 1}. ${id}`
     }).join('\n')
   }
 
-  async scanCodeLogin(e) {
+  async scanCodeLogin (e) {
     try {
       const dirPath = path.join(PluginData, 'ScanCodeLoginData')
       await fs.promises.mkdir(dirPath, { recursive: true })
@@ -217,7 +217,7 @@ export class ScanCodeLogin extends plugin {
     }
   }
 
-  async waitForScan(userId, uUid) {
+  async waitForScan (userId, uUid) {
     for (let i = 0; i < CONFIG.MAX_SCAN_RETRIES; i++) {
       try {
         const scanData = await ApiService.post('/sso/qrconnect', { uUid })
@@ -242,7 +242,7 @@ export class ScanCodeLogin extends plugin {
     return { success: false }
   }
 
-  async saveUserInfo(userId, tokenData) {
+  async saveUserInfo (userId, tokenData) {
     const { ssoOpenId, ssoToken } = tokenData.session
 
     const userInfoData = await ApiService.post('/pc/user/infolist', null, {
@@ -256,7 +256,7 @@ export class ScanCodeLogin extends plugin {
     // 读取用户数据
     const filePath = path.join(PluginData, 'UserData.yaml')
     const userData = readYamlFile(filePath) || {}
-    
+
     // 初始化用户数据结构
     if (!userData[userId]) {
       userData[userId] = {
@@ -282,7 +282,7 @@ export class ScanCodeLogin extends plugin {
     })
   }
 
-  formatDate(timestamp) {
+  formatDate (timestamp) {
     const date = new Date(parseInt(timestamp) * 1000)
     const pad = num => String(num).padStart(2, '0')
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
