@@ -9,7 +9,7 @@ export class Help extends plugin {
       priority: 1,
       rule: [
         {
-          reg: /^#?王者帮助$/,
+          reg: /^#?王者(荣耀|农药)?(插件|plugin)?(帮助|help)$/i,
           fnc: 'showHelp'
         }
       ]
