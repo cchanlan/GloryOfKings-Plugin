@@ -30,11 +30,11 @@ export class ScanCodeLogin extends plugin {
       priority: 1,
       rule: [
         {
-          reg: /^#营地扫码$/,
+          reg: /^#(王者)?(荣耀|农药)?营地扫码$/,
           fnc: 'scanCodeLogin'
         },
         {
-          reg: /^#我的ID$/,
+          reg: /^#我的(王者)?(荣耀|农药)?ID$/i,
           fnc: 'myWzryId'
         },
         {
