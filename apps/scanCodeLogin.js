@@ -250,12 +250,31 @@ export class ScanCodeLogin extends plugin {
       ssoToken
     })
 
-    const filePath = path.join(PluginData, 'UserData.yaml')
-    const userData = await readYamlFile(filePath)
+    // 获取用户ID
+    const wzryId = userInfoData.list[0].userId
 
-    userData[userId] = userInfoData.list[0].userId
+    // 读取用户数据
+    const filePath = path.join(PluginData, 'UserData.yaml')
+    const userData = readYamlFile(filePath) || {}
+    
+    // 初始化用户数据结构
+    if (!userData[userId]) {
+      userData[userId] = {
+        ids: [],
+        current: 0
+      }
+    }
+
+    // 如果ID不存在则添加到列表中
+    if (!userData[userId].ids.includes(wzryId)) {
+      userData[userId].ids.push(wzryId)
+      userData[userId].current = userData[userId].ids.length - 1
+    }
+
+    // 保存用户数据
     writeYamlFile(filePath, userData)
 
+    // 保存登录凭证
     writeJsonFile(getFilePath(userId), {
       ssoOpenId,
       ssoToken,
