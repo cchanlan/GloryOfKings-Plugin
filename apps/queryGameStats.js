@@ -143,15 +143,9 @@ export class QueryGameStats extends plugin {
 
   // 切换战绩推送状态的函数
   async toggleGameStatsPush (e) {
-    let userId
-    if (e.at && e.isMaster) {
-      userId = e.at
-    } else {
-      userId = e.user_id
-    }
-    let groupId = e.group_id // 获取群组 ID
-    const { isGroup } = e // 检查是否为群组消息
-    if (!isGroup) return e.reply('只支持群内使用', true) // 如果不是群组消息，返回
+    let userId = (e.at && e.isMaster) ? e.at : e.user_id
+    const { group_id: groupId, isGroup } = e // 获取群组 ID 和检查是否为群组消息
+    if (!isGroup) return e.reply('只支持群内使用', true)
 
     logger.debug(`用户 ${userId} 请求切换战绩推送状态...`)
 
