@@ -179,14 +179,16 @@ export class QueryGameStats extends plugin {
 
   // 查询战绩的函数
   async queryGameStats (e) {
-    logger.debug(`用户 ${e.user_id} 请求查询战绩...`)
+    let userId = e.at || e.user_id
+
+    logger.debug(`用户 ${userId} 请求查询战绩...`)
     const userFilePath = path.join(PluginData, 'UserData.yaml')
     const allUserData = readYamlFile(userFilePath)
     
     // 修改获取ID的方式
-    const userInfo = allUserData[e.user_id]
+    const userInfo = allUserData[userId]
     if (!userInfo || !userInfo.ids || !userInfo.ids.length) {
-      logger.debug(`用户 ${e.user_id} 未绑定ID`)
+      logger.debug(`用户 ${userId} 未绑定ID`)
       await e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png'))
       return
     }
@@ -198,7 +200,7 @@ export class QueryGameStats extends plugin {
     const moreBattleListData = await ApiService.getMoreBattleList(ID)
 
     if (!moreBattleListData.data) { // 如果战绩数据不可用
-      logger.debug(`用户 ${e.user_id} 的战绩数据不可用，发送提示...`)
+      logger.debug(`用户 ${userId} 的战绩数据不可用，发送提示...`)
       await e.reply(`ID: ${ID}，查询失败`) // 回复用户
       return
     }
