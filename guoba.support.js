@@ -35,6 +35,16 @@ export function supportGuoba () {
           componentProps: {
             placeholder: '请输入Cron表达式'
           }
+        },
+        {
+          field: 'config.battleResultCron',
+          label: '战绩推送',
+          bottomHelpMessage: '王者战绩推送的cron表达式',
+          helpMessage: '修改后重启生效',
+          component: 'EasyCron',
+          componentProps: {
+            placeholder: '请输入Cron表达式'
+          }
         }
       ],
       getConfigData () {

@@ -1,9 +1,10 @@
 import fs from 'fs'
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { PluginData } from '#components'
+import { PluginData, Config } from '#components'
 import { ApiService, readYamlFile, getFilePath, readJsonFile, writeJsonFile, monitor } from '#utils'
 
+const { battleResultCron } = Config.getConfig('config')
 export class QueryGameStats extends plugin {
   constructor () {
     super({
@@ -25,7 +26,7 @@ export class QueryGameStats extends plugin {
     this.task = {
       name: '王者战绩推送',
       fnc: () => this.pushGameStats(),
-      cron: '0 */1 * * * *',
+      cron: battleResultCron,
       log: false
     }
   }

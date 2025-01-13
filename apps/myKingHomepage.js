@@ -4,11 +4,11 @@ import path from 'path'
 import fs from 'fs'
 import { PluginData, Config } from '#components'
 import moment from 'moment'
-import { getCurrentId } from '#utils'
+
 const { onlineReminderCron, onlineReminder } = Config.getConfig('config')
 
 export class MyKingHomepage extends plugin {
-  constructor() {
+  constructor () {
     super({
       name: 'myKingHomepage',
       dsc: '王者主页',
@@ -35,7 +35,7 @@ export class MyKingHomepage extends plugin {
     }
   }
 
-  async onlineReminder() {
+  async onlineReminder () {
     const { userFilePath, settingsFilePath } = {
       userFilePath: path.join(PluginData, 'UserData.yaml'),
       settingsFilePath: path.join(PluginData, 'user_settings.yaml')
@@ -92,7 +92,7 @@ export class MyKingHomepage extends plugin {
     }
   }
 
-  async toggleOnlineReminder(e) {
+  async toggleOnlineReminder (e) {
     let userId = e.user_id
     let groupId = e.group_id
     const { isGroup } = e
@@ -120,7 +120,7 @@ export class MyKingHomepage extends plugin {
     await e.reply(`上下线提醒已${isEnabled ? '开启' : '关闭'}。`)
   }
 
-  async myKingHomepage(e) {
+  async myKingHomepage (e) {
     const msg = e.msg.replace(/^#王者(主页|卡片|信息)\s*/, '')
     let userId = e.at || e.user_id
     const userFilePath = path.join(PluginData, 'UserData.yaml')
@@ -183,13 +183,13 @@ export class MyKingHomepage extends plugin {
     const [
       mode10v10, // 10v10模式
       mode5v5, // 5v5模式
-      modePeakRace, // 巅峰赛
+      modePeakRace // 巅峰赛
     ] = mods
     modePeakRace.param1 = JSON.parse(modePeakRace.param1)
     modePeakRace.param1.flagPag = modePeakRace.param1.flagPag.match(/(\d+).pag/)[1]
     console.log(modePeakRace.param1)
     const mod = mods.filter(i => i.stype === 0)
-    const combat = mods.find(i=>i.stype === 1)
+    const combat = mods.find(i => i.stype === 1)
     const { rankingStar, starImg } = JSON.parse(mode5v5.param1)
     const rank10v10 = `${mode10v10.name} ${JSON.parse(mode10v10.param1).rankingStar}星`
     const rank5v5 = `${mode5v5.name} ${rankingStar}星`
@@ -202,7 +202,7 @@ export class MyKingHomepage extends plugin {
 
     const isKing = rank5v5.includes('王者')
     const isOffline = gameOnline === '离线'
-    const honor = isKing ? "honor" : "roleJob"
+    const honor = isKing ? 'honor' : 'roleJob'
     const data = {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/MyKingHomepage.html',
       _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
@@ -235,7 +235,7 @@ export class MyKingHomepage extends plugin {
     await e.reply(inventoryImage)
   }
 
-  async fetchUserProfile(ID, OpenID, Token) {
+  async fetchUserProfile (ID, OpenID, Token) {
     try {
       const response = await ApiService.post('/userprofile/profile', {
         lastTime: 0,

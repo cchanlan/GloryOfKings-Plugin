@@ -2,3 +2,5 @@
 onlineReminder: true
 #*王者上下线提醒的cron表达式
 onlineReminderCron: '*/10 * * * * *'
+#*王者战绩推送的cron表达式
+battleResultCron: '0 */1 * * * *'

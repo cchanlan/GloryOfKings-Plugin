@@ -24,7 +24,6 @@ export class GloryOfKingsUpdate extends plugin {
   }
 
   async update (e) {
-    e.isMaster = true
     if (e.at && !e.atme) return
     e.msg = `#${e.msg.includes('强制') ? '强制' : ''}更新${PluginName}`
     const up = new Update(e)
