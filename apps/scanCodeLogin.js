@@ -172,9 +172,9 @@ export class ScanCodeLogin extends plugin {
     const idList = this.formatIdList(userData[userId])
     await e.reply([
       segment.at(userId),
-      `${userId}的王者ID列表：`,
+      `\n${userId}的王者ID列表：\n`,
       idList
-    ].join('\n'))
+    ])
   }
 
   // 格式化ID列表显示
