@@ -178,14 +178,14 @@ export class MyKingHomepage extends plugin {
     const gameOnline = gameOnlineMap[_gameOnline]
     const onlineTime = moment(onlineTimestamp * 1000).locale('zh-cn').calendar()
     const offlineTime = moment(offlineTimestamp * 1000).locale('zh-cn').calendar()
-    const [
-      mode10v10, // 10v10模式
-      mode5v5 // 5v5模式
-    ] = mods
+
+    const mode10v10 = mods.find(mod => mod.modId === 708); // 10v10模式
+    const mode5v5 = mods.find(mod => mod.modId === 701); // 5v5模式
     const modePeakRace = mods.find(mod => mod.modId === 702); // 巅峰赛
+
     modePeakRace.param1 = JSON.parse(modePeakRace.param1)
     modePeakRace.param1.flagPag = modePeakRace.param1.flagPag.match(/(\d+).pag/)[1]
-    console.log(modePeakRace.param1)
+    
     const mod = mods.filter(i => i.stype === 0)
     const combat = mods.find(i => i.stype === 1)
     const { rankingStar, starImg } = JSON.parse(mode5v5.param1)
