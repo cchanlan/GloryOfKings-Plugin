@@ -191,6 +191,25 @@ class ApiService {
     return response.json()
   }
 
+  async getdetailranklistbyid() {
+    const response = await fetch(`${this.baseUrls.main}/hero/getdetailranklistbyid`, {
+      method: 'POST',
+      headers: {
+        ...this.headers,
+        token: await this.getToken()
+      },
+      body: JSON.stringify({
+        "bottomTab": "",
+        "rankId": 0,
+        "segment": 1,
+        "position": 0,
+        "recommendPrivacy": 0
+      })
+    })
+
+    return response.json()
+  }
+
   async getPublicTokenAndOpenID () {
     const response = await (await fetch('https://gitee.com/Tloml-Starry/resources/raw/master/resources/json/WzryToken.json')).json()
     const { Token, OpenID } = response
