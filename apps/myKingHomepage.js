@@ -182,7 +182,7 @@ export class MyKingHomepage extends plugin {
       mode10v10, // 10v10模式
       mode5v5 // 5v5模式
     ] = mods
-    const modePeakRace = mods.find(mod => mod.modIdID === 702); // 巅峰赛
+    const modePeakRace = mods.find(mod => mod.modId === 702); // 巅峰赛
     modePeakRace.param1 = JSON.parse(modePeakRace.param1)
     modePeakRace.param1.flagPag = modePeakRace.param1.flagPag.match(/(\d+).pag/)[1]
     console.log(modePeakRace.param1)
