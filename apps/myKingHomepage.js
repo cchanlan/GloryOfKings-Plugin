@@ -8,7 +8,7 @@ import moment from 'moment'
 const { onlineReminderCron, onlineReminder } = Config.getConfig('config')
 
 export class MyKingHomepage extends plugin {
-  constructor () {
+  constructor() {
     super({
       name: 'myKingHomepage',
       dsc: '王者主页',
@@ -19,23 +19,23 @@ export class MyKingHomepage extends plugin {
           reg: '^#王者(主页|卡片|信息)\\s*(.*)$',
           fnc: 'myKingHomepage'
         },
-        {
+        /* {
           reg: /^#(开启|关闭)上下线提醒$/,
           fnc: 'toggleOnlineReminder'
-        }
+        } */
       ]
     })
-    if (onlineReminder) {
+    /* if (onlineReminder) {
       this.task = {
         name: '[定时任务]王者上下线提醒',
         fnc: () => this.onlineReminder(),
         cron: onlineReminderCron,
         log: false
       }
-    }
+    } */
   }
 
-  async onlineReminder () {
+  async onlineReminder() {
     const { userFilePath, settingsFilePath } = {
       userFilePath: path.join(PluginData, 'UserData.yaml'),
       settingsFilePath: path.join(PluginData, 'user_settings.yaml')
@@ -92,7 +92,7 @@ export class MyKingHomepage extends plugin {
     }
   }
 
-  async toggleOnlineReminder (e) {
+  async toggleOnlineReminder(e) {
     let userId = (e.at && e.isMaster && !e.atme) ? e.at : e.user_id
     let groupId = e.group_id
     if (!e.isGroup) return e.reply('只支持群聊中使用', true)
@@ -119,7 +119,7 @@ export class MyKingHomepage extends plugin {
     await e.reply(`用户${userId}的上下线提醒已${isEnabled ? '开启' : '关闭'}。`)
   }
 
-  async myKingHomepage (e) {
+  async myKingHomepage(e) {
     const msg = e.msg.replace(/^#王者(主页|卡片|信息)\s*/, '')
     let userId = (e.at && !e.atme) ? e.at : e.user_id
     const userFilePath = path.join(PluginData, 'UserData.yaml')
@@ -185,7 +185,7 @@ export class MyKingHomepage extends plugin {
 
     modePeakRace.param1 = JSON.parse(modePeakRace.param1)
     modePeakRace.param1.flagPag = modePeakRace.param1.flagPag.match(/(\d+).pag/)[1]
-    
+
     const mod = mods.filter(i => i.stype === 0)
     const combat = mods.find(i => i.stype === 1)
     const { rankingStar, starImg } = JSON.parse(mode5v5.param1)
@@ -233,7 +233,7 @@ export class MyKingHomepage extends plugin {
     await e.reply(inventoryImage)
   }
 
-  async fetchUserProfile (ID, OpenID, Token) {
+  async fetchUserProfile(ID, OpenID, Token) {
     try {
       const response = await ApiService.post('/userprofile/profile', {
         lastTime: 0,
