@@ -201,10 +201,37 @@
             document.documentElement.style.setProperty('--on-surface-color', style.textColor);
             document.documentElement.style.setProperty('--secondary-color', style.commandColor);
 
-            document.querySelectorAll('.menu-item').forEach(el => {
+            // 获取所有菜单项
+            const menuItems = Array.from(document.querySelectorAll('.menu-item'));
+
+            // 随机选择2-4个菜单项
+            const numberOfHighlights = Math.floor(Math.random() * 3) + 2; // 2到4之间的随机数
+            const selectedItems = [];
+
+            while (selectedItems.length < numberOfHighlights) {
+                const randomIndex = Math.floor(Math.random() * menuItems.length);
+                const randomItem = menuItems[randomIndex];
+                if (!selectedItems.includes(randomItem)) {
+                    selectedItems.push(randomItem);
+                }
+            }
+
+            // 为所有菜单项添加基本样式和悬停效果
+            menuItems.forEach(el => {
                 el.style.backgroundColor = style.itemBg;
                 el.addEventListener('mouseover', () => el.style.backgroundColor = style.itemHoverBg);
-                el.addEventListener('mouseout', () => el.style.backgroundColor = style.itemBg);
+                el.addEventListener('mouseout', () => {
+                    // 如果不是被选中的项目，则恢复原始背景色
+                    if (!selectedItems.includes(el)) {
+                        el.style.backgroundColor = style.itemBg;
+                    }
+                });
+            });
+
+            // 为选中的项目应用持续的悬停效果
+            selectedItems.forEach(item => {
+                item.style.backgroundColor = style.itemHoverBg;
+                item.style.borderColor = style.headerColor;
             });
         }
 
