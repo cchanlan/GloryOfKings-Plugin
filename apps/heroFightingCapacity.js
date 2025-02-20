@@ -1,5 +1,4 @@
-import plugin from '../../lib/plugins/plugin.js'
-import puppeteer from '../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import api from '../utils/api.js'
 
 export class HeroFightingCapacity extends plugin {
@@ -26,18 +25,28 @@ export class HeroFightingCapacity extends plugin {
         }
 
         try {
-            const { aqq, awx, iqq, iwx } = await api.getHeroFightingCapacity(heroName)
+            const heroFightingCapacity = await api.getHeroFightingCapacity(heroName)
 
-            logger.mark(JSON.stringify({ aqq, awx, iqq, iwx }, null, 4))
+            const minStats = {
+                guobiao: Math.min(...heroFightingCapacity.map(item => parseInt(item.guobiao))),
+                provincePower: Math.min(...heroFightingCapacity.map(item => parseInt(item.provincePower))),
+                cityPower: Math.min(...heroFightingCapacity.map(item => parseInt(item.cityPower))),
+                areaPower: Math.min(...heroFightingCapacity.map(item => parseInt(item.areaPower)))
+            }
 
-            /*             const img = await puppeteer.screenshot('HeroFightingCapacit', {
-                            tplFile: 'plugins/GloryOfKings-Plugin/resources/html/HeroFightingCapacit.html',
-                        })
-            
-                        await e.reply(img) */
+            const img = await puppeteer.screenshot('HeroFightingCapacit', {
+                tplFile: 'plugins/GloryOfKings-Plugin/resources/html/HeroFightingCapacit.html',
+                photo: heroFightingCapacity[0].photo,
+                name: heroFightingCapacity[0].name,
+                alias: heroFightingCapacity[0].alias,
+                data: heroFightingCapacity,
+                minStats: minStats
+            })
+
+            await e.reply(img)
         } catch (err) {
             logger.error(`[查战力] 查询失败: ${err}`)
-            await e.reply(`查询失败: ${err.message}`)
+            await e.reply(`查询失败!`)
         }
     }
 }

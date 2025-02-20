@@ -243,8 +243,7 @@ class ApiService {
       }
     }))
 
-    const [aqq, awx, iqq, iwx] = result;
-    return { aqq, awx, iqq, iwx };
+    return result;
   }
 
   async getPublicTokenAndOpenID() {
