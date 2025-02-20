@@ -9,6 +9,7 @@
     }
 
     body {
+        width: 900px;
         font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         line-height: 1.6;
         margin: 0;
@@ -91,19 +92,11 @@
         border-top: 1px solid rgba(255, 255, 255, 0.1);
         color: var(--secondary-color);
     }
-
-    #style-name {
-        text-align: center;
-        font-style: italic;
-        margin-bottom: 25px;
-        color: var(--primary-color);
-    }
 </style>
 
 <body>
     <div class="container">
         <h1>王者荣耀菜单帮助</h1>
-        <div id="style-name"></div>
 
         <div class="menu-sections">
             <div class="section">
@@ -213,8 +206,6 @@
                 el.addEventListener('mouseover', () => el.style.backgroundColor = style.itemHoverBg);
                 el.addEventListener('mouseout', () => el.style.backgroundColor = style.itemBg);
             });
-
-            document.getElementById('style-name').textContent = `当前主题：${style.name}`;
         }
 
         window.onload = applyRandomStyle;

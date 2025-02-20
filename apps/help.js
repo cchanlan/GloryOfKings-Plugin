@@ -1,7 +1,7 @@
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 
 export class Help extends plugin {
-  constructor () {
+  constructor() {
     super({
       name: 'help',
       dsc: '显示帮助信息',
@@ -16,7 +16,7 @@ export class Help extends plugin {
     })
   }
 
-  async showHelp (e) {
+  async showHelp(e) {
     const inventoryImage = await puppeteer.screenshot('help', {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/help.html'
     })
