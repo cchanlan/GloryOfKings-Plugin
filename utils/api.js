@@ -227,6 +227,26 @@ class ApiService {
     return response.json()
   }
 
+  async getHeroFightingCapacity(heroName) {
+    const region = ["aqq", "awx", "iqq", "iwx"];
+    const result = await Promise.all(region.map(async (hero) => {
+      try {
+        const res = await fetch(`https://www.sapi.run/hero/select.php?hero=${heroName}&type=${hero}`);
+        const data = await res.json();
+        if (data.code !== 200) {
+          throw new Error(`该英雄不存在，请检查。错误: ${data}`);
+        }
+        return data.data;
+      } catch (err) {
+        logger.error("[战力] 接口请求失败", err);
+        throw new Error(`战力接口请求失败。错误: ${err}`);
+      }
+    }))
+
+    const [aqq, awx, iqq, iwx] = result;
+    return { aqq, awx, iqq, iwx };
+  }
+
   async getPublicTokenAndOpenID() {
     const response = await (await fetch('https://gitee.com/Tloml-Starry/resources/raw/master/resources/json/WzryToken.json')).json()
     const { Token, OpenID } = response
