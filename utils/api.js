@@ -7,7 +7,11 @@ class ApiService {
       game: 'https://ssl.kohsocialapp.qq.com:10001',
       token: 'https://api.t1qq.com/api/tool/wzrr/wztoken'
     }
-    this.headers = {
+    this.headers = this.#getDefaultHeaders()
+  }
+
+  #getDefaultHeaders() {
+    return {
       Host: 'kohcamp.qq.com',
       cchannelid: '2002',
       cclientversioncode: '2037905606',
@@ -38,7 +42,7 @@ class ApiService {
     }
   }
 
-  getCommonHeaders(url) {
+  #getCommonHeaders(url) {
     const headers = {
       'Content-Type': 'application/json',
       'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.71 Mobile Safari/537.36',
@@ -55,201 +59,141 @@ class ApiService {
       ssobusinessid: 'web'
     }
 
-    if (url.includes(this.baseUrls.main)) {
-      headers.Host = 'kohcamp.qq.com'
-    } else if (url.includes(this.baseUrls.game)) {
-      headers.Host = 'ssl.kohsocialapp.qq.com'
-    }
-
+    headers.Host = url.includes(this.baseUrls.main) ? 'kohcamp.qq.com' : 'ssl.kohsocialapp.qq.com'
     return headers
   }
 
-  async requestWithRetry(method, endpoint, body = null, additionalHeaders = {}, retries = 3) {
+  async #request(method, endpoint, body = null, additionalHeaders = {}, retries = 3) {
+    const url = `${this.baseUrls.main}${endpoint}`
+    const headers = { ...this.#getCommonHeaders(url), ...additionalHeaders }
+
     for (let i = 0; i < retries; i++) {
       try {
-        return await this.request(method, endpoint, body, additionalHeaders)
+        const response = await fetch(url, {
+          method,
+          headers,
+          body: body ? JSON.stringify(body) : null,
+          timeout: 10000
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(`HTTP ${response.status}: ${errorData.message || response.statusText}`)
+        }
+
+        return await response.json()
       } catch (error) {
-        if (i === retries - 1) throw error
+        if (i === retries - 1) {
+          logger.error(`API请求失败: ${error.message}`, { url, method, body: JSON.stringify(body) })
+          throw error
+        }
         await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)))
       }
     }
   }
 
-  async request(method, endpoint, body = null, additionalHeaders = {}) {
-    const url = `${this.baseUrls.main}${endpoint}`
-    const headers = {
-      ...this.getCommonHeaders(url),
-      ...additionalHeaders
-    }
-
-    try {
-      const response = await fetch(url, {
-        method,
-        headers,
-        body: body ? JSON.stringify(body) : null,
-        timeout: 10000
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(`HTTP ${response.status}: ${errorData.message || response.statusText}`)
-      }
-
-      return await response.json()
-    } catch (error) {
-      logger.error(`API请求失败: ${error.message}`, {
-        url,
-        method,
-        body: JSON.stringify(body)
-      })
-      throw error
-    }
-  }
-
-  async post(endpoint, body, additionalHeaders = {}) {
-    return this.request('POST', endpoint, body, additionalHeaders)
-  }
-
-  async getToken() {
+  async #getToken() {
     const response = await (await fetch(this.baseUrls.token)).json()
     return response.token
   }
 
-  async getMoreBattleList(ID) {
-    const response = await fetch(`${this.baseUrls.main}/game/morebattlelist`, {
-      method: 'POST',
-      headers: {
-        ...this.headers,
-        token: await this.getToken()
-      },
-      body: JSON.stringify({
-        lastTime: 0,
-        recommendPrivacy: 0,
-        apiVersion: 5,
-        friendUserId: ID,
-        option: 0
-      })
+  async #makeAuthRequest(endpoint, body) {
+    return this.#request('POST', endpoint, body, {
+      ...this.headers,
+      token: await this.#getToken()
     })
+  }
 
-    return response.json()
+  async getMoreBattleList(ID) {
+    return this.#makeAuthRequest('/game/morebattlelist', {
+      lastTime: 0,
+      recommendPrivacy: 0,
+      apiVersion: 5,
+      friendUserId: ID,
+      option: 0
+    })
   }
 
   async getBattledetail(ID, battleType, gameSvr, relaySvr, targetRoleId, gameSeq) {
-    const response = await fetch(`${this.baseUrls.main}/game/battledetail`, {
-      method: 'POST',
-      headers: {
-        ...this.headers,
-        token: await this.getToken()
-      },
-      body: JSON.stringify({
-        recommendPrivacy: 0,
-        battleType,
-        gameSvr,
-        relaySvr,
-        targetRoleId,
-        gameSeq,
-        friendUserId: ID
-      })
+    return this.#makeAuthRequest('/game/battledetail', {
+      recommendPrivacy: 0,
+      battleType,
+      gameSvr,
+      relaySvr,
+      targetRoleId,
+      gameSeq,
+      friendUserId: ID
     })
-
-    return response.json()
   }
 
   async getProfile(ID) {
-    const response = await fetch(`${this.baseUrls.main}/game/koh/profile`, {
-      method: 'POST',
-      headers: {
-        ...this.headers,
-        token: await this.getToken()
-      },
-      body: JSON.stringify({
-        targetUserId: ID,
-        targetRoleId: '0',
-        resVersion: '3',
-        recommendPrivacy: '0',
-        apiVersion: '2'
-      })
+    return this.#makeAuthRequest('/game/koh/profile', {
+      targetUserId: ID,
+      targetRoleId: '0',
+      resVersion: '3',
+      recommendPrivacy: '0',
+      apiVersion: '2'
     })
-
-    return response.json()
   }
 
   async getSeasonpage(ID) {
-    const response = await fetch(`${this.baseUrls.main}/game/seasonpage`, {
-      method: 'POST',
-      headers: {
-        ...this.headers,
-        token: await this.getToken()
-      },
-      body: JSON.stringify({
-        recommendPrivacy: 0,
-        seasonId: 0,
-        roleId: ID
-      })
+    return this.#makeAuthRequest('/game/seasonpage', {
+      recommendPrivacy: 0,
+      seasonId: 0,
+      roleId: ID
     })
-
-    return response.json()
   }
 
   async getdetailranklistbyid() {
-    const response = await fetch(`${this.baseUrls.main}/hero/getdetailranklistbyid`, {
-      method: 'POST',
-      headers: {
-        ...this.headers,
-        token: await this.getToken()
-      },
-      body: JSON.stringify({
-        "bottomTab": "",
-        "rankId": 0,
-        "segment": 1,
-        "position": 0,
-        "recommendPrivacy": 0
-      })
+    return this.#makeAuthRequest('/hero/getdetailranklistbyid', {
+      bottomTab: "",
+      rankId: 0,
+      segment: 1,
+      position: 0,
+      recommendPrivacy: 0
     })
-
-    return response.json()
   }
 
-  async newsignin(token, ID) { // 王者营地签到，没啥用
-    const response = await fetch(`${this.baseUrls.main}/operation/action/newsignin`, {
-      method: 'POST',
-      headers: {
-        ...this.headers,
-        token: token
-      },
-      body: JSON.stringify({
-        "gameId": "20001",
-        "recommendPrivacy": 0,
-        "roleId": ID
-      })
+  async newsignin(token, ID) {
+    return this.#makeAuthRequest('/operation/action/newsignin', {
+      gameId: "20001",
+      recommendPrivacy: 0,
+      roleId: ID
     })
-
-    return response.json()
   }
 
   async getHeroFightingCapacity(heroName) {
-    const region = ["aqq", "awx", "iqq", "iwx"];
-    const result = await Promise.all(region.map(async (hero) => {
+    const regions = ["aqq", "awx", "iqq", "iwx"]
+    return Promise.all(regions.map(async (hero) => {
       try {
-        const res = await fetch(`https://www.sapi.run/hero/select.php?hero=${heroName}&type=${hero}`);
-        const data = await res.json();
-        if (data.code !== 200) {
-          throw new Error(`该英雄不存在，请检查。错误: ${data}`);
-        }
-        return data.data;
+        const res = await fetch(`https://www.sapi.run/hero/select.php?hero=${heroName}&type=${hero}`)
+        const data = await res.json()
+        if (data.code !== 200) throw new Error(`该英雄不存在，请检查。错误: ${data}`)
+        return data.data
       } catch (err) {
-        logger.error("[战力] 接口请求失败", err);
-        throw new Error(`战力接口请求失败。错误: ${err}`);
+        logger.error("[战力] 接口请求失败", err)
+        throw new Error(`战力接口请求失败。错误: ${err}`)
       }
     }))
+  }
 
-    return result;
+  /** 获取英雄列表 */
+  async getHeroList() {
+    try {
+      const response = await fetch('https://pvp.qq.com/web201605/js/herolist.json');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      return await response.json();
+    } catch (error) {
+      logger.error("[获取英雄列表] 接口请求失败", error);
+      throw new Error(`获取英雄列表失败。错误: ${error}`);
+    }
   }
 
   async getPublicTokenAndOpenID() {
     const response = await (await fetch('https://gitee.com/Tloml-Starry/resources/raw/master/resources/json/WzryToken.json')).json()
-    const { Token, OpenID } = response
-    return { Token, OpenID }
+    return response
   }
 }
 

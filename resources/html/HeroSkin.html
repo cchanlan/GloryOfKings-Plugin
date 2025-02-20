@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>角色皮肤展示</title>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --card-bg: #2a2a2a;
+            --text-color: #ffffff;
+            --border-color: #3a3a3a;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .skin-container {
+            display: grid;
+            gap: 20px;
+            grid-template-columns: 1fr;
+        }
+
+        .skin-item {
+            position: relative;
+            background-color: var(--card-bg);
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .skin-image {
+            width: 100%;
+            height: auto;
+            border-radius: 5px;
+            display: block;
+        }
+
+        .skin-name {
+            display: block;
+            color: #ffffff !important;
+            font-size: 18px;
+            margin-bottom: 10px;
+            padding: 8px 20px;
+            background: linear-gradient(135deg, #3a3a3a 0%, #2a2a2a 100%);
+            border: 1px solid #4a4a4a;
+            width: fit-content;
+            position: relative;
+            border-radius: 0 15px 0 15px;
+            box-shadow: 3px 3px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .skin-name::before,
+        .skin-name::after {
+            content: '';
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: #ffd700;
+        }
+
+        .skin-name::before {
+            top: -1px;
+            left: -1px;
+            border-radius: 0 0 3px 0;
+        }
+
+        .skin-name::after {
+            bottom: -1px;
+            right: -1px;
+            border-radius: 3px 0 0 0;
+        }
+
+        .skin-name:empty {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>{{heroName}}皮肤图鉴</h1>
+
+    <div class="skin-container">
+        {{each skinData skin}}
+        <div class="skin-item">
+            <span class="skin-name">{{skin.name}}</span>
+            <img src="{{skin.url}}" alt="{{skin.name}}" class="skin-image">
+        </div>
+        {{/each}}
+    </div>
+</body>
+
+</html>
