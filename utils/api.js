@@ -1,6 +1,14 @@
 import fetch from 'node-fetch'
 
+/**
+ * API服务类，封装了与王者荣耀助手相关的各种接口请求
+ * 包含用户资料、战绩、英雄数据等接口的请求方法
+ */
 class ApiService {
+  /**
+   * 初始化API服务实例
+   * 设置基础URL和默认请求头
+   */
   constructor() {
     this.baseUrls = {
       main: 'https://kohcamp.qq.com',
@@ -10,6 +18,11 @@ class ApiService {
     this.headers = this.#getDefaultHeaders()
   }
 
+  /**
+   * 获取默认请求头
+   * @private
+   * @returns {Object} 包含身份验证和客户端信息的请求头
+   */
   #getDefaultHeaders() {
     return {
       Host: 'kohcamp.qq.com',
@@ -42,6 +55,12 @@ class ApiService {
     }
   }
 
+  /**
+   * 生成通用请求头
+   * @private
+   * @param {string} url - 请求的URL
+   * @returns {Object} 包含动态Host和其他通用头的请求头对象
+   */
   #getCommonHeaders(url) {
     const headers = {
       'Content-Type': 'application/json',
@@ -63,6 +82,17 @@ class ApiService {
     return headers
   }
 
+  /**
+   * 通用请求方法（带重试机制）
+   * @private
+   * @param {string} method - HTTP方法 (GET/POST等)
+   * @param {string} endpoint - API端点路径
+   * @param {Object|null} body - 请求体数据
+   * @param {Object} additionalHeaders - 附加请求头
+   * @param {number} retries - 重试次数（默认3次）
+   * @returns {Promise<Object>} 响应数据
+   * @throws {Error} 请求失败时抛出错误
+   */
   async #request(method, endpoint, body = null, additionalHeaders = {}, retries = 3) {
     const url = `${this.baseUrls.main}${endpoint}`
     const headers = { ...this.#getCommonHeaders(url), ...additionalHeaders }
@@ -92,11 +122,23 @@ class ApiService {
     }
   }
 
+  /**
+   * 获取API访问令牌
+   * @private
+   * @returns {Promise<string>} 访问令牌
+   */
   async #getToken() {
     const response = await (await fetch(this.baseUrls.token)).json()
     return response.token
   }
 
+  /**
+   * 创建带认证的请求
+   * @private
+   * @param {string} endpoint - API端点路径
+   * @param {Object} body - 请求体数据
+   * @returns {Promise<Object>} 响应数据
+   */
   async #makeAuthRequest(endpoint, body) {
     return this.#request('POST', endpoint, body, {
       ...this.headers,
@@ -104,6 +146,11 @@ class ApiService {
     })
   }
 
+  /**
+   * 获取更多对战列表
+   * @param {string} ID - 用户ID
+   * @returns {Promise<Object>} 包含对战列表的响应数据
+   */
   async getMoreBattleList(ID) {
     return this.#makeAuthRequest('/game/morebattlelist', {
       lastTime: 0,
@@ -114,6 +161,16 @@ class ApiService {
     })
   }
 
+  /**
+   * 获取对战详情
+   * @param {string} ID - 用户ID
+   * @param {number} battleType - 对战类型
+   * @param {string} gameSvr - 游戏服务器
+   * @param {string} relaySvr - 中继服务器
+   * @param {string} targetRoleId - 目标角色ID
+   * @param {string} gameSeq - 游戏序列号
+   * @returns {Promise<Object>} 包含对战详情的响应数据
+   */
   async getBattledetail(ID, battleType, gameSvr, relaySvr, targetRoleId, gameSeq) {
     return this.#makeAuthRequest('/game/battledetail', {
       recommendPrivacy: 0,
@@ -126,6 +183,11 @@ class ApiService {
     })
   }
 
+  /**
+   * 获取用户资料
+   * @param {string} ID - 用户ID
+   * @returns {Promise<Object>} 包含用户资料的响应数据
+   */
   async getProfile(ID) {
     return this.#makeAuthRequest('/game/koh/profile', {
       targetUserId: ID,
@@ -136,6 +198,11 @@ class ApiService {
     })
   }
 
+  /**
+   * 获取赛季页面数据
+   * @param {string} ID - 用户ID
+   * @returns {Promise<Object>} 包含赛季数据的响应数据
+   */
   async getSeasonpage(ID) {
     return this.#makeAuthRequest('/game/seasonpage', {
       recommendPrivacy: 0,
@@ -144,6 +211,10 @@ class ApiService {
     })
   }
 
+  /**
+   * 获取英雄详细排名列表
+   * @returns {Promise<Object>} 包含英雄排名数据的响应数据
+   */
   async getdetailranklistbyid() {
     return this.#makeAuthRequest('/hero/getdetailranklistbyid', {
       bottomTab: "",
@@ -154,14 +225,12 @@ class ApiService {
     })
   }
 
-  async newsignin(token, ID) {
-    return this.#makeAuthRequest('/operation/action/newsignin', {
-      gameId: "20001",
-      recommendPrivacy: 0,
-      roleId: ID
-    })
-  }
-
+  /**
+   * 获取英雄战力数据（多平台）
+   * @param {string} heroName - 英雄名称（中文）
+   * @returns {Promise<Array>} 包含各平台战力数据的数组
+   * @throws {Error} 英雄不存在或请求失败时抛出错误
+   */
   async getHeroFightingCapacity(heroName) {
     const regions = ["aqq", "awx", "iqq", "iwx"]
     return Promise.all(regions.map(async (hero) => {
@@ -177,7 +246,11 @@ class ApiService {
     }))
   }
 
-  /** 获取英雄列表 */
+  /**
+   * 获取所有英雄列表
+   * @returns {Promise<Array>} 包含英雄信息的数组
+   * @throws {Error} 请求失败时抛出错误
+   */
   async getHeroList() {
     try {
       const response = await fetch('https://pvp.qq.com/web201605/js/herolist.json');
@@ -191,6 +264,10 @@ class ApiService {
     }
   }
 
+  /**
+   * 获取公共Token和OpenID
+   * @returns {Promise<Object>} 包含公共Token和OpenID的响应数据
+   */
   async getPublicTokenAndOpenID() {
     const response = await (await fetch('https://gitee.com/Tloml-Starry/resources/raw/master/resources/json/WzryToken.json')).json()
     return response

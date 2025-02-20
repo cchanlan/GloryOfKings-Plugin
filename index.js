@@ -13,7 +13,7 @@ const paths = {
   gameStatsPushSettingsFile: path.join(PluginData, 'gameStatsPushSettings.yaml')
 }
 
-async function checkAndCreatePaths () {
+async function checkAndCreatePaths() {
   for (const [key, filePath] of Object.entries(paths)) {
     try {
       await fs.access(filePath).catch(() => {
@@ -43,7 +43,7 @@ let failureCount = 0
 
 logger.info(chalk.cyan('王者荣耀插件载入中...'))
 
-async function scanDirectory (directory) {
+async function scanDirectory(directory) {
   const entries = await fs.readdir(directory, { withFileTypes: true })
   const tasks = []
 
@@ -62,7 +62,7 @@ async function scanDirectory (directory) {
   return (await Promise.all(tasks)).flat()
 }
 
-async function loadModules () {
+async function loadModules() {
   try {
     const filePaths = await scanDirectory(appsDir)
     logger.debug(`[${PluginName}] 构建模块路径完成，共计 ${filePaths.length} 个模块。`)

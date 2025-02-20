@@ -22,7 +22,6 @@ export class HeroSkin extends plugin {
             return
         }
 
-        // 获取英雄列表
         let heroList;
         try {
             heroList = await api.getHeroList();
@@ -31,14 +30,12 @@ export class HeroSkin extends plugin {
             return;
         }
 
-        // 查找指定英雄的ename
         const hero = heroList.find(h => h.cname === heroName);
         if (!hero) {
             await e.reply('未找到该英雄的皮肤信息');
             return;
         }
 
-        // 在获取英雄信息后添加皮肤名称处理
         const skinNames = hero.skin_name ? hero.skin_name.split('|') : [];
         const skinData = [];
 
@@ -50,7 +47,6 @@ export class HeroSkin extends plugin {
 
                 if (!response.ok) break;
 
-                // 获取皮肤名称（索引需要-1因为皮肤从1开始但数组从0开始）
                 const skinName = skinNames[index - 1] || '';
 
                 skinData.push({
@@ -70,17 +66,15 @@ export class HeroSkin extends plugin {
             return;
         }
 
-        // 生成HTML模板参数
         const templateParams = {
             heroName: hero.cname,
             skinData: skinData.map((skin, index) => ({
-                name: skin.name || '未知皮肤',
+                name: skin.name,
                 url: skin.url,
                 index: index + 1
             }))
         };
 
-        // 使用puppeteer生成截图
         const img = await puppeteer.screenshot('HeroSkin', {
             tplFile: 'plugins/GloryOfKings-Plugin/resources/html/HeroSkin.html',
             ...templateParams
