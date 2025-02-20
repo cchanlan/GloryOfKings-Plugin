@@ -1,196 +1,229 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
+<style>
+    :root {
+        --primary-color: #bb86fc;
+        --secondary-color: #03dac6;
+        --background-color: #121212;
+        --surface-color: #1e1e1e;
+        --on-surface-color: #e0e0e0;
+        --gradient-start: #4a0e4e;
+        --gradient-end: #81185e;
+        --shadow-color: rgba(0, 0, 0, 0.2);
+    }
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>桑启 - 游戏数据面板</title>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --primary-color: #bb86fc;
-            --secondary-color: #03dac6;
-            --background-color: #121212;
-            --surface-color: #1e1e1e;
-            --on-surface-color: #e0e0e0;
+    body {
+        width: 900px;
+        font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background-color: var(--background-color);
+        color: var(--on-surface-color);
+        margin: 0;
+        padding: 0;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        animation: fadeIn 0.5s ease-in;
+    }
+
+    header {
+        text-align: center;
+        padding: 40px 0;
+        background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+        border-radius: 0 0 50% 50% / 20px;
+        margin-bottom: 40px;
+        box-shadow: 0 4px 12px var(--shadow-color);
+    }
+
+    h1 {
+        color: #ffffff;
+        font-size: 2.5em;
+        margin-bottom: 10px;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .player-info {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 20px;
+        gap: 20px;
+    }
+
+    .player-photo {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        border: 4px solid var(--secondary-color);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        object-fit: cover;
+    }
+
+    .player-photo:hover {
+        transform: scale(1.1) rotate(5deg);
+        box-shadow: 0 0 20px rgba(3, 218, 198, 0.3);
+    }
+
+    .player-name {
+        font-size: 1.8em;
+        font-weight: bold;
+        color: #ffffff;
+        margin-bottom: 5px;
+    }
+
+    .player-alias {
+        font-size: 1.2em;
+        color: var(--secondary-color);
+        opacity: 0.9;
+    }
+
+    .platform-data {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: 30px;
+        margin: 30px 0;
+    }
+
+    .platform-card {
+        background-color: var(--surface-color);
+        border-radius: 15px;
+        padding: 25px;
+        box-shadow: 0 8px 16px var(--shadow-color);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .platform-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 20px rgba(0, 0, 0, 0.3);
+        border-color: var(--secondary-color);
+    }
+
+    .platform-title {
+        font-size: 1.4em;
+        font-weight: bold;
+        color: var(--secondary-color);
+        margin-bottom: 20px;
+        border-bottom: 2px solid var(--secondary-color);
+        padding-bottom: 10px;
+        text-align: center;
+    }
+
+    .data-item {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 15px;
+        align-items: center;
+        padding: 8px 0;
+    }
+
+    .data-label {
+        font-weight: bold;
+        color: var(--primary-color);
+    }
+
+    .data-value {
+        color: var(--on-surface-color);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .data-value .separator {
+        width: 1px;
+        height: 16px;
+        background-color: var(--primary-color);
+        opacity: 0.5;
+    }
+
+    .guobiao {
+        font-size: 1.2em;
+        font-weight: bold;
+        text-align: center;
+        margin: 20px 0;
+        padding: 15px;
+        background-color: rgba(187, 134, 252, 0.1);
+        border-radius: 8px;
+        border: 1px solid rgba(187, 134, 252, 0.2);
+    }
+
+    .guobiao .data-label {
+        font-size: 0.9em;
+        margin-bottom: 8px;
+        opacity: 0.9;
+    }
+
+    .guobiao .data-value {
+        font-size: 1.8em;
+        color: var(--primary-color);
+        justify-content: center;
+    }
+
+    .update-time {
+        text-align: center;
+        margin-top: 40px;
+        font-size: 0.9em;
+        color: #7f7f7f;
+        padding: 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .stats-summary {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 40px;
+        flex-wrap: wrap;
+        gap: 20px;
+    }
+
+    .stat-item {
+        text-align: center;
+        padding: 20px;
+        background-color: var(--surface-color);
+        border-radius: 10px;
+        min-width: 150px;
+        transition: all 0.3s ease;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .stat-item:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 15px rgba(187, 134, 252, 0.2);
+        border-color: var(--primary-color);
+    }
+
+    .stat-value {
+        font-size: 2em;
+        font-weight: bold;
+        color: var(--primary-color);
+        margin-bottom: 5px;
+    }
+
+    .stat-label {
+        color: var(--secondary-color);
+        font-size: 0.9em;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
         }
 
-        body {
-            font-family: 'Noto Sans SC', sans-serif;
-            background-color: var(--background-color);
-            color: var(--on-surface-color);
-            margin: 0;
-            padding: 0;
-            line-height: 1.6;
+        to {
+            opacity: 1;
+            transform: translateY(0);
         }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        header {
-            text-align: center;
-            padding: 40px 0;
-            background: linear-gradient(135deg, #4a0e4e, #81185e);
-            border-radius: 0 0 50% 50% / 20px;
-            margin-bottom: 40px;
-        }
-
-        h1 {
-            color: #ffffff;
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }
-
-        .player-info {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 20px;
-        }
-
-        .player-photo {
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            border: 4px solid var(--secondary-color);
-            margin-right: 20px;
-            transition: transform 0.3s ease;
-        }
-
-        .player-photo:hover {
-            transform: scale(1.1);
-        }
-
-        .player-name {
-            font-size: 1.8em;
-            font-weight: bold;
-            color: #ffffff;
-        }
-
-        .player-alias {
-            font-size: 1.2em;
-            color: var(--secondary-color);
-        }
-
-        .platform-data {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 30px;
-        }
-
-        .platform-card {
-            background-color: var(--surface-color);
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .platform-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 20px rgba(0, 0, 0, 0.3);
-        }
-
-        .platform-title {
-            font-size: 1.4em;
-            font-weight: bold;
-            color: var(--secondary-color);
-            margin-bottom: 20px;
-            border-bottom: 2px solid var(--secondary-color);
-            padding-bottom: 10px;
-        }
-
-        .data-item {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 15px;
-            align-items: center;
-        }
-
-        .data-label {
-            font-weight: bold;
-            color: var(--primary-color);
-        }
-
-        .data-value {
-            color: var(--on-surface-color);
-            display: flex;
-            align-items: center;
-        }
-
-        .data-value .separator {
-            margin: 0 10px;
-            width: 1px;
-            height: 16px;
-            background-color: var(--primary-color);
-            opacity: 0.5;
-        }
-
-        .guobiao {
-            font-size: 1.2em;
-            font-weight: bold;
-            text-align: center;
-            margin-top: 20px;
-            padding: 10px;
-            background-color: rgba(187, 134, 252, 0.1);
-            border-radius: 8px;
-        }
-
-        .guobiao .data-label {
-            font-size: 0.9em;
-            margin-bottom: 5px;
-        }
-
-        .guobiao .data-value {
-            font-size: 1.8em;
-            color: var(--primary-color);
-            justify-content: center;
-        }
-
-        .update-time {
-            text-align: center;
-            margin-top: 40px;
-            font-size: 0.9em;
-            color: #7f7f7f;
-        }
-
-        .stats-summary {
-            display: flex;
-            justify-content: space-around;
-            margin-bottom: 40px;
-            flex-wrap: wrap;
-        }
-
-        .stat-item {
-            text-align: center;
-            padding: 20px;
-            background-color: var(--surface-color);
-            border-radius: 10px;
-            min-width: 150px;
-            margin: 10px;
-        }
-
-        .stat-value {
-            font-size: 2em;
-            font-weight: bold;
-            color: var(--primary-color);
-        }
-
-        .stat-label {
-            color: var(--secondary-color);
-            font-size: 0.9em;
-        }
-    </style>
-</head>
+    }
+</style>
 
 <body>
     <header>
         <h1>英雄最低战力区域查询</h1>
         <div class="player-info">
-            <img src="{{photo}}" alt="桑启" class="player-photo">
+            <img src="{{photo}}" alt="{{name}}" class="player-photo">
             <div>
                 <div class="player-name">{{name}}</div>
                 <div class="player-alias">{{alias}}</div>
@@ -225,7 +258,8 @@
                     <span class="data-value">
                         <span>{{item.province}}</span>
                         <span class="separator"></span>
-                        <span>战力: {{item.provincePower}}</span>
+                        <span
+                            style="font-weight: bold; font-size: 1.2em; color: var(--primary-color)">{{item.provincePower}}</span>
                     </span>
                 </div>
                 <div class="data-item">
@@ -233,7 +267,8 @@
                     <span class="data-value">
                         <span>{{item.city}}</span>
                         <span class="separator"></span>
-                        <span>战力: {{item.cityPower}}</span>
+                        <span
+                            style="font-weight: bold; font-size: 1.2em; color: var(--primary-color)">{{item.cityPower}}</span>
                     </span>
                 </div>
                 <div class="data-item">
@@ -241,7 +276,8 @@
                     <span class="data-value">
                         <span>{{item.area}}</span>
                         <span class="separator"></span>
-                        <span>战力: {{item.areaPower}}</span>
+                        <span
+                            style="font-weight: bold; font-size: 1.2em; color: var(--primary-color)">{{item.areaPower}}</span>
                     </span>
                 </div>
                 <div class="guobiao">
@@ -250,13 +286,11 @@
                 </div>
                 <div class="data-item">
                     <span class="data-label">更新时间：</span>
-                    <span class="data-value">{{updatetime}}</span>
+                    <span class="data-value">{{item.updatetime}}</span>
                 </div>
             </div>
             {{/each}}
         </div>
-        <div class="update-time">114514</div>
+        <div class="update-time">GloryOfKings-Plugin</div>
     </div>
 </body>
-
-</html>

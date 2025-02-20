@@ -18,7 +18,7 @@ export class HeroFightingCapacity extends plugin {
     }
 
     async checkHeroFightingCapacity(e) {
-        const heroName = e.msg.replace(/#|查战力/g, '').trim()
+        const heroName = e.msg.replace(/#|查战力|\s+|\n+/g, '').trim()
         if (!heroName) {
             await e.reply('请输入要查询的英雄名称')
             return
