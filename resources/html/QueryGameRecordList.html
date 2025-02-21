@@ -1,265 +1,406 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>游戏战绩</title>
-    <style>
-        :root {
-            --bg-color: #121212;
-            --card-bg-color: #1e1e1e;
-            --text-color: #e0e0e0;
-            --primary-color: #bb86fc;
-            --secondary-color: #03dac6;
-            --success-color: #00c853;
-            --danger-color: #cf6679;
-            --neutral-color: #757575;
+<style>
+    :root {
+        --bg-color: #121212;
+        --card-bg-color: #1e1e1e;
+        --text-color: #e0e0e0;
+        --primary-color: #bb86fc;
+        --secondary-color: #03dac6;
+        --success-color: #00c853;
+        --danger-color: #cf6679;
+        --neutral-color: #757575;
+        --glass-effect: linear-gradient(120deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+        --hover-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    body {
+        width: 100%;
+        font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        margin: 0;
+        padding: 20px;
+    }
+
+    .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background-color: var(--card-bg-color);
+        border-radius: 12px;
+        overflow: hidden;
+        border: none;
+        padding: 0;
+        background: var(--card-bg-color);
+    }
+
+    header {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        padding: 30px 20px;
+        text-align: center;
+        position: relative;
+
+        &::after {
+            content: none;
+        }
+    }
+
+    h1 {
+        font-size: 2em;
+        margin: 0;
+        color: var(--bg-color);
+    }
+
+    .results {
+        padding: 20px;
+    }
+
+    .result-item {
+        display: flex;
+        align-items: center;
+        padding: 15px;
+        margin-bottom: 15px;
+        border-radius: 8px;
+        background-color: rgba(255, 255, 255, 0.05);
+        transition: none;
+
+        &:hover {
+            transform: none;
+            box-shadow: none;
+        }
+    }
+
+    .result-item.win-bg {
+        background-color: rgba(0, 200, 83, 0.1);
+    }
+
+    .result-item.loss-bg {
+        background-color: rgba(207, 102, 121, 0.1);
+    }
+
+    .avatar-container {
+        position: relative;
+        margin-right: 60px;
+
+        &::before {
+            content: none;
         }
 
-        body {
-            width: 1280px;
-            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            line-height: 1.6;
-            margin: 0;
-            padding: 20px;
-            transition: all 0.3s ease;
+        &:hover::before {
+            opacity: 0;
         }
+    }
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background-color: var(--card-bg-color);
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-            overflow: hidden;
+    .hero-avatar {
+        width: 90px;
+        height: 90px;
+        object-fit: cover;
+        border: none;
+        filter: saturate(1.2);
+        transition: none;
+    }
+
+    .special-tags {
+        position: absolute;
+        right: -40px;
+        top: 0;
+        height: 90px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 6px;
+        padding: 0 8px;
+    }
+
+    .special-tag {
+        border-right: 3px solid;
+        border-left: none;
+        padding: 12px 6px 12px 8px;
+        background: linear-gradient(to left,
+                rgba(0, 0, 0, 0.8) 85%,
+                transparent);
+        writing-mode: vertical-rl;
+        font-size: 18px;
+        line-height: 1.2;
+        letter-spacing: 2px;
+        word-spacing: 4px;
+        height: 90px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        text-orientation: upright;
+        white-space: nowrap;
+        transform: none;
+        backdrop-filter: blur(4px);
+        border-right-width: 2px;
+        transition: none;
+    }
+
+    .special-tag.win {
+        border-right-color: var(--success-color);
+        background: linear-gradient(to left,
+                rgba(0, 200, 83, 0.15) 85%,
+                transparent);
+    }
+
+    .special-tag.loss {
+        border-right-color: var(--danger-color);
+        background: linear-gradient(to left,
+                rgba(207, 102, 121, 0.15) 85%,
+                transparent);
+    }
+
+    .avatar-container:hover {
+        transform: none;
+        box-shadow: none;
+    }
+
+    .avatar-container:hover .hero-avatar {
+        filter: saturate(1.5) brightness(1.1);
+    }
+
+    .avatar-container:hover .special-tag {
+        transform: none;
+    }
+
+    .main-info {
+        flex: 1;
+        padding-right: 20px;
+        position: relative;
+        margin-right: 20px;
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .game-header {
+        margin-bottom: 6px;
+    }
+
+    .outcome {
+        font-size: 1.3em;
+        padding: 8px 20px;
+        border-radius: 20px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        display: inline-block;
+        margin-right: 15px;
+    }
+
+    .game-type {
+        font-size: 1em;
+        color: var(--primary-color);
+        text-shadow: 0 0 8px var(--primary-color);
+        opacity: 0.9;
+    }
+
+    .kda-stats {
+        font-size: 1.4em;
+        letter-spacing: 2px;
+        margin: 10px 0;
+        color: var(--secondary-color);
+        text-shadow: 0 0 10px rgba(3, 218, 198, 0.3);
+    }
+
+    .side-info {
+        min-width: 160px;
+        text-align: right;
+        padding-left: 15px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        border-left: 1px solid rgba(255, 255, 255, 0.08);
+        margin-left: 15px;
+    }
+
+    .game-duration {
+        font-size: 0.9em;
+        color: var(--text-color);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 6px;
+
+        &::before {
+            content: '⏱';
+            font-size: 0.9em;
+            color: var(--secondary-color);
         }
+    }
 
-        header {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            padding: 40px 20px;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
+    .game-date {
+        font-size: 0.85em;
+        color: var(--neutral-color);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+
+        &::before {
+            content: '🗓';
+            font-size: 0.8em;
+            color: var(--primary-color);
         }
+    }
 
-        header::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: repeating-linear-gradient(45deg,
-                    transparent,
-                    transparent 10px,
-                    rgba(255, 255, 255, 0.1) 10px,
-                    rgba(255, 255, 255, 0.1) 20px);
-            animation: shine 20s linear infinite;
-        }
+    .tags {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin: 8px 0;
+        padding: 4px 0;
+    }
 
-        @keyframes shine {
-            0% { transform: translateX(-50%) translateY(-50%) rotate(0deg); }
-            100% { transform: translateX(-50%) translateY(-50%) rotate(360deg); }
-        }
+    .tag {
+        padding: 3px 10px;
+        border-radius: 15px;
+        font-size: 0.8em;
+        background-color: rgba(3, 218, 198, 0.15);
+        color: var(--secondary-color);
+        border: 1px solid rgba(3, 218, 198, 0.3);
+        backdrop-filter: none;
 
-        h1 {
-            font-size: 2.5em;
-            margin: 0;
-            position: relative;
-            color: var(--bg-color);
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-        }
-
-        .stats {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-around;
-            padding: 20px;
-            background-color: rgba(0, 0, 0, 0.1);
-        }
-
-        .stat-item {
-            text-align: center;
-            flex: 1 1 120px;
-            margin: 10px;
-        }
-
-        .stat-value {
-            font-size: 1.5em;
-            font-weight: bold;
+        &[data-tag="MVP"] {
+            background-color: rgba(187, 134, 252, 0.15);
+            border-color: var(--primary-color);
             color: var(--primary-color);
         }
 
-        .stat-label {
-            font-size: 0.9em;
-            color: var(--text-color);
+        &[data-tag="五杀"] {
+            background-color: rgba(207, 102, 121, 0.15);
+            border-color: var(--danger-color);
+            color: var(--danger-color);
         }
+    }
 
-        .results {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 20px;
-            padding: 20px;
+    .rating-container {
+        min-width: 100px;
+        margin-left: 20px;
+        padding: 0 15px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        position: relative;
+        overflow: hidden;
+
+        &::after {
+            content: none;
+            animation: none;
         }
+    }
 
+    .rating-container.win {
+        background: linear-gradient(45deg, var(--success-color), #00b248);
+        box-shadow: 0 4px 15px rgba(0, 200, 83, 0.3);
+    }
+
+    .rating-container.loss {
+        background: linear-gradient(45deg, var(--danger-color), #b00020);
+        box-shadow: 0 4px 15px rgba(207, 102, 121, 0.3);
+    }
+
+    .game-rating {
+        font-size: 2.2em;
+        font-weight: bold;
+        line-height: 1;
+        color: white;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .rating-label {
+        font-size: 0.8em;
+        margin-top: 4px;
+        opacity: 0.9;
+        letter-spacing: 1px;
+    }
+
+    @media (max-width: 480px) {
         .result-item {
-            display: flex;
-            flex-direction: column;
-            padding: 15px;
-            border-radius: 12px;
-            background-color: rgba(255, 255, 255, 0.05);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s ease;
+            padding: 12px;
+            margin: 8px 0;
+            transform: none;
         }
 
-        .result-item.win-bg {
-            background-color: rgba(0, 200, 83, 0.1);
+        .hero-avatar {
+            width: 70px;
+            height: 70px;
         }
 
-        .result-item.loss-bg {
-            background-color: rgba(207, 102, 121, 0.1);
+        .kda-stats {
+            font-size: 1.2em;
         }
 
-        .result-item:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+        .side-info {
+            border-left: none;
+            margin-left: 0;
+            padding-left: 0;
+            width: 100%;
         }
-
-        .result-header {
-            display: flex;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-
-        .avatar {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            margin-right: 15px;
-            object-fit: cover;
-            border: 3px solid var(--secondary-color);
-            transition: transform 0.3s ease;
-        }
-
-        .result-item:hover .avatar {
-            transform: scale(1.1) rotate(5deg);
-        }
-
-        .result-info {
-            flex-grow: 1;
-        }
-
-        .result-date {
-            font-size: 0.8em;
-            color: var(--neutral-color);
-        }
-
-        .result-opponent {
-            font-size: 1.1em;
-            font-weight: bold;
-            margin: 5px 0;
-            color: var(--text-color);
-        }
-
-        .result-score, .result-duration, .result-rating {
-            font-size: 0.9em;
-            color: var(--text-color);
-            margin-top: 5px;
-        }
-
-        .result-outcome {
-            align-self: flex-start;
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-weight: bold;
-            text-transform: uppercase;
-            font-size: 0.8em;
-            margin-top: 10px;
-        }
-
-        .win { background-color: var(--success-color); color: var(--bg-color); }
-        .loss { background-color: var(--danger-color); color: var(--text-color); }
 
         .tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 10px;
+            justify-content: flex-start;
+            max-width: 100%;
         }
 
-        .tag {
-            padding: 3px 10px;
-            border-radius: 12px;
-            font-size: 0.75em;
-            font-weight: bold;
-            background-color: var(--secondary-color);
-            color: var(--bg-color);
-            transition: all 0.3s ease;
+        .game-duration,
+        .game-date {
+            font-size: 0.8em;
+            justify-content: flex-start;
         }
+    }
+</style>
 
-        .tag:hover {
-            transform: scale(1.05);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-        }
-
-        @media (max-width: 768px) {
-            .results {
-                grid-template-columns: 1fr;
-            }
-
-            .stat-item {
-                flex-basis: calc(50% - 20px);
-            }
-        }
-    </style>
-</head>
 <body>
     <div class="container">
         <header>
             <h1>游戏战绩</h1>
         </header>
-        <div class="stats">
-            <div class="stat-item">
-                <div class="stat-value">待补充</div>
-                <div class="stat-label">待补充</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value">{{winningStreak}}</div>
-                <div class="stat-label">连胜</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value">待补充</div>
-                <div class="stat-label">待补充</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value">{{roleJobName}}</div>
-                <div class="stat-label">当前段位</div>
-            </div>
-        </div>
         <div class="results">
             {{each data item}}
             <div class="result-item {{item.gameResult === '胜利' ? 'win-bg' : 'loss-bg'}}">
-                <div class="result-header">
-                    <img src="{{item.heroIcon}}" alt="英雄头像" class="avatar">
-                    <div class="result-info">
-                        <div class="result-date">{{item.gameTime}}</div>
-                        <div class="result-opponent">{{item.gameTpye}}</div>
+                <div class="avatar-container">
+                    <img src="{{item.heroIcon}}" class="hero-avatar" alt="英雄头像">
+                    <div class="special-tags">
+                        {{each item.tags tag}}
+                        {{if ['实力局', '翻盘局', '暴走局', '尽力局'].includes(tag)}}
+                        <div class="special-tag {{item.gameResult === '胜利' ? 'win' : 'loss'}}">
+                            {{tag}}
+                        </div>
+                        {{/if}}
+                        {{/each}}
                     </div>
                 </div>
-                <div class="result-score">击杀: {{item.killCnt}}/{{item.deadCnt}}/{{item.assistCnt}}</div>
-                <div class="result-duration">时长: {{item.gameDuration}}</div>
-                <div class="result-rating">评分: {{item.gradeGame}}</div>
-                <div class="tags">
-                    {{each item.tags tag}}
-                    <span class="tag">{{tag}}</span>
-                    {{/each}}
+
+                <div class="main-info">
+                    <div class="game-header">
+                        <span class="outcome {{item.gameResult === '胜利' ? 'win' : 'loss'}}">
+                            {{item.gameResult}}
+                        </span>
+                        <span class="game-type">{{item.gameTpye}}</span>
+                    </div>
+                    <div class="kda-stats">
+                        {{item.killCnt}} / {{item.deadCnt}} / {{item.assistCnt}}
+                    </div>
                 </div>
-                <span class="result-outcome {{item.gameResult === '胜利' ? 'win' : 'loss'}}">{{item.gameResult}}</span>
+
+                <div class="rating-container {{item.gameResult === '胜利' ? 'win' : 'loss'}}">
+                    <div class="game-rating">{{item.gradeGame}}</div>
+                    <div class="rating-label">对局评分</div>
+                </div>
+
+                <div class="side-info">
+                    <div class="tags">
+                        {{each item.tags tag}}
+                        {{if !['实力局', '翻盘局', '暴走局', '尽力局'].includes(tag)}}
+                        <span class="tag" data-tag="{{tag}}">{{tag}}</span>
+                        {{/if}}
+                        {{/each}}
+                    </div>
+                    <div class="game-duration">{{item.gameDuration}}</div>
+                    <div class="game-date">{{item.gameTime}}</div>
+                </div>
             </div>
             {{/each}}
         </div>
     </div>
 </body>
-</html>

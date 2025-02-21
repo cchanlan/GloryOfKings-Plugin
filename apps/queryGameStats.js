@@ -62,8 +62,8 @@ export class QueryGameStats extends plugin {
     }
 
     const processedData = battleList.list.map(item => ({
-      gameTpye: item.mapName,
-      gameTime: item.gametime,
+      gameType: item.mapName,
+      gameTime: this.formatGameTime(item.gametime),
       gameDuration: `${~~(item.usedTime / 60)}分${item.usedTime % 60}秒`,
       ...this.getBattleStats(item),
       heroIcon: item.heroIcon,
@@ -135,10 +135,10 @@ export class QueryGameStats extends plugin {
 
   getTags = ({ desc, evaluateUrlV2, mvpUrlV2 }) => {
     const tags = []
-    if (['实力局', '翻盘局', '暴走局', '尽力局'].includes(desc)) tags.push(desc)
-    if (evaluateUrlV2) tags.push(this.evaluateMap[evaluateUrlV2])
     if (mvpUrlV2) tags.push('MVP')
-    return tags
+    if (evaluateUrlV2) tags.push(this.evaluateMap[evaluateUrlV2])
+    if (desc && !tags.includes(desc)) tags.push(desc)
+    return tags.filter(t => t)
   }
 
   evaluateMap = {
@@ -185,4 +185,9 @@ export class QueryGameStats extends plugin {
         ? [Math.max(max, current + 1), current + 1]
         : result === '失败' ? [max, 0] : [max, current],
       [0, 0])[0]
+
+  formatGameTime(timestamp) {
+    const date = new Date(timestamp * 1000)
+    return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+  }
 }
