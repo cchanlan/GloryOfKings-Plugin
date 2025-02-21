@@ -63,7 +63,7 @@ export class QueryGameStats extends plugin {
 
     const processedData = battleList.list.map(item => ({
       gameType: item.mapName,
-      gameTime: this.formatGameTime(item.gametime),
+      gameTime: item.gametime,
       gameDuration: `${~~(item.usedTime / 60)}分${item.usedTime % 60}秒`,
       ...this.getBattleStats(item),
       heroIcon: item.heroIcon,
@@ -185,9 +185,4 @@ export class QueryGameStats extends plugin {
         ? [Math.max(max, current + 1), current + 1]
         : result === '失败' ? [max, 0] : [max, current],
       [0, 0])[0]
-
-  formatGameTime(timestamp) {
-    const date = new Date(timestamp * 1000)
-    return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
-  }
 }
