@@ -1,11 +1,8 @@
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { ApiService, readJsonFile, writeJsonFile, readYamlFile } from '#utils'
+import { ApiService, readYamlFile } from '#utils'
 import path from 'path'
-import fs from 'fs'
-import { PluginData, Config } from '#components'
+import { PluginData } from '#components'
 import moment from 'moment'
-
-const { onlineReminderCron, onlineReminder } = Config.getConfig('config')
 
 export class MyKingHomepage extends plugin {
   constructor() {
@@ -18,105 +15,9 @@ export class MyKingHomepage extends plugin {
         {
           reg: '^#王者(主页|卡片|信息)\\s*(.*)$',
           fnc: 'myKingHomepage'
-        },
-        /* {
-          reg: /^#(开启|关闭)上下线提醒$/,
-          fnc: 'toggleOnlineReminder'
-        } */
+        }
       ]
     })
-    /* if (onlineReminder) {
-      this.task = {
-        name: '[定时任务]王者上下线提醒',
-        fnc: () => this.onlineReminder(),
-        cron: onlineReminderCron,
-        log: false
-      }
-    } */
-  }
-
-  async onlineReminder() {
-    const { userFilePath, settingsFilePath } = {
-      userFilePath: path.join(PluginData, 'UserData.yaml'),
-      settingsFilePath: path.join(PluginData, 'user_settings.yaml')
-    }
-
-    const { userData, settingsData } = {
-      userData: readYamlFile(userFilePath),
-      settingsData: readYamlFile(settingsFilePath)
-    }
-
-    for (const user of Object.keys(settingsData)) {
-      const userInfo = userData[user]
-      if (!userInfo || !userInfo.ids || !userInfo.ids.length) continue
-
-      const ID = userInfo.ids[userInfo.current]
-      const settingsUserFilePath = path.join(PluginData, 'user_settings', `${user}.json`)
-
-      const { OpenID, Token } = await ApiService.getPublicTokenAndOpenID()
-
-      const response = await this.fetchUserProfile(ID, OpenID, Token)
-      if (!response) continue
-
-      const { profile, roleCard } = response.data
-
-      if (!fs.existsSync(settingsUserFilePath)) {
-        writeJsonFile(settingsUserFilePath, { gameOnline: roleCard.gameOnline })
-      }
-      const { gameOnline } = readJsonFile(settingsUserFilePath)
-      if (gameOnline === roleCard.gameOnline) continue
-
-      writeJsonFile(settingsUserFilePath, { gameOnline: roleCard.gameOnline })
-
-      const inventoryImage = await puppeteer.screenshot('MyKingHomepageTask', {
-        tplFile: 'plugins/GloryOfKings-Plugin/resources/html/MyKingHomepageTask.html',
-        IP: profile.ipProperty,
-        roleIcon: roleCard.roleBigIcon,
-        roleName: roleCard.roleName,
-        gameLevel: roleCard.level,
-        gameOnline: roleCard.gameOnline,
-        roleJobName: `${roleCard.roleJobName} ${roleCard.rankingStar}星`,
-        areaName: roleCard.areaName,
-        roleText: roleCard.serverName,
-        flagImg: roleCard.flagImg,
-        roleJobIcon: roleCard.roleJobIcon,
-        content_1: roleCard.fightPowerItem.value1,
-        content_2: roleCard.mvpNumItem.value1,
-        content_3: roleCard.totalBattleCountItem.value1,
-        content_4: `${roleCard.heroNumItem.value1}/${roleCard.heroNumItem.value2}`,
-        content_5: roleCard.winRateItem.value1,
-        content_6: `${roleCard.skinNumItem.value1}/${roleCard.skinNumItem.value2}`
-      })
-
-      Bot.pickGroup(settingsData[user]).sendMsg([`${roleCard.roleName} ${roleCard.gameOnline === 1 ? '登录了' : '下线了'}`, inventoryImage])
-    }
-  }
-
-  async toggleOnlineReminder(e) {
-    let userId = (e.at && e.isMaster && !e.atme) ? e.at : e.user_id
-    let groupId = e.group_id
-    if (!e.isGroup) return e.reply('只支持群聊中使用', true)
-
-    const { userFilePath, settingsFilePath } = {
-      userFilePath: path.join(PluginData, 'UserData.yaml'),
-      settingsFilePath: path.join(PluginData, 'user_settings.yaml')
-    }
-
-    const { userData, settingsData } = {
-      userData: readYamlFile(userFilePath),
-      settingsData: readYamlFile(settingsFilePath)
-    }
-
-    if (!userData[userId]) {
-      await e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png'))
-      return
-    }
-
-    const isEnabled = /^#开启/.test(e.msg)
-    settingsData[userId] = isEnabled ? groupId : null
-
-    fs.writeFileSync(settingsFilePath, JSON.stringify(settingsData, null, 2))
-    await e.reply(`用户${userId}的上下线提醒已${isEnabled ? '开启' : '关闭'}。`)
   }
 
   async myKingHomepage(e) {
@@ -231,33 +132,5 @@ export class MyKingHomepage extends plugin {
     const inventoryImage = await puppeteer.screenshot('myKingHomepage', data)
 
     await e.reply(inventoryImage)
-  }
-
-  async fetchUserProfile(ID, OpenID, Token) {
-    try {
-      const response = await ApiService.post('/userprofile/profile', {
-        lastTime: 0,
-        recommendPrivacy: 0,
-        apiVersion: 5,
-        friendUserId: ID,
-        option: 0
-      }, {
-        ssoopenid: OpenID,
-        ssotoken: Token
-      })
-
-      logger.debug('[王者上下线提醒]获取数据成功，API返回:', JSON.stringify(response, null, 2))
-
-      const errorCodes = [1, -30003, '-30314', -10107, -51001]
-      if (errorCodes.includes(response.returnCode)) {
-        logger.debug('[王者上下线提醒]获取数据失败，API返回:', JSON.stringify(response, null, 2))
-        return false
-      }
-
-      return response
-    } catch (error) {
-      console.error('Error fetching user profile:', error)
-      return false
-    }
   }
 }
