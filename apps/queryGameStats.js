@@ -41,8 +41,24 @@ export class QueryGameStats extends plugin {
 
     if (index && index < 9999) {
       const battle = battleList.list[index - 1]
+      if (!battle) {
+        await e.reply(`索引超出范围，当前最多可查询${battleList.list.length}场战绩`)
+        return
+      }
+
       const detail = await this.getBattleDetail(ID, battle)
-      return detail && e.reply(await this.generateDetailImage(detail))
+      if (detail) {
+        try {
+          const img = await this.generateDetailImage(detail)
+          await e.reply(img)
+        } catch (err) {
+          logger.error(`[战绩查询] 生成图片失败: ${err}`)
+          await e.reply('生成战绩详情图片失败，请稍后再试')
+        }
+      } else {
+        await e.reply('获取单场战绩详情失败')
+      }
+      return
     }
 
     const processedData = battleList.list.map(item => ({
@@ -73,14 +89,28 @@ export class QueryGameStats extends plugin {
   }
 
   async getBattleDetail(ID, battle) {
-    const [battleType, gameSvr, relaySvr, gameSeq] =
-      Object.values(battle).slice(0, 4) // 简化参数提取
+    const battleType = battle.battleType
+    const gameSvr = battle.gameSvrId
+    const relaySvr = battle.relaySvrId
+    const gameSeq = battle.gameSeq
     const targetRoleId = battle.battleDetailUrl.match(/toAppRoleId=(\d+)/)?.[1]
 
     const { data: detail } = await ApiService.getBattledetail(ID, battleType, gameSvr, relaySvr, targetRoleId, gameSeq)
-    if (!detail?.head?.acntCamp) return null
+
+
+    if (!detail) {
+      logger.error('[战绩查询] 获取战斗详情失败：接口返回空数据')
+      return null
+    }
+
+    if (!detail?.head?.acntCamp) {
+      logger.error('[战绩查询] 战斗详情数据不完整，缺少acntCamp字段')
+      return null
+    }
 
     writeJsonFile(path.join(PluginData, 'BattleDetails.json'), detail)
+
+    logger.debug(`[战绩查询] 战斗详情数据已保存，数据大小：${JSON.stringify(detail).length}字节`)
     return detail
   }
 
