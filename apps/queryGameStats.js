@@ -143,9 +143,12 @@ export class QueryGameStats extends plugin {
 
   evaluateMap = {
     'https://camp.qq.com/battle/common/evaluateV3/gold_warrior.png': '金牌战士',
+    'https://camp.qq.com/battle/common/evaluateV3/gold_archer.png': '金牌射手',
+    'https://camp.qq.com/battle/common/evaluateV3/silver_archer.png': '银牌射手',
     'https://camp.qq.com/battle/common/evaluateV3/gold_mage.png': '金牌法师',
     'https://camp.qq.com/battle/common/evaluateV3/gold_support.png': '金牌辅助',
     'https://camp.qq.com/battle/common/evaluateV3/silver_warrior.png': '银牌战士',
+    'https://camp.qq.com/battle/common/evaluateV3/silver_archer.png': '银牌射手',
     'https://camp.qq.com/battle/common/evaluateV3/silver_mage.png': '银牌法师',
     'https://camp.qq.com/battle/common/evaluateV3/silver_support.png': '银牌辅助'
   }
