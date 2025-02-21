@@ -265,12 +265,21 @@ class ApiService {
   }
 
   /**
-   * 获取公共Token和OpenID
-   * @returns {Promise<Object>} 包含公共Token和OpenID的响应数据
+   * 获取爆料站-皮肤数据
+   * @returns {Promise<Object>} 包含爆料站-皮肤数据的响应数据
+   * @throws {Error} 请求失败时抛出错误
    */
-  async getPublicTokenAndOpenID() {
-    const response = await (await fetch('https://gitee.com/Tloml-Starry/resources/raw/master/resources/json/WzryToken.json')).json()
-    return response
+  async getHeroXpflby() {
+    try {
+      const response = await fetch('https://pvp.qq.com/zlkdatasys/data_zlk_xpflby.json')
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      return await response.json()
+    } catch (error) {
+      logger.error("[获取爆料站-皮肤数据] 接口请求失败", error);
+      throw new Error(`获取爆料站-皮肤数据失败。错误: ${error}`);
+    }
   }
 }
 
