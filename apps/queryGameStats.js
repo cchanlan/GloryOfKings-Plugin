@@ -89,13 +89,10 @@ export class QueryGameStats extends plugin {
   }
 
   async getBattleDetail(ID, battle) {
-    const battleType = battle.battleType
-    const gameSvr = battle.gameSvrId
-    const relaySvr = battle.relaySvrId
-    const gameSeq = battle.gameSeq
-    const targetRoleId = battle.battleDetailUrl.match(/toAppRoleId=(\d+)/)?.[1]
+    const { battleType, gameSvrId, relaySvrId, gameSeq, battleDetailUrl } = battle
+    const targetRoleId = battleDetailUrl.match(/toAppRoleId=(\d+)/)?.[1]
 
-    const { data: detail } = await ApiService.getBattledetail(ID, battleType, gameSvr, relaySvr, targetRoleId, gameSeq)
+    const { data: detail } = await ApiService.getBattledetail(ID, battleType, gameSvrId, relaySvrId, targetRoleId, gameSeq)
 
 
     if (!detail) {
