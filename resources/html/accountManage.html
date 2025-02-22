@@ -1,0 +1,74 @@
+<style>
+    .container {
+        width: 600px;
+        padding: 20px;
+        background: linear-gradient(135deg, #2c3e50, #3498db);
+        border-radius: 10px;
+        color: white;
+        font-family: 'Microsoft YaHei';
+    }
+
+    .header {
+        font-size: 24px;
+        text-align: center;
+        margin-bottom: 20px;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .operation-box {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+
+    .id-list {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 15px;
+        border-radius: 8px;
+        margin: 10px 0;
+    }
+
+    .function-list {
+        margin-top: 20px;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+    }
+
+    .function-item {
+        margin: 8px 0;
+        padding: 5px;
+        border-left: 3px solid #e74c3c;
+    }
+</style>
+
+<div class="container">
+    <div class="header">王者营地账号管理</div>
+
+    <div class="operation-box">
+        {{if type === '绑定'}}
+        成功绑定账号：{{wzryId}}
+        {{else if type === '切换'}}
+        已切换到账号：{{wzryId}}
+        {{else}}
+        已删除账号：{{wzryId}}
+        {{/if}}
+    </div>
+
+    {{if idList}}
+    <div class="id-list">
+        <div>当前账号列表：</div>
+        <pre>{{idList}}</pre>
+    </div>
+    {{/if}}
+
+    {{if functionList.length}}
+    <div class="function-list">
+        <div>可用操作：</div>
+        {{each functionList item}}
+        <div class="function-item">{{item}}</div>
+        {{/each}}
+    </div>
+    {{/if}}
+</div>

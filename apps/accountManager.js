@@ -1,6 +1,6 @@
 import path from 'path'
 import { writeYamlFile, readYamlFile } from '#utils'
-/* import puppeteer from '../../../lib/puppeteer/puppeteer.js' */
+import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { PluginData } from '#components'
 
 const functionList = [
@@ -78,12 +78,19 @@ export class AccountManager extends plugin {
     this.saveUserData(filePath, userData)
 
     const idList = this.formatIdList(userData[userId])
-    await e.reply([
-      `成功绑定王者ID: ${wzryId}`,
-      '当前绑定的ID列表：',
+    const html = await puppeteer.screenshot('accountManage', {
+      tplFile: 'plugins/GloryOfKings-Plugin/resources/html/accountManage.html',
+      type: '绑定',
+      wzryId,
       idList,
-      ...functionList
-    ].join('\n'))
+      functionList: [
+        '【#绑定营地+ID】添加新账号',
+        '【#切换营地+序号】切换账号',
+        '【#删除营地+序号】删除账号',
+        '【#我的ID】查看账号列表'
+      ]
+    })
+    await e.reply(html)
   }
 
   // 切换ID
@@ -106,11 +113,14 @@ export class AccountManager extends plugin {
     this.saveUserData(filePath, userData)
 
     const idList = this.formatIdList(userData[userId])
-    await e.reply([
-      `已切换到ID: ${userData[userId].ids[index]}`,
-      '当前绑定的ID列表：',
-      idList
-    ].join('\n'))
+    const html = await puppeteer.screenshot('accountManage', {
+      tplFile: 'plugins/GloryOfKings-Plugin/resources/html/accountManage.html',
+      type: '切换',
+      wzryId: userData[userId].ids[index],
+      idList,
+      functionList: functionList
+    })
+    await e.reply(html)
   }
 
   // 删除ID
@@ -140,10 +150,17 @@ export class AccountManager extends plugin {
     this.saveUserData(filePath, userData)
 
     const idList = this.formatIdList(userData[userId])
-    await e.reply([
-      `已删除ID: ${deletedId}`,
-      userData[userId].ids.length ? '当前绑定的ID列表：\n' + idList : '已删除所有绑定的ID'
-    ].join('\n'))
+    const html = await puppeteer.screenshot('accountManage', {
+      tplFile: 'plugins/GloryOfKings-Plugin/resources/html/accountManage.html',
+      type: '删除',
+      wzryId: deletedId,
+      idList,
+      functionList: [
+        '当前剩余账号：',
+        ...(userData[userId].ids.length ? [] : ['请使用【#绑定营地+ID】添加账号'])
+      ]
+    })
+    await e.reply(html)
   }
 
   // 展示ID列表
