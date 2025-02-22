@@ -1,19 +1,40 @@
 <style>
+    body {
+        background: var(--background);
+        min-height: 100vh;
+        margin: 0;
+        padding: 1rem;
+    }
+
     :root {
         --primary-color: #4a90e2;
         --secondary-color: #7ed321;
         --background: linear-gradient(145deg, #f8f9fa 0%, #e9ecef 100%);
         --card-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+        --text-color: #2d3436;
+        --section-bg: #f8f9fa;
+        --card-bg: white;
+    }
+
+    [data-theme="dark"] {
+        --primary-color: #6aa8ff;
+        --secondary-color: #9dff5b;
+        --background: linear-gradient(145deg, #2d2f33 0%, #1a1c20 100%);
+        --card-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+        --text-color: #f8f9fa;
+        --section-bg: #2d2d2d;
+        --card-bg: #1e1e1e;
     }
 
     .container {
         width: 680px;
         padding: 2rem;
-        background: white;
+        background: var(--card-bg);
         border-radius: 1.5rem;
         box-shadow: var(--card-shadow);
         font-family: 'Segoe UI', system-ui;
-        color: #2d3436;
+        color: var(--text-color);
+        margin: 2rem auto;
     }
 
     .header {
@@ -49,14 +70,14 @@
     .content-section {
         margin: 1.5rem 0;
         padding: 1.5rem;
-        background: #f8f9fa;
+        background: var(--section-bg);
         border-radius: 1rem;
     }
 
     .id-list {
         font-family: 'Fira Code', monospace;
         padding: 1rem;
-        background: white;
+        background: var(--card-bg);
         border-radius: 0.8rem;
         box-shadow: inset 0 0 0 1px #eee;
     }
@@ -72,7 +93,7 @@
         align-items: center;
         padding: 0.8rem;
         margin: 0.5rem 0;
-        background: #f8f9fa;
+        background: var(--section-bg);
         border-radius: 0.6rem;
         transition: transform 0.2s;
     }
@@ -91,32 +112,44 @@
     }
 </style>
 
-<div class="container">
-    <div class="header">
-        <div class="badge {{type === '绑定' ? 'bind-badge' : type === '切换' ? 'switch-badge' : 'delete-badge'}}">
-            {{type}}操作
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="badge {{type === '绑定' ? 'bind-badge' : type === '切换' ? 'switch-badge' : 'delete-badge'}}">
+                {{type}}操作
+            </div>
+            <h2>{{wzryId}}</h2>
         </div>
-        <h2>{{wzryId}}</h2>
-    </div>
 
-    {{if idList}}
-    <div class="content-section">
-        <h3>当前账号列表</h3>
-        <pre class="id-list">{{idList}}</pre>
-    </div>
-    {{/if}}
-
-    {{if functionList.length}}
-    <div class="instruction-list">
-        {{each functionList item}}
-        <div class="instruction-item">
-            <span>▶</span>&nbsp;&nbsp;{{item}}
+        {{if idList}}
+        <div class="content-section">
+            <h3>当前账号列表</h3>
+            <pre class="id-list">{{idList}}</pre>
         </div>
-        {{/each}}
-    </div>
-    {{/if}}
+        {{/if}}
 
-    <div class="timestamp">
-        操作时间：{{timestamp}}
+        {{if functionList.length}}
+        <div class="instruction-list">
+            <div class="instruction-item">
+                <span>▶</span>&nbsp;&nbsp;【#王者帮助】查看全部功能
+            </div>
+            {{each functionList item}}
+            <div class="instruction-item">
+                <span>▶</span>&nbsp;&nbsp;{{item}}
+            </div>
+            {{/each}}
+        </div>
+        {{/if}}
+
+        <div class="timestamp">
+            操作时间：{{timestamp}}
+        </div>
     </div>
-</div>
+
+    <script>
+        // 随机选择主题
+        const themes = ['light', 'dark'];
+        const randomTheme = themes[Math.floor(Math.random() * themes.length)];
+        document.documentElement.dataset.theme = randomTheme;
+    </script>
+</body>
