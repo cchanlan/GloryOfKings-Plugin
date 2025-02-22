@@ -59,6 +59,18 @@ export class AccountManager extends plugin {
     writeYamlFile(filePath, userData)
   }
 
+  // 新增公共方法处理HTML生成
+  async generateAccountManageHTML(type, wzryId, idList, functionList) {
+    return await puppeteer.screenshot('accountManage', {
+      tplFile: 'plugins/GloryOfKings-Plugin/resources/html/accountManage.html',
+      type,
+      wzryId,
+      idList,
+      functionList,
+      timestamp: new Date().toLocaleString()
+    })
+  }
+
   // 绑定ID
   async bindWzryId(e) {
     let userId = (e.at && e.isMaster && !e.atme) ? e.at : e.user_id
@@ -78,18 +90,12 @@ export class AccountManager extends plugin {
     this.saveUserData(filePath, userData)
 
     const idList = this.formatIdList(userData[userId])
-    const html = await puppeteer.screenshot('accountManage', {
-      tplFile: 'plugins/GloryOfKings-Plugin/resources/html/accountManage.html',
-      type: '绑定',
-      wzryId,
-      idList,
-      functionList: [
-        '【#绑定营地+ID】添加新账号',
-        '【#切换营地+序号】切换账号',
-        '【#删除营地+序号】删除账号',
-        '【#我的ID】查看账号列表'
-      ]
-    })
+    const html = await this.generateAccountManageHTML('绑定', wzryId, idList, [
+      '【#绑定营地+ID】添加新账号',
+      '【#切换营地+序号】切换账号',
+      '【#删除营地+序号】删除账号',
+      '【#我的ID】查看账号列表'
+    ])
     await e.reply(html)
   }
 
@@ -113,13 +119,7 @@ export class AccountManager extends plugin {
     this.saveUserData(filePath, userData)
 
     const idList = this.formatIdList(userData[userId])
-    const html = await puppeteer.screenshot('accountManage', {
-      tplFile: 'plugins/GloryOfKings-Plugin/resources/html/accountManage.html',
-      type: '切换',
-      wzryId: userData[userId].ids[index],
-      idList,
-      functionList: functionList
-    })
+    const html = await this.generateAccountManageHTML('切换', userData[userId].ids[index], idList, functionList)
     await e.reply(html)
   }
 
@@ -150,16 +150,11 @@ export class AccountManager extends plugin {
     this.saveUserData(filePath, userData)
 
     const idList = this.formatIdList(userData[userId])
-    const html = await puppeteer.screenshot('accountManage', {
-      tplFile: 'plugins/GloryOfKings-Plugin/resources/html/accountManage.html',
-      type: '删除',
-      wzryId: deletedId,
-      idList,
-      functionList: [
-        '当前剩余账号：',
-        ...(userData[userId].ids.length ? [] : ['请使用【#绑定营地+ID】添加账号'])
-      ]
-    })
+    const functionList = userData[userId].ids.length ?
+      ['当前剩余账号：'] :
+      ['请使用【#绑定营地+ID】添加账号']
+
+    const html = await this.generateAccountManageHTML('删除', deletedId, idList, functionList)
     await e.reply(html)
   }
 
