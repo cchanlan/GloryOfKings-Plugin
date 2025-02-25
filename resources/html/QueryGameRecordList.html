@@ -362,7 +362,7 @@
                     <img src="{{item.heroIcon}}" class="hero-avatar" alt="英雄头像">
                     <div class="special-tags">
                         {{each item.tags tag}}
-                        {{if ['实力局', '翻盘局', '暴走局', '尽力局', '带飞局', '翻车局'].includes(tag)}}
+                        {{if ['实力局', '翻盘局', '暴走局', '尽力局', '带飞局', '翻车局', '伯仲局'].includes(tag)}}
                         <div class="special-tag {{item.gameResult === '胜利' ? 'win' : 'loss'}}">
                             {{tag}}
                         </div>
@@ -391,7 +391,7 @@
                 <div class="side-info">
                     <div class="tags">
                         {{each item.tags tag}}
-                        {{if !['实力局', '翻盘局', '暴走局', '尽力局', '带飞局', '翻车局'].includes(tag)}}
+                        {{if !['实力局', '翻盘局', '暴走局', '尽力局', '带飞局', '翻车局', '伯仲局'].includes(tag)}}
                         <span class="tag" data-tag="{{tag}}">{{tag}}</span>
                         {{/if}}
                         {{/each}}
