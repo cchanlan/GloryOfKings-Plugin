@@ -1,51 +1,80 @@
 # GloryOfKings-Plugin
 
-![动态访问量](https://count.kjchmc.cn/get/@GloryOfKings-Plugin?theme=rule34)  
-为[Yunzai-Bot V3](https://gitee.com/Le-niao/Yunzai-Bot)提供 `王者荣耀`相关功能等  
-如出现插件报错或功能不适配等情况请及时联系[作者](https://gitee.com/Tloml-Starry)或发起[issues](https://gitee.com/Tloml-Starry/GloryOfKings-Plugin/issues)  
-参与贡献请Fock本仓库修改代码后发起[Pull Request](https://gitee.com/Tloml-Starry/GloryOfKings-Plugin/pulls)或直接修改代码提交  
-如果你对本仓库表示支持，请点点你手中的Star  
+<div align="center">
 
-## 联系我
+![动态访问量](https://count.kjchmc.cn/get/@GloryOfKings-Plugin?theme=rule34)
 
-点开我的主页私信我
- & [点击跳转我的QQ](https://qm.qq.com/q/h9UHpRmomc)
- & [点击跳转我的QQ群](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=5YqRg5S_pk_oVolSp7wydrx2ZFblhE-U&authKey=rl1zGbz8KHpvTlgkd%2BDm5Z9y%2FdMaWFnIL9p0FNVS6dyNmkNQ%2F2ngy3oU5Gynx8Ob&noverify=0&group_code=392665563)
+一个为 [Yunzai-Bot V3](https://gitee.com/Le-niao/Yunzai-Bot) 提供王者荣耀相关功能的插件
 
----
+</div>
 
-#### 介绍
+## 🌟 主要功能
 
-提供王者荣耀相关功能，查询战绩，战绩详情，王者概览信息等
+- 🎮 **账号管理**
+  - 绑定/切换/删除营地ID
+  - 多账号管理支持
+  - 账号信息展示
 
-#### 安装
+- 📊 **数据查询**
+  - 战绩查询(最近30场)
+  - 战绩详情(评分/经济/装备等)
+  - 英雄战力查询
+  - 英雄皮肤查询
+  - 游戏概览(段位/场次/MVP等)
 
-```
+## 📦 安装方法
+
+1. 在 Yunzai-Bot 根目录下执行:
+```bash
 git clone https://gitee.com/Tloml-Starry/GloryOfKings-Plugin.git ./plugins/GloryOfKings-Plugin/
 ```
 
-#### 安装依赖
-
-```
+2. 安装依赖:
+```bash
 pnpm install
 ```
 
-如何更新？
+3. 重启 Bot 即可使用
 
-- 指令 `王者更新`
+## 🎯 使用指南
 
-## 功能
+### 账号管理
+- `#绑定营地 [ID]` - 绑定营地ID,可绑定多个
+- `#切换营地 [序号]` - 切换使用的营地ID
+- `#删除营地 [序号]` - 删除绑定的营地ID
+- `#我的ID` - 查看已绑定的营地ID列表
 
-- 菜单：王者帮助
-- 已实现
-  - 扫码登录绑定Token; OpenId; UserId
-    - 缺点：王者营地不能相册扫码，且Token有效期仅一天
-  - 查询IP归属地; 段位; 详情区服; 战斗力; MVP次数; 总场次; 英雄数量; 胜率; 皮肤数量
-  - 查询战绩列表
-    - 最多30条
-  - 查询战绩详情
-    - 支持查看双方战绩评分; 资源; 经济情况等 更多信息待添加
-- 待实现
-  - 皮肤墙
-  - 英雄练度信息
-  - 英雄，装备Wiki
+### 数据查询
+- `#王者主页` - 查看游戏信息概览
+- `#查询战绩` - 查看最近30场战绩
+- `#查询战绩 [序号]` - 查看指定场次详细数据
+- `#查战力 [英雄名]` - 查询指定英雄的战力排名
+- `#查皮肤 [英雄名]` - 查询指定英雄的皮肤
+
+### 系统设置
+- `#王者帮助` - 显示功能帮助
+- `#王者更新` - 更新插件
+
+## 🤝 参与贡献
+
+1. Fork 本仓库
+2. 新建 feature_xxx 分支
+3. 提交代码
+4. 新建 Pull Request
+
+## 📞 联系方式
+
+- 作者: [@Tloml-Starry](https://gitee.com/Tloml-Starry)
+- QQ: [点击添加](https://qm.qq.com/q/h9UHpRmomc)
+- QQ群: [点击加入](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=5YqRg5S_pk_oVolSp7wydrx2ZFblhE-U&authKey=rl1zGbz8KHpvTlgkd%2BDm5Z9y%2FdMaWFnIL9p0FNVS6dyNmkNQ%2F2ngy3oU5Gynx8Ob&noverify=0&group_code=392665563)
+
+## 📝 问题反馈
+
+如遇到问题请及时反馈:
+
+- [提交 Issue](https://gitee.com/Tloml-Starry/GloryOfKings-Plugin/issues)
+- [Pull Request](https://gitee.com/Tloml-Starry/GloryOfKings-Plugin/pulls)
+
+## ⭐ 支持项目
+
+如果你觉得这个项目对你有帮助,欢迎给一个 Star 支持一下~
