@@ -84,11 +84,8 @@
         border-radius: 15px;
         padding: 25px;
         box-shadow: 0 8px 16px var(--shadow-color);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .platform-card:hover {
-        border-color: var(--secondary-color);
+        border: 1px solid var(--secondary-color);
+        opacity: 0.8;
     }
 
     .platform-title {
@@ -151,7 +148,7 @@
         justify-content: center;
     }
 
-    .update-time {
+    .plugin-name {
         text-align: center;
         margin-top: 40px;
         font-size: 0.9em;
@@ -174,11 +171,8 @@
         background-color: var(--surface-color);
         border-radius: 10px;
         min-width: 150px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .stat-item:hover {
-        border-color: var(--primary-color);
+        border: 1px solid var(--primary-color);
+        opacity: 0.8;
     }
 
     .stat-value {
@@ -266,6 +260,6 @@
             </div>
             {{/each}}
         </div>
-        <div class="update-time">GloryOfKings-Plugin</div>
+        <div class="plugin-name">GloryOfKings-Plugin</div>
     </div>
 </body>
