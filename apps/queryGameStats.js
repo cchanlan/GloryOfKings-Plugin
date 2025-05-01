@@ -27,7 +27,7 @@ export class QueryGameStats extends plugin {
 
     let ID = index > 9999 ? index : this.getUserID(userData[userId], userId)
     if (!ID) {
-      await e.reply(segment.image('https://gitee.com/Tloml-Starry/resources/raw/master/resources/img/example/王者营地ID获取.png'))
+      await e.reply(segment.image('https://raw.gitcode.com/Kevin1217/resources/files/master/resources/img/example/王者营地ID获取.png'))
       return
     }
 
