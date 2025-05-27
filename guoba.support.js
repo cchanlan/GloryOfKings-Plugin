@@ -5,7 +5,7 @@ export function supportGuoba () {
   return {
     pluginInfo: {
       name: '王者插件',
-      title: PluginName,
+      title: '王者插件',
       author: '@Tloml-Starry',
       authorLink: 'https://gitee.com/Tloml-Starry',
       link: 'https://gitee.com/Tloml-Starry/GloryOfKings-Plugin',
