@@ -1,15 +1,14 @@
 <style>
     :root {
-        --bg-color: #121212;
-        --card-bg-color: #1e1e1e;
-        --text-color: #e0e0e0;
-        --primary-color: #bb86fc;
-        --secondary-color: #03dac6;
-        --success-color: #00c853;
-        --danger-color: #cf6679;
-        --neutral-color: #757575;
-        --glass-effect: linear-gradient(120deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
-        --hover-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        --bg-color: #f5f7fc;
+        --card-bg-color: #ffffff;
+        --text-color: #2c3e50;
+        --primary-color: #3498db;
+        --secondary-color: #00b8d4;
+        --success-color: #2ecc71;
+        --danger-color: #e74c3c;
+        --neutral-color: #7f8c8d;
+        --glass-effect: linear-gradient(120deg, rgba(52, 152, 219, 0.08) 0%, rgba(0, 184, 212, 0.05) 100%);
     }
 
     body {
@@ -18,39 +17,81 @@
         background-color: var(--bg-color);
         color: var(--text-color);
         margin: 0;
-        padding: 20px;
+        padding: 0;
+        background-image: radial-gradient(circle at 15% 50%, rgba(52, 152, 219, 0.05) 0%, transparent 45%),
+                          radial-gradient(circle at 85% 30%, rgba(0, 184, 212, 0.05) 0%, transparent 45%);
+        background-attachment: fixed;
+        text-align: center;
     }
 
     .container {
-        max-width: 800px;
+        min-width: 790px;
         margin: 0 auto;
-        background-color: var(--card-bg-color);
-        border-radius: 12px;
+        border-radius: 16px;
         overflow: hidden;
-        border: none;
+        border: 1px solid rgba(52, 152, 219, 0.15);
         padding: 0;
-        background: var(--card-bg-color);
+        background: transparent;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        display: inline-block;
+        position: relative;
     }
 
     header {
-        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-        padding: 30px 20px;
+        background: linear-gradient(135deg, #3498db, #00b8d4);
+        background-image: url('https://game.gtimg.cn/images/yxzj/web202311/bg-ba51e5f9.jpg');
+        background-size: cover;
+        background-position: center;
+        padding: 40px 18px 60px;
         text-align: center;
         position: relative;
+        overflow: visible;
+        min-height: 160px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
 
         &::after {
-            content: none;
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            opacity: 0.5;
         }
+    }
+
+    .logo {
+        width: 600px;
+        height: auto;
+        margin-bottom: 15px;
+        position: relative;
+        z-index: 3;
     }
 
     h1 {
         font-size: 2em;
         margin: 0;
-        color: var(--bg-color);
+        color: #ffffff;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        font-weight: 600;
+        letter-spacing: 1px;
+        position: relative;
+        z-index: 1;
     }
 
     .results {
         padding: 20px;
+        width: auto;
+        position: relative;
+        margin-top: -40px;
+        background-color: var(--card-bg-color);
+        border-top-left-radius: 30px;
+        border-top-right-radius: 30px;
+        z-index: 2;
     }
 
     .result-item {
@@ -58,107 +99,100 @@
         align-items: center;
         padding: 15px;
         margin-bottom: 15px;
-        border-radius: 8px;
-        background-color: rgba(255, 255, 255, 0.05);
-        transition: none;
+        border-radius: 14px;
+        background-color: rgba(255, 255, 255, 0.8);
+        border: 1px solid rgba(52, 152, 219, 0.15);
+        position: relative;
+        overflow: hidden;
+        width: auto;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
 
-        &:hover {
-            transform: none;
-            box-shadow: none;
+        &::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(52, 152, 219, 0.15), transparent);
         }
     }
 
     .result-item.win-bg {
-        background-color: rgba(0, 200, 83, 0.1);
+        background-color: rgba(46, 204, 113, 0.05);
     }
 
     .result-item.loss-bg {
-        background-color: rgba(207, 102, 121, 0.1);
+        background-color: rgba(231, 76, 60, 0.05);
     }
 
     .avatar-container {
         position: relative;
-        margin-right: 60px;
-
-        &::before {
-            content: none;
-        }
-
-        &:hover::before {
-            opacity: 0;
-        }
+        margin-right: 45px;
+        width: auto;
     }
 
     .hero-avatar {
-        width: 90px;
-        height: 90px;
+        width: 60px;
+        height: 60px;
         object-fit: cover;
-        border: none;
+        border-radius: 50%;
+        border: 2px solid rgba(52, 152, 219, 0.2);
         filter: saturate(1.2);
-        transition: none;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
     }
 
     .special-tags {
         position: absolute;
-        right: -40px;
+        right: -38px;
         top: 0;
-        height: 90px;
+        height: 60px;
         display: flex;
         flex-direction: column;
         justify-content: center;
-        gap: 6px;
-        padding: 0 8px;
+        gap: 3px;
+        padding: 0 5px;
+        width: auto;
     }
 
     .special-tag {
-        border-right: 3px solid;
+        border-right: 2px solid;
         border-left: none;
-        padding: 12px 6px 12px 8px;
+        padding: 6px 3px 6px 5px;
         background: linear-gradient(to left,
-                rgba(0, 0, 0, 0.8) 85%,
+                rgba(255, 255, 255, 0.9) 85%,
                 transparent);
         writing-mode: vertical-rl;
-        font-size: 18px;
+        font-size: 13px;
         line-height: 1.2;
-        letter-spacing: 2px;
-        word-spacing: 4px;
-        height: 90px;
+        letter-spacing: 1px;
+        word-spacing: 1px;
+        height: 60px;
         display: flex;
         align-items: center;
         justify-content: flex-end;
         text-orientation: upright;
         white-space: nowrap;
-        transform: none;
         backdrop-filter: blur(4px);
         border-right-width: 2px;
-        transition: none;
+        color: var(--text-color);
+        width: auto;
     }
 
     .special-tag.win {
         border-right-color: var(--success-color);
         background: linear-gradient(to left,
-                rgba(0, 200, 83, 0.15) 85%,
+                rgba(46, 204, 113, 0.15) 85%,
                 transparent);
+        color: var(--success-color);
     }
 
     .special-tag.loss {
         border-right-color: var(--danger-color);
         background: linear-gradient(to left,
-                rgba(207, 102, 121, 0.15) 85%,
+                rgba(231, 76, 60, 0.15) 85%,
                 transparent);
-    }
-
-    .avatar-container:hover {
-        transform: none;
-        box-shadow: none;
-    }
-
-    .avatar-container:hover .hero-avatar {
-        filter: saturate(1.5) brightness(1.1);
-    }
-
-    .avatar-container:hover .special-tag {
-        transform: none;
+        color: var(--danger-color);
     }
 
     .main-info {
@@ -166,24 +200,29 @@
         padding-right: 20px;
         position: relative;
         margin-right: 20px;
-        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        border-right: 1px solid rgba(52, 152, 219, 0.1);
+        min-width: 0;
+        width: auto;
     }
 
     .game-header {
-        margin-bottom: 6px;
+        margin-bottom: 10px;
         display: flex;
         flex-wrap: nowrap;
         overflow: hidden;
+        width: auto;
+        justify-content: center;
     }
 
     .outcome {
-        font-size: 1.3em;
-        padding: 8px 20px;
+        font-size: 0.95em;
+        padding: 5px 15px;
         border-radius: 20px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
         display: inline-flex;
         align-items: center;
-        gap: 12px;
+        justify-content: center;
+        gap: 10px;
         margin-right: 15px;
         overflow-x: auto;
         overflow-y: hidden;
@@ -191,59 +230,96 @@
         -ms-overflow-style: none;
         flex-shrink: 0;
         max-width: 100%;
+        font-weight: 600;
+        position: relative;
+        background: var(--glass-effect);
+        border: 1px solid rgba(52, 152, 219, 0.1);
+        color: var(--text-color);
+        width: auto;
+    }
+    
+    .outcome.win {
+        background: linear-gradient(120deg, rgba(46, 204, 113, 0.2), rgba(46, 204, 113, 0.1));
+        border-color: rgba(46, 204, 113, 0.3);
+        color: var(--success-color);
+    }
+    
+    .outcome.loss {
+        background: linear-gradient(120deg, rgba(231, 76, 60, 0.2), rgba(231, 76, 60, 0.1));
+        border-color: rgba(231, 76, 60, 0.3);
+        color: var(--danger-color);
     }
 
     .game-mode {
-        font-size: 0.9em;
-        color: var(--primary-color);
-        text-shadow: 0 0 8px var(--primary-color);
+        font-size: 0.85em;
+        color: var(--secondary-color);
+        text-shadow: 0 0 8px rgba(0, 184, 212, 0.3);
         opacity: 0.9;
-        padding-left: 12px;
-        border-left: 1px solid rgba(255, 255, 255, 0.2);
+        padding-left: 10px;
+        border-left: 1px solid rgba(255, 255, 255, 0.4);
         height: 1.2em;
         display: flex;
         align-items: center;
         white-space: nowrap;
         overflow: visible;
-        max-width: 200px;
+        max-width: 80px;
+        font-weight: normal;
+        width: auto;
     }
 
     .game-type {
-        font-size: 1em;
+        font-size: 0.9em;
         color: var(--primary-color);
-        text-shadow: 0 0 8px var(--primary-color);
+        text-shadow: 0 0 8px rgba(52, 152, 219, 0.3);
         opacity: 0.9;
     }
 
     .kda-stats {
-        font-size: 1.4em;
-        letter-spacing: 2px;
+        font-size: 1.3em;
+        letter-spacing: 1px;
         margin: 10px 0;
-        color: var(--secondary-color);
-        text-shadow: 0 0 10px rgba(3, 218, 198, 0.3);
+        color: var(--primary-color);
+        text-shadow: 0 0 10px rgba(52, 152, 219, 0.2);
+        font-weight: 600;
+        position: relative;
+        width: auto;
+    }
+    
+    .kda-stats::after {
+        content: "KDA";
+        position: absolute;
+        right: 0;
+        bottom: -10px;
+        font-size: 0.5em;
+        color: var(--neutral-color);
+        letter-spacing: 1px;
+        opacity: 0.7;
     }
 
     .side-info {
-        min-width: 160px;
+        min-width: 110px;
         text-align: right;
         padding-left: 15px;
         display: flex;
         flex-direction: column;
-        gap: 10px;
-        border-left: 1px solid rgba(255, 255, 255, 0.08);
+        gap: 6px;
+        border-left: 1px solid rgba(52, 152, 219, 0.1);
         margin-left: 15px;
+        width: auto;
     }
 
     .game-duration {
-        font-size: 0.9em;
+        font-size: 0.8em;
         color: var(--text-color);
         margin: 0;
         display: flex;
         align-items: center;
-        gap: 6px;
+        justify-content: flex-end;
+        gap: 5px;
         padding: 4px 8px;
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 6px;
+        background: rgba(52, 152, 219, 0.05);
+        border-radius: 8px;
+        width: auto;
 
         &::before {
             content: '⏱';
@@ -253,11 +329,15 @@
     }
 
     .game-date {
-        font-size: 0.85em;
+        font-size: 0.75em;
         color: var(--neutral-color);
         display: flex;
         align-items: center;
-        gap: 6px;
+        justify-content: flex-end;
+        gap: 5px;
+        padding: 4px 8px;
+        border-radius: 8px;
+        width: auto;
 
         &::before {
             content: '🗓';
@@ -268,117 +348,245 @@
 
     .tags {
         display: flex;
-        gap: 6px;
+        gap: 5px;
         flex-wrap: wrap;
-        margin: 8px 0;
-        padding: 4px 0;
+        margin: 6px 0;
+        padding: 3px 0;
+        justify-content: flex-end;
+        width: auto;
     }
 
     .tag {
-        padding: 3px 10px;
-        border-radius: 15px;
-        font-size: 0.8em;
-        background-color: rgba(3, 218, 198, 0.15);
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 0.75em;
+        background-color: rgba(0, 184, 212, 0.08);
         color: var(--secondary-color);
-        border: 1px solid rgba(3, 218, 198, 0.3);
-        backdrop-filter: none;
+        border: 1px solid rgba(0, 184, 212, 0.2);
+        backdrop-filter: blur(4px);
+        width: auto;
+    }
 
-        &[data-tag="MVP"] {
-            background-color: rgba(187, 134, 252, 0.15);
-            border-color: var(--primary-color);
-            color: var(--primary-color);
-        }
+    .tag[data-tag="MVP"] {
+        background-color: rgba(52, 152, 219, 0.08);
+        border-color: rgba(52, 152, 219, 0.2);
+        color: var(--primary-color);
+    }
 
-        &[data-tag="五杀"] {
-            background-color: rgba(207, 102, 121, 0.15);
-            border-color: var(--danger-color);
-            color: var(--danger-color);
-        }
+    .tag[data-tag="五杀"] {
+        background-color: rgba(231, 76, 60, 0.08);
+        border-color: rgba(231, 76, 60, 0.2);
+        color: var(--danger-color);
     }
 
     .rating-container {
-        min-width: 100px;
-        margin-left: 20px;
-        padding: 0 15px;
+        min-width: 70px;
+        margin-left: 15px;
+        padding: 8px 12px;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        border-radius: 8px;
-        background: rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        background: rgba(52, 152, 219, 0.05);
         position: relative;
         overflow: hidden;
-
-        &::after {
-            content: none;
-            animation: none;
-        }
+        width: auto;
+        text-align: center;
     }
 
     .rating-container.win {
-        background: linear-gradient(45deg, var(--success-color), #00b248);
-        box-shadow: 0 4px 15px rgba(0, 200, 83, 0.3);
+        background: linear-gradient(45deg, rgba(46, 204, 113, 0.15), rgba(46, 204, 113, 0.05));
+        box-shadow: 0 4px 15px rgba(46, 204, 113, 0.1);
+        border: 1px solid rgba(46, 204, 113, 0.2);
     }
 
     .rating-container.loss {
-        background: linear-gradient(45deg, var(--danger-color), #b00020);
-        box-shadow: 0 4px 15px rgba(207, 102, 121, 0.3);
+        background: linear-gradient(45deg, rgba(231, 76, 60, 0.15), rgba(231, 76, 60, 0.05));
+        box-shadow: 0 4px 15px rgba(231, 76, 60, 0.1);
+        border: 1px solid rgba(231, 76, 60, 0.2);
     }
 
     .game-rating {
-        font-size: 2.2em;
+        font-size: 1.8em;
         font-weight: bold;
         line-height: 1;
-        color: white;
-        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        color: var(--text-color);
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        text-align: center;
     }
 
     .rating-label {
-        font-size: 0.8em;
-        margin-top: 4px;
+        font-size: 0.7em;
+        margin-top: 5px;
         opacity: 0.9;
         letter-spacing: 1px;
+        color: var(--neutral-color);
+        text-align: center;
     }
 
-    @media (max-width: 480px) {
+    .result-item {
+        opacity: 1;
+    }
+
+    @media (max-width: 599px) {
+        .container {
+            min-width: auto;
+            width: auto;
+        }
+        
+        .results {
+            padding: 15px;
+        }
+        
         .result-item {
             padding: 12px;
-            margin: 8px 0;
-            transform: none;
+            margin-bottom: 12px;
         }
-
+        
+        .avatar-container {
+            margin-right: 38px;
+        }
+        
         .hero-avatar {
-            width: 70px;
-            height: 70px;
+            width: 55px;
+            height: 55px;
         }
 
+        .special-tags {
+            right: -32px;
+            height: 55px;
+        }
+        
+        .special-tag {
+            padding: 5px 3px 5px 4px;
+            font-size: 12px;
+            height: 55px;
+        }
+
+        .main-info {
+            padding-right: 15px;
+            margin-right: 15px;
+        }
+        
+        .outcome {
+            font-size: 0.9em;
+            padding: 4px 12px;
+        }
+        
+        .game-mode {
+            font-size: 0.8em;
+            max-width: 70px;
+        }
+        
         .kda-stats {
             font-size: 1.2em;
         }
-
+        
         .side-info {
-            border-left: none;
-            margin-left: 0;
-            padding-left: 0;
-            width: 100%;
+            min-width: 100px;
+            padding-left: 12px;
+            margin-left: 12px;
+        }
+        
+        .rating-container {
+            min-width: 65px;
+            margin-left: 12px;
+            padding: 7px 10px;
+        }
+        
+        .game-rating {
+            font-size: 1.6em;
+        }
+    }
+    
+    @media (max-width: 450px) {
+        .container {
+            min-width: auto;
+            width: calc(100% - 20px);
+            margin: 0 10px;
+        }
+        
+        .avatar-container {
+            margin-right: 35px;
         }
 
-        .tags {
-            justify-content: flex-start;
-            max-width: 100%;
+        .hero-avatar {
+            width: 50px;
+            height: 50px;
         }
 
-        .game-duration,
-        .game-date {
-            font-size: 0.8em;
-            justify-content: flex-start;
+        .special-tags {
+            right: -30px;
+            height: 50px;
         }
+        
+        .special-tag {
+            padding: 4px 2px 4px 3px;
+            font-size: 11px;
+            height: 50px;
+        }
+
+        .main-info {
+            padding-right: 10px;
+            margin-right: 10px;
+        }
+        
+        .outcome {
+            font-size: 0.85em;
+            padding: 3px 10px;
+        }
+        
+        .game-mode {
+            font-size: 0.75em;
+            max-width: 60px;
+        }
+        
+        .kda-stats {
+            font-size: 1.1em;
+        }
+        
+        .side-info {
+            min-width: 90px;
+            padding-left: 10px;
+            margin-left: 10px;
+            gap: 5px;
+        }
+        
+        .rating-container {
+            min-width: 60px;
+            margin-left: 10px;
+            padding: 6px 8px;
+        }
+        
+        .game-rating {
+            font-size: 1.5em;
+        }
+    }
+
+    /* 添加渐变过渡元素 */
+    header::before {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 80px;
+        background: linear-gradient(to bottom, 
+            rgba(255, 255, 255, 0) 0%,
+            rgba(255, 255, 255, 0.3) 40%, 
+            rgba(255, 255, 255, 0.8) 80%,
+            var(--card-bg-color) 100%);
+        z-index: 2;
+        border-top-left-radius: 30px;
+        border-top-right-radius: 30px;
     }
 </style>
 
 <body>
     <div class="container">
         <header>
+            <img src="https://raw.gitcode.com/Kevin1217/resources/blobs/57feeb4f3940fd449c4dd85f1f63b91f4c17f62a/logo_new_gold.png" alt="Logo" class="logo">
             <h1>游戏战绩</h1>
         </header>
         <div class="results">
