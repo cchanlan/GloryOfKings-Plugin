@@ -137,11 +137,10 @@ export class QueryGameStats extends plugin {
     const tags = []
     if (mvpUrlV2) tags.push('MVP')
     
-    // 优先使用顶级标签 (evaluateUrlV3)，如果存在则替代金牌/银牌标签
-    if (evaluateUrlV3) {
-      const topTag = this.evaluateMap[evaluateUrlV3]
-      if (topTag) tags.push(topTag)
-    } else if (evaluateUrlV2) {
+    // 优先使用顶级标签 (evaluateUrlV3)，但仅当evaluateMap中有对应值时
+    if (evaluateUrlV3 && this.evaluateMap[evaluateUrlV3]) {
+      tags.push(this.evaluateMap[evaluateUrlV3])
+    } else if (evaluateUrlV2 && this.evaluateMap[evaluateUrlV2]) {
       tags.push(this.evaluateMap[evaluateUrlV2])
     }
     
