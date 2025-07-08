@@ -19,7 +19,7 @@
         margin: 0;
         padding: 0;
         background-image: radial-gradient(circle at 15% 50%, rgba(52, 152, 219, 0.05) 0%, transparent 45%),
-                          radial-gradient(circle at 85% 30%, rgba(0, 184, 212, 0.05) 0%, transparent 45%);
+            radial-gradient(circle at 85% 30%, rgba(0, 184, 212, 0.05) 0%, transparent 45%);
         background-attachment: fixed;
         text-align: center;
     }
@@ -203,6 +203,7 @@
         border-right: 1px solid rgba(52, 152, 219, 0.1);
         min-width: 0;
         width: auto;
+        max-width: 40%;
     }
 
     .game-header {
@@ -224,26 +225,23 @@
         justify-content: center;
         gap: 10px;
         margin-right: 15px;
-        overflow-x: auto;
-        overflow-y: hidden;
-        scrollbar-width: none;
-        -ms-overflow-style: none;
+        overflow: hidden;
         flex-shrink: 0;
-        max-width: 100%;
+        width: auto;
+        max-width: 150px;
         font-weight: 600;
         position: relative;
         background: var(--glass-effect);
         border: 1px solid rgba(52, 152, 219, 0.1);
         color: var(--text-color);
-        width: auto;
     }
-    
+
     .outcome.win {
         background: linear-gradient(120deg, rgba(46, 204, 113, 0.2), rgba(46, 204, 113, 0.1));
         border-color: rgba(46, 204, 113, 0.3);
         color: var(--success-color);
     }
-    
+
     .outcome.loss {
         background: linear-gradient(120deg, rgba(231, 76, 60, 0.2), rgba(231, 76, 60, 0.1));
         border-color: rgba(231, 76, 60, 0.3);
@@ -261,7 +259,8 @@
         display: flex;
         align-items: center;
         white-space: nowrap;
-        overflow: visible;
+        overflow: hidden;
+        text-overflow: ellipsis;
         max-width: 80px;
         font-weight: normal;
         width: auto;
@@ -284,7 +283,7 @@
         position: relative;
         width: auto;
     }
-    
+
     .kda-stats::after {
         content: "KDA";
         position: absolute;
@@ -434,20 +433,20 @@
             min-width: auto;
             width: auto;
         }
-        
+
         .results {
             padding: 15px;
         }
-        
+
         .result-item {
             padding: 12px;
             margin-bottom: 12px;
         }
-        
+
         .avatar-container {
             margin-right: 38px;
         }
-        
+
         .hero-avatar {
             width: 55px;
             height: 55px;
@@ -457,7 +456,7 @@
             right: -32px;
             height: 55px;
         }
-        
+
         .special-tag {
             padding: 5px 3px 5px 4px;
             font-size: 12px;
@@ -468,45 +467,45 @@
             padding-right: 15px;
             margin-right: 15px;
         }
-        
+
         .outcome {
             font-size: 0.9em;
             padding: 4px 12px;
         }
-        
+
         .game-mode {
             font-size: 0.8em;
             max-width: 70px;
         }
-        
+
         .kda-stats {
             font-size: 1.2em;
         }
-        
+
         .side-info {
             min-width: 100px;
             padding-left: 12px;
             margin-left: 12px;
         }
-        
+
         .rating-container {
             min-width: 65px;
             margin-left: 12px;
             padding: 7px 10px;
         }
-        
+
         .game-rating {
             font-size: 1.6em;
         }
     }
-    
+
     @media (max-width: 450px) {
         .container {
             min-width: auto;
             width: calc(100% - 20px);
             margin: 0 10px;
         }
-        
+
         .avatar-container {
             margin-right: 35px;
         }
@@ -520,7 +519,7 @@
             right: -30px;
             height: 50px;
         }
-        
+
         .special-tag {
             padding: 4px 2px 4px 3px;
             font-size: 11px;
@@ -531,34 +530,34 @@
             padding-right: 10px;
             margin-right: 10px;
         }
-        
+
         .outcome {
             font-size: 0.85em;
             padding: 3px 10px;
         }
-        
+
         .game-mode {
             font-size: 0.75em;
             max-width: 60px;
         }
-        
+
         .kda-stats {
             font-size: 1.1em;
         }
-        
+
         .side-info {
             min-width: 90px;
             padding-left: 10px;
             margin-left: 10px;
             gap: 5px;
         }
-        
+
         .rating-container {
             min-width: 60px;
             margin-left: 10px;
             padding: 6px 8px;
         }
-        
+
         .game-rating {
             font-size: 1.5em;
         }
@@ -572,11 +571,11 @@
         left: 0;
         right: 0;
         height: 80px;
-        background: linear-gradient(to bottom, 
-            rgba(255, 255, 255, 0) 0%,
-            rgba(255, 255, 255, 0.3) 40%, 
-            rgba(255, 255, 255, 0.8) 80%,
-            var(--card-bg-color) 100%);
+        background: linear-gradient(to bottom,
+                rgba(255, 255, 255, 0) 0%,
+                rgba(255, 255, 255, 0.3) 40%,
+                rgba(255, 255, 255, 0.8) 80%,
+                var(--card-bg-color) 100%);
         z-index: 2;
         border-top-left-radius: 30px;
         border-top-right-radius: 30px;
@@ -586,7 +585,8 @@
 <body>
     <div class="container">
         <header>
-            <img src="https://raw.gitcode.com/Kevin1217/resources/blobs/57feeb4f3940fd449c4dd85f1f63b91f4c17f62a/logo_new_gold.png" alt="Logo" class="logo">
+            <img src="https://raw.gitcode.com/Kevin1217/resources/blobs/57feeb4f3940fd449c4dd85f1f63b91f4c17f62a/logo_new_gold.png"
+                alt="Logo" class="logo">
             <h1>游戏战绩</h1>
         </header>
         <div class="results">
