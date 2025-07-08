@@ -150,7 +150,12 @@ export class QueryGameStats extends plugin {
     'https://camp.qq.com/battle/common/evaluateV3/silver_warrior.png': '银牌战士',
     'https://camp.qq.com/battle/common/evaluateV3/silver_archer.png': '银牌射手',
     'https://camp.qq.com/battle/common/evaluateV3/silver_mage.png': '银牌法师',
-    'https://camp.qq.com/battle/common/evaluateV3/silver_support.png': '银牌辅助'
+    'https://camp.qq.com/battle/common/evaluateV3/silver_support.png': '银牌辅助',
+    'https://game-1255653016.file.myqcloud.com/manage/custom_wzry_battledetail_tags/4b4f396f8e6d18bdf8bf699b8c5d9be4.png': '顶级中路',
+    'https://game-1255653016.file.myqcloud.com/manage/custom_wzry_battledetail_tags/9eb904626303912a65d9b69bc8d88aa9.png': '顶级打野',
+    'https://game-1255653016.file.myqcloud.com/manage/custom_wzry_battledetail_tags/5db4fef1bfc72dd2c5ae71b01ef3951b.png': '顶级对抗路',
+    'https://game-1255653016.file.myqcloud.com/manage/custom_wzry_battledetail_tags/a8b5101bc81ae64cf96c67ed1ab21975.png': '顶级游走',
+    'https://game-1255653016.file.myqcloud.com/manage/custom_wzry_battledetail_tags/926ba0111984464ad46e72dc93157fcd.png': '顶级发育路'
   }
 
   getTeamData = (myTeam, enemyTeam, myRoles, enemyRoles, head, battle) => ({
