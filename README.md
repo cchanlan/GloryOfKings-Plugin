@@ -66,7 +66,7 @@ pnpm install
 
 - 作者: [@Tloml-Starry](https://gitee.com/Tloml-Starry)
 - QQ: [点击添加](https://qm.qq.com/q/h9UHpRmomc)
-- QQ群: [点击加入](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=5YqRg5S_pk_oVolSp7wydrx2ZFblhE-U&authKey=rl1zGbz8KHpvTlgkd%2BDm5Z9y%2FdMaWFnIL9p0FNVS6dyNmkNQ%2F2ngy3oU5Gynx8Ob&noverify=0&group_code=392665563)
+- QQ群: [点击加入](https://qm.qq.com/q/BPxggII1m8)
 
 ## 📝 问题反馈
 
