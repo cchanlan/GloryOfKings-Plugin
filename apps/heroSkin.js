@@ -5,7 +5,7 @@ import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 export class HeroSkin extends plugin {
     constructor() {
         super({
-            name: '英雄皮肤',
+            name: '查询王者英雄皮肤',
             dsc: '查询英雄皮肤',
             event: 'message',
             priority: 5000,

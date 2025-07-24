@@ -8,7 +8,7 @@ import moment from 'moment'
 export class MyKingHomepage extends plugin {
   constructor() {
     super({
-      name: 'myKingHomepage',
+      name: '查询王者主页',
       dsc: '王者主页',
       event: 'message',
       priority: 1,

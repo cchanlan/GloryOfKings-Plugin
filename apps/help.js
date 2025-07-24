@@ -3,7 +3,7 @@ import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 export class Help extends plugin {
   constructor() {
     super({
-      name: 'help',
+      name: '显示王者插件帮助信息',
       dsc: '显示帮助信息',
       event: 'message',
       priority: 1,

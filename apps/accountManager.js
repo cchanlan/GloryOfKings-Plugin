@@ -14,7 +14,7 @@ const functionList = [
 export class AccountManager extends plugin {
   constructor() {
     super({
-      name: 'scanCodeLogin',
+      name: '王者账号管理',
       dsc: '王者账号管理',
       event: 'message',
       priority: 1,

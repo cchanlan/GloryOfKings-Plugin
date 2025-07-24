@@ -4,7 +4,7 @@ import api from '../utils/api.js'
 export class HeroFightingCapacity extends plugin {
     constructor() {
         super({
-            name: '查战力',
+            name: '查询王者英雄战力',
             dsc: '查询英雄战力',
             event: 'message',
             priority: 5000,

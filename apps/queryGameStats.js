@@ -6,7 +6,7 @@ import { ApiService, readYamlFile, writeJsonFile } from '#utils'
 export class QueryGameStats extends plugin {
   constructor() {
     super({
-      name: 'queryGameStats',
+      name: '查询王者战绩',
       dsc: '查询战绩',
       event: 'message',
       priority: 1,
