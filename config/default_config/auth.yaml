@@ -1,0 +1,33 @@
+# 是否启用新版营地鉴权
+enabled: false
+
+# 固定客户端参数和大部分请求头已内置在代码中，这里只保留登录态和安全相关字段
+
+# 必填: 当前账号的核心登录态
+token: ''
+userId: ''
+
+# 必填二选一:
+# 1. 直接填 userKey
+# 2. 填登录响应里的 encodeRes，让插件自己解出 userKey
+userKey: ''
+encodeRes: ''
+
+# 非必填: 下面这些字段实测对 profile / morebattlelist 不属于强校验
+openId: ''
+gameOpenId: ''
+gameRoleId: ''
+gameServerId: ''
+
+# 非必填: 常见动态参数，默认按当前实现内置
+gameAreaId: 1
+gameUserSex: 1
+kohDimGender: 2
+
+# 非必填: 如果你手里的服务器时间和本机时间有偏差，可以补这个毫秒偏移
+serverTimeOffsetMs: 0
+
+# 非必填: 以下覆盖项留空即可，通常由代码自动生成
+xLogUid: ''
+traceparent: ''
+extraHeaders: {}

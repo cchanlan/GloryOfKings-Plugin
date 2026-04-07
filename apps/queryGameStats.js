@@ -31,7 +31,14 @@ export class QueryGameStats extends plugin {
       return
     }
 
-    const { data: battleList } = await ApiService.getMoreBattleList(ID)
+    let battleList
+    try {
+      ({ data: battleList } = await ApiService.getMoreBattleList(ID))
+    } catch (error) {
+      logger.error(`[战绩查询] 查询 ${ID} 失败: ${error.message}`)
+      await e.reply(error.message)
+      return
+    }
     if (!battleList?.list?.length) {
       await e.reply(battleList?.invisDes || `ID: ${ID}，查询失败`)
       return
@@ -92,7 +99,13 @@ export class QueryGameStats extends plugin {
     const { battleType, gameSvrId, relaySvrId, gameSeq, battleDetailUrl } = battle
     const targetRoleId = battleDetailUrl.match(/toAppRoleId=(\d+)/)?.[1]
 
-    const { data: detail } = await ApiService.getBattledetail(ID, battleType, gameSvrId, relaySvrId, targetRoleId, gameSeq)
+    let detail
+    try {
+      ({ data: detail } = await ApiService.getBattledetail(ID, battleType, gameSvrId, relaySvrId, targetRoleId, gameSeq))
+    } catch (error) {
+      logger.error(`[战绩查询] 获取详情失败: ${error.message}`)
+      return null
+    }
 
 
     if (!detail) {

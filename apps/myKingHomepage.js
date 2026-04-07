@@ -41,7 +41,14 @@ export class MyKingHomepage extends plugin {
 
     const imgBuffers = []
     for (const ID of IDs) {
-      const profileData = await ApiService.getProfile(ID)
+      let profileData
+      try {
+        profileData = await ApiService.getProfile(ID)
+      } catch (error) {
+        logger.error(`[王者主页] 查询 ${ID} 失败: ${error.message}`)
+        await e.reply(error.message)
+        continue
+      }
 
       if (profileData.returnCode === -30107) {
         await e.reply('获取数据失败,请稍后重试')
