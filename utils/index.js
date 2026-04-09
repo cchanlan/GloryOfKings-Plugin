@@ -10,6 +10,12 @@ import {
 } from './yamlUtils.js'
 import monitor from './monitor.js'
 import cache from './cache.js'
+import authStore from './authStore.js'
+import {
+  createWechatLoginSession,
+  waitForWechatLogin,
+  decodeEncodeResUserKey
+} from './wechatLogin.js'
 import path from 'path'
 import { PluginData } from '#components'
 
@@ -21,7 +27,11 @@ export {
   readYamlFile,
   writeYamlFile,
   monitor,
-  cache
+  cache,
+  authStore,
+  createWechatLoginSession,
+  waitForWechatLogin,
+  decodeEncodeResUserKey
 }
 
 export function getCurrentId (userId) {

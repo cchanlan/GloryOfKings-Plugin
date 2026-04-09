@@ -1,33 +1,21 @@
-# 是否启用新版营地鉴权
-enabled: false
+# 是否启用共享账号候选
+# 关闭时只使用账号列表中的默认全局账号
+# 开启后会按「默认全局账号 -> 共享账号」的顺序继续尝试
+# 如需最后再回退到当前 QQ 自己的登录态，可单独开启 allowPersonalAuthFallback
+enableAccountPool: false
 
-# 固定客户端参数和大部分请求头已内置在代码中，这里只保留登录态和安全相关字段
+# 是否允许最后再回退到当前 QQ 自己的登录态
+# 仅在默认全局账号和共享账号都不可用时生效
+allowPersonalAuthFallback: false
 
-# 必填: 当前账号的核心登录态
-token: ''
-userId: ''
-
-# 必填二选一:
-# 1. 直接填 userKey
-# 2. 填登录响应里的 encodeRes，让插件自己解出 userKey
-userKey: ''
-encodeRes: ''
-
-# 非必填: 下面这些字段实测对 profile / morebattlelist 不属于强校验
-openId: ''
-gameOpenId: ''
-gameRoleId: ''
-gameServerId: ''
-
-# 非必填: 常见动态参数，默认按当前实现内置
+# 以下为请求默认值
+# 当账号本身未携带这些字段时，会回退到这里的配置
 gameAreaId: 1
 gameUserSex: 1
 kohDimGender: 2
 
-# 非必填: 如果你手里的服务器时间和本机时间有偏差，可以补这个毫秒偏移
+# 如果本机时间和服务端时间存在明显偏差，可补这个毫秒偏移
 serverTimeOffsetMs: 0
 
-# 非必填: 以下覆盖项留空即可，通常由代码自动生成
-xLogUid: ''
-traceparent: ''
+# 额外请求头覆盖项，通常保持为空
 extraHeaders: {}

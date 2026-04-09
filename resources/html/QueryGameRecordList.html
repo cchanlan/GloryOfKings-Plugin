@@ -428,6 +428,30 @@
         opacity: 1;
     }
 
+    .empty-state {
+        padding: 54px 24px 64px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        color: var(--text-color);
+    }
+
+    .empty-state-title {
+        font-size: 1.5em;
+        font-weight: 600;
+        color: var(--primary-color);
+        text-shadow: 0 0 10px rgba(52, 152, 219, 0.15);
+    }
+
+    .empty-state-desc {
+        max-width: 520px;
+        line-height: 1.8;
+        font-size: 0.95em;
+        color: var(--neutral-color);
+    }
+
     @media (max-width: 599px) {
         .container {
             min-width: auto;
@@ -590,6 +614,12 @@
             <h1>游戏战绩</h1>
         </header>
         <div class="results">
+            {{if emptyState}}
+            <div class="empty-state">
+                <div class="empty-state-title">{{emptyTitle || '暂无战绩'}}</div>
+                <div class="empty-state-desc">{{emptyDescription || '当前没有可展示的战绩数据'}}</div>
+            </div>
+            {{else}}
             {{each data item}}
             <div class="result-item {{item.gameResult === '胜利' ? 'win-bg' : 'loss-bg'}}">
                 <div class="avatar-container">
@@ -635,6 +665,7 @@
                 </div>
             </div>
             {{/each}}
+            {{/if}}
         </div>
     </div>
 </body>
