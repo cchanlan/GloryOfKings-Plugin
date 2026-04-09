@@ -36,7 +36,10 @@ export class QueryGameStats extends plugin {
       ({ data: battleList } = await ApiService.getMoreBattleList(ID, String(userId)))
     } catch (error) {
       logger.error(`[战绩查询] 查询 ${ID} 失败: ${error.message}`)
-      await e.reply(error.message)
+      await e.reply(ApiService.formatUserFacingError(error, {
+        isMaster: Boolean(e.isMaster),
+        scene: '战绩查询异常'
+      }))
       return
     }
     if (!battleList?.list?.length) {

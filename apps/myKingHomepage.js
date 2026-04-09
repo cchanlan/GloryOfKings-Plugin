@@ -54,10 +54,14 @@ export class MyKingHomepage extends plugin {
         profileData = await ApiService.getProfile(ID, String(userId))
       } catch (error) {
         logger.error(`[王者主页] 查询 ${ID} 失败: ${error.message}`)
+        const replyMessage = ApiService.formatUserFacingError(error, {
+          isMaster: Boolean(e.isMaster),
+          scene: '王者主页查询异常'
+        })
         if (IDs.length === 1) {
-          await e.reply(error.message)
+          await e.reply(replyMessage)
         } else {
-          pushFailure(ID, error.message)
+          pushFailure(ID, replyMessage)
         }
         continue
       }

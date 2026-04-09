@@ -26,6 +26,19 @@ class ApiService {
     this.generatedXLogUid = this.#buildUuid()
   }
 
+  #maskUserId(value, keepStart = 3, keepEnd = 3) {
+    const text = this.#toString(value)
+    if (!text) {
+      return ''
+    }
+
+    if (text.length <= keepStart + keepEnd) {
+      return text
+    }
+
+    return `${text.slice(0, keepStart)}***${text.slice(-keepEnd)}`
+  }
+
   #maskValue(value, keepStart = 6, keepEnd = 4) {
     const text = this.#toString(value)
     if (!text) {
@@ -37,6 +50,61 @@ class ApiService {
     }
 
     return `${text.slice(0, keepStart)}...${text.slice(-keepEnd)}`
+  }
+
+  #sanitizeAuthMessage(message = '') {
+    const text = this.#toString(message)
+    if (!text) {
+      return ''
+    }
+
+    return text
+      .replace(/(全局账号|共享账号|目标账号)\s*(\d{5,})/g, (_, label, userId) => `${label} ${this.#maskUserId(userId)}`)
+      .replace(/(默认全局账号)\s*(\d{5,})/g, (_, label, userId) => `${label} ${this.#maskUserId(userId)}`)
+  }
+
+  #isSensitiveAuthError(error) {
+    const message = this.#toString(error?.message)
+    if (error instanceof AuthConfigError) {
+      return true
+    }
+
+    return /营地登录态|全局账号|共享账号|目标账号|token|userKey|encodeRes|登录失效|重新登录|未找到可用的营地登录态|鉴权|安全参数/i.test(message)
+  }
+
+  formatUserFacingError(error, options = {}) {
+    const {
+      isMaster = false,
+      scene = '营地登录异常'
+    } = options
+    const rawMessage = this.#toString(error?.message)
+    const sanitizedMessage = this.#sanitizeAuthMessage(rawMessage)
+    const isSensitive = this.#isSensitiveAuthError(error)
+
+    if (!isSensitive) {
+      return sanitizedMessage || `请求失败，请稍后再试。\n可发送：#联系主人 + ${scene}`
+    }
+
+    if (!isMaster) {
+      return [
+        '当前营地鉴权异常，请联系主人处理。',
+        `可发送：#联系主人 + ${scene}`
+      ].join('\n')
+    }
+
+    const lines = [
+      sanitizedMessage || '当前营地鉴权异常，请检查登录态配置。'
+    ]
+
+    if (/全局账号|默认全局账号/i.test(rawMessage)) {
+      lines.push('处理建议：可使用【#营地wx全局登录】重新扫码更新全局账号。')
+    } else if (/未找到可用的营地登录态/i.test(rawMessage)) {
+      lines.push('处理建议：可先通过【#营地wx登录】补充登录态，或在锅巴账号列表中配置可用账号。')
+    } else {
+      lines.push('处理建议：可使用【#营地wx登录】重新登录，或在锅巴账号列表中检查相关字段。')
+    }
+
+    return lines.join('\n')
   }
 
   #buildAuthDebugInfo(auth = {}, source = '', label = '') {
@@ -277,9 +345,10 @@ class ApiService {
         return
       }
 
+      const sanitizedMessage = this.#sanitizeAuthMessage(message)
       const lines = [
         '王者插件默认全局账号登录态已失效，后续请求将自动跳过该账号。',
-        message ? `失效原因：${message}` : '',
+        sanitizedMessage ? `失效原因：${sanitizedMessage}` : '',
         '可使用【#营地wx全局登录】重新扫码更新全局 token。'
       ].filter(Boolean)
 
