@@ -116,6 +116,7 @@ export class AccountManager extends plugin {
   async generateAuthPoolOverviewHTML(data) {
     return await puppeteer.screenshot('authPoolOverview', {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/authPoolOverview.html',
+      imgType: 'png',
       ...data
     })
   }
