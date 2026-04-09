@@ -41,7 +41,7 @@ class Config {
     const defConfig = YAML.parse(fs.readFileSync(`${pathDef}${file}`, 'utf8'))
 
     try {
-      this.validateConfig(config)
+      this.validateConfig(config, file)
       const { differences, result } = this.mergeObjectsWithPriority(config, defConfig)
 
       if (differences) {
@@ -178,8 +178,9 @@ class Config {
   modify (name, key, value, type = 'config') {
     let path = `${PluginPath}/config/${type}/${name}.yaml`
     new YamlReader(path).set(key, value)
-    this.oldConfig[key] = _.cloneDeep(this.config[key])
-    delete this.config[`${type}.${name}`]
+    const configKey = `${type}.${name}`
+    this.oldConfig[configKey] = _.cloneDeep(this.config[configKey])
+    delete this.config[configKey]
   }
 
   /**
@@ -263,8 +264,11 @@ class Config {
     }
   }
 
-  validateConfig (config) {
-    const requiredFields = ['onlineReminder', 'onlineReminderCron']
+  validateConfig (config, file = '') {
+    const requiredFieldsByFile = {
+      'config.yaml': ['onlineReminder', 'onlineReminderCron']
+    }
+    const requiredFields = requiredFieldsByFile[file] || []
     const missingFields = requiredFields.filter(field => !Object.prototype.hasOwnProperty.call(config, field))
 
     if (missingFields.length > 0) {

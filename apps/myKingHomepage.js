@@ -40,22 +40,57 @@ export class MyKingHomepage extends plugin {
     }
 
     const imgBuffers = []
+    const failedResults = []
+    const pushFailure = (id, message) => {
+      failedResults.push({
+        id: String(id),
+        message: String(message || '获取数据失败,请稍后重试')
+      })
+    }
+
     for (const ID of IDs) {
-      const profileData = await ApiService.getProfile(ID)
+      let profileData
+      try {
+        profileData = await ApiService.getProfile(ID, String(userId))
+      } catch (error) {
+        logger.error(`[王者主页] 查询 ${ID} 失败: ${error.message}`)
+        const replyMessage = ApiService.formatUserFacingError(error, {
+          isMaster: Boolean(e.isMaster),
+          scene: '王者主页查询异常'
+        })
+        if (IDs.length === 1) {
+          await e.reply(replyMessage)
+        } else {
+          pushFailure(ID, replyMessage)
+        }
+        continue
+      }
 
       if (profileData.returnCode === -30107) {
-        await e.reply('获取数据失败,请稍后重试')
+        if (IDs.length === 1) {
+          await e.reply('获取数据失败,请稍后重试')
+        } else {
+          pushFailure(ID, '获取数据失败,请稍后重试')
+        }
         continue
       }
 
       if (profileData.returnCode === -10107) {
-        await e.reply(`ID: ${ID},召唤师隐藏了主页信息，无法查看`)
+        if (IDs.length === 1) {
+          await e.reply(`ID: ${ID},召唤师隐藏了主页信息，无法查看`)
+        } else {
+          pushFailure(ID, '召唤师隐藏了主页信息，无法查看')
+        }
         continue
       }
 
       if (!profileData || !profileData.data || !profileData.data.roleList) {
         console.log('获取数据失败，API返回:', JSON.stringify(profileData, null, 2))
-        await e.reply('获取数据失败,请稍后重试')
+        if (IDs.length === 1) {
+          await e.reply('获取数据失败,请稍后重试')
+        } else {
+          pushFailure(ID, '获取数据失败,请稍后重试')
+        }
         continue
       }
 
@@ -63,7 +98,11 @@ export class MyKingHomepage extends plugin {
       const roleData = profileData.data.roleList.find(role => role.roleId === targetRoleId)
 
       if (!roleData) {
-        await e.reply('未找到角色数据')
+        if (IDs.length === 1) {
+          await e.reply('未找到角色数据')
+        } else {
+          pushFailure(ID, '未找到角色数据')
+        }
         continue
       }
 
@@ -143,6 +182,19 @@ export class MyKingHomepage extends plugin {
       }
     }
 
-    e.reply(imgBuffers)
+    if (imgBuffers.length) {
+      await e.reply(imgBuffers)
+    }
+
+    if (failedResults.length) {
+      const failureMessage = IDs.length === 1
+        ? failedResults[0].message
+        : [
+            `本次有 ${failedResults.length} 个ID查询失败：`,
+            ...failedResults.map(item => `ID: ${item.id}，${item.message}`)
+          ].join('\n')
+
+      await e.reply(failureMessage)
+    }
   }
 }

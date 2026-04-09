@@ -31,9 +31,30 @@ export class QueryGameStats extends plugin {
       return
     }
 
-    const { data: battleList } = await ApiService.getMoreBattleList(ID)
+    let battleList
+    try {
+      ({ data: battleList } = await ApiService.getMoreBattleList(ID, String(userId)))
+    } catch (error) {
+      logger.error(`[战绩查询] 查询 ${ID} 失败: ${error.message}`)
+      await e.reply(ApiService.formatUserFacingError(error, {
+        isMaster: Boolean(e.isMaster),
+        scene: '战绩查询异常'
+      }))
+      return
+    }
     if (!battleList?.list?.length) {
-      await e.reply(battleList?.invisDes || `ID: ${ID}，查询失败`)
+      logger.debug('[战绩查询] 战绩列表为空，原始响应数据', {
+        targetUserId: String(ID),
+        battleList
+      })
+
+      await e.reply(await puppeteer.screenshot('QueryGameRecordList', {
+        tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordList.html',
+        data: [],
+        emptyState: true,
+        emptyTitle: '暂无可查询战绩',
+        emptyDescription: battleList?.invisDes || `ID: ${ID} 当前没有可展示的战绩数据`
+      }))
       return
     }
 
@@ -46,7 +67,7 @@ export class QueryGameStats extends plugin {
         return
       }
 
-      const detail = await this.getBattleDetail(ID, battle)
+      const detail = await this.getBattleDetail(ID, battle, String(userId))
       if (detail) {
         try {
           const img = await this.generateDetailImage(detail)
@@ -88,11 +109,17 @@ export class QueryGameStats extends plugin {
     return userInfo.ids[userInfo.current]
   }
 
-  async getBattleDetail(ID, battle) {
+  async getBattleDetail(ID, battle, requesterBotUserId = '') {
     const { battleType, gameSvrId, relaySvrId, gameSeq, battleDetailUrl } = battle
     const targetRoleId = battleDetailUrl.match(/toAppRoleId=(\d+)/)?.[1]
 
-    const { data: detail } = await ApiService.getBattledetail(ID, battleType, gameSvrId, relaySvrId, targetRoleId, gameSeq)
+    let detail
+    try {
+      ({ data: detail } = await ApiService.getBattledetail(ID, battleType, gameSvrId, relaySvrId, targetRoleId, gameSeq, requesterBotUserId))
+    } catch (error) {
+      logger.error(`[战绩查询] 获取详情失败: ${error.message}`)
+      return null
+    }
 
 
     if (!detail) {

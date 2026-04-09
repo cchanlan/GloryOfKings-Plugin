@@ -1,0 +1,21 @@
+# 是否启用共享账号候选
+# 关闭时只使用账号列表中的默认全局账号
+# 开启后会按「默认全局账号 -> 共享账号」的顺序继续尝试
+# 如需最后再回退到当前 QQ 自己的登录态，可单独开启 allowPersonalAuthFallback
+enableAccountPool: false
+
+# 是否允许最后再回退到当前 QQ 自己的登录态
+# 仅在默认全局账号和共享账号都不可用时生效
+allowPersonalAuthFallback: false
+
+# 以下为请求默认值
+# 当账号本身未携带这些字段时，会回退到这里的配置
+gameAreaId: 1
+gameUserSex: 1
+kohDimGender: 2
+
+# 如果本机时间和服务端时间存在明显偏差，可补这个毫秒偏移
+serverTimeOffsetMs: 0
+
+# 额外请求头覆盖项，通常保持为空
+extraHeaders: {}
