@@ -168,12 +168,12 @@ export function supportGuoba () {
             schemas: [
               {
                 field: 'userId',
-                label: '营地 UserId / userId',
+                label: '营地用户ID',
                 component: 'Input',
                 required: true,
                 helpMessage: '核心字段；请求时会映射到 userid。',
                 componentProps: {
-                  placeholder: '2119017299'
+                  placeholder: 'userId，例如 2119017299'
                 }
               },
               {
@@ -182,7 +182,7 @@ export function supportGuoba () {
                 component: 'Input',
                 componentProps: {
                   readonly: true,
-                  placeholder: '正常 / 失效'
+                  placeholder: 'statusText'
                 }
               },
               {
@@ -190,7 +190,7 @@ export function supportGuoba () {
                 label: '归属 QQ',
                 component: 'Input',
                 componentProps: {
-                  placeholder: '留空表示仅能作为共享池使用'
+                  placeholder: 'ownerBotUserId，留空表示仅共享'
                 }
               },
               {
@@ -221,7 +221,7 @@ export function supportGuoba () {
                 label: '昵称',
                 component: 'Input',
                 componentProps: {
-                  placeholder: '用于识别账号'
+                  placeholder: 'nickname'
                 }
               },
               {
@@ -229,7 +229,7 @@ export function supportGuoba () {
                 label: '用户名称',
                 component: 'Input',
                 componentProps: {
-                  placeholder: '登录返回的 userName'
+                  placeholder: 'userName'
                 }
               },
               {
@@ -237,7 +237,7 @@ export function supportGuoba () {
                 label: '社交昵称',
                 component: 'Input',
                 componentProps: {
-                  placeholder: '登录返回的 snsnickname'
+                  placeholder: 'snsnickname'
                 }
               },
               {
@@ -245,36 +245,36 @@ export function supportGuoba () {
                 label: '备注',
                 component: 'Input',
                 componentProps: {
-                  placeholder: '可选备注'
+                  placeholder: 'remark'
                 }
               },
               {
                 field: 'token',
-                label: 'Token / token',
+                label: 'Token',
                 component: 'InputPassword',
                 required: true,
                 helpMessage: '核心字段；请求头 token。',
                 componentProps: {
-                  placeholder: '营地接口 token'
+                  placeholder: 'token'
                 }
               },
               {
                 field: 'userKey',
-                label: 'UserKey / userKey',
+                label: 'UserKey',
                 component: 'InputPassword',
                 required: true,
                 helpMessage: '核心字段；用于生成 encodeParam。',
                 componentProps: {
-                  placeholder: '用于生成 encodeParam'
+                  placeholder: 'userKey'
                 }
               },
               {
                 field: 'encodeRes',
-                label: 'EncodeRes / encodeRes',
+                label: 'EncodeRes',
                 component: 'InputPassword',
                 helpMessage: '可选补充；若存在可用于解出 userKey。',
                 componentProps: {
-                  placeholder: '可由插件自动解出 userKey'
+                  placeholder: 'encodeRes'
                 }
               },
               {
@@ -282,7 +282,7 @@ export function supportGuoba () {
                 label: 'AccessToken',
                 component: 'InputPassword',
                 componentProps: {
-                  placeholder: '平台 accessToken'
+                  placeholder: 'accessToken'
                 }
               },
               {
@@ -290,7 +290,7 @@ export function supportGuoba () {
                 label: 'RefreshToken',
                 component: 'InputPassword',
                 componentProps: {
-                  placeholder: '平台 refreshToken'
+                  placeholder: 'refreshToken'
                 }
               },
               {
@@ -298,63 +298,63 @@ export function supportGuoba () {
                 label: 'App OpenId',
                 component: 'Input',
                 componentProps: {
-                  placeholder: '登录返回的 appOpenid'
+                  placeholder: 'appOpenid'
                 }
               },
               {
                 field: 'openId',
-                label: '营地 OpenId / openId',
+                label: '营地 OpenId',
                 component: 'Input',
                 componentProps: {
-                  placeholder: '可选补充字段'
+                  placeholder: 'openId'
                 }
               },
               {
                 field: 'gameOpenId',
-                label: '游戏 OpenId / gameOpenId',
+                label: '游戏 OpenId',
                 component: 'Input',
                 componentProps: {
-                  placeholder: '可选补充字段'
+                  placeholder: 'gameOpenId'
                 }
               },
               {
                 field: 'gameRoleId',
-                label: '游戏 RoleId / gameRoleId',
+                label: '游戏 RoleId',
                 component: 'Input',
                 componentProps: {
-                  placeholder: '可选补充字段'
+                  placeholder: 'gameRoleId'
                 }
               },
               {
                 field: 'gameServerId',
-                label: '游戏 ServerId / gameServerId',
+                label: '游戏 ServerId',
                 component: 'Input',
                 componentProps: {
-                  placeholder: '可选补充字段'
+                  placeholder: 'gameServerId'
                 }
               },
               {
                 field: 'gameAreaId',
-                label: '游戏 AreaId / gameAreaId',
+                label: '游戏 AreaId',
                 component: 'Input',
                 componentProps: {
-                  placeholder: '默认 1'
+                  placeholder: 'gameAreaId，默认 1'
                 }
               },
               {
                 field: 'gameUserSex',
-                label: '游戏性别 / gameUserSex',
+                label: '游戏性别',
                 component: 'Input',
                 componentProps: {
-                  placeholder: '默认 1'
+                  placeholder: 'gameUserSex，默认 1'
                 }
               },
               {
                 field: 'kohDimGender',
-                label: '营地性别 / kohDimGender',
+                label: '营地性别',
                 component: 'Input',
                 componentProps: {
-                  placeholder: '默认 2'
+                  placeholder: 'kohDimGender，默认 2'
                 }
               },
               {
@@ -362,7 +362,7 @@ export function supportGuoba () {
                 label: '头像',
                 component: 'Input',
                 componentProps: {
-                  placeholder: 'avatar URL'
+                  placeholder: 'avatar'
                 }
               },
               {
@@ -370,7 +370,7 @@ export function supportGuoba () {
                 label: '大头像',
                 component: 'Input',
                 componentProps: {
-                  placeholder: 'bigAvatar URL'
+                  placeholder: 'bigAvatar'
                 }
               },
               {
@@ -378,7 +378,7 @@ export function supportGuoba () {
                 label: '图标',
                 component: 'Input',
                 componentProps: {
-                  placeholder: 'icon URL'
+                  placeholder: 'icon'
                 }
               },
               {
@@ -386,7 +386,7 @@ export function supportGuoba () {
                 label: '账号性别',
                 component: 'Input',
                 componentProps: {
-                  placeholder: '登录返回的 sex'
+                  placeholder: 'sex'
                 }
               },
               {
@@ -394,7 +394,7 @@ export function supportGuoba () {
                 label: 'Expires',
                 component: 'Input',
                 componentProps: {
-                  placeholder: '登录返回的 expires'
+                  placeholder: 'expires'
                 }
               },
               {
@@ -402,7 +402,7 @@ export function supportGuoba () {
                 label: 'Uin',
                 component: 'Input',
                 componentProps: {
-                  placeholder: '登录返回的 uin'
+                  placeholder: 'uin'
                 }
               },
               {
@@ -410,7 +410,7 @@ export function supportGuoba () {
                 label: 'UserSig',
                 component: 'InputPassword',
                 componentProps: {
-                  placeholder: '登录返回的 userSig'
+                  placeholder: 'userSig'
                 }
               },
               {
@@ -426,7 +426,7 @@ export function supportGuoba () {
                 label: '登录来源',
                 component: 'Input',
                 componentProps: {
-                  placeholder: 'camp_wx / other'
+                  placeholder: 'loginPlatform，例如 wechat'
                 }
               },
               {
@@ -498,7 +498,6 @@ export function supportGuoba () {
           config: Config.getDefOrConfig('config'),
           auth: Config.getDefOrConfig('auth')
         }
-        let shouldReloadGuoba = false
 
         if (Object.prototype.hasOwnProperty.call(data, 'authPool.accounts') || Object.prototype.hasOwnProperty.call(data, 'authPool.sharedIds')) {
           const { accounts: currentAccounts } = getAuthPoolSnapshot()
@@ -506,7 +505,6 @@ export function supportGuoba () {
             data['authPool.accounts'] || currentAccounts,
             data['authPool.sharedIds'] || []
           )
-          shouldReloadGuoba = true
         }
 
         for (const key in data) {
@@ -526,12 +524,6 @@ export function supportGuoba () {
           if (!lodash.isEqual(currentValue, data[key])) {
             Config.modify(configName, configPath, data[key])
           }
-        }
-
-        if (shouldReloadGuoba && typeof Guoba === 'object' && typeof Guoba.reload === 'function') {
-          setTimeout(() => {
-            void Guoba.reload()
-          }, 200)
         }
 
         return Result.ok({}, '𝑪𝒊𝒂𝒍𝒍𝒐～(∠・ω< )⌒★')
