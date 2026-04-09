@@ -2,19 +2,35 @@ import lodash from 'lodash'
 import { Config, PluginPath, PluginName } from '#components'
 import authStore from './utils/authStore.js'
 
-export function supportGuoba () {
-  const authPoolAccounts = authStore.getGuobaAccounts().map(account => ({
+function getAuthPoolSnapshot () {
+  const accounts = authStore.getGuobaAccounts().map(account => ({
     ...account,
     statusText: account.authInvalid
       ? `失效${account.lastAuthErrorMessage ? ` | ${account.lastAuthErrorMessage}` : ''}`
       : '正常'
   }))
-  const invalidCount = authPoolAccounts.filter(account => account.authInvalid).length
-  const usableCount = authPoolAccounts.length - invalidCount
-  const authPoolOptions = authPoolAccounts.map(account => ({
+  const invalidCount = accounts.filter(account => account.authInvalid).length
+  const usableCount = accounts.length - invalidCount
+  const options = accounts.map(account => ({
     label: `${account.userId}${account.nickname ? ` (${account.nickname})` : ''} [${account.authInvalid ? '失效' : '正常'}${account.isGlobalDefault ? '/全局' : (account.shared ? '/共享' : '/私有')}]`,
     value: account.userId
   }))
+
+  return {
+    accounts,
+    invalidCount,
+    usableCount,
+    options
+  }
+}
+
+export function supportGuoba () {
+  const {
+    accounts: authPoolAccounts,
+    invalidCount,
+    usableCount,
+    options: authPoolOptions
+  } = getAuthPoolSnapshot()
 
   return {
     pluginInfo: {
@@ -144,7 +160,7 @@ export function supportGuoba () {
         {
           field: 'authPool.accounts',
           label: `营地账号列表（共 ${authPoolAccounts.length} 个，可用 ${usableCount} 个，失效 ${invalidCount} 个）`,
-          helpMessage: '管理 AuthPool.json 中的完整账号信息。每个条目都会展示当前有效状态，方便直接在锅巴面板里判断是否可用。',
+          helpMessage: '管理 AuthPool.json 中的完整账号信息。字段名已尽量按实际代码名标注；手动录入时，至少需要 userId、token、userKey 这三个核心字段。',
           bottomHelpMessage: '删除条目会从账号池移除该账号；敏感字段支持直接编辑；默认全局账号、共享账号和优先级都直接在这里维护。未开启“共享账号候选”时，请求只使用默认全局账号；私人账号仅允许 ownerBotUserId 对应的 QQ 用户在开启个人兜底时使用。',
           component: 'GSubForm',
           componentProps: {
@@ -152,9 +168,10 @@ export function supportGuoba () {
             schemas: [
               {
                 field: 'userId',
-                label: '营地 UserId',
+                label: '营地 UserId / userId',
                 component: 'Input',
                 required: true,
+                helpMessage: '核心字段；请求时会映射到 userid。',
                 componentProps: {
                   placeholder: '2119017299'
                 }
@@ -233,24 +250,29 @@ export function supportGuoba () {
               },
               {
                 field: 'token',
-                label: 'Token',
+                label: 'Token / token',
                 component: 'InputPassword',
+                required: true,
+                helpMessage: '核心字段；请求头 token。',
                 componentProps: {
                   placeholder: '营地接口 token'
                 }
               },
               {
                 field: 'userKey',
-                label: 'UserKey',
+                label: 'UserKey / userKey',
                 component: 'InputPassword',
+                required: true,
+                helpMessage: '核心字段；用于生成 encodeParam。',
                 componentProps: {
                   placeholder: '用于生成 encodeParam'
                 }
               },
               {
                 field: 'encodeRes',
-                label: 'EncodeRes',
+                label: 'EncodeRes / encodeRes',
                 component: 'InputPassword',
+                helpMessage: '可选补充；若存在可用于解出 userKey。',
                 componentProps: {
                   placeholder: '可由插件自动解出 userKey'
                 }
@@ -281,7 +303,7 @@ export function supportGuoba () {
               },
               {
                 field: 'openId',
-                label: '营地 OpenId',
+                label: '营地 OpenId / openId',
                 component: 'Input',
                 componentProps: {
                   placeholder: '可选补充字段'
@@ -289,7 +311,7 @@ export function supportGuoba () {
               },
               {
                 field: 'gameOpenId',
-                label: '游戏 OpenId',
+                label: '游戏 OpenId / gameOpenId',
                 component: 'Input',
                 componentProps: {
                   placeholder: '可选补充字段'
@@ -297,7 +319,7 @@ export function supportGuoba () {
               },
               {
                 field: 'gameRoleId',
-                label: '游戏 RoleId',
+                label: '游戏 RoleId / gameRoleId',
                 component: 'Input',
                 componentProps: {
                   placeholder: '可选补充字段'
@@ -305,7 +327,7 @@ export function supportGuoba () {
               },
               {
                 field: 'gameServerId',
-                label: '游戏 ServerId',
+                label: '游戏 ServerId / gameServerId',
                 component: 'Input',
                 componentProps: {
                   placeholder: '可选补充字段'
@@ -313,7 +335,7 @@ export function supportGuoba () {
               },
               {
                 field: 'gameAreaId',
-                label: '游戏 AreaId',
+                label: '游戏 AreaId / gameAreaId',
                 component: 'Input',
                 componentProps: {
                   placeholder: '默认 1'
@@ -321,7 +343,7 @@ export function supportGuoba () {
               },
               {
                 field: 'gameUserSex',
-                label: '游戏性别',
+                label: '游戏性别 / gameUserSex',
                 component: 'Input',
                 componentProps: {
                   placeholder: '默认 1'
@@ -329,7 +351,7 @@ export function supportGuoba () {
               },
               {
                 field: 'kohDimGender',
-                label: '营地性别',
+                label: '营地性别 / kohDimGender',
                 component: 'Input',
                 componentProps: {
                   placeholder: '默认 2'
@@ -460,12 +482,14 @@ export function supportGuoba () {
         }
       ],
       getConfigData () {
+        const { accounts } = getAuthPoolSnapshot()
+
         return {
           config: Config.getDefOrConfig('config'),
           auth: Config.getDefOrConfig('auth'),
           authPool: {
-            sharedIds: authPoolAccounts.filter(account => account.shared).map(account => account.userId),
-            accounts: authPoolAccounts
+            sharedIds: accounts.filter(account => account.shared).map(account => account.userId),
+            accounts
           }
         }
       },
@@ -474,12 +498,15 @@ export function supportGuoba () {
           config: Config.getDefOrConfig('config'),
           auth: Config.getDefOrConfig('auth')
         }
+        let shouldReloadGuoba = false
 
         if (Object.prototype.hasOwnProperty.call(data, 'authPool.accounts') || Object.prototype.hasOwnProperty.call(data, 'authPool.sharedIds')) {
+          const { accounts: currentAccounts } = getAuthPoolSnapshot()
           authStore.replaceAccountsFromGuoba(
-            data['authPool.accounts'] || authPoolAccounts,
+            data['authPool.accounts'] || currentAccounts,
             data['authPool.sharedIds'] || []
           )
+          shouldReloadGuoba = true
         }
 
         for (const key in data) {
@@ -500,6 +527,13 @@ export function supportGuoba () {
             Config.modify(configName, configPath, data[key])
           }
         }
+
+        if (shouldReloadGuoba && typeof Guoba === 'object' && typeof Guoba.reload === 'function') {
+          setTimeout(() => {
+            void Guoba.reload()
+          }, 200)
+        }
+
         return Result.ok({}, '𝑪𝒊𝒂𝒍𝒍𝒐～(∠・ω< )⌒★')
       }
 

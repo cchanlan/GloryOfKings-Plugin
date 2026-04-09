@@ -1,25 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { Config, PluginData } from '#components'
+import { PluginData } from '#components'
 import { readYamlFile, writeYamlFile } from './yamlUtils.js'
 
 const AUTH_POOL_FILE = path.join(PluginData, 'AuthPool.json')
 const LEGACY_AUTH_POOL_FILE = path.join(PluginData, 'AuthPool.yaml')
-const LEGACY_AUTH_STATE_FILE = path.join(PluginData, 'LegacyAuthState.json')
 const USER_DATA_FILE = path.join(PluginData, 'UserData.yaml')
-
-const LEGACY_AUTH_CONFIG_KEYS = [
-  'userId',
-  'token',
-  'userKey',
-  'encodeRes',
-  'openId',
-  'gameOpenId',
-  'gameRoleId',
-  'gameServerId',
-  'xLogUid',
-  'traceparent'
-]
 
 function ensureDirectory(filePath) {
   const dir = path.dirname(filePath)
@@ -107,65 +93,6 @@ class AuthStore {
     return {}
   }
 
-  #getDefaultLegacyAuthState() {
-    return {
-      fingerprint: '',
-      authInvalid: false,
-      authErrorCount: 0,
-      lastAuthErrorAt: '',
-      lastAuthErrorMessage: '',
-      lastSuccessAt: ''
-    }
-  }
-
-  #normalizeLegacyAuthState(state = {}) {
-    return {
-      ...this.#getDefaultLegacyAuthState(),
-      ...state,
-      fingerprint: toStringValue(state.fingerprint),
-      authInvalid: Boolean(state.authInvalid),
-      authErrorCount: Number(state.authErrorCount || 0),
-      lastAuthErrorAt: toStringValue(state.lastAuthErrorAt),
-      lastAuthErrorMessage: toStringValue(state.lastAuthErrorMessage),
-      lastSuccessAt: toStringValue(state.lastSuccessAt)
-    }
-  }
-
-  #getLegacyAuthState() {
-    return this.#normalizeLegacyAuthState(
-      readJsonSafe(LEGACY_AUTH_STATE_FILE, this.#getDefaultLegacyAuthState())
-    )
-  }
-
-  #saveLegacyAuthState(state) {
-    writeJsonPretty(LEGACY_AUTH_STATE_FILE, this.#normalizeLegacyAuthState(state))
-  }
-
-  #getLegacyAuthFromConfig() {
-    const auth = Config.getDefOrConfig('auth') || {}
-    return {
-      token: toStringValue(auth.token),
-      userId: normalizeUserId(auth.userId),
-      userKey: toStringValue(auth.userKey),
-      encodeRes: toStringValue(auth.encodeRes),
-      openId: toStringValue(auth.openId),
-      gameOpenId: toStringValue(auth.gameOpenId),
-      gameRoleId: toStringValue(auth.gameRoleId),
-      gameServerId: toStringValue(auth.gameServerId),
-      gameAreaId: toStringValue(auth.gameAreaId),
-      gameUserSex: toStringValue(auth.gameUserSex),
-      kohDimGender: toStringValue(auth.kohDimGender),
-      xLogUid: toStringValue(auth.xLogUid),
-      traceparent: toStringValue(auth.traceparent)
-    }
-  }
-
-  #clearLegacyAuthConfig() {
-    for (const key of LEGACY_AUTH_CONFIG_KEYS) {
-      Config.modify('auth', key, '')
-    }
-  }
-
   #sortAccountsByPriority(accounts = []) {
     return [...accounts].sort((left, right) => {
       const globalCompare = Number(Boolean(right.isGlobalDefault)) - Number(Boolean(left.isGlobalDefault))
@@ -181,57 +108,6 @@ class AuthStore {
       return String(left.userId).localeCompare(String(right.userId))
     })
   }
-
-  #migrateLegacyGlobalAuthIfNeeded() {
-    const legacyAuth = this.#getLegacyAuthFromConfig()
-    if (!isUsableAuth(legacyAuth)) {
-      return
-    }
-
-    const pool = this.#normalizePool(readJsonSafe(AUTH_POOL_FILE, this.#getDefaultPool()))
-    const existingGlobalAccount = Object.values(pool.accounts).find(account => account.isGlobalDefault)
-    if (existingGlobalAccount && normalizeUserId(existingGlobalAccount.userId) !== legacyAuth.userId) {
-      this.#clearLegacyAuthConfig()
-      logger.warn('[营地全局账号] 检测到旧 auth.yaml 全局配置，但账号池中已存在新的全局账号，已跳过旧配置迁移', {
-        legacyUserId: legacyAuth.userId,
-        currentGlobalUserId: existingGlobalAccount.userId
-      })
-      return
-    }
-
-    const existing = pool.accounts[legacyAuth.userId] || {}
-    const legacyState = this.#getLegacyAuthState()
-    const next = this.#normalizeAccount({
-      ...existing,
-      ...legacyAuth,
-      userId: legacyAuth.userId,
-      isGlobalDefault: true,
-      shared: false,
-      ownerBotUserId: normalizeUserId(existing.ownerBotUserId),
-      loginPlatform: existing.loginPlatform || 'legacy',
-      authInvalid: Boolean(existing.authInvalid || legacyState.authInvalid),
-      authErrorCount: Number(existing.authErrorCount || legacyState.authErrorCount || 0),
-      lastAuthErrorAt: existing.lastAuthErrorAt || legacyState.lastAuthErrorAt || '',
-      lastAuthErrorMessage: existing.lastAuthErrorMessage || legacyState.lastAuthErrorMessage || '',
-      lastSuccessAt: existing.lastSuccessAt || legacyState.lastSuccessAt || '',
-      priority: Number(existing.priority || 0)
-    }, existing)
-
-    for (const account of Object.values(pool.accounts)) {
-      account.isGlobalDefault = normalizeUserId(account.userId) === next.userId
-    }
-
-    pool.accounts[next.userId] = next
-    pool.sharedIds = pool.sharedIds.filter(id => id && id !== next.userId && pool.accounts[id])
-    this.#savePool(pool)
-    this.#clearLegacyAuthConfig()
-
-    logger.info('[营地全局账号] 已将 auth.yaml 旧全局配置迁移到 AuthPool.json', {
-      userId: next.userId,
-      authInvalid: next.authInvalid
-    })
-  }
-
   #normalizeAccount(account = {}, existing = {}) {
     const userId = normalizeUserId(account.userId || existing.userId)
     const timestamp = new Date().toISOString()
@@ -340,7 +216,6 @@ class AuthStore {
 
   getPool() {
     this.#migrateLegacyPoolIfNeeded()
-    this.#migrateLegacyGlobalAuthIfNeeded()
     return this.#normalizePool(readJsonSafe(AUTH_POOL_FILE, this.#getDefaultPool()))
   }
 
@@ -538,8 +413,6 @@ class AuthStore {
       shared: false,
       resetAuthState: true
     })
-
-    this.#clearLegacyAuthConfig()
 
     logger.info('[营地全局账号] 已更新默认全局账号配置', {
       userId: next.userId,
