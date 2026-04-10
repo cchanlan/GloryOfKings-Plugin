@@ -861,17 +861,40 @@ class ApiService {
 
   async getHeroFightingCapacity(heroName) {
     const regions = ['aqq', 'awx', 'iqq', 'iwx']
-    return Promise.all(regions.map(async (hero) => {
+    const results = await Promise.all(regions.map(async (hero) => {
       try {
-        const res = await fetch(`https://www.sapi.run/hero/select.php?hero=${heroName}&type=${hero}`)
-        const data = await res.json()
-        if (data.code !== 200) throw new Error(`该英雄不存在，请检查。错误: ${data}`)
-        return data
+        const query = new URLSearchParams({
+          hero: heroName,
+          type: hero
+        })
+        const res = await fetch(`https://www.sapi.run/hero/select.php?${query.toString()}`)
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+        }
+
+        const payload = await res.json()
+        if (payload.code !== 200 || !payload.data) {
+          throw new Error(payload.msg || '接口返回异常')
+        }
+
+        return {
+          ...payload.data,
+          type: hero,
+          apiMsg: payload.msg || ''
+        }
       } catch (error) {
         logger.error(`[获取英雄战力] ${heroName}(${hero}) 请求失败`, error)
-        return { code: 500, msg: error.message }
+        return null
       }
     }))
+
+    const availableResults = results.filter(Boolean)
+    if (!availableResults.length) {
+      throw new Error(`英雄战力接口请求失败：${heroName}`)
+    }
+
+    return availableResults
   }
 
   async getHeroList() {

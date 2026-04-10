@@ -26,12 +26,23 @@ export class HeroFightingCapacity extends plugin {
 
         try {
             const heroFightingCapacity = await api.getHeroFightingCapacity(heroName)
+            if (!heroFightingCapacity.length) {
+                await e.reply('暂未查询到该英雄的战力数据')
+                return
+            }
+
+            const statValues = heroFightingCapacity.map(item => ({
+                guobiao: Number(item.guobiao || 0),
+                provincePower: Number(item.provincePower || 0),
+                cityPower: Number(item.cityPower || 0),
+                areaPower: Number(item.areaPower || 0)
+            }))
 
             const minStats = {
-                guobiao: Math.min(...heroFightingCapacity.map(item => parseInt(item.guobiao))),
-                provincePower: Math.min(...heroFightingCapacity.map(item => parseInt(item.provincePower))),
-                cityPower: Math.min(...heroFightingCapacity.map(item => parseInt(item.cityPower))),
-                areaPower: Math.min(...heroFightingCapacity.map(item => parseInt(item.areaPower)))
+                guobiao: Math.min(...statValues.map(item => item.guobiao)),
+                provincePower: Math.min(...statValues.map(item => item.provincePower)),
+                cityPower: Math.min(...statValues.map(item => item.cityPower)),
+                areaPower: Math.min(...statValues.map(item => item.areaPower))
             }
 
             const img = await puppeteer.screenshot('HeroFightingCapacit', {
