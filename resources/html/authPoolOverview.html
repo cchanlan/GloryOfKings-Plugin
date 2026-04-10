@@ -1,224 +1,215 @@
 <style>
     :root {
-        --bg: linear-gradient(180deg, #e8eef9 0%, #dde8f7 100%);
-        --panel: rgba(255, 255, 255, 0.98);
-        --card: #ffffff;
-        --text: #172033;
-        --muted: #596780;
-        --line: rgba(135, 151, 177, 0.28);
-        --shadow: 0 14px 36px rgba(39, 57, 92, 0.10);
-        --blue: #4388ff;
-        --cyan: #1aa6b7;
-        --green: #1f9d63;
-        --purple: #7567f8;
-        --emerald: #0f9f6e;
-        --red: #d14b61;
-        --gray: #94a3b8;
+        --c-primary: #e4bea0;
+        --c-bg: #121820;
+        --c-panel: rgba(22, 28, 40, 0.85);
+        --c-panel-light: rgba(255, 255, 255, 0.05);
+        --c-border: rgba(228, 190, 160, 0.2);
+        --c-border-soft: rgba(255, 255, 255, 0.08);
+        --c-text: #eef0f4;
+        --c-text-muted: rgba(238, 240, 244, 0.6);
+        --c-accent: #5fb1eb;
+        
+        --tone-blue: #60a5fa;
+        --tone-cyan: #22d3ee;
+        --tone-green: #34d399;
+        --tone-purple: #c084fc;
+        --tone-emerald: #10b981;
+        --tone-red: #f87171;
     }
 
-    * {
-        box-sizing: border-box;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-        width: 1080px;
-        margin: 0;
-        padding: 0;
-        background:
-            radial-gradient(circle at top left, rgba(67, 136, 255, 0.12), transparent 26%),
-            radial-gradient(circle at bottom right, rgba(31, 157, 99, 0.08), transparent 22%),
-            var(--bg);
-        color: var(--text);
-        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        width: 1000px;
+        padding: 30px;
+        font-family: inherit;
+        color: var(--c-text);
+        background: #000;
+        -webkit-font-smoothing: antialiased;
     }
 
-    .shell {
-        width: 1080px;
-        margin: 0 auto;
-        background: var(--panel);
-        border: 1px solid rgba(255, 255, 255, 0.86);
+    .page {
+        position: relative;
         border-radius: 24px;
-        box-shadow: var(--shadow);
         overflow: hidden;
+        background: var(--c-bg) url('../img/bgImgV2.png') no-repeat center/cover;
+        border: 1px solid var(--c-border);
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
     }
 
-    .hero {
-        padding: 14px 18px 14px;
-        background:
-            linear-gradient(135deg, rgba(67, 136, 255, 0.10), rgba(117, 103, 248, 0.04)),
-            linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.90));
-        border-bottom: 1px solid var(--line);
+    .overlay {
+        background: linear-gradient(180deg, rgba(16, 20, 29, 0.88) 0%, rgba(18, 24, 32, 0.96) 100%);
+        backdrop-filter: blur(8px);
+        padding: 40px 45px;
     }
 
-    .eyebrow {
-        display: inline-flex;
-        align-items: center;
-        padding: 5px 10px;
-        border-radius: 999px;
-        background: rgba(67, 136, 255, 0.10);
-        color: var(--blue);
-        font-size: 12px;
-        font-weight: 700;
-    }
-
-    .hero-main {
-        display: grid;
-        grid-template-columns: 190px minmax(0, 1fr);
-        align-items: center;
-        gap: 12px;
-        margin-top: 8px;
-    }
-
-    .hero-left {
+    .header {
         display: flex;
-        flex-direction: column;
-        gap: 2px;
-        min-width: 0;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 1px solid var(--c-border);
+        padding-bottom: 24px;
+        margin-bottom: 30px;
     }
 
-    .hero-title-row {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 2px;
-        flex-wrap: wrap;
-    }
-
-    .hero-title {
-        margin: 0;
-        font-size: 28px;
-        line-height: 1.05;
+    .title-wrap h1 {
+        font-size: 36px;
         font-weight: 800;
+        color: var(--c-primary);
+        text-shadow: 0 4px 16px rgba(228, 190, 160, 0.3);
     }
 
-    .timestamp {
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.2;
+    .header-info {
+        text-align: right;
+        font-size: 13px;
+        color: var(--c-text-muted);
+        line-height: 1.6;
     }
 
-    .hero-stats {
+    .header-info strong {
+        color: var(--c-primary);
+    }
+
+    .summary-grid {
         display: grid;
-        grid-template-columns: repeat(6, minmax(0, 1fr));
-        gap: 8px;
-        width: 100%;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 12px;
+        margin-bottom: 24px;
     }
 
-    .metric {
-        padding: 8px 10px 8px 12px;
+    .summary-item {
+        background: var(--c-panel-light);
+        border: 1px solid rgba(255, 255, 255, 0.03);
         border-radius: 12px;
-        background: var(--card);
-        border: 1px solid var(--line);
+        padding: 18px 10px;
+        text-align: center;
         position: relative;
         overflow: hidden;
-        min-height: 56px;
     }
 
-    .metric::before {
+    .summary-label {
+        font-size: 12px;
+        color: var(--c-text-muted);
+        margin-bottom: 8px;
+        font-weight: bold;
+    }
+
+    .summary-val {
+        font-size: 24px;
+        font-weight: 800;
+    }
+    
+    .tone-blue { color: var(--tone-blue); }
+    .tone-cyan { color: var(--tone-cyan); }
+    .tone-green { color: var(--tone-green); }
+    .tone-purple { color: var(--tone-purple); }
+    .tone-emerald { color: var(--tone-emerald); }
+    .tone-red { color: var(--tone-red); }
+
+    .summary-item::before {
         content: "";
         position: absolute;
         inset: 0 auto 0 0;
         width: 4px;
-        background: var(--tone, var(--blue));
     }
 
-    .metric-label {
-        color: var(--muted);
-        font-size: 11px;
-        line-height: 1.2;
-        white-space: nowrap;
-        font-weight: 600;
+    .summary-item:has(.tone-blue)::before { background: var(--tone-blue); }
+    .summary-item:has(.tone-cyan)::before { background: var(--tone-cyan); }
+    .summary-item:has(.tone-green)::before { background: var(--tone-green); }
+    .summary-item:has(.tone-purple)::before { background: var(--tone-purple); }
+    .summary-item:has(.tone-emerald)::before { background: var(--tone-emerald); }
+    .summary-item:has(.tone-red)::before { background: var(--tone-red); }
+
+    .panel {
+        background: var(--c-panel);
+        border: 1px solid var(--c-border-soft);
+        border-radius: 18px;
+        padding: 24px;
+        margin-bottom: 24px;
     }
 
-    .metric-value {
-        margin-top: 4px;
-        font-size: 24px;
-        line-height: 1;
-        font-weight: 800;
-        color: var(--tone, var(--blue));
+    .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
     }
 
-    .content {
-        padding: 18px 18px 20px;
+    .panel h2 {
+        font-size: 20px;
+        color: var(--c-primary);
+        display: flex;
+        align-items: center;
     }
 
-    .section {
-        margin-bottom: 16px;
+    .panel h2::before {
+        content: '';
+        display: inline-block;
+        width: 4px;
+        height: 18px;
+        background: var(--c-primary);
+        margin-right: 12px;
+        border-radius: 2px;
     }
 
-    .section-title {
-        margin: 0 0 8px;
-        font-size: 22px;
-        font-weight: 800;
-    }
-
-    .section-note {
-        margin: 0 0 10px;
-        color: var(--muted);
-        font-size: 12px;
+    .panel-meta {
+        font-size: 13px;
+        color: var(--c-text-muted);
     }
 
     .owners {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
     }
 
     .owner-card {
-        background: var(--card);
-        border: 1px solid var(--line);
-        border-radius: 16px;
-        padding: 14px;
-        box-shadow: 0 6px 18px rgba(31, 41, 55, 0.05);
+        background: var(--c-panel-light);
+        border: 1px solid rgba(255, 255, 255, 0.03);
+        border-radius: 14px;
+        padding: 16px;
     }
 
     .owner-top {
         display: flex;
         justify-content: space-between;
-        gap: 10px;
         align-items: flex-start;
-        margin-bottom: 10px;
+        margin-bottom: 14px;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        padding-bottom: 12px;
     }
 
     .owner-name {
-        margin: 0;
-        font-size: 20px;
+        font-size: 16px;
         font-weight: 800;
-        line-height: 1.15;
+        color: var(--c-text);
+        margin-bottom: 6px;
     }
 
     .owner-meta {
-        color: var(--muted);
         font-size: 12px;
-        line-height: 1.3;
-        margin-top: 3px;
+        color: var(--c-text-muted);
     }
 
     .count-row {
         display: flex;
         gap: 6px;
-        flex-wrap: wrap;
-        justify-content: flex-end;
+        flex-direction: column;
+        align-items: flex-end;
     }
 
     .count-pill {
-        padding: 4px 7px;
-        border-radius: 999px;
+        padding: 3px 8px;
+        border-radius: 6px;
         font-size: 11px;
-        font-weight: 700;
-        background: rgba(67, 136, 255, 0.10);
-        color: var(--blue);
+        font-weight: bold;
+        background: rgba(255, 255, 255, 0.06);
     }
 
-    .count-pill.green {
-        background: rgba(31, 157, 99, 0.12);
-        color: var(--green);
-    }
-
-    .count-pill.red {
-        background: rgba(209, 75, 97, 0.12);
-        color: var(--red);
-    }
+    .count-pill.green { color: var(--tone-green); }
+    .count-pill.red { color: var(--tone-red); }
+    .count-pill.blue { color: var(--tone-blue); }
 
     .uid-list {
         display: grid;
@@ -229,124 +220,111 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 10px;
         padding: 10px 12px;
-        border-radius: 12px;
-        border: 1px solid rgba(148, 163, 184, 0.20);
-        background: linear-gradient(180deg, rgba(247, 250, 254, 0.98), rgba(255, 255, 255, 0.98));
+        border-radius: 10px;
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid transparent;
     }
 
     .uid-row.current {
-        border-color: rgba(31, 157, 99, 0.45);
-        box-shadow: inset 0 0 0 1px rgba(31, 157, 99, 0.18);
-        background: linear-gradient(180deg, rgba(240, 253, 247, 0.96), rgba(255, 255, 255, 0.96));
-    }
-
-    .uid-main {
-        min-width: 0;
+        border-color: rgba(52, 211, 153, 0.3);
+        background: rgba(52, 211, 153, 0.05);
     }
 
     .uid-id {
-        font-size: 16px;
-        font-weight: 800;
-        line-height: 1.15;
+        font-size: 14px;
+        font-weight: bold;
+        color: var(--c-text);
     }
 
     .uid-sub {
+        font-size: 11px;
+        color: var(--c-text-muted);
         margin-top: 4px;
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.1;
-        font-weight: 600;
     }
 
     .uid-row.current .uid-sub,
     .uid-row.current .uid-id {
-        color: var(--green);
+        color: var(--tone-green);
     }
 
     .badge {
-        min-width: 48px;
-        text-align: center;
-        padding: 5px 8px;
-        border-radius: 999px;
+        padding: 4px 8px;
+        border-radius: 6px;
         font-size: 11px;
-        font-weight: 800;
+        font-weight: bold;
     }
 
     .badge.valid {
-        background: rgba(31, 157, 99, 0.12);
-        color: var(--green);
+        background: rgba(52, 211, 153, 0.1);
+        color: var(--tone-green);
     }
 
     .badge.invalid {
-        background: rgba(209, 75, 97, 0.12);
-        color: var(--red);
+        background: rgba(248, 113, 113, 0.1);
+        color: var(--tone-red);
     }
 
     .badge.none {
-        background: rgba(148, 163, 184, 0.14);
-        color: var(--gray);
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--c-text-muted);
     }
 
-    .tone-blue { --tone: var(--blue); }
-    .tone-cyan { --tone: var(--cyan); }
-    .tone-green { --tone: var(--green); }
-    .tone-purple { --tone: var(--purple); }
-    .tone-emerald { --tone: var(--emerald); }
-    .tone-red { --tone: var(--red); }
+    .shared-card { grid-column: span 3; }
+    .shared-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 </style>
 
 <body>
-    <div class="shell">
-        <div class="hero">
-            <div class="eyebrow">王者用户统计</div>
-            <div class="hero-main">
-                <div class="hero-left">
-                    <div class="hero-title-row">
-                        <h1 class="hero-title">用户统计</h1>
-                        <div class="timestamp">{{timestamp}}</div>
-                    </div>
+    <div class="page">
+        <div class="overlay">
+            <div class="header">
+                <div class="title-wrap">
+                    <h1>用户鉴权信息统计</h1>
                 </div>
-                <div class="hero-stats">
-                    {{each overviewCards item}}
-                    <div class="metric tone-{{item.tone}}">
-                        <div class="metric-label">{{item.label}}</div>
-                        <div class="metric-value">{{item.value}}</div>
-                    </div>
-                    {{/each}}
+                <div class="header-info">
+                    <div class="info-time">{{timestamp}} | GloryOfKings-Plugin</div>
                 </div>
             </div>
-        </div>
 
-        <div class="content">
-            <div class="section">
-                <h2 class="section-title">QQ 归属</h2>
-                {{if omittedOwnerCount > 0}}
-                <div class="section-note">仅展示前 60 个 QQ，已省略 {{omittedOwnerCount}} 个</div>
-                {{/if}}
-                {{if ownerSections.length}}
+            <div class="summary-grid">
+                {{each overviewCards item}}
+                <div class="summary-item tone-bg-{{item.tone}}">
+                    <div class="summary-label">{{item.label}}</div>
+                    <div class="summary-val tone-{{item.tone}}">{{item.value}}</div>
+                </div>
+                {{/each}}
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>QQ 归属审计</h2>
+                    {{if omittedOwnerCount > 0}}
+                    <div class="panel-meta">仅展示前 60 个 QQ，已省略 {{omittedOwnerCount}} 个</div>
+                    {{/if}}
+                </div>
+                
+                {{if ownerSections && ownerSections.length}}
                 <div class="owners">
                     {{each ownerSections owner}}
                     <div class="owner-card">
                         <div class="owner-top">
                             <div>
-                                <h3 class="owner-name">QQ {{owner.maskedQqId}}</h3>
+                                <div class="owner-name">QQ {{owner.maskedQqId}}</div>
                                 <div class="owner-meta">当前 {{owner.currentMaskedCampId}}</div>
                             </div>
                             <div class="count-row">
-                                <div class="count-pill">Token {{owner.tokenCount}}</div>
-                                <div class="count-pill green">{{owner.validTokenCount}}</div>
-                                <div class="count-pill red">{{owner.invalidTokenCount}}</div>
+                                <div class="count-pill blue">Token {{owner.tokenCount}}</div>
+                                {{if owner.validTokenCount}}<div class="count-pill green">{{owner.validTokenCount}} 有效</div>{{/if}}
+                                {{if owner.invalidTokenCount}}<div class="count-pill red">{{owner.invalidTokenCount}} 失效</div>{{/if}}
                             </div>
                         </div>
 
                         <div class="uid-list">
                             {{each owner.uidEntries item}}
                             <div class="uid-row {{item.isCurrent ? 'current' : ''}}">
-                                <div class="uid-main">
+                                <div>
                                     <div class="uid-id">{{item.maskedCampUserId}}</div>
-                                    <div class="uid-sub">{{item.isCurrent ? '当前' : '已绑定'}}</div>
+                                    <div class="uid-sub">{{item.isCurrent ? '当前默认' : '已绑定'}}</div>
                                 </div>
                                 <div class="badge {{item.badgeClass}}">{{item.badgeText}}</div>
                             </div>
@@ -356,27 +334,25 @@
                     {{/each}}
                 </div>
                 {{else}}
-                <div class="owner-card">暂无数据</div>
+                <div style="color: var(--c-text-muted);">暂无数据</div>
                 {{/if}}
             </div>
 
-            {{if unownedAccounts.length}}
-            <div class="section">
-                <h2 class="section-title">共享池</h2>
-                <div class="owners" style="grid-template-columns: 1fr;">
-                    <div class="owner-card">
-                        <div class="uid-list">
-                            {{each unownedAccounts item}}
-                            <div class="uid-row">
-                                <div class="uid-main">
-                                    <div class="uid-id">{{item.maskedCampUserId}}</div>
-                                    <div class="uid-sub">{{item.nickname}}</div>
-                                </div>
-                                <div class="badge {{item.statusClass}}">Token</div>
-                            </div>
-                            {{/each}}
+            {{if unownedAccounts && unownedAccounts.length}}
+            <div class="panel" style="margin-bottom: 0;">
+                <div class="panel-header">
+                    <h2>共享池孤儿账号</h2>
+                </div>
+                <div class="shared-list">
+                    {{each unownedAccounts item}}
+                    <div class="uid-row">
+                        <div>
+                            <div class="uid-id">{{item.maskedCampUserId}}</div>
+                            <div class="uid-sub">{{item.nickname}}</div>
                         </div>
+                        <div class="badge {{item.statusClass}}">Token</div>
                     </div>
+                    {{/each}}
                 </div>
             </div>
             {{/if}}

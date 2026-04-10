@@ -1,155 +1,193 @@
 <style>
-    body {
-        background: var(--background);
-        min-height: 100vh;
-        margin: 0;
-        padding: 1rem;
-    }
-
     :root {
-        --primary-color: #4a90e2;
-        --secondary-color: #7ed321;
-        --background: linear-gradient(145deg, #f8f9fa 0%, #e9ecef 100%);
-        --card-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-        --text-color: #2d3436;
-        --section-bg: #f8f9fa;
-        --card-bg: white;
+        --c-primary: #e4bea0;
+        --c-bg: #121820;
+        --c-panel: rgba(22, 28, 40, 0.85);
+        --c-panel-light: rgba(255, 255, 255, 0.05);
+        --c-border: rgba(228, 190, 160, 0.2);
+        --c-border-soft: rgba(255, 255, 255, 0.08);
+        --c-text: #eef0f4;
+        --c-text-muted: rgba(238, 240, 244, 0.6);
+        --c-accent: #5fb1eb;
+        
+        --badge-bind: #a78bfa;
+        --badge-switch: #34d399;
+        --badge-delete: #fb7185;
+        --badge-query: #5fb1eb;
     }
 
-    [data-theme="dark"] {
-        --primary-color: #6aa8ff;
-        --secondary-color: #9dff5b;
-        --background: linear-gradient(145deg, #2d2f33 0%, #1a1c20 100%);
-        --card-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
-        --text-color: #f8f9fa;
-        --section-bg: #2d2d2d;
-        --card-bg: #1e1e1e;
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+        width: 800px;
+        padding: 30px;
+        font-family: inherit;
+        color: var(--c-text);
+        background: #000;
+        -webkit-font-smoothing: antialiased;
     }
 
-    .container {
-        width: 680px;
-        padding: 2rem;
-        background: var(--card-bg);
-        border-radius: 1.5rem;
-        box-shadow: var(--card-shadow);
-        font-family: 'Segoe UI', system-ui;
-        color: var(--text-color);
-        margin: 2rem auto;
+    .page {
+        position: relative;
+        border-radius: 24px;
+        overflow: hidden;
+        background: var(--c-bg) url('../img/bgImgV2.png') no-repeat center/cover;
+        border: 1px solid var(--c-border);
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+    }
+
+    .overlay {
+        background: linear-gradient(180deg, rgba(16, 20, 29, 0.88) 0%, rgba(18, 24, 32, 0.96) 100%);
+        backdrop-filter: blur(8px);
+        padding: 40px 45px;
     }
 
     .header {
         display: flex;
-        align-items: center;
-        margin-bottom: 1.5rem;
-        padding-bottom: 1rem;
-        border-bottom: 2px solid #eee;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 1px solid var(--c-border);
+        padding-bottom: 24px;
+        margin-bottom: 30px;
     }
 
-    .badge {
-        padding: 0.4rem 1rem;
-        border-radius: 2rem;
-        font-weight: 600;
-        margin-right: 1rem;
+    .title-wrap h1 {
+        font-size: 36px;
+        font-weight: 800;
+        color: var(--c-primary);
+        text-shadow: 0 4px 16px rgba(228, 190, 160, 0.3);
     }
 
-    .bind-badge {
-        background: #e3f2fd;
-        color: #1976d2;
+    .header-info {
+        text-align: right;
+        font-size: 13px;
+        color: var(--c-text-muted);
+        line-height: 1.6;
     }
 
-    .switch-badge {
-        background: #f0f4c3;
-        color: #afb42b;
+    .header-info strong {
+        color: var(--c-primary);
     }
 
-    .delete-badge {
-        background: #ffcdd2;
-        color: #d32f2f;
+    .panel {
+        background: var(--c-panel);
+        border: 1px solid var(--c-border-soft);
+        border-radius: 18px;
+        padding: 24px;
+        margin-bottom: 24px;
     }
 
-    .content-section {
-        margin: 1.5rem 0;
-        padding: 1.5rem;
-        background: var(--section-bg);
-        border-radius: 1rem;
-    }
-
-    .id-list {
-        font-family: 'Fira Code', monospace;
-        padding: 1rem;
-        background: var(--card-bg);
-        border-radius: 0.8rem;
-        box-shadow: inset 0 0 0 1px #eee;
-    }
-
-    .instruction-list {
-        margin-top: 2rem;
-        padding-top: 1.5rem;
-        border-top: 2px dashed #eee;
-    }
-
-    .instruction-item {
+    .panel h2 {
+        font-size: 18px;
+        color: var(--c-primary);
+        margin-bottom: 16px;
         display: flex;
         align-items: center;
-        padding: 0.8rem;
-        margin: 0.5rem 0;
-        background: var(--section-bg);
-        border-radius: 0.6rem;
-        transition: transform 0.2s;
     }
 
-    .instruction-item:hover {
-        transform: translateX(8px);
-        background: var(--primary-color);
-        color: white;
+    .panel h2::before {
+        content: '';
+        display: inline-block;
+        width: 4px;
+        height: 16px;
+        background: var(--c-primary);
+        margin-right: 12px;
+        border-radius: 2px;
     }
 
-    .timestamp {
-        text-align: right;
-        color: #95a5a6;
-        font-size: 0.9rem;
-        margin-top: 1.5rem;
+    .badge-tag {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: bold;
+        margin-left: 14px;
+        background: rgba(255,255,255,0.08);
+    }
+
+    .tag-绑定 { color: var(--badge-bind); border: 1px solid rgba(167, 139, 250, 0.4); }
+    .tag-切换 { color: var(--badge-switch); border: 1px solid rgba(52, 211, 153, 0.4); }
+    .tag-删除 { color: var(--badge-delete); border: 1px solid rgba(251, 113, 133, 0.4); }
+    .tag-查询 { color: var(--badge-query); border: 1px solid rgba(95, 177, 235, 0.4); }
+
+    .id-list-box {
+        background: var(--c-panel-light);
+        border: 1px solid rgba(255, 255, 255, 0.03);
+        border-radius: 12px;
+        padding: 16px;
+        font-family: 'Consolas', monospace;
+        font-size: 15px;
+        line-height: 1.8;
+        white-space: pre-wrap;
+    }
+
+    .tips-box {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px dashed rgba(255, 255, 255, 0.06);
+    }
+
+    .tips-list {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 18px;
+    }
+
+    .tip-item {
+        padding: 4px 0;
+        border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+    }
+
+    .cmd-text {
+        font-size: 13px;
+        font-weight: bold;
+        color: var(--c-accent);
+        display: block;
+        line-height: 1.4;
+        word-break: break-word;
+    }
+
+    .cmd-example {
+        font-size: 11px;
+        color: var(--c-text-muted);
+        display: block;
+        margin-top: 2px;
+        line-height: 1.45;
     }
 </style>
 
 <body>
-    <div class="container">
-        <div class="header">
-            <div class="badge {{type === '绑定' ? 'bind-badge' : type === '切换' ? 'switch-badge' : 'delete-badge'}}">
-                {{type}}操作
+    <div class="page">
+        <div class="overlay">
+            <div class="header">
+                <div class="title-wrap">
+                    <h1>账号状态看板 <span class="badge-tag tag-{{type}}">{{type}}操作</span></h1>
+                </div>
+                <div class="header-info">
+                    <div class="info-time">{{timestamp}} | 目标: {{wzryId}}</div>
+                </div>
             </div>
-            <h2>{{wzryId}}</h2>
-        </div>
 
-        {{if idList}}
-        <div class="content-section">
-            <h3>当前账号列表</h3>
-            <pre class="id-list">{{idList}}</pre>
-        </div>
-        {{/if}}
-
-        {{if functionList.length}}
-        <div class="instruction-list">
-            <div class="instruction-item">
-                <span>▶</span>&nbsp;&nbsp;【#王者帮助】查看全部功能
+            {{if idList}}
+            <div class="panel">
+                <h2>绑定的账号列表</h2>
+                <div class="id-list-box">{{idList}}</div>
+                {{if parsedFuncs && parsedFuncs.length}}
+                <div class="tips-box">
+                    <div class="tips-list">
+                    {{each parsedFuncs item}}
+                        <div class="tip-item">
+                            <span class="cmd-text">{{item.cmd}}</span>
+                            {{if item.example}}
+                            <span class="cmd-example">{{item.example}}</span>
+                            {{/if}}
+                        </div>
+                    {{/each}}
+                    </div>
+                </div>
+                {{/if}}
             </div>
-            {{each functionList item}}
-            <div class="instruction-item">
-                <span>▶</span>&nbsp;&nbsp;{{item}}
-            </div>
-            {{/each}}
-        </div>
-        {{/if}}
-
-        <div class="timestamp">
-            操作时间：{{timestamp}}
+            {{/if}}
         </div>
     </div>
-
-    <script>
-        // 随机选择主题
-        const themes = ['light', 'dark'];
-        const randomTheme = themes[Math.floor(Math.random() * themes.length)];
-        document.documentElement.dataset.theme = randomTheme;
-    </script>
 </body>

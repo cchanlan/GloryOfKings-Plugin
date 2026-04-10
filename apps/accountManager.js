@@ -1,20 +1,13 @@
 import path from 'path'
 import { writeYamlFile, readYamlFile } from '#utils'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { PluginData } from '#components'
+import { Config, PluginData } from '#components'
 import authStore from '../utils/authStore.js'
 import {
   createWechatLoginSession,
   waitForWechatLogin
 } from '../utils/wechatLogin.js'
-
-const functionList = [
-  '----------',
-  '可用功能：',
-  '【#王者主页】查看部分王者信息',
-  '【#查询战绩】查询王者战绩',
-  '【#王者帮助】查看更多'
-]
+import { renderMasterPanel } from '../utils/masterPanel.js'
 
 const pendingWechatLoginMap = new Map()
 const LOGIN_QR_RECALL_SECONDS = 175
@@ -29,7 +22,7 @@ export class AccountManager extends plugin {
       priority: 1,
       rule: [
         {
-          reg: /^#我的(王者)?(荣耀|农药)?ID$/i,
+          reg: /^#(?:营地|我的(?:王者|荣耀|农药)?|(?:王者|荣耀|农药))ID$/i,
           fnc: 'myWzryId'
         },
         {
@@ -56,6 +49,17 @@ export class AccountManager extends plugin {
         {
           reg: '^#王者用户统计$',
           fnc: 'showAuthPool',
+          permission: 'master'
+        },
+
+        {
+          reg: '^#王者设置共享账号候选(启用|关闭)$',
+          fnc: 'toggleSharedAuthCandidates',
+          permission: 'master'
+        },
+        {
+          reg: '^#王者设置个人登录态兜底(启用|关闭)$',
+          fnc: 'togglePersonalAuthFallback',
           permission: 'master'
         },
         {
@@ -102,13 +106,22 @@ export class AccountManager extends plugin {
   }
 
   // 新增公共方法处理HTML生成
-  async generateAccountManageHTML(type, wzryId, idList, functionList) {
+  async generateAccountManageHTML(type, wzryId, idList) {
+    const parsedFuncs = [
+      { cmd: '#绑定营地', example: '示例: #绑定营地123' },
+      { cmd: '#营地ID / #王者ID / #我的ID / #我的王者ID', example: '示例: #我的王者ID' },
+      { cmd: '#切换营地', example: '示例: #切换营地2' },
+      { cmd: '#删除营地', example: '示例: #删除营地2' },
+      { cmd: '#营地wx登录', example: '示例: #营地wx登录' },
+      { cmd: '#王者帮助', example: '示例: #王者帮助' }
+    ]
+
     return await puppeteer.screenshot('accountManage', {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/accountManage.html',
       type,
       wzryId,
       idList,
-      functionList,
+      parsedFuncs,
       timestamp: new Date().toLocaleString()
     })
   }
@@ -153,7 +166,6 @@ export class AccountManager extends plugin {
         qqId: boundUser.qqId,
         maskedQqId: this.maskId(boundUser.qqId, 3, 2),
         boundCampIds: boundUser.ids,
-        maskedBoundCampIds: boundUser.ids.map(id => this.maskId(id, 3, 3)),
         currentCampId: boundUser.ids[boundUser.current] || boundUser.ids[0] || '',
         currentMaskedCampId: this.maskId(boundUser.ids[boundUser.current] || boundUser.ids[0] || '', 3, 3),
         tokens: []
@@ -167,12 +179,7 @@ export class AccountManager extends plugin {
         campUserId: account.userId,
         maskedCampUserId: this.maskId(account.userId, 3, 3),
         nickname: account.nickname || account.userName || '未命名账号',
-        statusText: account.authInvalid ? '失效' : '正常',
-        statusClass: account.authInvalid ? 'invalid' : 'valid',
-        sharedText: sharedIds.has(account.userId) ? '共享' : '私有',
-        sourceText: account.loginPlatform || '未知来源',
-        lastAuthErrorMessage: account.lastAuthErrorMessage || '',
-        hasToken: Boolean(account.token)
+        statusClass: account.authInvalid ? 'invalid' : 'valid'
       }
 
       if (ownerBotUserId) {
@@ -181,7 +188,6 @@ export class AccountManager extends plugin {
             qqId: ownerBotUserId,
             maskedQqId: this.maskId(ownerBotUserId, 3, 2),
             boundCampIds: [],
-            maskedBoundCampIds: [],
             currentCampId: '',
             currentMaskedCampId: '未绑定',
             tokens: []
@@ -209,10 +215,6 @@ export class AccountManager extends plugin {
           tokenCount: owner.tokens.length,
           validTokenCount,
           invalidTokenCount,
-          bindCount: owner.boundCampIds.length,
-          bindText: owner.maskedBoundCampIds.length
-            ? `${owner.maskedBoundCampIds.slice(0, 3).join(' / ')}${owner.maskedBoundCampIds.length > 3 ? ' / ...' : ''}`
-            : '未绑定营地ID',
           uidEntries: mergedCampIds.map(campUserId => {
             const token = tokenMap.get(campUserId)
             const isCurrent = owner.currentCampId && owner.currentCampId === campUserId
@@ -266,12 +268,8 @@ export class AccountManager extends plugin {
       timestamp: new Date().toLocaleString(),
       overviewCards,
       ownerSections: displayedOwnerSections,
-      ownerTotalCount: allOwnerSections.length,
       omittedOwnerCount,
-      unownedAccounts: unownedAccounts.map(item => ({
-        ...item
-      })),
-      emptyState: !displayedOwnerSections.length && !unownedAccounts.length
+      unownedAccounts
     }
   }
 
@@ -284,13 +282,7 @@ export class AccountManager extends plugin {
     }
 
     const idList = this.formatIdList(currentUserInfo)
-    const html = await this.generateAccountManageHTML('绑定', wzryId, idList, [
-      '【#绑定营地+ID】添加新账号',
-      '【#切换营地+序号】切换账号',
-      '【#删除营地+序号】删除账号',
-      '【#我的ID】查看账号列表',
-      '【#营地wx登录】自动获取登录态并绑定'
-    ])
+    const html = await this.generateAccountManageHTML('绑定', wzryId, idList)
     await e.reply(html)
   }
 
@@ -329,7 +321,7 @@ export class AccountManager extends plugin {
     this.saveUserData(filePath, userData)
 
     const idList = this.formatIdList(userData[userId])
-    const html = await this.generateAccountManageHTML('切换', userData[userId].ids[index], idList, functionList)
+    const html = await this.generateAccountManageHTML('切换', userData[userId].ids[index], idList)
     await e.reply(html)
   }
 
@@ -360,11 +352,7 @@ export class AccountManager extends plugin {
     this.saveUserData(filePath, userData)
 
     const idList = this.formatIdList(userData[userId])
-    const functionList = userData[userId].ids.length ?
-      ['当前剩余账号：'] :
-      ['请使用【#绑定营地+ID】添加账号']
-
-    const html = await this.generateAccountManageHTML('删除', deletedId, idList, functionList)
+    const html = await this.generateAccountManageHTML('删除', deletedId, idList)
     await e.reply(html)
   }
 
@@ -378,11 +366,9 @@ export class AccountManager extends plugin {
     }
 
     const idList = this.formatIdList(userData[userId])
-    await e.reply([
-      segment.at(userId),
-      `\n${userId}的王者ID列表：\n`,
-      idList
-    ])
+    const currentId = userData[userId].ids[userData[userId].current] || userData[userId].ids[0]
+    const html = await this.generateAccountManageHTML('查询', currentId, idList)
+    await e.reply(html)
   }
 
   // 格式化ID列表显示
@@ -515,9 +501,9 @@ export class AccountManager extends plugin {
     return this.startWechatLogin(e, botUserId, {
       mode: 'personal',
       qrPromptLines: [
-      `请扫描二维码完成营地登录，二维码 3 分钟内有效，将在 ${LOGIN_QR_RECALL_SECONDS} 秒后自动撤回。`,
-      '\n登录成功后会自动保存登录态，并把返回的营地 userId 绑定为当前默认 ID。',
-      '\n如果你之后希望把这个账号加入公用池，可由主人使用【#共享营地账号 营地ID】开启共享。'
+        `请扫描二维码完成营地登录，二维码 3 分钟内有效，将在 ${LOGIN_QR_RECALL_SECONDS} 秒后自动撤回。`,
+        '\n登录成功后会自动保存登录态，并把返回的营地 userId 绑定为当前默认 ID。',
+        '\n如果你之后希望把这个账号加入公用池，可由主人使用【#共享营地账号 营地ID】开启共享。'
       ]
     })
   }
@@ -633,6 +619,20 @@ export class AccountManager extends plugin {
         `\n失效登录态：${overviewData.overviewCards[5]?.value || 0}`
       ])
     }
+    return true
+  }
+
+  async toggleSharedAuthCandidates(e) {
+    const enable = e.msg.includes('启用')
+    Config.modify('auth', 'enableAccountPool', enable)
+    await renderMasterPanel(e)
+    return true
+  }
+
+  async togglePersonalAuthFallback(e) {
+    const enable = e.msg.includes('启用')
+    Config.modify('auth', 'allowPersonalAuthFallback', enable)
+    await renderMasterPanel(e)
     return true
   }
 

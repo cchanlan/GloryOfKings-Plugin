@@ -1,252 +1,210 @@
 <style>
     :root {
-        --primary-color: #bb86fc;
-        --secondary-color: #03dac6;
-        --background-color: #121212;
-        --surface-color: #1e1e1e;
-        --on-surface-color: #e0e0e0;
-        --shadow-color: rgba(0, 0, 0, 0.2);
+        --c-primary: #e4bea0;
+        --c-bg: #121820;
+        --c-panel: rgba(22, 28, 40, 0.85);
+        --c-panel-light: rgba(255, 255, 255, 0.05);
+        --c-border: rgba(228, 190, 160, 0.2);
+        --c-border-soft: rgba(255, 255, 255, 0.08);
+        --c-text: #eef0f4;
+        --c-text-muted: rgba(238, 240, 244, 0.6);
+        --c-accent: #5fb1eb;
+    }
+
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
     }
 
     body {
-        width: 900px;
-        font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        line-height: 1.6;
-        margin: 0;
-        padding: 20px;
-        background-color: var(--background-color);
-        color: var(--on-surface-color);
+        width: 1080px;
+        padding: 30px;
+        font-family: inherit;
+        color: var(--c-text);
+        background: #000;
         -webkit-font-smoothing: antialiased;
     }
 
-    .container {
-        max-width: 800px;
-        margin: 0 auto;
-        border-radius: 12px;
-        box-shadow: 0 4px 20px var(--shadow-color);
-        padding: 30px;
-        background-color: var(--surface-color);
+    .page {
+        position: relative;
+        border-radius: 24px;
+        overflow: hidden;
+        background: var(--c-bg) url('../img/bgImgV2.png') no-repeat center/cover;
+        border: 1px solid var(--c-border);
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
     }
 
-    h1 {
-        text-align: center;
+    .overlay {
+        background: linear-gradient(180deg, rgba(16, 20, 29, 0.88) 0%, rgba(18, 24, 32, 0.96) 100%);
+        backdrop-filter: blur(8px);
+        padding: 45px 55px;
+    }
+
+    .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 1px solid var(--c-border);
+        padding-bottom: 24px;
         margin-bottom: 30px;
-        color: var(--primary-color);
-        font-size: 2.5em;
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
     }
 
-    .menu-sections {
+    .title-wrap h1 {
+        font-size: 40px;
+        font-weight: 800;
+        color: var(--c-primary);
+        text-shadow: 0 4px 16px rgba(228, 190, 160, 0.3);
+        margin-bottom: 10px;
+    }
+
+    .header-info {
+        text-align: right;
+        font-size: 13px;
+        color: var(--c-text-muted);
+        line-height: 1.6;
+    }
+
+    .header-info strong {
+        color: var(--c-primary);
+    }
+
+    .section-grid {
         display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 20px;
-        margin-bottom: 30px;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
     }
 
-    .section {
-        background-color: rgba(255, 255, 255, 0.03);
-        border-radius: 12px;
-        padding: 20px;
+    .panel {
+        background: var(--c-panel);
+        border: 1px solid var(--c-border-soft);
+        border-radius: 18px;
+        padding: 24px;
     }
 
-    .section-title {
-        color: var(--primary-color);
-        font-size: 1.3em;
-        margin-bottom: 15px;
-        padding-bottom: 10px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    .panel h2 {
+        font-size: 20px;
+        color: var(--c-primary);
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
     }
 
-    .menu-list {
+    .panel h2::before {
+        content: '';
+        display: inline-block;
+        width: 4px;
+        height: 18px;
+        background: var(--c-primary);
+        margin-right: 12px;
+        border-radius: 2px;
+    }
+
+    .cmd-list {
         display: grid;
-        gap: 12px;
+        gap: 14px;
     }
 
-    .menu-item {
-        padding: 20px;
-        border-radius: 8px;
-        background-color: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+    .cmd-item {
+        background: var(--c-panel-light);
+        border-radius: 14px;
+        padding: 16px 20px;
+        border: 1px solid rgba(255, 255, 255, 0.03);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
     }
 
-    .menu-item:hover {
-        background-color: rgba(255, 255, 255, 0.1);
-        border-color: var(--primary-color);
-    }
-
-    .command {
+    .cmd-text {
+        font-size: 17px;
         font-weight: bold;
-        color: var(--secondary-color);
-        font-size: 1.1em;
+        color: var(--c-accent);
     }
 
-    .description {
-        margin-top: 8px;
-        opacity: 0.8;
-    }
-
-    .footer {
-        text-align: center;
-        margin-top: 40px;
-        padding-top: 20px;
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
-        color: var(--secondary-color);
+    .cmd-desc {
+        font-size: 14px;
+        color: var(--c-text-muted);
     }
 </style>
 
 <body>
-    <div class="container">
-        <h1>王者荣耀菜单帮助</h1>
-
-        <div class="menu-sections">
-            <div class="section">
-                <div class="section-title">账号管理</div>
-                <ul class="menu-list">
-                    <li class="menu-item">
-                        <div class="command">#绑定营地</div>
-                        <div class="description">绑定营地ID，【#绑定营地+空格+营地ID】，可绑定多个</div>
-                    </li>
-                    <li class="menu-item">
-                        <div class="command">#切换营地</div>
-                        <div class="description">切换使用的营地ID，【#切换营地+空格+序号】</div>
-                    </li>
-                    <li class="menu-item">
-                        <div class="command">#删除营地</div>
-                        <div class="description">删除绑定的营地ID，【#删除营地+空格+序号】</div>
-                    </li>
-                    <li class="menu-item">
-                        <div class="command">#我的ID</div>
-                        <div class="description">查看已绑定的营地ID列表，✅表示当前使用的ID</div>
-                    </li>
-                    <li class="menu-item">
-                        <div class="command">#营地wx登录</div>
-                        <div class="description">扫码登录营地，自动保存登录态并绑定当前营地ID</div>
-                    </li>
-                    <li class="menu-item">
-                        <div class="command">#营地wx全局登录</div>
-                        <div class="description">主人扫码更新默认全局账号的登录态和鉴权信息</div>
-                    </li>
-                    <li class="menu-item">
-                        <div class="command">#王者用户统计</div>
-                        <div class="description">主人查看当前用户绑定、账号状态和共享情况</div>
-                    </li>
-                    <li class="menu-item">
-                        <div class="command">#清理失效营地账号</div>
-                        <div class="description">主人清理本地账号池中已失效的非全局登录态，不影响已绑定营地ID</div>
-                    </li>
-                </ul>
+    <div class="page">
+        <div class="overlay">
+            <div class="header">
+                <div class="title-wrap">
+                    <h1>王者荣耀插件帮助</h1>
+                </div>
+                <div class="header-info">
+                    <div class="info-tip"><strong>提示：</strong>如遇登录状态失效，请重新扫码或联系主人处理。</div>
+                    <div class="info-time">{{generatedAt}} | GloryOfKings-Plugin</div>
+                </div>
             </div>
 
-            <!-- 数据查询 -->
-            <div class="section">
-                <div class="section-title">数据查询</div>
-                <ul class="menu-list">
-                    <li class="menu-item">
-                        <div class="command">#王者主页</div>
-                        <div class="description">查看游戏信息概览，段位，总场次，MVP次数等</div>
-                    </li>
-                    <li class="menu-item">
-                        <div class="command">#查询战绩</div>
-                        <div class="description">查询最近的30条战绩，附带数字可查看指定场次详细数据</div>
-                    </li>
-                    <li class="menu-item">
-                        <div class="command">#查战力 [英雄名]</div>
-                        <div class="description">查询指定英雄的战力排名及所需战力</div>
-                    </li>
-                    <li class="menu-item">
-                        <div class="command">#查皮肤 [英雄名]</div>
-                        <div class="description">查询指定英雄的皮肤</div>
-                    </li>
-                </ul>
+            <div class="section-grid">
+                <div class="panel">
+                    <h2>账号管理</h2>
+                    <div class="cmd-list">
+                        <div class="cmd-item">
+                            <span class="cmd-text">#绑定营地 [营地ID]</span>
+                            <span class="cmd-desc">添加营地账号</span>
+                        </div>
+                        <div class="cmd-item">
+                            <span class="cmd-text">#营地wx登录</span>
+                            <span class="cmd-desc">微信快捷扫码</span>
+                        </div>
+                        <div class="cmd-item">
+                            <span class="cmd-text">#营地ID / #王者ID / #我的ID / #我的王者ID</span>
+                            <span class="cmd-desc">查看已绑账号列表</span>
+                        </div>
+                        <div class="cmd-item">
+                            <span class="cmd-text">#切换营地 [序号]</span>
+                            <span class="cmd-desc">切换默认账号</span>
+                        </div>
+                        <div class="cmd-item">
+                            <span class="cmd-text">#删除营地 [序号]</span>
+                            <span class="cmd-desc">解除当前账号绑定</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2>数据查询</h2>
+                    <div class="cmd-list">
+                        <div class="cmd-item">
+                            <span class="cmd-text">#王者主页</span>
+                            <span class="cmd-desc">查个人主页概览</span>
+                        </div>
+                        <div class="cmd-item">
+                            <span class="cmd-text">#查询战绩 [序号]</span>
+                            <span class="cmd-desc">查近期排位详情</span>
+                        </div>
+                        <div class="cmd-item">
+                            <span class="cmd-text">#查战力 [英雄名]</span>
+                            <span class="cmd-desc">获取英雄战力排名</span>
+                        </div>
+                        <div class="cmd-item">
+                            <span class="cmd-text">#查皮肤 [英雄名]</span>
+                            <span class="cmd-desc">查看英雄皮肤图鉴</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <!-- 系统设置 -->
-            <div class="section">
-                <div class="section-title">系统设置</div>
-                <ul class="menu-list">
-                    <li class="menu-item">
-                        <div class="command">#王者帮助</div>
-                        <div class="description">显示本帮助页面</div>
-                    </li>
-                    <li class="menu-item">
-                        <div class="command">#王者更新 / #农药更新</div>
-                        <div class="description">更新本插件</div>
-                    </li>
-                </ul>
+            <div class="panel" style="margin-top: 24px;">
+                <h2>系统指令</h2>
+                <div class="cmd-list" style="grid-template-columns: 1fr 1fr;">
+                    <div class="cmd-item">
+                        <span class="cmd-text">#王者帮助 / #王者help</span>
+                        <span class="cmd-desc">查看本帮助面板</span>
+                    </div>
+                    <div class="cmd-item">
+                        <span class="cmd-text">#王者设置</span>
+                        <span class="cmd-desc">控制台配置(限主)</span>
+                    </div>
+                </div>
             </div>
-        </div>
 
-        <div class="footer">
-            Yunzai-Bot | GloryOfKings-Plugin
+
         </div>
     </div>
-
-    <script>
-        const styles = [
-            {
-                name: "暗夜紫",
-                bodyBg: "#121212",
-                containerBg: "#1e1e1e",
-                headerColor: "#bb86fc",
-                textColor: "#e0e0e0",
-                commandColor: "#03dac6",
-                itemBg: "rgba(255, 255, 255, 0.05)",
-                itemHoverBg: "rgba(255, 255, 255, 0.1)"
-            },
-            {
-                name: "极光蓝",
-                bodyBg: "#001529",
-                containerBg: "#002140",
-                headerColor: "#1890ff",
-                textColor: "#ffffff",
-                commandColor: "#69c0ff",
-                itemBg: "#003a8c",
-                itemHoverBg: "#002766"
-            }
-        ];
-
-        function applyRandomStyle() {
-            const style = styles[Math.floor(Math.random() * styles.length)];
-            document.documentElement.style.setProperty('--background-color', style.bodyBg);
-            document.documentElement.style.setProperty('--surface-color', style.containerBg);
-            document.documentElement.style.setProperty('--primary-color', style.headerColor);
-            document.documentElement.style.setProperty('--on-surface-color', style.textColor);
-            document.documentElement.style.setProperty('--secondary-color', style.commandColor);
-
-            // 获取所有菜单项
-            const menuItems = Array.from(document.querySelectorAll('.menu-item'));
-
-            // 随机选择2-4个菜单项
-            const numberOfHighlights = Math.floor(Math.random() * 3) + 2; // 2到4之间的随机数
-            const selectedItems = [];
-
-            while (selectedItems.length < numberOfHighlights) {
-                const randomIndex = Math.floor(Math.random() * menuItems.length);
-                const randomItem = menuItems[randomIndex];
-                if (!selectedItems.includes(randomItem)) {
-                    selectedItems.push(randomItem);
-                }
-            }
-
-            // 为所有菜单项添加基本样式和悬停效果
-            menuItems.forEach(el => {
-                el.style.backgroundColor = style.itemBg;
-                el.addEventListener('mouseover', () => el.style.backgroundColor = style.itemHoverBg);
-                el.addEventListener('mouseout', () => {
-                    // 如果不是被选中的项目，则恢复原始背景色
-                    if (!selectedItems.includes(el)) {
-                        el.style.backgroundColor = style.itemBg;
-                    }
-                });
-            });
-
-            // 为选中的项目应用持续的悬停效果
-            selectedItems.forEach(item => {
-                item.style.backgroundColor = style.itemHoverBg;
-                item.style.borderColor = style.headerColor;
-            });
-        }
-
-        window.onload = applyRandomStyle;
-    </script>
 </body>

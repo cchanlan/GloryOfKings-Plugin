@@ -87,13 +87,15 @@ export function supportGuoba () {
         {
           field: 'auth.enableAccountPool',
           label: '启用共享账号候选',
+          helpMessage: '命令：#王者设置共享账号候选启用 / #王者设置共享账号候选关闭',
           bottomHelpMessage: '默认关闭。关闭时只使用账号列表中的默认全局账号；开启后才会在默认全局账号之后继续尝试共享账号。个人登录态不会默认参与，只有同时开启“个人登录态兜底”时才会作为最后候选。',
           component: 'Switch'
         },
         {
           field: 'auth.allowPersonalAuthFallback',
           label: '允许个人登录态兜底',
-          bottomHelpMessage: '默认关闭。开启后会在默认全局账号和共享账号都不可用时，最后再尝试当前 QQ 自己保存的登录态。',
+          helpMessage: '命令：#王者设置个人登录态兜底启用 / #王者设置个人登录态兜底关闭',
+          bottomHelpMessage: '默认关闭。开启后会在默认全局账号和共享账号都不可用时，最后再尝试当前 QQ 自己保存的登录态。若“共享账号候选”为关闭状态，则该兜底链路不会实际参与请求。',
           component: 'Switch'
         },
         {
@@ -142,7 +144,7 @@ export function supportGuoba () {
         },
         {
           component: 'Divider',
-          label: '命令入口：#营地wx登录 / #营地wx全局登录 / #王者用户统计 / #共享营地账号 / #清理失效营地账号'
+          label: '命令入口：#营地wx登录 / #王者帮助 / #王者设置 / #营地wx全局登录 / #王者用户统计 / #王者设置共享账号候选启用|关闭 / #王者设置个人登录态兜底启用|关闭 / #共享营地账号 / #清理失效营地账号'
         },
         {
           field: 'authPool.sharedIds',

@@ -1,0 +1,302 @@
+<style>
+    :root {
+        --c-primary: #e4bea0;
+        --c-bg: #121820;
+        --c-panel: rgba(22, 28, 40, 0.85);
+        --c-panel-light: rgba(255, 255, 255, 0.05);
+        --c-border: rgba(228, 190, 160, 0.2);
+        --c-border-soft: rgba(255, 255, 255, 0.08);
+        --c-text: #eef0f4;
+        --c-text-muted: rgba(238, 240, 244, 0.6);
+        --c-accent: #5fb1eb;
+
+        --c-on: #8be668;
+        --c-off: #f56c6c;
+        --c-warn: #ffb84d;
+    }
+
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    body {
+        width: 1080px;
+        padding: 30px;
+        font-family: inherit;
+        color: var(--c-text);
+        background: #000;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    .page {
+        position: relative;
+        border-radius: 24px;
+        overflow: hidden;
+        background: var(--c-bg) url('../img/bgImgV2.png') no-repeat center/cover;
+        border: 1px solid var(--c-border);
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+    }
+
+    .overlay {
+        background: linear-gradient(180deg, rgba(16, 20, 29, 0.88) 0%, rgba(18, 24, 32, 0.96) 100%);
+        backdrop-filter: blur(8px);
+        padding: 45px 55px;
+    }
+
+    .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 1px solid var(--c-border);
+        padding-bottom: 24px;
+        margin-bottom: 30px;
+    }
+
+    .title-wrap h1 {
+        font-size: 40px;
+        font-weight: 800;
+        color: var(--c-primary);
+        text-shadow: 0 4px 16px rgba(228, 190, 160, 0.3);
+        margin-bottom: 10px;
+    }
+
+    .header-info {
+        text-align: right;
+        font-size: 13px;
+        color: var(--c-text-muted);
+        line-height: 1.6;
+    }
+
+    .header-info strong {
+        color: var(--c-primary);
+    }
+
+    .section-grid {
+        display: grid;
+        grid-template-columns: 1.15fr 0.85fr;
+        gap: 24px;
+        margin-bottom: 24px;
+    }
+
+    .cmd-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+    }
+
+    .panel {
+        background: var(--c-panel);
+        border: 1px solid var(--c-border-soft);
+        border-radius: 18px;
+        padding: 24px;
+    }
+
+    .panel h2 {
+        font-size: 20px;
+        color: var(--c-primary);
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .panel h2 .title-left {
+        display: flex;
+        align-items: center;
+    }
+
+    .panel h2 .title-left::before {
+        content: '';
+        display: inline-block;
+        width: 4px;
+        height: 18px;
+        background: var(--c-primary);
+        margin-right: 12px;
+        border-radius: 2px;
+    }
+
+    .panel-tag {
+        font-size: 13px;
+        color: var(--c-text-muted);
+        background: var(--c-panel-light);
+        padding: 4px 10px;
+        border-radius: 100px;
+    }
+
+    .row-list {
+        display: grid;
+        gap: 12px;
+    }
+
+    .row-item {
+        background: var(--c-panel-light);
+        border-radius: 14px;
+        padding: 14px 18px;
+        border: 1px solid rgba(255, 255, 255, 0.03);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .row-left {
+        flex-grow: 1;
+    }
+
+    .row-label {
+        font-size: 15px;
+        font-weight: bold;
+        color: var(--c-text);
+        margin-bottom: 4px;
+    }
+
+    .row-desc {
+        font-size: 13px;
+        color: var(--c-text-muted);
+    }
+
+    .row-val {
+        font-size: 16px;
+        font-weight: bold;
+        margin-left: 16px;
+        white-space: nowrap;
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        margin-top: 20px;
+    }
+
+    .summary-item {
+        background: var(--c-panel-light);
+        border: 1px solid rgba(255, 255, 255, 0.03);
+        border-radius: 12px;
+        padding: 14px 10px;
+        text-align: center;
+    }
+
+    .summary-label {
+        font-size: 12px;
+        color: var(--c-text-muted);
+        margin-bottom: 6px;
+    }
+
+    .summary-val {
+        font-size: 22px;
+        font-weight: 800;
+    }
+
+    .cmd-item {
+        background: var(--c-panel-light);
+        border-radius: 14px;
+        padding: 12px 18px;
+        border: 1px solid rgba(255, 255, 255, 0.03);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .cmd-text {
+        font-size: 16px;
+        font-weight: bold;
+        color: var(--c-accent);
+    }
+
+    .cmd-desc {
+        font-size: 13px;
+        color: var(--c-text-muted);
+    }
+
+
+
+    .tone-on {
+        color: var(--c-on);
+    }
+
+    .tone-off {
+        color: var(--c-off);
+    }
+
+    .tone-warn {
+        color: var(--c-warn);
+    }
+
+    .tone-neutral {
+        color: var(--c-accent);
+    }
+</style>
+
+<body>
+    <div class="page">
+        <div class="overlay">
+            <div class="header">
+                <div class="title-wrap">
+                    <h1>王者控制台及环境面板</h1>
+                </div>
+                <div class="header-info">
+                    <div class="info-tip"><strong>提示：</strong>以上数据与设置均为系统全局配置，普通用户请使用【#王者帮助】。</div>
+                    <div class="info-time">{{generatedAt}} | GloryOfKings-Plugin</div>
+                </div>
+            </div>
+
+            <div class="section-grid">
+                <div class="panel">
+                    <h2>
+                        <span class="title-left">当前运行状态与策略</span>
+                        <span class="panel-tag">含控制指令</span>
+                    </h2>
+                    <div class="row-list">
+                        {{each strategyRows row}}
+                        <div class="row-item">
+                            <div class="row-left">
+                                <div class="row-label">{{row.label}}</div>
+                                <div class="row-desc">{{row.desc}}</div>
+                            </div>
+                            <div class="row-val tone-{{row.tone}}">{{row.value}}</div>
+                        </div>
+                        {{/each}}
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2>
+                        <span class="title-left">账号池连通性审计</span>
+                        <span class="panel-tag">实时统计</span>
+                    </h2>
+                    <div class="summary-grid">
+                        {{each summaryRows row}}
+                        <div class="summary-item">
+                            <div class="summary-label">{{row.label}}</div>
+                            <div class="summary-val tone-{{row.tone}}">{{row.value}}</div>
+                        </div>
+                        {{/each}}
+                    </div>
+                </div>
+            </div>
+
+            <div class="cmd-grid">
+                {{each commandGroups group}}
+                <div class="panel">
+                    <h2>
+                        <span class="title-left">{{group.title}}</span>
+                        <span class="panel-tag">{{group.items.length}} 项指令</span>
+                    </h2>
+                    <div class="row-list">
+                        {{each group.items item}}
+                        <div class="cmd-item">
+                            <span class="cmd-text">{{item.command}}</span>
+                            <span class="cmd-desc">{{item.desc}}</span>
+                        </div>
+                        {{/each}}
+                    </div>
+                </div>
+                {{/each}}
+            </div>
+
+
+        </div>
+    </div>
+</body>
