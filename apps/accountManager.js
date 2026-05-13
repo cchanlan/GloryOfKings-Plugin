@@ -550,7 +550,8 @@ export class AccountManager extends plugin {
     await e.reply([
       '默认全局账号已更新。',
       `\n营地ID：${savedAccount.userId || '未获取'}`,
-      `\n昵称：${savedAccount.nickname || savedAccount.userName || '未命名'}`
+      `\n昵称：${savedAccount.nickname || savedAccount.userName || '未命名'}`,
+      '\n登录态有效期通常约 30 天左右，失效后请重新使用【#营地wx全局登录】扫码更新。'
     ])
   }
 
