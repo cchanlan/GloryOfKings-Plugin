@@ -22,7 +22,7 @@ export class AccountManager extends plugin {
       priority: 1,
       rule: [
         {
-          reg: /^#(?:营地|我的(?:王者|荣耀|农药)?|(?:王者|荣耀|农药))ID$/i,
+          reg: /^#(?:营地|我的(?:王者|荣耀|农药)|(?:王者|荣耀|农药))ID$/i,
           fnc: 'myWzryId'
         },
         {
