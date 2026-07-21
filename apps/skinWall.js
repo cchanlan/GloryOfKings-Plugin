@@ -27,7 +27,21 @@ export class SkinWall extends plugin {
 
   async skinWall(e) {
     const msg = e.msg.replace(/^#(王者)?皮肤墙\s*/, '').trim()
-    const userId = (e.at && !e.atme) ? e.at : e.user_id
+    const isAt = Boolean(e.at && !e.atme)
+    const userId = isAt ? e.at : e.user_id
+
+    // 昵称：查自己用触发者信息；@别人时从群成员信息取被@人的昵称
+    let nickname = e.sender?.card || e.sender?.nickname || String(userId)
+    if (isAt) {
+      nickname = String(userId)
+      try {
+        const member = e.group?.pickMember?.(Number(userId))
+        const info = member?.getInfo ? await member.getInfo() : member?.info
+        nickname = info?.card || info?.nickname || String(userId)
+      } catch (err) {
+        logger.debug(`[皮肤墙] 获取被@成员昵称失败: ${err.message}`)
+      }
+    }
 
     const userFilePath = path.join(PluginData, 'UserData.yaml')
     const allUserData = readYamlFile(userFilePath) || {}
@@ -86,16 +100,26 @@ export class SkinWall extends plugin {
       result.push({
         iClass: szLevel,
         szClass,
+        // 价格：综合价值优先，点券价兜底，用于排序
+        price: Number(conf.skin_worth) || Number(conf.iPrice) || 0,
         skinId: conf.iSkinId,
         skinName: conf.szTitle,
         heroName: conf.szHeroTitle,
         imgUrl: `${SKIN_IMG_BASE}/${conf.iSkinId}.jpg`,
         // 702-1236 图集不含全部皮肤，缺失时回退到官方大图
-        fallbackUrl: conf.szLargeIcon || conf.szSmallIcon || ''
+        fallbackUrl: conf.szLargeIcon || conf.szSmallIcon || '',
+        // 皮肤品质角标图（史诗/限定/荣耀典藏等），可能为空
+        labelUrl: conf.classLabel || ''
       })
     }
 
-    result.sort((a, b) => a.iClass - b.iClass)
+    // 价格从高到低；价格相同按营地评级(iClass 越小越高)排
+    result.sort((a, b) => (b.price - a.price) || (a.iClass - b.iClass))
+
+    // 标记大图：最贵的若干张用大图展示（masonry 布局，每页周期性穿插）
+    result.forEach((skin, idx) => {
+      skin.big = idx % 7 === 0
+    })
 
     if (!result.length) {
       await e.reply('该账号暂无可展示的皮肤，或资料未公开')
@@ -118,7 +142,10 @@ export class SkinWall extends plugin {
       // 固定 name(=目录)，用 saveId 区分每页文件，避免 Renderer 复用模板缓存时不建目录导致 ENOENT
       saveId: `SkinWall_${pageIndex}`,
       ydId: String(ID),
+      avatar: `https://q1.qlogo.cn/g?b=qq&s=100&nk=${userId}`,
+      nickname,
       owned: skinInfo.owned,
+      totalSkinNum: skinInfo.totalSkinNum || '',
       notForSell: skinInfo.notForSell,
       totalValue: skinInfo.totalValue,
       srNum,

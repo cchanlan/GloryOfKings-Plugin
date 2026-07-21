@@ -18,6 +18,25 @@
             background: linear-gradient(160deg, #0f1420 0%, #1a2133 100%);
             color: #fff;
             padding: 40px;
+            position: relative;
+            z-index: 0;
+        }
+
+        /* 背景大图层：模糊 + 暗化，保证前景清晰；图挂了则退回上面的深色渐变 */
+        body::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                linear-gradient(160deg, rgba(15, 20, 32, 0.86) 0%, rgba(20, 25, 45, 0.92) 100%),
+                url("https://game.gtimg.cn/images/yxzj/img201606/skin/hero-info/152/152-bigskin-8.jpg");
+            background-size: cover;
+            background-position: center top;
+            filter: blur(6px);
+            z-index: -1;
         }
 
         .header {
@@ -31,6 +50,28 @@
             background: linear-gradient(90deg, #f5d76e, #f0932b);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+        }
+
+        .header .user {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            margin-top: 16px;
+        }
+
+        .header .user img {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            border: 2px solid #f5d76e;
+            object-fit: cover;
+        }
+
+        .header .user .nick {
+            font-size: 26px;
+            color: #eef2f8;
+            font-weight: bold;
         }
 
         .header .yd-id {
@@ -70,6 +111,8 @@
         .skin-grid {
             display: grid;
             grid-template-columns: repeat(6, 1fr);
+            grid-auto-rows: 356px;
+            grid-auto-flow: dense;
             gap: 20px;
         }
 
@@ -81,41 +124,68 @@
             position: relative;
         }
 
-        .skin-card img {
+        /* 大图：贵的皮肤占 2x2，突出展示 */
+        .skin-card.big {
+            grid-column: span 2;
+            grid-row: span 2;
+        }
+
+        .skin-card img.skin-pic {
             width: 100%;
-            height: 356px;
+            height: 100%;
             object-fit: cover;
             display: block;
         }
 
-        .skin-card .sz-tag {
+        .skin-card .label-tag {
             position: absolute;
             top: 8px;
             right: 8px;
-            padding: 3px 10px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            background: rgba(0, 0, 0, 0.55);
-            color: #f5d76e;
+            height: 34px;
+            max-width: 60%;
+            object-fit: contain;
+            filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.7));
+            z-index: 2;
         }
 
         .skin-card .info {
-            padding: 10px 12px 14px;
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding: 24px 12px 12px;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.45) 55%, rgba(0, 0, 0, 0) 100%);
+            z-index: 1;
         }
 
         .skin-card .skin-name {
             font-size: 20px;
             color: #00d1ff;
+            font-weight: bold;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
         }
 
         .skin-card .hero-name {
             margin-top: 4px;
             font-size: 16px;
-            color: #c8d0dd;
+            color: #e2e8f2;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+        }
+
+        /* 大图字体放大 */
+        .skin-card.big .skin-name {
+            font-size: 30px;
+        }
+
+        .skin-card.big .hero-name {
+            font-size: 22px;
+        }
+
+        .skin-card.big .label-tag {
+            height: 48px;
         }
 
         .footer {
@@ -130,12 +200,16 @@
 <body>
     <div class="header">
         <h1>皮 肤 墙</h1>
+        <div class="user">
+            <img src="{{avatar}}" onerror="this.style.display='none'">
+            <span class="nick">{{nickname}}</span>
+        </div>
         <div class="yd-id">营地ID: {{ydId}}{{if pageInfo}} · {{pageInfo}}{{/if}}</div>
     </div>
 
     <div class="stats">
         <div class="stat-item">
-            <div class="num">{{owned}}</div>
+            <div class="num">{{owned}}{{if totalSkinNum}}<span style="font-size:20px;color:#9aa7bd;">/{{totalSkinNum}}</span>{{/if}}</div>
             <div class="label">已拥有</div>
         </div>
         <div class="stat-item">
@@ -162,9 +236,9 @@
 
     <div class="skin-grid">
         {{each skinList skin}}
-        <div class="skin-card">
-            <span class="sz-tag">{{skin.szClass}}</span>
-            <img src="{{skin.imgUrl}}" alt="{{skin.skinName}}"
+        <div class="skin-card{{if skin.big}} big{{/if}}">
+            {{if skin.labelUrl}}<img class="label-tag" src="{{skin.labelUrl}}" onerror="this.style.display='none'">{{/if}}
+            <img class="skin-pic" src="{{skin.imgUrl}}" alt="{{skin.skinName}}"
                  onerror="if(!this.dataset.fb&amp;&amp;'{{skin.fallbackUrl}}'){this.dataset.fb=1;this.src='{{skin.fallbackUrl}}';}else{this.style.visibility='hidden';}">
             <div class="info">
                 <div class="skin-name">{{skin.skinName}}</div>
