@@ -65,25 +65,6 @@ pnpm install
 - `#王者更新` - 更新插件
 - `#王者设置` - 王者插件一些配置项
 
-## 🤝 参与贡献
-
-1. Fork 本仓库
-2. 新建 feature_xxx 分支
-3. 提交代码
-4. 新建 Pull Request
-
-## 📞 联系方式
-
-- 作者: [@Tloml-Starry](https://gitee.com/Tloml-Starry)
-- QQ: [点击添加](https://qm.qq.com/q/h9UHpRmomc)
-- QQ群: [点击加入](https://qm.qq.com/q/BPxggII1m8)
-
-## 📝 问题反馈
-
-如遇到问题请及时反馈:
-
-- [提交 Issue](https://gitee.com/Tloml-Starry/GloryOfKings-Plugin/issues)
-- [Pull Request](https://gitee.com/Tloml-Starry/GloryOfKings-Plugin/pulls)
 
 ## ⭐ 支持项目
 
