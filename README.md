@@ -8,6 +8,11 @@
 
 </div>
 
+> [!NOTE]
+> 本仓库是 [@Tloml-Starry/GloryOfKings-Plugin](https://gitee.com/Tloml-Starry/GloryOfKings-Plugin) 的 Fork，在原插件基础上新增了 **皮肤墙**（`#皮肤墙`）功能。
+> 皮肤墙的营地接口调用逻辑参考自 [@KimigaiiWuyi/WzryUID](https://github.com/KimigaiiWuyi/WzryUID)。
+> 感谢原作者们的开源工作，原插件版权与协议归 [@Tloml-Starry](https://gitee.com/Tloml-Starry) 所有。
+
 
 ## 🌟 主要功能
 
@@ -53,6 +58,7 @@ pnpm install
 - `#查询战绩 [序号]` - 查看指定场次详细数据
 - `#查战力 [英雄名]` - 查询指定英雄的战力排名
 - `#查皮肤 [英雄名]` - 查询指定英雄的皮肤
+- `#皮肤墙 [营地ID]` - 查询账号拥有的全部皮肤（皮肤多时自动分页合并转发）
 
 ### 系统设置
 - `#王者帮助` - 显示功能帮助

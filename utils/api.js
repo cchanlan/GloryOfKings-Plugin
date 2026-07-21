@@ -840,6 +840,198 @@ class ApiService {
     }, ID, requesterBotUserId)
   }
 
+  /**
+   * 获取账号皮肤列表（皮肤墙）。
+   * 该接口位于游戏侧域名，使用 form 表单 + token/userId 鉴权，响应不加密。
+   * 接口与参数参考自 https://github.com/KimigaiiWuyi/WzryUID
+   */
+  async getSkinList(ID, requesterBotUserId = '') {
+    return this.#requestGameForm('/play/h5getheroskinlist', {
+      noCache: '0',
+      recommendPrivacy: '0',
+      friendUserId: this.#toString(ID)
+    }, this.#toString(ID), requesterBotUserId)
+  }
+  #buildGameFormBody(auth, extraFields = {}) {
+    const fields = {
+      cChannelId: auth.cChannelId,
+      cClientVersionCode: auth.cClientVersionCode,
+      cClientVersionName: auth.cClientVersionName,
+      cCurrentGameId: auth.cCurrentGameId,
+      cGameId: auth.cGameId,
+      cGzip: auth.cGzip,
+      cIsArm64: auth.cIsArm64,
+      cRand: String(Date.now()),
+      cSupportArm64: auth.cSupportArm64,
+      cSystem: auth.cSystem,
+      cSystemVersionCode: auth.cSystemVersionCode,
+      cSystemVersionName: auth.cSystemVersionName,
+      cpuHardware: auth.cpuHardware,
+      gameAreaId: auth.gameAreaId,
+      gameId: auth.cGameId,
+      gameRoleId: this.#toString(auth.gameRoleId) || '0',
+      gameServerId: this.#toString(auth.gameServerId) || '0',
+      gameUserSex: auth.gameUserSex,
+      openId: auth.openId || this.generatedXLogUid,
+      tinkerId: auth.tinkerId,
+      token: auth.token,
+      userId: auth.userId,
+      ...extraFields
+    }
+
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(fields)) {
+      params.append(key, this.#toString(value))
+    }
+
+    return params.toString()
+  }
+
+  #getGameFormHeaders(auth) {
+    return {
+      Host: 'ssl.kohsocialapp.qq.com:10001',
+      'content-encrypt': '',
+      'accept-encrypt': '',
+      noencrypt: '1',
+      'x-client-proto': auth.xClientProto,
+      'x-log-uid': this.#getXLogUid(auth),
+      kohdimgender: auth.kohDimGender,
+      'content-type': 'application/x-www-form-urlencoded',
+      'accept-encoding': 'gzip',
+      'user-agent': auth.userAgent,
+      token: auth.token,
+      userid: auth.userId
+    }
+  }
+  async #fetchGameForm(url, auth, body, retries, context = {}) {
+    const headers = this.#getGameFormHeaders(auth)
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 10000)
+
+      try {
+        logger.debug('[王者接口] 游戏侧表单请求调试', this.#buildRequestDebugInfo(
+          'POST',
+          url,
+          headers,
+          body,
+          { ...context, attemptIndex: attempt }
+        ))
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body,
+          signal: controller.signal
+        })
+
+        clearTimeout(timer)
+        const text = await response.text()
+
+        logger.debug('[王者接口] 游戏侧表单原始响应', {
+          endpoint: context.endpoint || '',
+          status: response.status,
+          ok: response.ok,
+          rawTextPreview: this.#previewValue(text)
+        })
+
+        let data
+        try {
+          data = this.#parseJson(text)
+        } catch (error) {
+          throw new Error('接口返回无法解析，请检查当前账号登录态是否有效')
+        }
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${data.returnMsg || data.message || response.statusText}`)
+        }
+
+        return data
+      } catch (error) {
+        clearTimeout(timer)
+
+        if (attempt === retries) {
+          throw error
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt)))
+      }
+    }
+  }
+
+  async #requestGameForm(endpoint, extraFields = {}, targetUserId = '', requesterBotUserId = '', retries = 2) {
+    const url = `${this.baseUrls.game}${endpoint}`
+    const candidates = this.#getAuthCandidates(targetUserId, requesterBotUserId)
+
+    if (!candidates.length) {
+      throw new AuthConfigError('未找到可用的营地登录态，请先完成营地登录，或在账号池中配置一个可用的全局账号')
+    }
+
+    let lastError = null
+
+    for (let index = 0; index < candidates.length; index += 1) {
+      const candidate = candidates[index]
+
+      try {
+        this.#assertAuthReady(candidate.auth)
+        const body = this.#buildGameFormBody(candidate.auth, extraFields)
+        const data = await this.#fetchGameForm(url, candidate.auth, body, retries, {
+          endpoint,
+          method: 'POST',
+          targetUserId: this.#toString(targetUserId),
+          requesterBotUserId: this.#toString(requesterBotUserId)
+        })
+
+        const returnCode = Number(data?.returnCode)
+        if (Number.isFinite(returnCode) && returnCode !== 0) {
+          lastError = new AuthConfigError(`${candidate.label} 返回错误码 ${returnCode}: ${data.returnMsg || data.message || ''}`.trim())
+
+          if (this.#isAuthFailureResponse(data) || this.#isAuthFailureResponse({ returnMsg: String(returnCode) })) {
+            this.#markCandidateAuthFailure(candidate, lastError.message)
+          }
+
+          if (index < candidates.length - 1) {
+            logger.warn(`[王者接口] ${candidate.label} 皮肤墙请求返回错误码，尝试回退下一个账号`, {
+              endpoint,
+              targetUserId,
+              returnCode
+            })
+            continue
+          }
+
+          throw lastError
+        }
+
+        this.#markCandidateAuthSuccess(candidate)
+        return data
+      } catch (error) {
+        lastError = error
+
+        if (index < candidates.length - 1 && this.#isAuthRelatedError(error)) {
+          this.#markCandidateAuthFailure(candidate, error.message)
+          logger.warn(`[王者接口] ${candidate.label} 皮肤墙请求失败，尝试回退下一个账号`, {
+            endpoint,
+            targetUserId,
+            error: error.message
+          })
+          continue
+        }
+
+        if (this.#isAuthRelatedError(error)) {
+          this.#markCandidateAuthFailure(candidate, error.message)
+        }
+
+        break
+      }
+    }
+
+    if (lastError) {
+      logger.error(`API请求失败: ${lastError.message}`, { url, method: 'POST', targetUserId, requesterBotUserId })
+      throw lastError
+    }
+  }
+
   /** 获取赛季页数据 */
   async getSeasonpage(ID, requesterBotUserId = '') {
     return this.#makeAuthRequest('/game/seasonpage', {

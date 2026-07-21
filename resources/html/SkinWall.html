@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>皮肤墙</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+            width: 1400px;
+            background: linear-gradient(160deg, #0f1420 0%, #1a2133 100%);
+            color: #fff;
+            padding: 40px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 46px;
+            letter-spacing: 4px;
+            background: linear-gradient(90deg, #f5d76e, #f0932b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header .yd-id {
+            margin-top: 10px;
+            font-size: 22px;
+            color: #9aa7bd;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 36px;
+        }
+
+        .stat-item {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 14px;
+            padding: 20px 10px;
+            text-align: center;
+        }
+
+        .stat-item .num {
+            font-size: 38px;
+            font-weight: bold;
+            color: #f5d76e;
+        }
+
+        .stat-item .label {
+            margin-top: 8px;
+            font-size: 18px;
+            color: #b9c3d6;
+        }
+
+        .skin-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 20px;
+        }
+
+        .skin-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .skin-card img {
+            width: 100%;
+            height: 356px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .skin-card .sz-tag {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 3px 10px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            background: rgba(0, 0, 0, 0.55);
+            color: #f5d76e;
+        }
+
+        .skin-card .info {
+            padding: 10px 12px 14px;
+        }
+
+        .skin-card .skin-name {
+            font-size: 20px;
+            color: #00d1ff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .skin-card .hero-name {
+            margin-top: 4px;
+            font-size: 16px;
+            color: #c8d0dd;
+        }
+
+        .footer {
+            margin-top: 34px;
+            text-align: center;
+            font-size: 16px;
+            color: #6f7c92;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>皮 肤 墙</h1>
+        <div class="yd-id">营地ID: {{ydId}}{{if pageInfo}} · {{pageInfo}}{{/if}}</div>
+    </div>
+
+    <div class="stats">
+        <div class="stat-item">
+            <div class="num">{{owned}}</div>
+            <div class="label">已拥有</div>
+        </div>
+        <div class="stat-item">
+            <div class="num">{{notForSell}}</div>
+            <div class="label">非卖品</div>
+        </div>
+        <div class="stat-item">
+            <div class="num">{{totalValue}}</div>
+            <div class="label">总价值</div>
+        </div>
+        <div class="stat-item">
+            <div class="num">{{srNum}}</div>
+            <div class="label">SR</div>
+        </div>
+        <div class="stat-item">
+            <div class="num">{{sppNum}}</div>
+            <div class="label">S++</div>
+        </div>
+        <div class="stat-item">
+            <div class="num">{{spNum}}</div>
+            <div class="label">S+</div>
+        </div>
+    </div>
+
+    <div class="skin-grid">
+        {{each skinList skin}}
+        <div class="skin-card">
+            <span class="sz-tag">{{skin.szClass}}</span>
+            <img src="{{skin.imgUrl}}" alt="{{skin.skinName}}"
+                 onerror="if(!this.dataset.fb&amp;&amp;'{{skin.fallbackUrl}}'){this.dataset.fb=1;this.src='{{skin.fallbackUrl}}';}else{this.style.visibility='hidden';}">
+            <div class="info">
+                <div class="skin-name">{{skin.skinName}}</div>
+                <div class="hero-name">{{skin.heroName}}</div>
+            </div>
+        </div>
+        {{/each}}
+    </div>
+
+    <div class="footer">GloryOfKings-Plugin · 皮肤墙</div>
+</body>
+
+</html>
