@@ -1,671 +1,366 @@
-<style>
-    :root {
-        --bg-color: #f5f7fc;
-        --card-bg-color: #ffffff;
-        --text-color: #2c3e50;
-        --primary-color: #3498db;
-        --secondary-color: #00b8d4;
-        --success-color: #2ecc71;
-        --danger-color: #e74c3c;
-        --neutral-color: #7f8c8d;
-        --glass-effect: linear-gradient(120deg, rgba(52, 152, 219, 0.08) 0%, rgba(0, 184, 212, 0.05) 100%);
-    }
+<!DOCTYPE html>
+<html lang="zh-CN">
 
-    body {
-        width: 100%;
-        font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
-        background-color: var(--bg-color);
-        color: var(--text-color);
-        margin: 0;
-        padding: 0;
-        background-image: radial-gradient(circle at 15% 50%, rgba(52, 152, 219, 0.05) 0%, transparent 45%),
-            radial-gradient(circle at 85% 30%, rgba(0, 184, 212, 0.05) 0%, transparent 45%);
-        background-attachment: fixed;
-        text-align: center;
-    }
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>游戏战绩</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-    .container {
-        min-width: 790px;
-        margin: 0 auto;
-        border-radius: 16px;
-        overflow: hidden;
-        border: 1px solid rgba(52, 152, 219, 0.15);
-        padding: 0;
-        background: transparent;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-        display: inline-block;
-        position: relative;
-    }
+        body {
+            font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+            width: 900px;
+            background: linear-gradient(160deg, #0f1420 0%, #1a2133 100%);
+            color: #fff;
+            padding: 40px;
+            position: relative;
+            z-index: 0;
+        }
 
-    header {
-        background: linear-gradient(135deg, #3498db, #00b8d4);
-        background-image: url('https://game.gtimg.cn/images/yxzj/web202311/bg-ba51e5f9.jpg');
-        background-size: cover;
-        background-position: center;
-        padding: 40px 18px 60px;
-        text-align: center;
-        position: relative;
-        overflow: visible;
-        min-height: 160px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-direction: column;
-
-        &::after {
+        /* 背景大图层：模糊 + 暗化，保证前景清晰；图挂了则退回上面的深色渐变 */
+        body::before {
             content: "";
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.3);
-            opacity: 0.5;
+            background-image:
+                linear-gradient(160deg, rgba(15, 20, 32, 0.88) 0%, rgba(20, 25, 45, 0.93) 100%),
+                url("https://game.gtimg.cn/images/yxzj/img201606/skin/hero-info/152/152-bigskin-8.jpg");
+            background-size: cover;
+            background-position: center top;
+            filter: blur(6px);
+            z-index: -1;
         }
-    }
 
-    .logo {
-        width: 600px;
-        height: auto;
-        margin-bottom: 15px;
-        position: relative;
-        z-index: 3;
-    }
-
-    h1 {
-        font-size: 2em;
-        margin: 0;
-        color: #ffffff;
-        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-        font-weight: 600;
-        letter-spacing: 1px;
-        position: relative;
-        z-index: 1;
-    }
-
-    .results {
-        padding: 20px;
-        width: auto;
-        position: relative;
-        margin-top: -40px;
-        background-color: var(--card-bg-color);
-        border-top-left-radius: 30px;
-        border-top-right-radius: 30px;
-        z-index: 2;
-    }
-
-    .result-item {
-        display: flex;
-        align-items: center;
-        padding: 15px;
-        margin-bottom: 15px;
-        border-radius: 14px;
-        background-color: rgba(255, 255, 255, 0.8);
-        border: 1px solid rgba(52, 152, 219, 0.15);
-        position: relative;
-        overflow: hidden;
-        width: auto;
-        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
-
-        &::after {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(52, 152, 219, 0.15), transparent);
+        .header {
+            text-align: center;
+            margin-bottom: 26px;
         }
-    }
 
-    .result-item.win-bg {
-        background-color: rgba(46, 204, 113, 0.05);
-    }
-
-    .result-item.loss-bg {
-        background-color: rgba(231, 76, 60, 0.05);
-    }
-
-    .avatar-container {
-        position: relative;
-        margin-right: 45px;
-        width: auto;
-    }
-
-    .hero-avatar {
-        width: 60px;
-        height: 60px;
-        object-fit: cover;
-        border-radius: 50%;
-        border: 2px solid rgba(52, 152, 219, 0.2);
-        filter: saturate(1.2);
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-    }
-
-    .special-tags {
-        position: absolute;
-        right: -38px;
-        top: 0;
-        height: 60px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        gap: 3px;
-        padding: 0 5px;
-        width: auto;
-    }
-
-    .special-tag {
-        border-right: 2px solid;
-        border-left: none;
-        padding: 6px 3px 6px 5px;
-        background: linear-gradient(to left,
-                rgba(255, 255, 255, 0.9) 85%,
-                transparent);
-        writing-mode: vertical-rl;
-        font-size: 13px;
-        line-height: 1.2;
-        letter-spacing: 1px;
-        word-spacing: 1px;
-        height: 60px;
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        text-orientation: upright;
-        white-space: nowrap;
-        backdrop-filter: blur(4px);
-        border-right-width: 2px;
-        color: var(--text-color);
-        width: auto;
-    }
-
-    .special-tag.win {
-        border-right-color: var(--success-color);
-        background: linear-gradient(to left,
-                rgba(46, 204, 113, 0.15) 85%,
-                transparent);
-        color: var(--success-color);
-    }
-
-    .special-tag.loss {
-        border-right-color: var(--danger-color);
-        background: linear-gradient(to left,
-                rgba(231, 76, 60, 0.15) 85%,
-                transparent);
-        color: var(--danger-color);
-    }
-
-    .main-info {
-        flex: 1;
-        padding-right: 20px;
-        position: relative;
-        margin-right: 20px;
-        border-right: 1px solid rgba(52, 152, 219, 0.1);
-        min-width: 0;
-        width: auto;
-        max-width: 40%;
-    }
-
-    .game-header {
-        margin-bottom: 10px;
-        display: flex;
-        flex-wrap: nowrap;
-        overflow: hidden;
-        width: auto;
-        justify-content: center;
-    }
-
-    .outcome {
-        font-size: 0.95em;
-        padding: 5px 15px;
-        border-radius: 20px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        margin-right: 15px;
-        overflow: hidden;
-        flex-shrink: 0;
-        width: auto;
-        max-width: 150px;
-        font-weight: 600;
-        position: relative;
-        background: var(--glass-effect);
-        border: 1px solid rgba(52, 152, 219, 0.1);
-        color: var(--text-color);
-    }
-
-    .outcome.win {
-        background: linear-gradient(120deg, rgba(46, 204, 113, 0.2), rgba(46, 204, 113, 0.1));
-        border-color: rgba(46, 204, 113, 0.3);
-        color: var(--success-color);
-    }
-
-    .outcome.loss {
-        background: linear-gradient(120deg, rgba(231, 76, 60, 0.2), rgba(231, 76, 60, 0.1));
-        border-color: rgba(231, 76, 60, 0.3);
-        color: var(--danger-color);
-    }
-
-    .game-mode {
-        font-size: 0.85em;
-        color: var(--secondary-color);
-        text-shadow: 0 0 8px rgba(0, 184, 212, 0.3);
-        opacity: 0.9;
-        padding-left: 10px;
-        border-left: 1px solid rgba(255, 255, 255, 0.4);
-        height: 1.2em;
-        display: flex;
-        align-items: center;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 80px;
-        font-weight: normal;
-        width: auto;
-    }
-
-    .game-type {
-        font-size: 0.9em;
-        color: var(--primary-color);
-        text-shadow: 0 0 8px rgba(52, 152, 219, 0.3);
-        opacity: 0.9;
-    }
-
-    .kda-stats {
-        font-size: 1.3em;
-        letter-spacing: 1px;
-        margin: 10px 0;
-        color: var(--primary-color);
-        text-shadow: 0 0 10px rgba(52, 152, 219, 0.2);
-        font-weight: 600;
-        position: relative;
-        width: auto;
-    }
-
-    .kda-stats::after {
-        content: "KDA";
-        position: absolute;
-        right: 0;
-        bottom: -10px;
-        font-size: 0.5em;
-        color: var(--neutral-color);
-        letter-spacing: 1px;
-        opacity: 0.7;
-    }
-
-    .side-info {
-        min-width: 110px;
-        text-align: right;
-        padding-left: 15px;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        border-left: 1px solid rgba(52, 152, 219, 0.1);
-        margin-left: 15px;
-        width: auto;
-    }
-
-    .game-duration {
-        font-size: 0.8em;
-        color: var(--text-color);
-        margin: 0;
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 5px;
-        padding: 4px 8px;
-        background: rgba(52, 152, 219, 0.05);
-        border-radius: 8px;
-        width: auto;
-
-        &::before {
-            content: '⏱';
-            font-size: 0.9em;
-            color: var(--secondary-color);
+        .header h1 {
+            font-size: 46px;
+            letter-spacing: 6px;
+            background: linear-gradient(90deg, #f5d76e, #f0932b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
-    }
 
-    .game-date {
-        font-size: 0.75em;
-        color: var(--neutral-color);
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 5px;
-        padding: 4px 8px;
-        border-radius: 8px;
-        width: auto;
-
-        &::before {
-            content: '🗓';
-            font-size: 0.8em;
-            color: var(--primary-color);
+        .header .sub {
+            margin-top: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-size: 18px;
+            color: #9aa7bd;
         }
-    }
 
-    .tags {
-        display: flex;
-        gap: 5px;
-        flex-wrap: wrap;
-        margin: 6px 0;
-        padding: 3px 0;
-        justify-content: flex-end;
-        width: auto;
-    }
-
-    .tag {
-        padding: 3px 8px;
-        border-radius: 12px;
-        font-size: 0.75em;
-        background-color: rgba(0, 184, 212, 0.08);
-        color: var(--secondary-color);
-        border: 1px solid rgba(0, 184, 212, 0.2);
-        backdrop-filter: blur(4px);
-        width: auto;
-    }
-
-    .tag[data-tag="MVP"] {
-        background-color: rgba(52, 152, 219, 0.08);
-        border-color: rgba(52, 152, 219, 0.2);
-        color: var(--primary-color);
-    }
-
-    .tag[data-tag="五杀"] {
-        background-color: rgba(231, 76, 60, 0.08);
-        border-color: rgba(231, 76, 60, 0.2);
-        color: var(--danger-color);
-    }
-
-    .rating-container {
-        min-width: 70px;
-        margin-left: 15px;
-        padding: 8px 12px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        border-radius: 12px;
-        background: rgba(52, 152, 219, 0.05);
-        position: relative;
-        overflow: hidden;
-        width: auto;
-        text-align: center;
-    }
-
-    .rating-container.win {
-        background: linear-gradient(45deg, rgba(46, 204, 113, 0.15), rgba(46, 204, 113, 0.05));
-        box-shadow: 0 4px 15px rgba(46, 204, 113, 0.1);
-        border: 1px solid rgba(46, 204, 113, 0.2);
-    }
-
-    .rating-container.loss {
-        background: linear-gradient(45deg, rgba(231, 76, 60, 0.15), rgba(231, 76, 60, 0.05));
-        box-shadow: 0 4px 15px rgba(231, 76, 60, 0.1);
-        border: 1px solid rgba(231, 76, 60, 0.2);
-    }
-
-    .game-rating {
-        font-size: 1.8em;
-        font-weight: bold;
-        line-height: 1;
-        color: var(--text-color);
-        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        text-align: center;
-    }
-
-    .rating-label {
-        font-size: 0.7em;
-        margin-top: 5px;
-        opacity: 0.9;
-        letter-spacing: 1px;
-        color: var(--neutral-color);
-        text-align: center;
-    }
-
-    .result-item {
-        opacity: 1;
-    }
-
-    .empty-state {
-        padding: 54px 24px 64px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-        color: var(--text-color);
-    }
-
-    .empty-state-title {
-        font-size: 1.5em;
-        font-weight: 600;
-        color: var(--primary-color);
-        text-shadow: 0 0 10px rgba(52, 152, 219, 0.15);
-    }
-
-    .empty-state-desc {
-        max-width: 520px;
-        line-height: 1.8;
-        font-size: 0.95em;
-        color: var(--neutral-color);
-    }
-
-    @media (max-width: 599px) {
-        .container {
-            min-width: auto;
-            width: auto;
+        .header .sub .streak {
+            color: #f5d76e;
+            font-weight: bold;
+            background: rgba(245, 215, 110, 0.14);
+            border: 1px solid rgba(245, 215, 110, 0.4);
+            border-radius: 8px;
+            padding: 2px 10px;
         }
 
         .results {
-            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
         }
 
         .result-item {
-            padding: 12px;
-            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            padding: 16px 18px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* 胜负色条：左侧竖条标识胜负 */
+        .result-item::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+        }
+
+        .result-item.win-bg::before {
+            background: #57c98a;
+        }
+
+        .result-item.loss-bg::before {
+            background: #ff5b7c;
         }
 
         .avatar-container {
-            margin-right: 38px;
+            position: relative;
+            margin-right: 18px;
+            flex-shrink: 0;
         }
 
         .hero-avatar {
-            width: 55px;
-            height: 55px;
-        }
-
-        .special-tags {
-            right: -32px;
-            height: 55px;
-        }
-
-        .special-tag {
-            padding: 5px 3px 5px 4px;
-            font-size: 12px;
-            height: 55px;
-        }
-
-        .main-info {
-            padding-right: 15px;
-            margin-right: 15px;
-        }
-
-        .outcome {
-            font-size: 0.9em;
-            padding: 4px 12px;
-        }
-
-        .game-mode {
-            font-size: 0.8em;
-            max-width: 70px;
-        }
-
-        .kda-stats {
-            font-size: 1.2em;
-        }
-
-        .side-info {
-            min-width: 100px;
-            padding-left: 12px;
-            margin-left: 12px;
-        }
-
-        .rating-container {
-            min-width: 65px;
-            margin-left: 12px;
-            padding: 7px 10px;
-        }
-
-        .game-rating {
-            font-size: 1.6em;
-        }
-    }
-
-    @media (max-width: 450px) {
-        .container {
-            min-width: auto;
-            width: calc(100% - 20px);
-            margin: 0 10px;
-        }
-
-        .avatar-container {
-            margin-right: 35px;
-        }
-
-        .hero-avatar {
-            width: 50px;
-            height: 50px;
-        }
-
-        .special-tags {
-            right: -30px;
-            height: 50px;
+            width: 68px;
+            height: 68px;
+            object-fit: cover;
+            border-radius: 50%;
+            border: 2px solid rgba(245, 215, 110, 0.5);
+            background: rgba(0, 0, 0, 0.3);
         }
 
         .special-tag {
-            padding: 4px 2px 4px 3px;
-            font-size: 11px;
-            height: 50px;
-        }
-
-        .main-info {
-            padding-right: 10px;
-            margin-right: 10px;
-        }
-
-        .outcome {
-            font-size: 0.85em;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 8px;
             padding: 3px 10px;
+            white-space: nowrap;
+        }
+
+        .special-tag.win {
+            color: #57c98a;
+            background: rgba(87, 201, 138, 0.14);
+            border: 1px solid rgba(87, 201, 138, 0.4);
+        }
+
+        .special-tag.loss {
+            color: #ff5b7c;
+            background: rgba(255, 91, 124, 0.14);
+            border: 1px solid rgba(255, 91, 124, 0.4);
+        }
+
+        .main-info {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .game-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .outcome {
+            font-size: 18px;
+            font-weight: bold;
+            padding: 4px 16px;
+            border-radius: 20px;
+        }
+
+        .outcome.win {
+            color: #57c98a;
+            background: rgba(87, 201, 138, 0.16);
+            border: 1px solid rgba(87, 201, 138, 0.45);
+        }
+
+        .outcome.loss {
+            color: #ff5b7c;
+            background: rgba(255, 91, 124, 0.16);
+            border: 1px solid rgba(255, 91, 124, 0.45);
         }
 
         .game-mode {
-            font-size: 0.75em;
-            max-width: 60px;
+            font-size: 16px;
+            color: #9aa7bd;
         }
 
         .kda-stats {
-            font-size: 1.1em;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            color: #eef2f8;
+        }
+
+        .kda-stats .kda-label {
+            font-size: 14px;
+            color: #6f7c92;
+            margin-left: 8px;
+            font-weight: normal;
+        }
+
+        .tags {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .tag {
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 14px;
+            background: rgba(0, 209, 255, 0.1);
+            color: #00d1ff;
+            border: 1px solid rgba(0, 209, 255, 0.25);
+        }
+
+        .tag[data-tag="MVP"] {
+            background: rgba(245, 215, 110, 0.14);
+            color: #f5d76e;
+            border-color: rgba(245, 215, 110, 0.4);
+        }
+
+        .tag[data-tag="五杀"] {
+            background: rgba(255, 91, 124, 0.14);
+            color: #ff5b7c;
+            border-color: rgba(255, 91, 124, 0.4);
         }
 
         .side-info {
-            min-width: 90px;
-            padding-left: 10px;
-            margin-left: 10px;
-            gap: 5px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+            margin-left: 16px;
+            flex-shrink: 0;
+            font-size: 15px;
+            color: #9aa7bd;
         }
 
         .rating-container {
-            min-width: 60px;
-            margin-left: 10px;
-            padding: 6px 8px;
+            margin-left: 18px;
+            width: 84px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            flex-shrink: 0;
+        }
+
+        .rating-container.win {
+            background: rgba(87, 201, 138, 0.1);
+            border: 1px solid rgba(87, 201, 138, 0.3);
+        }
+
+        .rating-container.loss {
+            background: rgba(255, 91, 124, 0.1);
+            border: 1px solid rgba(255, 91, 124, 0.3);
         }
 
         .game-rating {
-            font-size: 1.5em;
+            font-size: 30px;
+            font-weight: bold;
+            line-height: 1;
+            color: #f5d76e;
         }
-    }
 
-    /* 添加渐变过渡元素 */
-    header::before {
-        content: "";
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 80px;
-        background: linear-gradient(to bottom,
-                rgba(255, 255, 255, 0) 0%,
-                rgba(255, 255, 255, 0.3) 40%,
-                rgba(255, 255, 255, 0.8) 80%,
-                var(--card-bg-color) 100%);
-        z-index: 2;
-        border-top-left-radius: 30px;
-        border-top-right-radius: 30px;
-    }
-</style>
+        .rating-label {
+            font-size: 13px;
+            margin-top: 6px;
+            color: #9aa7bd;
+        }
+
+        .empty-state {
+            padding: 80px 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+        }
+
+        .empty-state-title {
+            font-size: 28px;
+            font-weight: bold;
+            background: linear-gradient(90deg, #f5d76e, #f0932b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .empty-state-desc {
+            max-width: 560px;
+            line-height: 1.8;
+            font-size: 17px;
+            color: #9aa7bd;
+            text-align: center;
+        }
+
+        .footer {
+            margin-top: 26px;
+            text-align: center;
+            font-size: 16px;
+            color: #6f7c92;
+        }
+    </style>
+</head>
 
 <body>
-    <div class="container">
-        <header>
-            <img src="https://raw.gitcode.com/Kevin1217/resources/blobs/57feeb4f3940fd449c4dd85f1f63b91f4c17f62a/logo_new_gold.png"
-                alt="Logo" class="logo">
-            <h1>游戏战绩</h1>
-        </header>
-        <div class="results">
-            {{if emptyState}}
-            <div class="empty-state">
-                <div class="empty-state-title">{{emptyTitle || '暂无战绩'}}</div>
-                <div class="empty-state-desc">{{emptyDescription || '当前没有可展示的战绩数据'}}</div>
-            </div>
-            {{else}}
-            {{each data item}}
-            <div class="result-item {{item.gameResult === '胜利' ? 'win-bg' : 'loss-bg'}}">
-                <div class="avatar-container">
-                    <img src="{{item.heroIcon}}" class="hero-avatar" alt="英雄头像">
-                    <div class="special-tags">
-                        {{each item.tags tag}}
-                        {{if ['实力局', '翻盘局', '暴走局', '尽力局', '带飞局', '翻车局', '伯仲局'].includes(tag)}}
-                        <div class="special-tag {{item.gameResult === '胜利' ? 'win' : 'loss'}}">
-                            {{tag}}
-                        </div>
-                        {{/if}}
-                        {{/each}}
-                    </div>
-                </div>
-
-                <div class="main-info">
-                    <div class="game-header">
-                        <span class="outcome {{item.gameResult === '胜利' ? 'win' : 'loss'}}">
-                            {{item.gameResult}}
-                            <span class="game-mode">{{item.gameType}}</span>
-                        </span>
-                    </div>
-                    <div class="kda-stats">
-                        {{item.killCnt}} / {{item.deadCnt}} / {{item.assistCnt}}
-                    </div>
-                </div>
-
-                <div class="rating-container {{item.gameResult === '胜利' ? 'win' : 'loss'}}">
-                    <div class="game-rating">{{item.gradeGame}}</div>
-                    <div class="rating-label">对局评分</div>
-                </div>
-
-                <div class="side-info">
-                    <div class="tags">
-                        {{each item.tags tag}}
-                        {{if !['实力局', '翻盘局', '暴走局', '尽力局', '带飞局', '翻车局', '伯仲局'].includes(tag)}}
-                        <span class="tag" data-tag="{{tag}}">{{tag}}</span>
-                        {{/if}}
-                        {{/each}}
-                    </div>
-                    <div class="game-duration">{{item.gameDuration}}</div>
-                    <div class="game-date">{{item.gameTime}}</div>
-                </div>
-            </div>
-            {{/each}}
-            {{/if}}
+    <div class="header">
+        <h1>游 戏 战 绩</h1>
+        {{if !emptyState}}
+        <div class="sub">
+            {{if roleJobName}}<span>{{roleJobName}}</span>{{/if}}
+            {{if winningStreak > 1}}<span class="streak">最高 {{winningStreak}} 连胜</span>{{/if}}
         </div>
+        {{/if}}
     </div>
+
+    <div class="results">
+        {{if emptyState}}
+        <div class="empty-state">
+            <div class="empty-state-title">{{emptyTitle || '暂无战绩'}}</div>
+            <div class="empty-state-desc">{{emptyDescription || '当前没有可展示的战绩数据'}}</div>
+        </div>
+        {{else}}
+        {{each data item}}
+        <div class="result-item {{item.gameResult === '胜利' ? 'win-bg' : 'loss-bg'}}">
+            <div class="avatar-container">
+                <img src="{{item.heroIcon}}" class="hero-avatar" alt="英雄头像" onerror="this.style.visibility='hidden'">
+            </div>
+
+            <div class="main-info">
+                <div class="game-header">
+                    <span class="outcome {{item.gameResult === '胜利' ? 'win' : 'loss'}}">{{item.gameResult}}</span>
+                    {{each item.tags tag}}
+                    {{if ['实力局', '翻盘局', '暴走局', '尽力局', '带飞局', '翻车局', '伯仲局'].includes(tag)}}
+                    <span class="special-tag {{item.gameResult === '胜利' ? 'win' : 'loss'}}">{{tag}}</span>
+                    {{/if}}
+                    {{/each}}
+                    <span class="game-mode">{{item.gameType}}</span>
+                </div>
+                <div class="kda-stats">
+                    {{item.killCnt}} / {{item.deadCnt}} / {{item.assistCnt}}<span class="kda-label">KDA</span>
+                </div>
+                <div class="tags">
+                    {{each item.tags tag}}
+                    {{if !['实力局', '翻盘局', '暴走局', '尽力局', '带飞局', '翻车局', '伯仲局'].includes(tag)}}
+                    <span class="tag" data-tag="{{tag}}">{{tag}}</span>
+                    {{/if}}
+                    {{/each}}
+                </div>
+            </div>
+
+            <div class="side-info">
+                <div class="game-duration">⏱ {{item.gameDuration}}</div>
+                <div class="game-date">🗓 {{item.gameTime}}</div>
+            </div>
+
+            <div class="rating-container {{item.gameResult === '胜利' ? 'win' : 'loss'}}">
+                <div class="game-rating">{{item.gradeGame}}</div>
+                <div class="rating-label">评分</div>
+            </div>
+        </div>
+        {{/each}}
+        {{/if}}
+    </div>
+
+    <div class="footer">GloryOfKings-Plugin · 战绩查询</div>
 </body>
+
+</html>

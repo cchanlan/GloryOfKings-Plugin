@@ -840,6 +840,15 @@ class ApiService {
     }, ID, requesterBotUserId)
   }
 
+  /** 获取账号常用英雄列表（含场次/胜率/战力/称号） */
+  async getProfileHeroList(ID, targetRoleId, requesterBotUserId = '') {
+    return this.#makeAuthRequest('/game/profile/herolist', {
+      targetUserId: this.#toString(ID),
+      targetRoleId: this.#toString(targetRoleId),
+      recommendPrivacy: 0
+    }, ID, requesterBotUserId)
+  }
+
   /**
    * 获取账号皮肤列表（皮肤墙）。
    * 该接口位于游戏侧域名，使用 form 表单 + token/userId 鉴权，响应不加密。

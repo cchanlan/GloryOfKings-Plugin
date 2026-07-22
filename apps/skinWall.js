@@ -8,6 +8,8 @@ import { PluginData } from '#components'
 const SZ_ORDER = ['SR', 'S++', 'S+', 'S', 'A', 'B', 'C', 'D']
 const SKIN_IMG_BASE = 'https://game-1255653016.file.myqcloud.com/battle_skin_702-1236'
 const PAGE_SIZE = 50
+// #皮肤墙 未指定数量时的默认渲染数
+const DEFAULT_TOP_COUNT = 50
 
 export class SkinWall extends plugin {
   constructor() {
@@ -20,13 +22,34 @@ export class SkinWall extends plugin {
         {
           reg: '^#(王者)?皮肤墙\\s*(.*)$',
           fnc: 'skinWall'
+        },
+        {
+          reg: '^#(王者)?全部皮肤\\s*(.*)$',
+          fnc: 'allSkins'
         }
       ]
     })
   }
 
   async skinWall(e) {
-    const msg = e.msg.replace(/^#(王者)?皮肤墙\s*/, '').trim()
+    const rest = e.msg.replace(/^#(王者)?皮肤墙\s*/, '').trim()
+    // 参数可含营地ID和数量，任意顺序；纯数字且不超过4位视为“数量”，其余视为营地ID
+    const tokens = rest.split(/\s+/).filter(Boolean)
+    let ID = ''
+    let topCount = DEFAULT_TOP_COUNT
+    for (const t of tokens) {
+      if (/^\d{1,4}$/.test(t)) topCount = Math.max(1, parseInt(t, 10))
+      else ID = t
+    }
+    return this.#render(e, ID, topCount)
+  }
+
+  async allSkins(e) {
+    const ID = e.msg.replace(/^#(王者)?全部皮肤\s*/, '').trim()
+    return this.#render(e, ID, null)
+  }
+
+  async #render(e, msgID, topCount) {
     const isAt = Boolean(e.at && !e.atme)
     const userId = isAt ? e.at : e.user_id
 
@@ -47,7 +70,7 @@ export class SkinWall extends plugin {
     const allUserData = readYamlFile(userFilePath) || {}
     const userInfo = allUserData[userId]
 
-    const ID = msg || (userInfo && userInfo.ids && userInfo.ids.length
+    const ID = msgID || (userInfo && userInfo.ids && userInfo.ids.length
       ? userInfo.ids[userInfo.current || 0]
       : null)
 
@@ -116,25 +139,30 @@ export class SkinWall extends plugin {
     // 价格从高到低；价格相同按营地评级(iClass 越小越高)排
     result.sort((a, b) => (b.price - a.price) || (a.iClass - b.iClass))
 
-    // 标记大图：最贵的若干张用大图展示（masonry 布局，每页周期性穿插）
-    result.forEach((skin, idx) => {
+    const totalAvailable = result.length
+    // #皮肤墙 [N]：只渲染价值最高的前 N 个；#全部皮肤：topCount 为 null 表示不截断
+    const limited = topCount ? result.slice(0, topCount) : result
+    // 大图标记依据截断后的顺序重排，避免首张恰好不是最贵那张
+    limited.forEach((skin, idx) => {
       skin.big = idx % 7 === 0
     })
 
-    if (!result.length) {
+    if (!limited.length) {
       await e.reply('该账号暂无可展示的皮肤，或资料未公开')
       return
     }
 
     // 皮肤较多时分页渲染，每页 PAGE_SIZE 个，避免单图过长、渲染过久
     const pages = []
-    for (let i = 0; i < result.length; i += PAGE_SIZE) {
-      pages.push(result.slice(i, i + PAGE_SIZE))
+    for (let i = 0; i < limited.length; i += PAGE_SIZE) {
+      pages.push(limited.slice(i, i + PAGE_SIZE))
     }
     const totalPages = pages.length
+    const isLimited = topCount && topCount < totalAvailable
 
     if (totalPages > 1) {
-      await e.reply(`共 ${result.length} 个皮肤，将分 ${totalPages} 张图以合并转发发送，请稍候...`)
+      const scope = isLimited ? `按价值 TOP ${limited.length}` : `共 ${limited.length} 个皮肤`
+      await e.reply(`${scope}，将分 ${totalPages} 张图以合并转发发送，请稍候...`)
     }
 
     const buildParams = (pageSkins, pageIndex) => ({
@@ -178,7 +206,8 @@ export class SkinWall extends plugin {
       return
     }
 
-    const forwardMsg = await common.makeForwardMsg(e, imgList, `皮肤墙 · ${ID}`)
+    const forwardTitle = isLimited ? `皮肤墙 TOP${limited.length} · ${ID}` : `皮肤墙 · ${ID}`
+    const forwardMsg = await common.makeForwardMsg(e, imgList, forwardTitle)
     await e.reply(forwardMsg)
   }
 }

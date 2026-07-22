@@ -9,8 +9,8 @@
 </div>
 
 > [!NOTE]
-> 本仓库是 [@Tloml-Starry/GloryOfKings-Plugin](https://gitee.com/Tloml-Starry/GloryOfKings-Plugin) 的 Fork，在原插件基础上新增了 **皮肤墙**（`#皮肤墙`）功能。
-> 皮肤墙的营地接口调用逻辑参考自 [@KimigaiiWuyi/WzryUID](https://github.com/KimigaiiWuyi/WzryUID)。
+> 本仓库是 [@Tloml-Starry/GloryOfKings-Plugin](https://gitee.com/Tloml-Starry/GloryOfKings-Plugin) 的 Fork，在原插件基础上新增了 **皮肤墙**（`#皮肤墙`）、**常用英雄**（`#常用英雄`）等功能，并对 **王者主页 / 战绩查询** 的渲染做了深色主题重构。
+> 营地相关接口调用逻辑参考自 [@KimigaiiWuyi/WzryUID](https://github.com/KimigaiiWuyi/WzryUID)。
 > 感谢原作者们的开源工作，原插件版权与协议归 [@Tloml-Starry](https://gitee.com/Tloml-Starry) 所有。
 
 
@@ -25,7 +25,9 @@
   - 战绩查询(最近30场)
   - 战绩详情(评分/经济/装备等)
   - 英雄战力查询
+  - 常用英雄战力榜(场次/胜率/战力/称号)
   - 英雄皮肤查询
+  - 皮肤墙(按价值倒序，支持 TOP N / 全部)
   - 游戏概览(段位/场次/MVP等)
 
 ## 📦 安装方法
@@ -57,8 +59,10 @@ pnpm install
 - `#查询战绩` - 查看最近30场战绩
 - `#查询战绩 [序号]` - 查看指定场次详细数据
 - `#查战力 [英雄名]` - 查询指定英雄的战力排名
+- `#常用英雄 [营地ID]` - 查询账号常用英雄战力榜（场次/胜率/战力/称号）
 - `#查皮肤 [英雄名]` - 查询指定英雄的皮肤
-- `#皮肤墙 [营地ID]` - 查询账号拥有的全部皮肤（皮肤多时自动分页合并转发）
+- `#皮肤墙 [营地ID] [数量]` - 按皮肤价值倒序展示前 N 张（默认 50，皮肤多时自动分页合并转发）
+- `#全部皮肤 [营地ID]` - 展示账号拥有的全部皮肤
 
 ### 系统设置
 - `#王者帮助` - 显示功能帮助
