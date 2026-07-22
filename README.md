@@ -32,7 +32,7 @@
 
 1. 在 Yunzai-Bot 根目录下执行:
 ```bash
-git clone https://gitee.com/Tloml-Starry/GloryOfKings-Plugin.git ./plugins/GloryOfKings-Plugin/
+git clone https://github.com/cchanlan/GloryOfKings-Plugin.git ./plugins/GloryOfKings-Plugin/
 ```
 
 2. 安装依赖:
