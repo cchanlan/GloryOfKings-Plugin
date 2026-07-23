@@ -44,12 +44,20 @@
             margin-bottom: 26px;
         }
 
-        .header h1 {
-            font-size: 46px;
-            letter-spacing: 6px;
-            background: linear-gradient(90deg, #f5d76e, #f0932b);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+        .header .user-title {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+        }
+
+        .header .qq-avatar {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid rgba(245, 215, 110, 0.6);
+            background: rgba(0, 0, 0, 0.3);
         }
 
         .header .sub {
@@ -302,7 +310,9 @@
 
 <body>
     <div class="header">
-        <h1>游 戏 战 绩</h1>
+        <div class="user-title">
+            <img src="{{qqAvatar}}" class="qq-avatar" alt="QQ头像" onerror="this.style.visibility='hidden'">
+        </div>
         {{if !emptyState}}
         <div class="sub">
             {{if roleJobName}}<span>{{roleJobName}}</span>{{/if}}

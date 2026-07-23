@@ -17,9 +17,13 @@ export class QueryGameStats extends plugin {
     })
   }
 
+
+
   async queryGameStats(e) {
     const userId = (e.at && !e.atme) ? e.at : e.user_id
     logger.debug(`用户 ${userId} 请求查询战绩...`)
+
+    const { qqAvatar, nickname } = await this.getTargetInfo(e, userId)
 
     const userData = readYamlFile(path.join(PluginData, 'UserData.yaml'))
     const input = e.msg.replace(/^#?(查询|王者)战绩\s*/, '')
@@ -51,6 +55,8 @@ export class QueryGameStats extends plugin {
       await e.reply(await puppeteer.screenshot('QueryGameRecordList', {
         tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordList.html',
         data: [],
+        qqAvatar,
+        nickname,
         emptyState: true,
         emptyTitle: '暂无可查询战绩',
         emptyDescription: battleList?.invisDes || `ID: ${ID} 当前没有可展示的战绩数据`
@@ -96,9 +102,28 @@ export class QueryGameStats extends plugin {
     e.reply(await puppeteer.screenshot('QueryGameRecordList', {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordList.html',
       data: processedData,
+      qqAvatar,
+      nickname,
       roleJobName: battleList.list[0].roleJobName,
       winningStreak: this.calculateWinningStreak(processedData.map(d => d.gameResult))
     }))
+  }
+
+  async getTargetInfo(e, userId) {
+    const qqAvatar = `https://q1.qlogo.cn/g?b=qq&s=100&nk=${userId}`
+    let nickname = String(userId)
+    try {
+      if (e.at && !e.atme) {
+        const member = e.group?.pickMember ? e.group.pickMember(userId) : null
+        const info = member?.info || (await member?.getInfo?.())
+        nickname = info?.card || info?.nickname || member?.card || member?.nickname || nickname
+      } else {
+        nickname = e.sender?.card || e.sender?.nickname || e.nickname || nickname
+      }
+    } catch (err) {
+      logger.debug(`[战绩查询] 获取昵称失败: ${err.message}`)
+    }
+    return { qqAvatar, nickname }
   }
 
   getUserID(userInfo, userId) {
