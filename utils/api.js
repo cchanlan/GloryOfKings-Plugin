@@ -1042,11 +1042,12 @@ class ApiService {
   }
 
   /** 获取赛季页数据 */
-  async getSeasonpage(ID, requesterBotUserId = '') {
+  async getSeasonpage(ID, requesterBotUserId = '', seasonId = 0, extraBody = {}) {
     return this.#makeAuthRequest('/game/seasonpage', {
       recommendPrivacy: 0,
-      seasonId: 0,
-      roleId: ID
+      seasonId,
+      roleId: ID,
+      ...extraBody
     }, ID, requesterBotUserId)
   }
 

@@ -1,0 +1,195 @@
+@charset "UTF-8";
+@font-face {
+  font-family: Number;
+  src: url(../font/tttgbnumber.woff) format("woff"), url(../font/tttgbnumber.ttf) format("truetype");
+}
+@font-face {
+  font-family: YS;
+  src: url(../font/HYWH-65W.woff) format("woff"), url(../font/HYWH-65W.ttf) format("truetype");
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: YS, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  width: 1050px;
+  padding: 40px;
+  color: #fff;
+  background: linear-gradient(160deg, #0f1420 0%, #1a2133 100%);
+  transform: scale(3);
+  transform-origin: 0 0;
+  position: relative;
+  z-index: 0;
+}
+
+.card {
+  background: rgba(10,14,26,0.55);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 21px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+  overflow: hidden;
+}
+
+/* 头部 */
+.card-header {
+  display: flex;
+  align-items: center;
+  padding: 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04);
+}
+.avatar {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  border: 2px solid #f5d76e;
+  margin-right: 18px;
+  object-fit: cover;
+}
+.username { font-size: 26px; font-weight: bold; color: #eef2f8; margin-bottom: 6px; }
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.16);
+  color: #c8d0dd;
+}
+.season-label {
+  margin-left: auto;
+  font-size: 20px;
+  color: #f5d76e;
+  letter-spacing: 2px;
+}
+
+/* 核心数据格子 */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: rgba(255,255,255,0.07);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.stat-cell {
+  padding: 18px 20px;
+  background: rgba(15,20,32,0.6);
+  text-align: center;
+}
+.stat-cell.gold { background: rgba(245,215,110,0.06); }
+.stat-val {
+  font-family: Number, YS, sans-serif;
+  font-size: 22px;
+  font-weight: bold;
+  color: #f5d76e;
+  margin-bottom: 4px;
+}
+.stat-cell:not(.gold) .stat-val { color: #eef2f8; }
+.stat-key { font-size: 13px; color: rgba(255,255,255,0.5); }
+
+/* 通用 section */
+.section {
+  padding: 22px 24px 22px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.section:last-child { border-bottom: none; }
+.section-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #f5d76e;
+  margin-bottom: 16px;
+  letter-spacing: 1px;
+}
+.hl { font-family: Number, YS, sans-serif; color: #f5d76e; font-weight: bold; }
+
+/* 上分趋势 */
+.trend-wrap canvas { display: block; width: 100%; }
+
+/* 常用英雄 */
+.hero-row { display: flex; gap: 16px; }
+.hero-card {
+  flex: 1;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 12px;
+  padding: 14px;
+  text-align: center;
+}
+.hero-icon {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  border: 2px solid rgba(245,215,110,0.4);
+  object-fit: cover;
+  margin-bottom: 8px;
+}
+.hero-name { font-size: 15px; margin-bottom: 4px; }
+.hero-stats { font-size: 13px; color: rgba(255,255,255,0.55); }
+
+/* 场次统计 */
+.branch-wrap { display: flex; align-items: center; gap: 28px; }
+.donut-wrap { position: relative; flex-shrink: 0; width: 120px; height: 120px; }
+.donut-wrap canvas { display: block; }
+.donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.donut-center .hl { font-size: 22px; line-height: 1.1; }
+.donut-center .donut-sub {
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+.branch-list { flex: 1; display: flex; flex-direction: column; gap: 10px; justify-content: center; }
+.branch-item { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.branch-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.branch-name { width: 52px; color: rgba(255,255,255,0.75); }
+.branch-cnt { flex: 1; color: rgba(255,255,255,0.55); }
+.branch-rate { color: #f5d76e; font-family: Number, YS, sans-serif; }
+
+/* 对战资料 */
+.radar-wrap { display: flex; align-items: center; gap: 20px; padding-left: 10px; }
+.radar-wrap canvas { flex-shrink: 0; }
+.radar-stats {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
+  align-items: center;
+}
+.rs-item { text-align: center; }
+.rs-item .hl { font-size: 30px; display: block; line-height: 1.2; }
+.rs-item .rs-label { font-size: 14px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+
+/* 荣誉 */
+.honor-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.honor-item {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 10px;
+  padding: 14px;
+  text-align: center;
+}
+.honor-val {
+  font-family: Number, YS, sans-serif;
+  font-size: 28px;
+  font-weight: bold;
+  color: #f5d76e;
+  margin-bottom: 4px;
+}
+.honor-key { font-size: 13px; color: rgba(255,255,255,0.5); }
+
+.footer {
+  text-align: center;
+  padding: 14px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.25);
+  border-top: 1px solid rgba(255,255,255,0.07);
+}

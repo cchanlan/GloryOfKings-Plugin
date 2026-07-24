@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>赛季表现</title>
+  <link rel="stylesheet" href="{{_res_path}}css/SeasonPage.css">
+</head>
+<body>
+<div class="card">
+  <!-- 头部 -->
+  <div class="card-header">
+    <img src="{{roleIcon}}" class="avatar" alt="">
+    <div class="user-info">
+      <h2 class="username">{{roleName}}</h2>
+      <span class="badge role">{{serverName}}</span>
+    </div>
+    <div class="season-label">{{seasonName}} 赛季表现</div>
+  </div>
+
+  <!-- 核心数据格子 -->
+  <div class="stat-grid">
+    <div class="stat-cell gold">
+      <div class="stat-val">{{jobName}} {{rankingStar}}星</div>
+      <div class="stat-key">当前段位</div>
+    </div>
+    <div class="stat-cell gold">
+      <div class="stat-val">{{masterScore || '—'}}</div>
+      <div class="stat-key">巅峰赛积分{{if masterRank}} / 第{{masterRank}}名{{/if}}</div>
+    </div>
+    <div class="stat-cell gold">
+      <div class="stat-val">{{score || '—'}}</div>
+      <div class="stat-key">综合得分</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val">{{winRate}}</div>
+      <div class="stat-key">胜率</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val">{{gameCnt}}</div>
+      <div class="stat-key">场次</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val">{{branch}}</div>
+      <div class="stat-key">分路偏好</div>
+    </div>
+  </div>
+
+  <!-- 上分趋势 -->
+  {{if trend && trend.length > 1}}
+  <div class="section">
+    <div class="section-title">上分趋势</div>
+    <div class="trend-wrap">
+      <canvas id="trendCanvas" width="2910" height="480" style="width:970px;height:160px"></canvas>
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- 常用英雄 -->
+  {{if heros && heros.length}}
+  <div class="section">
+    <div class="section-title">常用英雄</div>
+    <div class="hero-row">
+      {{each heros h}}
+      <div class="hero-card">
+        <img src="{{h.heroIcon}}" class="hero-icon" alt="">
+        <div class="hero-name">{{h.heroName}}</div>
+        <div class="hero-stats"><span class="hl">{{h.winRate}}</span> 胜率 &nbsp; <span class="hl">{{h.gameCnt}}</span> 场</div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- 场次统计 -->
+  {{if branches && branches.length}}
+  <div class="section">
+    <div class="section-title">场次统计</div>
+    <div class="branch-wrap">
+      <div class="donut-wrap">
+        <canvas id="donutCanvas" width="360" height="360" style="width:120px;height:120px"></canvas>
+        <div class="donut-center">
+          <span class="hl">{{totalGames}}</span>
+          <span class="donut-sub">场<br>排位赛</span>
+        </div>
+      </div>
+      <div class="branch-list">
+        {{each branches b}}
+        <div class="branch-item">
+          <span class="branch-dot" style="background:{{b.color}}"></span>
+          <span class="branch-name">{{b.name}}</span>
+          <span class="branch-cnt">{{b.gameCnt}}场（{{b.winNum}}胜{{b.loseNum}}负）</span>
+          <span class="branch-rate">胜率{{b.winRate}}</span>
+        </div>
+        {{/each}}
+      </div>
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- 对战资料雷达 -->
+  {{if hasBattleStats}}
+  <div class="section">
+    <div class="section-title">对战资料</div>
+    <div class="radar-wrap">
+      <canvas id="radarCanvas" width="780" height="780" style="width:260px;height:260px;align-self:center"></canvas>
+      <div class="radar-stats">
+        <div class="rs-item"><span class="hl">{{gameCnt}}</span><div class="rs-label">场次</div></div>
+        <div class="rs-item"><span class="hl">{{winRate}}</span><div class="rs-label">胜率</div></div>
+        <div class="rs-item"><span class="hl">{{score}}</span><div class="rs-label">平均得分</div></div>
+      </div>
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- 荣誉数据 -->
+  {{if hasHonor}}
+  <div class="section">
+    <div class="section-title">荣誉数据</div>
+    <div class="honor-grid">
+      <div class="honor-item"><div class="honor-val">{{honor.mvp}}</div><div class="honor-key">全场最佳</div></div>
+      <div class="honor-item"><div class="honor-val">{{honor.loseMvp}}</div><div class="honor-key">败方最佳</div></div>
+      <div class="honor-item"><div class="honor-val">{{honor.threeKill}}</div><div class="honor-key">三连决胜</div></div>
+      <div class="honor-item"><div class="honor-val">{{honor.fourKill}}</div><div class="honor-key">四连超凡</div></div>
+      <div class="honor-item"><div class="honor-val">{{honor.fiveKill}}</div><div class="honor-key">五连绝世</div></div>
+      <div class="honor-item"><div class="honor-val">{{honor.godLike}}</div><div class="honor-key">超神</div></div>
+    </div>
+  </div>
+  {{/if}}
+
+  <div class="footer">GloryOfKings-Plugin · 赛季表现</div>
+</div>
+
+<script>
+const BRANCH_COLORS = ['#f5d76e','#f0932b','#6ab0f5','#57c98a','#c97bdb']
+const branches = {{@ branchesJson}}
+const radar = {{@ radarJson}}
+const trend = {{@ trendJson}}
+const DPR = 3  // body scale(3)
+
+// 上分趋势折线图
+if (trend && trend.length > 1) {
+  const c = document.getElementById('trendCanvas')
+  const ctx = c.getContext('2d')
+  const W = c.width, H = c.height
+  const pad = { t: 60, b: 90, l: 160, r: 60 }
+  const stars = trend.map(t => t.star)
+  const minS = Math.min(...stars), maxS = Math.max(...stars)
+  const range = maxS - minS || 1
+  const xs = trend.map((_, i) => pad.l + i * (W - pad.l - pad.r) / (trend.length - 1))
+  const ys = stars.map(s => pad.t + (1 - (s - minS) / range) * (H - pad.t - pad.b))
+
+  // 背景网格
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+  ctx.lineWidth = 2
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + i * (H - pad.t - pad.b) / 4
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke()
+  }
+
+  // 填充渐变
+  const grad = ctx.createLinearGradient(0, pad.t, 0, H - pad.b)
+  grad.addColorStop(0, 'rgba(245,215,110,0.3)')
+  grad.addColorStop(1, 'rgba(245,215,110,0.02)')
+  ctx.beginPath()
+  ctx.moveTo(xs[0], H - pad.b)
+  xs.forEach((x, i) => ctx.lineTo(x, ys[i]))
+  ctx.lineTo(xs[xs.length - 1], H - pad.b)
+  ctx.closePath()
+  ctx.fillStyle = grad; ctx.fill()
+
+  // 折线
+  ctx.beginPath()
+  xs.forEach((x, i) => i === 0 ? ctx.moveTo(x, ys[i]) : ctx.lineTo(x, ys[i]))
+  ctx.strokeStyle = '#f5d76e'; ctx.lineWidth = 5; ctx.stroke()
+
+  // 点
+  xs.forEach((x, i) => {
+    ctx.beginPath(); ctx.arc(x, ys[i], 8, 0, Math.PI * 2)
+    ctx.fillStyle = '#f5d76e'; ctx.fill()
+  })
+
+  // Y轴：最低和最高段位名
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'
+  ctx.font = '28px YS,sans-serif'
+  ctx.textAlign = 'right'
+  const minIdx = stars.indexOf(minS), maxIdx = stars.indexOf(maxS)
+  ctx.fillText(trend[minIdx].jobName, pad.l - 12, ys[minIdx] + 10)
+  if (minIdx !== maxIdx) ctx.fillText(trend[maxIdx].jobName, pad.l - 12, ys[maxIdx] + 10)
+
+  // X轴日期
+  ctx.textAlign = 'center'
+  ;[0, trend.length - 1].forEach(i => {
+    const d = new Date(Number(trend[i].time) * 1000)
+    ctx.fillText(`${d.getMonth()+1}-${d.getDate()}`, xs[i], H - 16)
+  })
+}
+
+// 环形图
+if (branches.length) {
+  const c = document.getElementById('donutCanvas')
+  const ctx = c.getContext('2d')
+  const cx = 180, cy = 180, r = 153, inner = 99
+  const total = branches.reduce((s, b) => s + b.gameCnt, 0) || 1
+  let angle = -Math.PI / 2
+  branches.forEach((b, i) => {
+    if (!b.gameCnt) return
+    const slice = (b.gameCnt / total) * Math.PI * 2
+    ctx.beginPath(); ctx.moveTo(cx, cy)
+    ctx.arc(cx, cy, r, angle, angle + slice)
+    ctx.closePath()
+    ctx.fillStyle = BRANCH_COLORS[i % BRANCH_COLORS.length]; ctx.fill()
+    angle += slice
+  })
+  ctx.beginPath(); ctx.arc(cx, cy, inner, 0, Math.PI * 2)
+  ctx.fillStyle = '#141929'; ctx.fill()
+}
+
+// 雷达图
+if (radar.length) {
+  const c = document.getElementById('radarCanvas')
+  const ctx = c.getContext('2d')
+  const cx = 390, cy = 390, R = 285, N = radar.length
+  const angles = radar.map((_, i) => (i / N) * Math.PI * 2 - Math.PI / 2)
+
+  for (let ring = 1; ring <= 4; ring++) {
+    ctx.beginPath()
+    angles.forEach((a, i) => {
+      const x = cx + Math.cos(a) * R * ring / 4
+      const y = cy + Math.sin(a) * R * ring / 4
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+    })
+    ctx.closePath()
+    ctx.strokeStyle = ring === 4 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)'
+    ctx.lineWidth = 2; ctx.stroke()
+  }
+  angles.forEach(a => {
+    ctx.beginPath(); ctx.moveTo(cx, cy)
+    ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R)
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 2; ctx.stroke()
+  })
+
+  ctx.beginPath()
+  angles.forEach((a, i) => {
+    const r2 = R * radar[i].pct
+    const x = cx + Math.cos(a) * r2, y = cy + Math.sin(a) * r2
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+  })
+  ctx.closePath()
+  ctx.fillStyle = 'rgba(245,215,110,0.22)'; ctx.fill()
+  ctx.strokeStyle = '#f5d76e'; ctx.lineWidth = 5; ctx.stroke()
+
+  ctx.fillStyle = 'rgba(255,255,255,0.75)'
+  ctx.font = 'bold 36px YS,sans-serif'
+  ctx.textAlign = 'center'
+  angles.forEach((a, i) => {
+    const dist = R + 55
+    ctx.fillText(radar[i].label, cx + Math.cos(a) * dist, cy + Math.sin(a) * dist + 12)
+  })
+}
+</script>
+</body>
+</html>
