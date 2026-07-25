@@ -1051,12 +1051,20 @@ class ApiService {
     }, ID, requesterBotUserId)
   }
 
-  async getdetailranklistbyid() {
+  /**
+   * 获取英雄梯度榜（T0~T3 热度/胜率/登场率/Ban率）。
+   * 数据由官方营地实时返回，返回体自带 updateTime 表示数据更新日期。
+   * @param {object} [options]
+   * @param {number} [options.rankId=0] 排行榜 ID，默认 0
+   * @param {number} [options.segment=3] 段位筛选，对应 tabFilter 下标：1=所有段位 3=巅峰赛1350+ 4=顶端排位 5=赛事
+   * @param {number} [options.position=0] 分路筛选，对应 branchFilter 下标：0=全部分路 1=对抗路 2=中路 3=发育路 4=游走 5=打野
+   */
+  async getdetailranklistbyid({ rankId = 0, segment = 3, position = 0 } = {}) {
     return this.#makeAuthRequest('/hero/getdetailranklistbyid', {
       bottomTab: '',
-      rankId: 0,
-      segment: 1,
-      position: 0,
+      rankId,
+      segment,
+      position,
       recommendPrivacy: 0
     })
   }

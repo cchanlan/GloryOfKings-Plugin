@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英雄梯度榜</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+            width: 1000px;
+            background: linear-gradient(160deg, #0f1420 0%, #1a2133 100%);
+            color: #fff;
+            padding: 40px;
+            position: relative;
+            z-index: 0;
+        }
+
+        body::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                linear-gradient(160deg, rgba(15, 20, 32, 0.88) 0%, rgba(20, 25, 45, 0.93) 100%),
+                url("https://game.gtimg.cn/images/yxzj/img201606/skin/hero-info/152/152-bigskin-8.jpg");
+            background-size: cover;
+            background-position: center top;
+            filter: blur(6px);
+            z-index: -1;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 22px;
+        }
+
+        .header h1 {
+            font-size: 42px;
+            letter-spacing: 4px;
+            background: linear-gradient(90deg, #f5d76e, #f0932b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header .meta {
+            margin-top: 12px;
+            font-size: 20px;
+            color: #eef2f8;
+        }
+
+        .header .meta .tag {
+            display: inline-block;
+            color: #f5d76e;
+            background: rgba(245, 215, 110, 0.14);
+            border: 1px solid rgba(245, 215, 110, 0.4);
+            border-radius: 8px;
+            padding: 2px 12px;
+            margin: 0 4px;
+        }
+
+        .header .sub {
+            margin-top: 8px;
+            font-size: 16px;
+            color: #9aa7bd;
+        }
+
+        .tier-block {
+            display: flex;
+            align-items: stretch;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+
+        .tier-label {
+            flex: 0 0 96px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-weight: bold;
+        }
+
+        .tier-label .t {
+            font-size: 46px;
+            line-height: 1;
+        }
+
+        .tier-label .cnt {
+            font-size: 15px;
+            color: #c8d0dd;
+            font-weight: normal;
+        }
+
+        .tier-heroes {
+            flex: 1;
+            display: grid;
+            gap: 12px;
+            padding: 16px 18px;
+        }
+
+        .hero-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(0, 0, 0, 0.28);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 10px 12px;
+            min-width: 0;
+        }
+
+        .hero-card .avatar {
+            width: 52px;
+            height: 52px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: rgba(0, 0, 0, 0.3);
+            flex-shrink: 0;
+        }
+
+        .hero-card .info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .hero-card .name-row {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .hero-card .hero-name {
+            font-size: 20px;
+            font-weight: bold;
+            color: #eef2f8;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .hero-card .hero-sub {
+            font-size: 13px;
+            color: #9aa7bd;
+            flex-shrink: 0;
+        }
+
+        .hero-card .stats {
+            margin-top: 6px;
+            display: flex;
+            justify-content: space-between;
+            gap: 6px;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        .hero-card .stat {
+            display: flex;
+            align-items: baseline;
+            gap: 2px;
+        }
+
+        .hero-card .stat .lbl {
+            font-size: 12px;
+            color: #6f7c92;
+        }
+
+        .hero-card .stat .val {
+            font-weight: bold;
+        }
+
+        .hero-card .stat .win { color: #57c98a; }
+        .hero-card .stat .show { color: #c8d0dd; }
+        .hero-card .stat .ban { color: #f08a8a; }
+
+        /* 紧凑模式：英雄多时（如全部分路 130+）加宽画布、缩小卡片元素，压缩整体高度 */
+        body.compact { width: 1240px; }
+
+        body.compact .hero-card {
+            gap: 9px;
+            padding: 8px 10px;
+            border-radius: 10px;
+        }
+
+        body.compact .hero-card .avatar {
+            width: 46px;
+            height: 46px;
+        }
+
+        body.compact .hero-card .hero-name {
+            font-size: 17px;
+        }
+
+        body.compact .hero-card .hero-sub {
+            font-size: 11px;
+        }
+
+        body.compact .hero-card .stats {
+            margin-top: 4px;
+            gap: 7px;
+            font-size: 12px;
+        }
+
+        body.compact .hero-card .stat .lbl {
+            font-size: 11px;
+        }
+
+        body.compact .tier-heroes {
+            gap: 10px;
+            padding: 14px 16px;
+        }
+
+        .footer {
+            margin-top: 22px;
+            text-align: center;
+            font-size: 15px;
+            color: #6f7c92;
+        }
+    </style>
+</head>
+
+<body class="{{compact ? 'compact' : ''}}">
+    <div class="header">
+        <h1>英 雄 梯 度 榜</h1>
+        <div class="meta">
+            <span class="tag">{{segmentLabel}}</span>
+            <span class="tag">{{positionLabel}}</span>
+        </div>
+        <div class="sub">数据更新: {{updateTime}} · 共 {{heroCount}} 位英雄 · 胜率/登场率/Ban率</div>
+    </div>
+
+    {{each groups group}}
+    <div class="tier-block">
+        <div class="tier-label" style="color: {{group.color}};">
+            <span class="t">{{group.tier}}</span>
+            <span class="cnt">{{group.count}}位</span>
+        </div>
+        <div class="tier-heroes" style="grid-template-columns: repeat({{cols}}, 1fr);">
+            {{each group.heroes hero}}
+            <div class="hero-card">
+                <img class="avatar" src="{{hero.icon}}" onerror="this.style.visibility='hidden'">
+                <div class="info">
+                    <div class="name-row">
+                        <span class="hero-name">{{hero.name}}</span>
+                        {{if hero.sub}}<span class="hero-sub">{{hero.sub}}</span>{{/if}}
+                    </div>
+                    <div class="stats">
+                        <span class="stat"><span class="lbl">胜</span><span class="val win">{{hero.winRate}}</span></span>
+                        <span class="stat"><span class="lbl">登</span><span class="val show">{{hero.showRate}}</span></span>
+                        <span class="stat"><span class="lbl">禁</span><span class="val ban">{{hero.banRate}}</span></span>
+                    </div>
+                </div>
+            </div>
+            {{/each}}
+        </div>
+    </div>
+    {{/each}}
+
+    <div class="footer">GloryOfKings-Plugin · 英雄梯度榜</div>
+</body>
+
+</html>
