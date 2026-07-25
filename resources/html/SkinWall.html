@@ -112,7 +112,6 @@
             display: grid;
             grid-template-columns: repeat(6, 1fr);
             grid-auto-rows: 356px;
-            grid-auto-flow: dense;
             gap: 20px;
         }
 
@@ -124,11 +123,7 @@
             position: relative;
         }
 
-        /* 大图：贵的皮肤占 2x2，突出展示 */
-        .skin-card.big {
-            grid-column: span 2;
-            grid-row: span 2;
-        }
+        /* 大图：贵的皮肤占 2x2，突出展示。具体行列由 JS 计算后写在 inline style 上 */
 
         .skin-card img.skin-pic {
             width: 100%;
@@ -236,7 +231,7 @@
 
     <div class="skin-grid">
         {{each skinList skin}}
-        <div class="skin-card{{if skin.big}} big{{/if}}">
+        <div class="skin-card{{if skin.big}} big{{/if}}" style="grid-row: {{skin.row}} / span {{if skin.big}}2{{else}}1{{/if}}; grid-column: {{skin.col}} / span {{if skin.big}}2{{else}}1{{/if}};">
             {{if skin.labelUrl}}<img class="label-tag" src="{{skin.labelUrl}}" onerror="this.style.display='none'">{{/if}}
             <img class="skin-pic" src="{{skin.imgUrl}}" alt="{{skin.skinName}}"
                  onerror="if(!this.dataset.fb&amp;&amp;'{{skin.fallbackUrl}}'){this.dataset.fb=1;this.src='{{skin.fallbackUrl}}';}else{this.style.visibility='hidden';}">

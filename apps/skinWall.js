@@ -10,6 +10,56 @@ const SKIN_IMG_BASE = 'https://game-1255653016.file.myqcloud.com/battle_skin_702
 const PAGE_SIZE = 50
 // #皮肤墙 未指定数量时的默认渲染数
 const DEFAULT_TOP_COUNT = 50
+// 皮肤墙网格列数，需与 SkinWall.html 的 grid-template-columns 保持一致
+const GRID_COLS = 6
+
+// 为一页皮肤分配大图(2×2)与精确网格坐标，兼顾“高价值皮肤突出展示”“大图位置随机”“底边整齐”。
+// 以“两行为一段”组织：每段 = 1 张大图 + 铺满其余格子的小图，恰好填满 cols 的两整行、段内无空洞。
+// 大图在段内随机挑一列落 2×2，其余小图按阅读顺序绕开它填满——无论大图落在哪列，整段仍是满的两整行，底边照样齐。
+// 只有当剩余皮肤够铺满一整段时才安排大图；不足一段的尾部全用小图自然平铺，末行即便不满也都是等高小图。
+// 因为放弃了 CSS 的 dense 自动排布，这里给每张卡算好 1-indexed 的 row/col，供模板 inline 精确摆放。
+function assignBandLayout(pageSkins, cols) {
+  const smallPerBand = cols * 2 - 4 // 一段(两行)里除大图外的小图数
+  const bandSize = 1 + smallPerBand // 一整段的卡片总数
+  let idx = 0
+  let baseRow = 0 // 当前段起始行(0-indexed)
+  while (idx < pageSkins.length) {
+    const remaining = pageSkins.length - idx
+    if (remaining >= bandSize) {
+      // 满段：随机选大图所在列 [0, cols-2]，占 baseRow/baseRow+1 两行的相邻两列
+      const bc = Math.floor(Math.random() * (cols - 1))
+      const big = pageSkins[idx]
+      big.big = true
+      big.row = baseRow + 1
+      big.col = bc + 1
+      // 段内两行按阅读顺序收集非大图格子，依次分给后续小图
+      const freeCells = []
+      for (let r = baseRow; r < baseRow + 2; r++) {
+        for (let c = 0; c < cols; c++) {
+          const inBig = (r === baseRow || r === baseRow + 1) && (c === bc || c === bc + 1)
+          if (!inBig) freeCells.push({ r, c })
+        }
+      }
+      for (let k = 0; k < smallPerBand; k++) {
+        const skin = pageSkins[idx + 1 + k]
+        skin.big = false
+        skin.row = freeCells[k].r + 1
+        skin.col = freeCells[k].c + 1
+      }
+      idx += bandSize
+      baseRow += 2
+    } else {
+      // 尾部不足一段：全用小图，按阅读顺序自然平铺，无大图凸出
+      for (let k = 0; k < remaining; k++) {
+        const skin = pageSkins[idx + k]
+        skin.big = false
+        skin.row = baseRow + Math.floor(k / cols) + 1
+        skin.col = (k % cols) + 1
+      }
+      idx += remaining
+    }
+  }
+}
 
 export class SkinWall extends plugin {
   constructor() {
@@ -120,11 +170,19 @@ export class SkinWall extends plugin {
       else if (szLevel === 1) sppNum++
       else if (szLevel === 2) spNum++
 
+      // 综合价值(真实估值)与点券原价分开保存，避免两种量纲混在一起比大小
+      const worth = Number(conf.skin_worth) || 0
+      const iPrice = Number(conf.iPrice) || 0
+
       result.push({
         iClass: szLevel,
         szClass,
-        // 价格：综合价值优先，点券价兜底，用于排序
-        price: Number(conf.skin_worth) || Number(conf.iPrice) || 0,
+        // 综合价值：营地估值，含绝版/返场/稀有度溢价，最能代表真实价值
+        worth,
+        // 点券原价：worth 缺失时的兜底维度
+        iPrice,
+        // 兼容字段：优先综合价值，其次点券价
+        price: worth || iPrice,
         skinId: conf.iSkinId,
         skinName: conf.szTitle,
         heroName: conf.szHeroTitle,
@@ -136,16 +194,19 @@ export class SkinWall extends plugin {
       })
     }
 
-    // 价格从高到低；价格相同按营地评级(iClass 越小越高)排
-    result.sort((a, b) => (b.price - a.price) || (a.iClass - b.iClass))
+    // 三级排序，让真实价值高的稳定靠前：
+    // 1) 营地评级优先(iClass 越小越高)——最可靠的价值分层，不受接口字段缺失影响
+    // 2) 同评级内按综合价值(真实估值)降序精排
+    // 3) 综合价值缺失时按点券原价兜底，避免与综合价值混在同一维度比较
+    result.sort((a, b) =>
+      (a.iClass - b.iClass) ||
+      (b.worth - a.worth) ||
+      (b.iPrice - a.iPrice)
+    )
 
     const totalAvailable = result.length
     // #皮肤墙 [N]：只渲染价值最高的前 N 个；#全部皮肤：topCount 为 null 表示不截断
     const limited = topCount ? result.slice(0, topCount) : result
-    // 大图标记依据截断后的顺序重排，避免首张恰好不是最贵那张
-    limited.forEach((skin, idx) => {
-      skin.big = idx % 7 === 0
-    })
 
     if (!limited.length) {
       await e.reply('该账号暂无可展示的皮肤，或资料未公开')
@@ -155,7 +216,10 @@ export class SkinWall extends plugin {
     // 皮肤较多时分页渲染，每页 PAGE_SIZE 个，避免单图过长、渲染过久
     const pages = []
     for (let i = 0; i < limited.length; i += PAGE_SIZE) {
-      pages.push(limited.slice(i, i + PAGE_SIZE))
+      const pageSkins = limited.slice(i, i + PAGE_SIZE)
+      // 每页独立做分段布局，保证每页底边各自整齐
+      assignBandLayout(pageSkins, GRID_COLS)
+      pages.push(pageSkins)
     }
     const totalPages = pages.length
     const isLimited = topCount && topCount < totalAvailable
