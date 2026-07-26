@@ -3,6 +3,15 @@ import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { PluginData } from '#components'
 import { ApiService, readYamlFile, writeJsonFile } from '#utils'
 
+// 战绩模式筛选：morebattlelist 接口的 option 参数服务端不生效（无论传什么都返回混合列表），
+// 因此改为客户端按 mapName 过滤。match 用于匹配每场战绩的 mapName（如「排位赛 双排」「巅峰赛」）。
+const MODE_MAP = [
+  { key: '排位', match: ['排位'] },
+  { key: '标准', match: ['标准'] },
+  { key: '娱乐', match: ['娱乐', '匹配'] },
+  { key: '巅峰', match: ['巅峰'] }
+]
+
 export class QueryGameStats extends plugin {
   constructor() {
     super({
@@ -26,7 +35,18 @@ export class QueryGameStats extends plugin {
     const { qqAvatar, nickname } = await this.getTargetInfo(e, userId)
 
     const userData = readYamlFile(path.join(PluginData, 'UserData.yaml'))
-    const input = e.msg.replace(/^#?(查询|王者)战绩\s*/, '')
+    let input = e.msg.replace(/^#?(查询|王者)战绩\s*/, '')
+
+    // 先解析并剥离模式关键词（排位/标准/娱乐/巅峰），剩下的再按 ID/序号处理
+    let mode = null
+    for (const m of MODE_MAP) {
+      if (input.includes(m.key)) {
+        mode = m
+        input = input.replace(m.key, '')
+        break
+      }
+    }
+    input = input.trim()
     const index = Number(input) || false
 
     let ID = index > 9999 ? index : this.getUserID(userData[userId], userId)
@@ -46,6 +66,14 @@ export class QueryGameStats extends plugin {
       }))
       return
     }
+
+    // 服务端 option 不筛选，改为客户端按 mapName 过滤指定模式
+    if (mode && battleList?.list?.length) {
+      battleList.list = battleList.list.filter(item =>
+        mode.match.some(kw => (item.mapName || '').includes(kw))
+      )
+    }
+
     if (!battleList?.list?.length) {
       logger.debug('[战绩查询] 战绩列表为空，原始响应数据', {
         targetUserId: String(ID),
@@ -59,7 +87,10 @@ export class QueryGameStats extends plugin {
         nickname,
         emptyState: true,
         emptyTitle: '暂无可查询战绩',
-        emptyDescription: battleList?.invisDes || `ID: ${ID} 当前没有可展示的战绩数据`
+        emptyDescription: mode
+          ? `ID: ${ID} 最近没有${mode.key}战绩`
+          : (battleList?.invisDes || `ID: ${ID} 当前没有可展示的战绩数据`),
+        modeLabel: mode ? mode.key : ''
       }))
       return
     }
@@ -105,6 +136,7 @@ export class QueryGameStats extends plugin {
       qqAvatar,
       nickname,
       roleJobName: battleList.list[0].roleJobName,
+      modeLabel: mode ? mode.key : '',
       winningStreak: this.calculateWinningStreak(processedData.map(d => d.gameResult))
     }))
   }
