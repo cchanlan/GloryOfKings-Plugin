@@ -25,7 +25,7 @@ export class PeakPerformance extends plugin {
 
   async peakPerformance(e) {
     const userId = (e.at && !e.atme) ? e.at : e.user_id
-    const userData = readYamlFile(path.join(PluginData, 'UserData.yaml'))
+    const userData = readYamlFile(path.join(PluginData, 'UserData.yaml')) || {}
     const input = e.msg.replace(/^#巅峰表现\s*/, '').trim()
     const userInfo = userData[userId]
 

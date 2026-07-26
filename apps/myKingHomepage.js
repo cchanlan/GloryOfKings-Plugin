@@ -26,7 +26,7 @@ export class MyKingHomepage extends plugin {
     let userId = (e.at && !e.atme) ? e.at : e.user_id
     const userFilePath = path.join(PluginData, 'UserData.yaml')
 
-    const allUserData = readYamlFile(userFilePath)
+    const allUserData = readYamlFile(userFilePath) || {}
     const userInfo = allUserData[userId]
 
     if (!userInfo || !userInfo.ids || !userInfo.ids.length) {

@@ -1067,7 +1067,7 @@ class ApiService {
     return this.#makeAuthRequest('/game/getfightdata', {
       recommendPrivacy: 0,
       dateType,
-      roleId: Number(roleId) || roleId,
+      roleId: this.#toString(roleId),
       roleFriendId: 0,
       branchType,
       source: 1,

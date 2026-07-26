@@ -22,7 +22,7 @@ export class SeasonPage extends plugin {
 
   async seasonPage(e) {
     const userId = (e.at && !e.atme) ? e.at : e.user_id
-    const userData = readYamlFile(path.join(PluginData, 'UserData.yaml'))
+    const userData = readYamlFile(path.join(PluginData, 'UserData.yaml')) || {}
     const input = e.msg.replace(/^#排位表现\s*/, '').trim()
     const userInfo = userData[userId]
 

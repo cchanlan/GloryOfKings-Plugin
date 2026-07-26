@@ -1,7 +1,7 @@
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { PluginData } from '#components'
-import { ApiService, readYamlFile, writeJsonFile } from '#utils'
+import { ApiService, readYamlFile } from '#utils'
 
 // 战绩模式筛选：morebattlelist 接口的 option 参数服务端不生效（无论传什么都返回混合列表），
 // 因此改为客户端按 mapName 过滤。match 用于匹配每场战绩的 mapName（如「排位赛 双排」「巅峰赛」）。
@@ -34,7 +34,7 @@ export class QueryGameStats extends plugin {
 
     const { qqAvatar, nickname } = await this.getTargetInfo(e, userId)
 
-    const userData = readYamlFile(path.join(PluginData, 'UserData.yaml'))
+    const userData = readYamlFile(path.join(PluginData, 'UserData.yaml')) || {}
     let input = e.msg.replace(/^#?(查询|王者)战绩\s*/, '')
 
     // 先解析并剥离模式关键词（排位/标准/娱乐/巅峰），剩下的再按 ID/序号处理
@@ -94,8 +94,6 @@ export class QueryGameStats extends plugin {
       }))
       return
     }
-
-    writeJsonFile(path.join(PluginData, 'BattleList.json'), battleList)
 
     if (index && index < 9999) {
       const battle = battleList.list[index - 1]
@@ -189,9 +187,6 @@ export class QueryGameStats extends plugin {
       return null
     }
 
-    writeJsonFile(path.join(PluginData, 'BattleDetails.json'), detail)
-
-    logger.debug(`[战绩查询] 战斗详情数据已保存，数据大小：${JSON.stringify(detail).length}字节`)
     return detail
   }
 
