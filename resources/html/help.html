@@ -149,20 +149,20 @@
                             <span class="cmd-desc">添加营地账号</span>
                         </div>
                         <div class="cmd-item">
-                            <span class="cmd-text">#营地wx登录</span>
-                            <span class="cmd-desc">微信快捷扫码</span>
-                        </div>
-                        <div class="cmd-item">
-                            <span class="cmd-text">#营地ID / #王者ID / #我的ID / #我的王者ID</span>
-                            <span class="cmd-desc">查看已绑账号列表</span>
-                        </div>
-                        <div class="cmd-item">
                             <span class="cmd-text">#切换营地 [序号]</span>
                             <span class="cmd-desc">切换默认账号</span>
                         </div>
                         <div class="cmd-item">
                             <span class="cmd-text">#删除营地 [序号]</span>
                             <span class="cmd-desc">解除当前账号绑定</span>
+                        </div>
+                        <div class="cmd-item">
+                            <span class="cmd-text">#营地ID / #王者ID / #我的王者ID</span>
+                            <span class="cmd-desc">查看已绑账号列表</span>
+                        </div>
+                        <div class="cmd-item">
+                            <span class="cmd-text">#营地wx登录</span>
+                            <span class="cmd-desc">微信快捷扫码登录</span>
                         </div>
                     </div>
                 </div>
@@ -171,23 +171,31 @@
                     <h2>数据查询</h2>
                     <div class="cmd-list">
                         <div class="cmd-item">
-                            <span class="cmd-text">#王者主页</span>
+                            <span class="cmd-text">#王者主页 / #王者卡片 / #王者信息</span>
                             <span class="cmd-desc">查个人主页概览</span>
                         </div>
                         <div class="cmd-item">
-                            <span class="cmd-text">#查询战绩 [序号]</span>
+                            <span class="cmd-text">#查询战绩 [序号] / #王者战绩</span>
                             <span class="cmd-desc">查近期排位详情</span>
+                        </div>
+                        <div class="cmd-item">
+                            <span class="cmd-text">#排位表现 [营地ID]</span>
+                            <span class="cmd-desc">赛季排位数据与上分趋势</span>
+                        </div>
+                        <div class="cmd-item">
+                            <span class="cmd-text">#巅峰表现 [营地ID]</span>
+                            <span class="cmd-desc">巅峰赛五维与分路数据</span>
+                        </div>
+                        <div class="cmd-item">
+                            <span class="cmd-text">#常用英雄 / #我的英雄 / #英雄战力榜</span>
+                            <span class="cmd-desc">查账号常用英雄战力榜</span>
                         </div>
                         <div class="cmd-item">
                             <span class="cmd-text">#查战力 [英雄名]</span>
                             <span class="cmd-desc">获取英雄战力排名</span>
                         </div>
                         <div class="cmd-item">
-                            <span class="cmd-text">#常用英雄 [营地ID]</span>
-                            <span class="cmd-desc">查账号常用英雄战力榜</span>
-                        </div>
-                        <div class="cmd-item">
-                            <span class="cmd-text">#英雄梯度榜 [段位] [分路]</span>
+                            <span class="cmd-text">#英雄梯度 / #梯度 / #强度 [段位] [分路]</span>
                             <span class="cmd-desc">实时 T0~T3 强度榜</span>
                         </div>
                         <div class="cmd-item">
@@ -207,6 +215,44 @@
             </div>
 
             <div class="panel" style="margin-top: 24px;">
+                <h2>主人指令</h2>
+                <div class="cmd-list" style="grid-template-columns: 1fr 1fr;">
+                    <div class="cmd-item">
+                        <span class="cmd-text">#王者设置</span>
+                        <span class="cmd-desc">控制台配置面板</span>
+                    </div>
+                    <div class="cmd-item">
+                        <span class="cmd-text">#王者用户统计</span>
+                        <span class="cmd-desc">查看插件用户统计</span>
+                    </div>
+                    <div class="cmd-item">
+                        <span class="cmd-text">#营地wx全局登录</span>
+                        <span class="cmd-desc">全局微信扫码登录</span>
+                    </div>
+                    <div class="cmd-item">
+                        <span class="cmd-text">#清理失效营地账号</span>
+                        <span class="cmd-desc">清理已失效的营地账号</span>
+                    </div>
+                    <div class="cmd-item">
+                        <span class="cmd-text">#共享营地账号 [序号]</span>
+                        <span class="cmd-desc">将账号设为共享</span>
+                    </div>
+                    <div class="cmd-item">
+                        <span class="cmd-text">#取消共享营地账号 [序号]</span>
+                        <span class="cmd-desc">取消账号共享</span>
+                    </div>
+                    <div class="cmd-item">
+                        <span class="cmd-text">#王者设置共享账号候选启用/关闭</span>
+                        <span class="cmd-desc">开关共享账号候选</span>
+                    </div>
+                    <div class="cmd-item">
+                        <span class="cmd-text">#王者设置个人登录态兜底启用/关闭</span>
+                        <span class="cmd-desc">开关个人登录态兜底</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel" style="margin-top: 24px;">
                 <h2>系统指令</h2>
                 <div class="cmd-list" style="grid-template-columns: 1fr 1fr;">
                     <div class="cmd-item">
@@ -214,8 +260,12 @@
                         <span class="cmd-desc">查看本帮助面板</span>
                     </div>
                     <div class="cmd-item">
-                        <span class="cmd-text">#王者设置</span>
-                        <span class="cmd-desc">控制台配置(限主)</span>
+                        <span class="cmd-text">#王者更新 / #王者强制更新</span>
+                        <span class="cmd-desc">更新插件到最新版</span>
+                    </div>
+                    <div class="cmd-item">
+                        <span class="cmd-text">#王者更新日志 / #王者更新记录</span>
+                        <span class="cmd-desc">查看更新记录</span>
                     </div>
                 </div>
             </div>

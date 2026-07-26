@@ -1052,6 +1052,31 @@ class ApiService {
   }
 
   /**
+   * 获取对战五维数据（战斗表现）。
+   * gameBattleType 对应 profile 的 options，例如 10=巅峰赛、2=5v5、3=排位赛。
+   * branchType：0=全部分路 1=对抗路 2=中路 3=发育路 4=打野 5=游走。
+   * dateType：1=近30场 2=近30天。
+   * @param {string|number} roleId  角色 ID（来自 profile.data.targetRoleId）
+   * @param {string} requesterBotUserId  发起查询的机器人用户 ID
+   * @param {object} [options]
+   * @param {number} [options.gameBattleType=10] 对战类型
+   * @param {number} [options.branchType=0] 分路
+   * @param {number} [options.dateType=2] 统计周期
+   */
+  async getFightData(roleId, requesterBotUserId = '', { gameBattleType = 10, branchType = 0, dateType = 2 } = {}) {
+    return this.#makeAuthRequest('/game/getfightdata', {
+      recommendPrivacy: 0,
+      dateType,
+      roleId: Number(roleId) || roleId,
+      roleFriendId: 0,
+      branchType,
+      source: 1,
+      gameBattleType,
+      card: 0
+    }, roleId, requesterBotUserId)
+  }
+
+  /**
    * 获取英雄梯度榜（T0~T3 热度/胜率/登场率/Ban率）。
    * 数据由官方营地实时返回，返回体自带 updateTime 表示数据更新日期。
    * @param {object} [options]

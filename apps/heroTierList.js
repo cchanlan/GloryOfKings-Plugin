@@ -83,7 +83,7 @@ export class HeroTierList extends plugin {
       priority: 5,
       rule: [
         {
-          reg: '^#(王者)?(英雄梯度榜|英雄榜|梯度榜|强度榜)\\s*(.*)$',
+          reg: '^#(王者)?(英雄梯度|梯度|强度)\\s*(.*)$',
           fnc: 'heroTierList'
         }
       ]
@@ -91,7 +91,7 @@ export class HeroTierList extends plugin {
   }
 
   async heroTierList(e) {
-    const msg = e.msg.replace(/^#(王者)?(英雄梯度榜|英雄榜|梯度榜|强度榜)\s*/, '').trim()
+    const msg = e.msg.replace(/^#(王者)?(英雄梯度|梯度|强度)\s*/, '').trim()
     const { segment, position } = parseFilter(msg)
 
     let res
