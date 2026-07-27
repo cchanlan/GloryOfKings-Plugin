@@ -155,6 +155,6 @@ export class HeroTierList extends plugin {
       groups
     })
 
-    await e.reply(img)
+    await e.reply(img, true)
   }
 }

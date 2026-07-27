@@ -8,6 +8,45 @@ import { PluginData } from '#components'
 const SZ_ORDER = ['SR', 'S++', 'S+', 'S', 'A', 'B', 'C', 'D']
 const SKIN_IMG_BASE = 'https://game-1255653016.file.myqcloud.com/battle_skin_702-1236'
 const PAGE_SIZE = 50
+// 皮肤墙截图 JPEG 质量：满页 50 张大图在 q90 下可达 8MB+，部分适配器发送失败。
+// 保持每页 50 张，仅靠降质压体积——q75 视觉几乎无损但体积约为 q90 的 1/3，满页可压到 ~3MB。
+const SCREENSHOT_QUALITY = 75
+
+// 高价值品质优先级(下标越小价值越高)，对齐营地“皮肤价值”口径。
+// 这些顶级品质(如荣耀典藏)的综合估值 skin_worth 常为 0，无法靠 worth 排序；
+// 且营地评级里 SR 会盖过 S++ 的荣耀典藏，故用显式品质优先级把它们稳定置顶。
+// 依据接口返回的 conf.classTypeName(品质名数组)精确匹配。
+const TIER_PRIORITY = ['荣耀典藏', '珍品无双', '无双至尊', '珍品传说', '传说限定']
+
+// 取皮肤命中的最高价值品质档位下标；未命中任何高价值品质返回末尾档，走原有评级/估值兜底。
+function tierRank(classTypeName) {
+  const names = Array.isArray(classTypeName) ? classTypeName : []
+  let best = TIER_PRIORITY.length
+  for (const name of names) {
+    const idx = TIER_PRIORITY.indexOf(String(name))
+    if (idx !== -1 && idx < best) best = idx
+  }
+  return best
+}
+
+// 品质名展示优先级：接口的 classTypeName 是数组，常混着主题名(如“墨染江湖”)与品质名(如“无双”)，
+// 顺序不固定。这里按“价值品质”优先挑一个用于文字角标兜底——角标图缺失(接口新皮肤图 404 或为空)
+// 时，用品质名渲染一个文字标，避免高价值皮肤看起来“没标”。列表外的名字作为最次兜底取数组首项。
+const QUALITY_LABELS = [
+  '荣耀典藏', '珍品无双', '无双至尊', '珍品传说', '传说限定',
+  '无双', '珍品限定', '传说品质', '史诗品质', '勇者品质', '限定'
+]
+
+function pickTierText(classTypeName) {
+  const names = (Array.isArray(classTypeName) ? classTypeName : [])
+    .map(n => String(n).trim())
+    .filter(Boolean)
+  if (!names.length) return ''
+  for (const label of QUALITY_LABELS) {
+    if (names.includes(label)) return label
+  }
+  return names[0]
+}
 // #皮肤墙 未指定数量时的默认渲染数
 const DEFAULT_TOP_COUNT = 50
 // 皮肤墙网格列数，需与 SkinWall.html 的 grid-template-columns 保持一致
@@ -175,6 +214,8 @@ export class SkinWall extends plugin {
       const iPrice = Number(conf.iPrice) || 0
 
       result.push({
+        // 高价值品质档位(荣耀典藏/珍品无双/…)，越小越靠前；未命中为末尾档
+        tier: tierRank(conf.classTypeName),
         iClass: szLevel,
         szClass,
         // 综合价值：营地估值，含绝版/返场/稀有度溢价，最能代表真实价值
@@ -190,15 +231,20 @@ export class SkinWall extends plugin {
         // 702-1236 图集不含全部皮肤，缺失时回退到官方大图
         fallbackUrl: conf.szLargeIcon || conf.szSmallIcon || '',
         // 皮肤品质角标图（史诗/限定/荣耀典藏等），可能为空
-        labelUrl: conf.classLabel || ''
+        labelUrl: conf.classLabel || '',
+        // 文字品质兜底：角标图缺失或加载失败时，用品质名渲染一个文字标
+        tierText: pickTierText(conf.classTypeName)
       })
     }
 
-    // 三级排序，让真实价值高的稳定靠前：
-    // 1) 营地评级优先(iClass 越小越高)——最可靠的价值分层，不受接口字段缺失影响
-    // 2) 同评级内按综合价值(真实估值)降序精排
-    // 3) 综合价值缺失时按点券原价兜底，避免与综合价值混在同一维度比较
+    // 四级排序，让真实价值高的稳定靠前：
+    // 1) 高价值品质档位优先(荣耀典藏/珍品无双/无双至尊/珍品传说/传说限定)——这些顶级品质
+    //    的 skin_worth 常为 0、且营地评级里 SR 会盖过 S++ 的荣耀典藏，故用显式档位置顶
+    // 2) 营地评级(iClass 越小越高)——可靠的价值分层，不受接口字段缺失影响
+    // 3) 同档同评级内按综合价值(真实估值)降序精排
+    // 4) 综合价值缺失时按点券原价兜底，避免与综合价值混在同一维度比较
     result.sort((a, b) =>
+      (a.tier - b.tier) ||
       (a.iClass - b.iClass) ||
       (b.worth - a.worth) ||
       (b.iPrice - a.iPrice)
@@ -233,6 +279,8 @@ export class SkinWall extends plugin {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/SkinWall.html',
       // 固定 name(=目录)，用 saveId 区分每页文件，避免 Renderer 复用模板缓存时不建目录导致 ENOENT
       saveId: `SkinWall_${pageIndex}`,
+      // 降质压体积，避免满页大图 JPEG 过大导致部分适配器发送失败
+      quality: SCREENSHOT_QUALITY,
       ydId: String(ID),
       avatar: `https://q1.qlogo.cn/g?b=qq&s=100&nk=${userId}`,
       nickname,
@@ -250,7 +298,7 @@ export class SkinWall extends plugin {
     // 单页直接发图
     if (totalPages === 1) {
       const img = await puppeteer.screenshot('SkinWall', buildParams(pages[0], 0))
-      await e.reply(img)
+      await e.reply(img, true)
       return
     }
 

@@ -183,6 +183,30 @@
             height: 48px;
         }
 
+        /* 文字品质角标：角标图缺失或加载失败时的兜底，样式模拟金色小徽章 */
+        .skin-card .label-text {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            max-width: 70%;
+            padding: 4px 10px;
+            font-size: 15px;
+            font-weight: bold;
+            line-height: 1.1;
+            color: #3a2c05;
+            background: linear-gradient(135deg, #ffe9a8, #f0b849);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            border-radius: 6px;
+            white-space: nowrap;
+            filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
+            z-index: 2;
+        }
+
+        .skin-card.big .label-text {
+            font-size: 19px;
+            padding: 6px 14px;
+        }
+
         .footer {
             margin-top: 34px;
             text-align: center;
@@ -232,7 +256,8 @@
     <div class="skin-grid">
         {{each skinList skin}}
         <div class="skin-card{{if skin.big}} big{{/if}}" style="grid-row: {{skin.row}} / span {{if skin.big}}2{{else}}1{{/if}}; grid-column: {{skin.col}} / span {{if skin.big}}2{{else}}1{{/if}};">
-            {{if skin.labelUrl}}<img class="label-tag" src="{{skin.labelUrl}}" onerror="this.style.display='none'">{{/if}}
+            {{if skin.labelUrl}}<img class="label-tag" src="{{skin.labelUrl}}" onerror="var t=this.parentNode.querySelector('.label-text');if(t){t.style.display='block';}this.style.display='none';">{{/if}}
+            {{if skin.tierText}}<span class="label-text"{{if skin.labelUrl}} style="display:none"{{/if}}>{{skin.tierText}}</span>{{/if}}
             <img class="skin-pic" src="{{skin.imgUrl}}" alt="{{skin.skinName}}"
                  onerror="if(!this.dataset.fb&amp;&amp;'{{skin.fallbackUrl}}'){this.dataset.fb=1;this.src='{{skin.fallbackUrl}}';}else{this.style.visibility='hidden';}">
             <div class="info">

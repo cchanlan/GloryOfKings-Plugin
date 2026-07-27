@@ -362,7 +362,7 @@ export class AccountManager extends plugin {
     const { userData } = this.getUserData(userId)
 
     if (!userData[userId]?.ids.length) {
-      return e.reply(segment.image('https://raw.gitcode.com/Kevin1217/resources/files/master/resources/img/example/王者营地ID获取.png'))
+      return e.reply(segment.image('https://raw.gitcode.com/Kevin1217/resources/files/master/resources/img/example/王者营地ID获取.png'), true)
     }
 
     const idList = this.formatIdList(userData[userId])
@@ -607,7 +607,7 @@ export class AccountManager extends plugin {
 
     try {
       const img = await this.generateAuthPoolOverviewHTML(overviewData)
-      await e.reply(img)
+      await e.reply(img, true)
     } catch (error) {
       logger.error(`[王者用户统计] 渲染统计面板失败: ${error.message}`)
       await e.reply([

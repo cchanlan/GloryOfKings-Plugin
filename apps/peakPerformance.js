@@ -34,7 +34,7 @@ export class PeakPerformance extends plugin {
       : userInfo?.ids?.[userInfo.current ?? 0]
 
     if (!campId) {
-      await e.reply(segment.image('https://raw.gitcode.com/Kevin1217/resources/files/master/resources/img/example/王者营地ID获取.png'))
+      await e.reply(segment.image('https://raw.gitcode.com/Kevin1217/resources/files/master/resources/img/example/王者营地ID获取.png'), true)
       return
     }
 
@@ -164,7 +164,7 @@ export class PeakPerformance extends plugin {
       heros
     })
 
-    await e.reply(img)
+    await e.reply(img, true)
   }
 
   /** 把单条分路的 battleDataSelf 整理成模板需要的结构 */

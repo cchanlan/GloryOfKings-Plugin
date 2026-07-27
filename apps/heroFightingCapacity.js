@@ -54,7 +54,7 @@ export class HeroFightingCapacity extends plugin {
                 minStats: minStats
             })
 
-            await e.reply(img)
+            await e.reply(img, true)
         } catch (err) {
             logger.error(`[查战力] 查询失败: ${err}`)
             await e.reply(`查询失败!`)

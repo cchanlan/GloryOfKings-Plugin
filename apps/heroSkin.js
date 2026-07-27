@@ -80,6 +80,6 @@ export class HeroSkin extends plugin {
             ...templateParams
         });
 
-        await e.reply(img);
+        await e.reply(img, true);
     }
 }

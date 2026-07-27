@@ -147,6 +147,6 @@ export class HeroList extends plugin {
       heroes
     })
 
-    await e.reply(img)
+    await e.reply(img, true)
   }
 }

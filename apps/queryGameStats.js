@@ -51,7 +51,7 @@ export class QueryGameStats extends plugin {
 
     let ID = index > 9999 ? index : this.getUserID(userData[userId], userId)
     if (!ID) {
-      await e.reply(segment.image('https://raw.gitcode.com/Kevin1217/resources/files/master/resources/img/example/王者营地ID获取.png'))
+      await e.reply(segment.image('https://raw.gitcode.com/Kevin1217/resources/files/master/resources/img/example/王者营地ID获取.png'), true)
       return
     }
 
@@ -91,7 +91,7 @@ export class QueryGameStats extends plugin {
           ? `ID: ${ID} 最近没有${mode.key}战绩`
           : (battleList?.invisDes || `ID: ${ID} 当前没有可展示的战绩数据`),
         modeLabel: mode ? mode.key : ''
-      }))
+      }), true)
       return
     }
 
@@ -106,7 +106,7 @@ export class QueryGameStats extends plugin {
       if (detail) {
         try {
           const img = await this.generateDetailImage(detail)
-          await e.reply(img)
+          await e.reply(img, true)
         } catch (err) {
           logger.error(`[战绩查询] 生成图片失败: ${err}`)
           await e.reply('生成战绩详情图片失败，请稍后再试')
@@ -136,7 +136,7 @@ export class QueryGameStats extends plugin {
       roleJobName: battleList.list[0].roleJobName,
       modeLabel: mode ? mode.key : '',
       winningStreak: this.calculateWinningStreak(processedData.map(d => d.gameResult))
-    }))
+    }), true)
   }
 
   async getTargetInfo(e, userId) {

@@ -28,7 +28,7 @@ export class Help extends plugin {
       generatedAt: new Date().toLocaleString()
     })
 
-    await e.reply(inventoryImage)
+    await e.reply(inventoryImage, true)
   }
 
   async showMasterPanel(e) {
