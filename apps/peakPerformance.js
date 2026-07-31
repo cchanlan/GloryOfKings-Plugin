@@ -1,6 +1,6 @@
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { ApiService, readYamlFile } from '#utils'
+import { ApiService, readYamlFile, getLocalImage } from '#utils'
 import { PluginData } from '#components'
 
 // branchType：0=全部分路 1=对抗路 2=中路 3=发育路 4=打野 5=游走
@@ -34,7 +34,7 @@ export class PeakPerformance extends plugin {
       : userInfo?.ids?.[userInfo.current ?? 0]
 
     if (!campId) {
-      await e.reply(segment.image('https://raw.gitcode.com/Kevin1217/resources/files/master/resources/img/example/王者营地ID获取.png'), true)
+      await e.reply(segment.image(await getLocalImage('https://raw.gitcode.com/Kevin1217/resources/files/master/resources/img/example/王者营地ID获取.png')), true)
       return
     }
 

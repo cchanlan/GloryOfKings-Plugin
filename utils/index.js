@@ -2,7 +2,8 @@ import ApiService from './api.js'
 import {
   readJsonFile,
   writeJsonFile,
-  getFilePath
+  getFilePath,
+  getLocalImage
 } from './fileUtils.js'
 import {
   readYamlFile,
@@ -24,6 +25,7 @@ export {
   readJsonFile,
   writeJsonFile,
   getFilePath,
+  getLocalImage,
   readYamlFile,
   writeYamlFile,
   monitor,

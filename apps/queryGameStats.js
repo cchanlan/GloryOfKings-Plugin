@@ -1,7 +1,7 @@
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { PluginData } from '#components'
-import { ApiService, readYamlFile } from '#utils'
+import { ApiService, readYamlFile, getLocalImage } from '#utils'
 
 // 战绩模式筛选：morebattlelist 接口的 option 参数服务端不生效（无论传什么都返回混合列表），
 // 因此改为客户端按 mapName 过滤。match 用于匹配每场战绩的 mapName（如「排位赛 双排」「巅峰赛」）。
@@ -51,7 +51,7 @@ export class QueryGameStats extends plugin {
 
     let ID = index > 9999 ? index : this.getUserID(userData[userId], userId)
     if (!ID) {
-      await e.reply(segment.image('https://raw.gitcode.com/Kevin1217/resources/files/master/resources/img/example/王者营地ID获取.png'), true)
+      await e.reply(segment.image(await getLocalImage('https://raw.gitcode.com/Kevin1217/resources/files/master/resources/img/example/王者营地ID获取.png')), true)
       return
     }
 

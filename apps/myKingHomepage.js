@@ -1,6 +1,6 @@
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import common from '../../../lib/common/common.js'
-import { ApiService, readYamlFile } from '#utils'
+import { ApiService, readYamlFile, getLocalImage } from '#utils'
 import path from 'path'
 import { PluginData } from '#components'
 import moment from 'moment'
@@ -30,7 +30,7 @@ export class MyKingHomepage extends plugin {
     const userInfo = allUserData[userId]
 
     if (!userInfo || !userInfo.ids || !userInfo.ids.length) {
-      await e.reply(segment.image('https://raw.gitcode.com/Kevin1217/resources/files/master/resources/img/example/王者营地ID获取.png'), true)
+      await e.reply(segment.image(await getLocalImage('https://raw.gitcode.com/Kevin1217/resources/files/master/resources/img/example/王者营地ID获取.png')), true)
       return
     }
 
