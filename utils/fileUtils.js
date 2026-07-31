@@ -8,10 +8,9 @@ const IMG_CACHE_DIR = path.join(PluginData, 'imgCache')
 
 /**
  * 远程图片本地化：首次下载缓存到 data/imgCache，之后直接读本地。
- * QQ 官方机器人对 markdown 外链图有域名白名单限制，且中文路径不编码会被判非法，
- * 直接回传 Buffer 可让适配器走 richMedia 上传通道，规避这两个问题。
+ * 下载失败（404 等）会写入空文件作为标记，后续不再重试。
  * @param {string} url 远程图片地址
- * @returns {Promise<Buffer|string>} 成功返回图片 Buffer，失败回退原 url
+ * @returns {Promise<Buffer|string>} 成功返回图片 Buffer，失败返回空字符串
  */
 export async function getLocalImage (url) {
   try {
@@ -19,8 +18,10 @@ export async function getLocalImage (url) {
     const key = crypto.createHash('md5').update(url).digest('hex')
     const cacheFile = path.join(IMG_CACHE_DIR, `${key}${ext}`)
 
-    if (fs.existsSync(cacheFile) && fs.statSync(cacheFile).size > 0) {
-      return fs.readFileSync(cacheFile)
+    if (fs.existsSync(cacheFile)) {
+      // 空文件 = 之前下载失败的标记，不再重试
+      const stat = fs.statSync(cacheFile)
+      return stat.size > 0 ? fs.readFileSync(cacheFile) : ''
     }
 
     // 路径里的中文等非 ASCII 字符需要 encode，否则部分 CDN 直接 400
@@ -39,8 +40,16 @@ export async function getLocalImage (url) {
     fs.writeFileSync(cacheFile, buffer)
     return buffer
   } catch (err) {
-    logger?.warn?.(`[GloryOfKings] 图片本地化失败，回退外链: ${url} (${err.message})`)
-    return url
+    // 缓存失败标记（空文件），避免下次重试
+    try {
+      const ext = path.extname(new URL(url).pathname) || '.png'
+      const key = crypto.createHash('md5').update(url).digest('hex')
+      const cacheFile = path.join(IMG_CACHE_DIR, `${key}${ext}`)
+      fs.mkdirSync(IMG_CACHE_DIR, { recursive: true })
+      fs.writeFileSync(cacheFile, '')
+    } catch {}
+    logger?.debug?.(`[GloryOfKings] 图片本地化失败，已缓存标记: ${url} (${err.message})`)
+    return ''
   }
 }
 
