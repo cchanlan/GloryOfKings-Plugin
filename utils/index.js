@@ -3,7 +3,8 @@ import {
   readJsonFile,
   writeJsonFile,
   getFilePath,
-  getLocalImage
+  getLocalImage,
+  cleanImageCache
 } from './fileUtils.js'
 import {
   readYamlFile,
@@ -26,6 +27,7 @@ export {
   writeJsonFile,
   getFilePath,
   getLocalImage,
+  cleanImageCache,
   readYamlFile,
   writeYamlFile,
   monitor,
