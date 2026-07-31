@@ -47,6 +47,28 @@ function pickTierText(classTypeName) {
   }
   return names[0]
 }
+
+// 顶部三个品质计数格。统计的是接口给的品质名(classTypeName)，不是营地评级(szClass)——
+// 两者口径不同，营地评级里 SR 会盖过 S++ 的荣耀典藏，用评级当品质名会贴错标签。
+// aliases 收拢同一品质的不同写法：营地对“无双”系列的返回并不统一，
+// 只认单一名字会让计数偏低。命中任一别名即计入该格。
+const QUALITY_STATS = [
+  { key: 'gloryNum', label: '荣耀典藏', aliases: ['荣耀典藏'] },
+  { key: 'wushuangNum', label: '无双', aliases: ['珍品无双', '无双至尊', '无双'] },
+  { key: 'legendNum', label: '传说', aliases: ['珍品传说', '传说限定', '传说品质'] }
+]
+
+// 一张皮肤只计入最先命中的那一格，避免 classTypeName 同时含“无双”和“传说”时被重复统计。
+function countQuality(classTypeName, counters) {
+  const names = (Array.isArray(classTypeName) ? classTypeName : []).map(n => String(n).trim())
+  if (!names.length) return
+  for (const stat of QUALITY_STATS) {
+    if (stat.aliases.some(alias => names.includes(alias))) {
+      counters[stat.key]++
+      return
+    }
+  }
+}
 // #皮肤墙 未指定数量时的默认渲染数
 const DEFAULT_TOP_COUNT = 50
 // 皮肤墙网格列数，需与 SkinWall.html 的 grid-template-columns 保持一致
@@ -190,9 +212,8 @@ export class SkinWall extends plugin {
     const skinInfo = data.skinCountInfo
     const confList = data.heroSkinConfList || {}
 
-    let srNum = 0
-    let sppNum = 0
-    let spNum = 0
+    // 品质计数(荣耀典藏/无双/传说)，供顶部统计格展示
+    const qualityCounters = { gloryNum: 0, wushuangNum: 0, legendNum: 0 }
     const result = []
 
     for (const skin of data.heroSkinList) {
@@ -205,9 +226,7 @@ export class SkinWall extends plugin {
         continue
       }
       const szLevel = SZ_ORDER.includes(szClass) ? SZ_ORDER.indexOf(szClass) : 7
-      if (szLevel === 0) srNum++
-      else if (szLevel === 1) sppNum++
-      else if (szLevel === 2) spNum++
+      countQuality(conf.classTypeName, qualityCounters)
 
       // 综合价值(真实估值)与点券原价分开保存，避免两种量纲混在一起比大小
       const worth = Number(conf.skin_worth) || 0
@@ -335,9 +354,8 @@ export class SkinWall extends plugin {
       totalSkinNum: skinInfo.totalSkinNum || '',
       notForSell: skinInfo.notForSell,
       totalValue: skinInfo.totalValue,
-      srNum,
-      sppNum,
-      spNum,
+      // 三个品质计数格，label 一并传给模板，改名只需动 QUALITY_STATS
+      qualityStats: QUALITY_STATS.map(s => ({ label: s.label, num: qualityCounters[s.key] })),
       pageInfo: totalPages > 1 ? `第 ${pageIndex + 1}/${totalPages} 页` : '',
       skinList: pageSkins
     })

@@ -98,6 +98,7 @@ export function buildMasterPanelData() {
 export async function renderMasterPanel(e) {
   const panelImage = await puppeteer.screenshot('helpConfig', {
     tplFile: 'plugins/GloryOfKings-Plugin/resources/html/helpConfig.html',
+    _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
     ...buildMasterPanelData()
   })
 

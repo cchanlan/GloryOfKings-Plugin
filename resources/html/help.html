@@ -1,14 +1,27 @@
 <style>
+    @font-face {
+        font-family: 'HYWenHei';
+        src: url('{{_res_path}}font/HYWH-65W.woff') format('woff');
+        font-weight: normal;
+    }
+
+    @font-face {
+        font-family: 'tttgbnumber';
+        src: url('{{_res_path}}font/tttgbnumber.woff') format('woff');
+        font-weight: normal;
+    }
+
     :root {
         --c-primary: #e4bea0;
-        --c-bg: #121820;
-        --c-panel: rgba(22, 28, 40, 0.85);
-        --c-panel-light: rgba(255, 255, 255, 0.05);
-        --c-border: rgba(228, 190, 160, 0.2);
-        --c-border-soft: rgba(255, 255, 255, 0.08);
+        --c-bg: #0d1118;
+        --c-panel: rgba(20, 26, 37, 0.72);
+        --c-card: rgba(255, 255, 255, 0.045);
+        --c-border: rgba(228, 190, 160, 0.22);
+        --c-border-soft: rgba(255, 255, 255, 0.07);
         --c-text: #eef0f4;
-        --c-text-muted: rgba(238, 240, 244, 0.6);
-        --c-accent: #5fb1eb;
+        --c-text-muted: rgba(238, 240, 244, 0.55);
+        --c-text-dim: rgba(238, 240, 244, 0.46);
+        --accent: #e4bea0;
     }
 
     * {
@@ -17,260 +30,309 @@
         padding: 0;
     }
 
+    html {
+        background: #05070b;
+    }
+
     body {
-        width: 1080px;
-        padding: 30px;
-        font-family: inherit;
         color: var(--c-text);
-        background: #000;
+        background: #05070b;
+        font-family: 'HYWenHei', 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
         -webkit-font-smoothing: antialiased;
+        text-rendering: geometricPrecision;
+    }
+
+    /* zoom 让整页按 2 倍布局，截出来是真 2x 分辨率，不是拉伸 */
+    #container {
+        zoom: 2;
+        width: 1080px;
+        padding: 28px;
     }
 
     .page {
         position: relative;
-        border-radius: 24px;
+        border-radius: 26px;
         overflow: hidden;
-        background: var(--c-bg) url('../img/bgImgV2.png') no-repeat center/cover;
         border: 1px solid var(--c-border);
-        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+        box-shadow: 0 18px 52px rgba(0, 0, 0, 0.65);
+        background:
+            linear-gradient(180deg, rgba(11, 15, 23, 0.86) 0%, rgba(10, 14, 21, 0.95) 45%, rgba(8, 11, 17, 0.985) 100%),
+            var(--c-bg) url('{{_res_path}}img/background.jpg') no-repeat center top / cover;
     }
 
-    .overlay {
-        background: linear-gradient(180deg, rgba(16, 20, 29, 0.88) 0%, rgba(18, 24, 32, 0.96) 100%);
-        backdrop-filter: blur(8px);
-        padding: 45px 55px;
+    .glow {
+        position: absolute;
+        top: -180px;
+        right: -120px;
+        width: 520px;
+        height: 520px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(228, 190, 160, 0.16) 0%, rgba(228, 190, 160, 0) 70%);
     }
 
+    .inner {
+        position: relative;
+        padding: 40px 44px 34px;
+    }
+</style>
+<style>
     .header {
         display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
+        align-items: center;
+        padding-bottom: 22px;
+        margin-bottom: 24px;
         border-bottom: 1px solid var(--c-border);
-        padding-bottom: 24px;
-        margin-bottom: 30px;
     }
 
-    .title-wrap h1 {
-        font-size: 40px;
-        font-weight: 800;
-        color: var(--c-primary);
-        text-shadow: 0 4px 16px rgba(228, 190, 160, 0.3);
-        margin-bottom: 10px;
-    }
-
-    .header-info {
-        text-align: right;
-        font-size: 13px;
-        color: var(--c-text-muted);
-        line-height: 1.6;
-    }
-
-    .header-info strong {
-        color: var(--c-primary);
-    }
-
-    .section-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 24px;
-    }
-
-    .panel {
-        background: var(--c-panel);
-        border: 1px solid var(--c-border-soft);
-        border-radius: 18px;
-        padding: 24px;
-    }
-
-    .panel h2 {
-        font-size: 20px;
-        color: var(--c-primary);
-        margin-bottom: 20px;
+    .brand {
         display: flex;
         align-items: center;
+        gap: 16px;
     }
 
-    .panel h2::before {
+    .brand-mark {
+        width: 62px;
+        height: 62px;
+        border-radius: 18px;
+        overflow: hidden;
+        border: 1px solid rgba(228, 190, 160, 0.35);
+        box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+    }
+
+    .brand-mark img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .brand-text h1 {
+        font-size: 36px;
+        font-weight: normal;
+        letter-spacing: 1px;
+        color: var(--c-primary);
+        text-shadow: 0 4px 18px rgba(228, 190, 160, 0.28);
+    }
+
+    .brand-sub {
+        margin-top: 6px;
+        font-size: 13px;
+        letter-spacing: 1px;
+        color: var(--c-text-dim);
+    }
+</style>
+<style>
+    .panel {
+        position: relative;
+        margin-bottom: 18px;
+        padding: 22px 24px 24px;
+        border-radius: 20px;
+        background: var(--c-panel);
+        border: 1px solid var(--c-border-soft);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .panel::before {
         content: '';
-        display: inline-block;
-        width: 4px;
-        height: 18px;
-        background: var(--c-primary);
-        margin-right: 12px;
-        border-radius: 2px;
+        position: absolute;
+        left: 0;
+        top: 26px;
+        bottom: 26px;
+        width: 3px;
+        border-radius: 0 3px 3px 0;
+        background: var(--accent);
+        box-shadow: 0 0 14px var(--accent);
     }
 
-    .cmd-list {
+    .t-gold { --accent: #e4bea0; }
+    .t-blue { --accent: #5fb1eb; }
+    .t-orange { --accent: #ffb84d; }
+    .t-green { --accent: #8be668; }
+</style>
+<style>
+    .panel-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .panel-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 14%, transparent);
+        border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+    }
+
+    .panel-title {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+    }
+
+    .panel-title h2 {
+        font-size: 21px;
+        font-weight: normal;
+        letter-spacing: 1px;
+        color: var(--c-text);
+    }
+
+    .panel-desc {
+        font-size: 13px;
+        color: var(--c-text-dim);
+    }
+
+    .tag-master {
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 11px;
+        color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 14%, transparent);
+        border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+    }
+
+    .panel-count {
+        margin-left: auto;
+        font-size: 12px;
+        color: var(--c-text-dim);
+    }
+</style>
+<style>
+    .cards {
         display: grid;
+        grid-template-columns: repeat(3, 1fr);
         gap: 14px;
     }
 
-    .cmd-item {
-        background: var(--c-panel-light);
+    .card {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        padding: 15px 16px 14px;
         border-radius: 14px;
-        padding: 16px 20px;
-        border: 1px solid rgba(255, 255, 255, 0.03);
+        background: var(--c-card);
+        border: 1px solid var(--c-border-soft);
+        border-left: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    }
+
+    .card-cmd {
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .cmd {
+        font-size: 16px;
+        letter-spacing: 0.5px;
+        color: var(--accent);
+    }
+
+    .args {
+        padding: 2px 8px;
+        border-radius: 7px;
+        font-size: 13px;
+        letter-spacing: 0.5px;
+        color: color-mix(in srgb, var(--accent) 72%, #ffffff);
+        background: color-mix(in srgb, var(--accent) 13%, transparent);
+        border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+    }
+
+    .alias {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+    }
+
+    .alias-chip {
+        padding: 2px 8px;
+        border-radius: 7px;
+        font-size: 12px;
+        color: var(--c-text-muted);
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--c-border-soft);
+    }
+
+    .card-desc {
+        margin-top: auto;
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--c-text-muted);
+    }
+
+    .footer {
         display: flex;
         align-items: center;
         justify-content: space-between;
+        margin-top: 22px;
+        padding-top: 18px;
+        border-top: 1px solid var(--c-border-soft);
+        font-size: 12px;
+        color: var(--c-text-dim);
     }
 
-    .cmd-text {
-        font-size: 17px;
-        font-weight: bold;
-        color: var(--c-accent);
-    }
-
-    .cmd-desc {
-        font-size: 14px;
-        color: var(--c-text-muted);
+    .footer-tip b {
+        font-weight: normal;
+        color: var(--c-primary);
     }
 </style>
 
 <body>
+    <div id="container">
     <div class="page">
-        <div class="overlay">
+        <div class="glow"></div>
+        <div class="inner">
             <div class="header">
-                <div class="title-wrap">
-                    <h1>王者荣耀插件帮助</h1>
-                </div>
-                <div class="header-info">
-                    <div class="info-tip"><strong>提示：</strong>如遇登录状态失效，请重新扫码或联系主人处理。</div>
-                    <div class="info-time">{{generatedAt}} | GloryOfKings-Plugin</div>
-                </div>
-            </div>
-
-            <div class="section-grid">
-                <div class="panel">
-                    <h2>账号管理</h2>
-                    <div class="cmd-list">
-                        <div class="cmd-item">
-                            <span class="cmd-text">#绑定营地 [营地ID]</span>
-                            <span class="cmd-desc">添加营地账号</span>
-                        </div>
-                        <div class="cmd-item">
-                            <span class="cmd-text">#切换营地 [序号]</span>
-                            <span class="cmd-desc">切换默认账号</span>
-                        </div>
-                        <div class="cmd-item">
-                            <span class="cmd-text">#删除营地 [序号]</span>
-                            <span class="cmd-desc">解除当前账号绑定</span>
-                        </div>
-                        <div class="cmd-item">
-                            <span class="cmd-text">#营地ID / #王者ID / #我的王者ID</span>
-                            <span class="cmd-desc">查看已绑账号列表</span>
-                        </div>
-                        <div class="cmd-item">
-                            <span class="cmd-text">#营地wx登录</span>
-                            <span class="cmd-desc">微信快捷扫码登录</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="panel">
-                    <h2>数据查询</h2>
-                    <div class="cmd-list">
-                        <div class="cmd-item">
-                            <span class="cmd-text">#王者主页 / #王者卡片 / #王者信息</span>
-                            <span class="cmd-desc">查个人主页概览</span>
-                        </div>
-                        <div class="cmd-item">
-                            <span class="cmd-text">#查询战绩 [模式] [序号]</span>
-                            <span class="cmd-desc">查近期战绩，模式可选 排位/标准/巅峰</span>
-                        </div>
-                        <div class="cmd-item">
-                            <span class="cmd-text">#排位表现 [营地ID]</span>
-                            <span class="cmd-desc">赛季排位数据与上分趋势</span>
-                        </div>
-                        <div class="cmd-item">
-                            <span class="cmd-text">#巅峰表现 [营地ID]</span>
-                            <span class="cmd-desc">巅峰赛五维与分路数据</span>
-                        </div>
-                        <div class="cmd-item">
-                            <span class="cmd-text">#常用英雄 / #我的英雄 / #英雄战力榜</span>
-                            <span class="cmd-desc">查账号常用英雄战力榜</span>
-                        </div>
-                        <div class="cmd-item">
-                            <span class="cmd-text">#查战力 [英雄名]</span>
-                            <span class="cmd-desc">获取英雄战力排名</span>
-                        </div>
-                        <div class="cmd-item">
-                            <span class="cmd-text">#英雄梯度 / #梯度 / #强度 [段位] [分路]</span>
-                            <span class="cmd-desc">实时 T0~T3 强度榜</span>
-                        </div>
-                        <div class="cmd-item">
-                            <span class="cmd-text">#查皮肤 [英雄名]</span>
-                            <span class="cmd-desc">查看英雄皮肤图鉴</span>
-                        </div>
-                        <div class="cmd-item">
-                            <span class="cmd-text">#皮肤墙 [营地ID] [数量]</span>
-                            <span class="cmd-desc">按价值倒序看前 N 张（默认 50）</span>
-                        </div>
-                        <div class="cmd-item">
-                            <span class="cmd-text">#全部皮肤 [营地ID]</span>
-                            <span class="cmd-desc">渲染账号全部皮肤</span>
-                        </div>
+                <div class="brand">
+                    <div class="brand-mark"><img src="{{_res_path}}img/app_logo.png" /></div>
+                    <div class="brand-text">
+                        <h1>王者荣耀插件</h1>
+                        <div class="brand-sub">GloryOfKings-Plugin · 指令帮助</div>
                     </div>
                 </div>
             </div>
 
-            <div class="panel" style="margin-top: 24px;">
-                <h2>主人指令</h2>
-                <div class="cmd-list" style="grid-template-columns: 1fr 1fr;">
-                    <div class="cmd-item">
-                        <span class="cmd-text">#王者设置</span>
-                        <span class="cmd-desc">控制台配置面板</span>
+            {{each sections section}}
+            <div class="panel t-{{section.theme}}">
+                <div class="panel-head">
+                    <div class="panel-icon">{{section.icon}}</div>
+                    <div class="panel-title">
+                        <h2>{{section.title}}</h2>
+                        <span class="panel-desc">{{section.desc}}</span>
                     </div>
-                    <div class="cmd-item">
-                        <span class="cmd-text">#王者用户统计</span>
-                        <span class="cmd-desc">查看插件用户统计</span>
+                    {{if section.master}}<span class="tag-master">主人权限</span>{{/if}}
+                    <span class="panel-count">{{section.list.length}} 条</span>
+                </div>
+                <div class="cards">
+                    {{each section.list item}}
+                    <div class="card">
+                        <div class="card-cmd">
+                            <span class="cmd">{{item.cmd}}</span>
+                            {{if item.args}}<span class="args">{{item.args}}</span>{{/if}}
+                        </div>
+                        {{if item.alias}}
+                        <div class="alias">
+                            {{each item.alias a}}<span class="alias-chip">{{a}}</span>{{/each}}
+                        </div>
+                        {{/if}}
+                        <div class="card-desc">{{item.desc}}</div>
                     </div>
-                    <div class="cmd-item">
-                        <span class="cmd-text">#营地wx全局登录</span>
-                        <span class="cmd-desc">全局微信扫码登录</span>
-                    </div>
-                    <div class="cmd-item">
-                        <span class="cmd-text">#清理失效营地账号</span>
-                        <span class="cmd-desc">清理已失效的营地账号</span>
-                    </div>
-                    <div class="cmd-item">
-                        <span class="cmd-text">#共享营地账号 [序号]</span>
-                        <span class="cmd-desc">将账号设为共享</span>
-                    </div>
-                    <div class="cmd-item">
-                        <span class="cmd-text">#取消共享营地账号 [序号]</span>
-                        <span class="cmd-desc">取消账号共享</span>
-                    </div>
-                    <div class="cmd-item">
-                        <span class="cmd-text">#王者设置共享账号候选启用/关闭</span>
-                        <span class="cmd-desc">开关共享账号候选</span>
-                    </div>
-                    <div class="cmd-item">
-                        <span class="cmd-text">#王者设置个人登录态兜底启用/关闭</span>
-                        <span class="cmd-desc">开关个人登录态兜底</span>
-                    </div>
+                    {{/each}}
                 </div>
             </div>
+            {{/each}}
 
-            <div class="panel" style="margin-top: 24px;">
-                <h2>系统指令</h2>
-                <div class="cmd-list" style="grid-template-columns: 1fr 1fr;">
-                    <div class="cmd-item">
-                        <span class="cmd-text">#王者帮助 / #王者help</span>
-                        <span class="cmd-desc">查看本帮助面板</span>
-                    </div>
-                    <div class="cmd-item">
-                        <span class="cmd-text">#王者更新 / #王者强制更新</span>
-                        <span class="cmd-desc">更新插件到最新版</span>
-                    </div>
-                    <div class="cmd-item">
-                        <span class="cmd-text">#王者更新日志 / #王者更新记录</span>
-                        <span class="cmd-desc">查看更新记录</span>
-                    </div>
-                </div>
+            <div class="footer">
+                <div class="footer-tip">参数中 <b>[ ]</b> 为选填，省略则使用当前默认账号 · 登录态失效请重新扫码</div>
+                <div class="footer-time">{{generatedAt}}</div>
             </div>
-
-
         </div>
+    </div>
     </div>
 </body>

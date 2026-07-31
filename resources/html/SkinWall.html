@@ -239,18 +239,12 @@
             <div class="num">{{totalValue}}</div>
             <div class="label">总价值</div>
         </div>
+        {{each qualityStats stat}}
         <div class="stat-item">
-            <div class="num">{{srNum}}</div>
-            <div class="label">SR</div>
+            <div class="num">{{stat.num}}</div>
+            <div class="label">{{stat.label}}</div>
         </div>
-        <div class="stat-item">
-            <div class="num">{{sppNum}}</div>
-            <div class="label">S++</div>
-        </div>
-        <div class="stat-item">
-            <div class="num">{{spNum}}</div>
-            <div class="label">S+</div>
-        </div>
+        {{/each}}
     </div>
 
     <div class="skin-grid">
