@@ -14,6 +14,10 @@ export class MyKingHomepage extends plugin {
       priority: 1,
       rule: [
         {
+          reg: '^#全部王者(主页|卡片|信息)$',
+          fnc: 'allKingHomepage'
+        },
+        {
           reg: '^#王者(主页|卡片|信息)\\s*(.*)$',
           fnc: 'myKingHomepage'
         }
@@ -21,20 +25,55 @@ export class MyKingHomepage extends plugin {
     })
   }
 
+  getUserInfo(userId) {
+    const allUserData = readYamlFile(path.join(PluginData, 'UserData.yaml')) || {}
+    return allUserData[userId]
+  }
+
+  // 查询单个ID的主页，默认取当前营地ID；也支持 #王者主页[序号] 与 #王者主页[营地ID]
   async myKingHomepage(e) {
-    const msg = e.msg.replace(/^#王者(主页|卡片|信息)\s*/, '')
-    let userId = (e.at && !e.atme) ? e.at : e.user_id
-    const userFilePath = path.join(PluginData, 'UserData.yaml')
+    const input = e.msg.replace(/^#王者(主页|卡片|信息)\s*/, '').trim()
+    const userId = (e.at && !e.atme) ? e.at : e.user_id
+    const userInfo = this.getUserInfo(userId)
+    const ids = userInfo?.ids || []
 
-    const allUserData = readYamlFile(userFilePath) || {}
-    const userInfo = allUserData[userId]
-
-    if (!userInfo || !userInfo.ids || !userInfo.ids.length) {
+    if (!ids.length) {
       await e.reply(segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')), true)
       return
     }
 
-    const IDs = msg ? [msg] : userInfo.ids
+    let ID
+    if (!input) {
+      ID = ids[userInfo.current] || ids[0]
+    } else if (/^\d+$/.test(input) && Number(input) <= 9999) {
+      // 4位以内的纯数字视为绑定列表序号，营地ID位数远大于此
+      ID = ids[Number(input) - 1]
+      if (!ID) {
+        await e.reply(`序号无效，你当前只绑定了 ${ids.length} 个营地ID`)
+        return
+      }
+    } else {
+      ID = input
+    }
+
+    await this.replyHomepages(e, [ID], userId)
+  }
+
+  // 查询已绑定的全部营地ID主页
+  async allKingHomepage(e) {
+    const userId = (e.at && !e.atme) ? e.at : e.user_id
+    const userInfo = this.getUserInfo(userId)
+    const ids = userInfo?.ids || []
+
+    if (!ids.length) {
+      await e.reply(segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')), true)
+      return
+    }
+
+    await this.replyHomepages(e, ids, userId)
+  }
+
+  async replyHomepages(e, IDs, userId) {
     if (IDs.length > 1) {
       await e.reply(`本次查询包含${IDs.length}个ID，请稍候...`)
     }

@@ -1,5 +1,5 @@
 import path from 'path'
-import { writeYamlFile, readYamlFile } from '#utils'
+import { writeYamlFile, readYamlFile, ApiService, cache } from '#utils'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { Config, PluginData, PluginPath } from '#components'
 import authStore from '../utils/authStore.js'
@@ -113,6 +113,8 @@ export class AccountManager extends plugin {
       { cmd: '#切换营地', example: '示例: #切换营地2' },
       { cmd: '#删除营地', example: '示例: #删除营地2' },
       { cmd: '#营地wx登录', example: '示例: #营地wx登录' },
+      { cmd: '#王者主页 / #全部王者主页', example: '示例: #王者主页2' },
+      { cmd: '#查询战绩 / #查询N战绩', example: '示例: #查询2战绩' },
       { cmd: '#王者帮助', example: '示例: #王者帮助' }
     ]
 
@@ -369,17 +371,48 @@ export class AccountManager extends plugin {
       return e.reply(segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')), true)
     }
 
-    const idList = this.formatIdList(userData[userId])
+    const nameMap = await this.fetchRoleNames(userData[userId].ids, userId)
+    const idList = this.formatIdList(userData[userId], nameMap)
     const currentId = userData[userId].ids[userData[userId].current] || userData[userId].ids[0]
     const html = await this.generateAccountManageHTML('查询', currentId, idList)
     await e.reply(html)
   }
 
+  // 拉取各营地ID对应的游戏昵称，失败不影响列表展示；结果缓存 10 分钟
+  async fetchRoleNames(ids, botUserId) {
+    const nameMap = {}
+
+    for (const id of ids) {
+      const cacheKey = `gok:roleName:${id}`
+      const cached = cache.get(cacheKey)
+      if (cached !== undefined) {
+        nameMap[id] = cached
+        continue
+      }
+
+      let roleName = ''
+      try {
+        const profile = await ApiService.getProfile(id, String(botUserId))
+        const { roleList = [], targetRoleId } = profile?.data || {}
+        const role = roleList.find(item => item.roleId === targetRoleId) || roleList[0]
+        roleName = role?.roleName || ''
+      } catch (error) {
+        logger.debug(`[营地ID] 获取 ${id} 游戏昵称失败: ${error.message}`)
+      }
+
+      cache.set(cacheKey, roleName, 600)
+      nameMap[id] = roleName
+    }
+
+    return nameMap
+  }
+
   // 格式化ID列表显示
-  formatIdList(userInfo) {
+  formatIdList(userInfo, nameMap = {}) {
     return userInfo.ids.map((id, index) => {
       const prefix = index === userInfo.current ? '✅' : '☑️'
-      return `${prefix} ${index + 1}. ${id}`
+      const roleName = nameMap[id]
+      return `${prefix} ${index + 1}. ${id}${roleName ? `  ${roleName}` : ''}`
     }).join('\n')
   }
 

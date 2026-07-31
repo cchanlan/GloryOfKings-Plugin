@@ -18,23 +18,42 @@ export class QueryGameStats extends plugin {
       dsc: '查询战绩',
       event: 'message',
       priority: 1,
-      rule: [{
-        reg: '^#?(查询|王者)战绩\\s*(.*)$',
-        fnc: 'queryGameStats'
-      }]
+      rule: [
+        {
+          reg: '^#?(查询|王者)(\\d+)(排位|标准|巅峰)?战绩\\s*(.*)$',
+          fnc: 'queryGameStatsBySlot'
+        },
+        {
+          reg: '^#?(查询|王者)战绩\\s*(.*)$',
+          fnc: 'queryGameStats'
+        }
+      ]
     })
   }
 
-
-
   async queryGameStats(e) {
+    return this.handleQuery(e, e.msg.replace(/^#?(查询|王者)战绩\s*/, ''), 0)
+  }
+
+  // #查询2战绩 —— 2 为绑定列表中的营地ID序号；数字大于 9999 时视为直接传营地ID
+  // 后面仍可接模式与场次序号，如 #查询2排位战绩3
+  async queryGameStatsBySlot(e) {
+    const [, , num, mode = '', rest = ''] = e.msg.match(/^#?(查询|王者)(\d+)(排位|标准|巅峰)?战绩\s*(.*)$/) || []
+    const value = Number(num)
+    if (value > 9999) {
+      return this.handleQuery(e, `${mode}${rest}`, 0, value)
+    }
+    return this.handleQuery(e, `${mode}${rest}`, value)
+  }
+
+  async handleQuery(e, rawInput, idSlot = 0, directId = 0) {
     const userId = (e.at && !e.atme) ? e.at : e.user_id
     logger.debug(`用户 ${userId} 请求查询战绩...`)
 
     const { qqAvatar, nickname } = await this.getTargetInfo(e, userId)
 
     const userData = readYamlFile(path.join(PluginData, 'UserData.yaml')) || {}
-    let input = e.msg.replace(/^#?(查询|王者)战绩\s*/, '')
+    let input = rawInput || ''
 
     // 先解析并剥离模式关键词（排位/标准/巅峰），剩下的再按 ID/序号处理
     let mode = null
@@ -48,7 +67,24 @@ export class QueryGameStats extends plugin {
     input = input.trim()
     const index = Number(input) || false
 
-    let ID = index > 9999 ? index : this.getUserID(userData[userId], userId)
+    let ID
+    if (directId) {
+      ID = directId
+    } else if (idSlot) {
+      const ids = userData[userId]?.ids || []
+      if (!ids.length) {
+        await e.reply(segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')), true)
+        return
+      }
+      ID = ids[idSlot - 1]
+      if (!ID) {
+        await e.reply(`序号无效，你当前只绑定了 ${ids.length} 个营地ID`)
+        return
+      }
+    } else {
+      ID = index > 9999 ? index : this.getUserID(userData[userId], userId)
+    }
+
     if (!ID) {
       await e.reply(segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')), true)
       return
