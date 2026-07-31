@@ -36,7 +36,7 @@ export class QueryGameStats extends plugin {
     const userData = readYamlFile(path.join(PluginData, 'UserData.yaml')) || {}
     let input = e.msg.replace(/^#?(查询|王者)战绩\s*/, '')
 
-    // 先解析并剥离模式关键词（排位/标准/娱乐/巅峰），剩下的再按 ID/序号处理
+    // 先解析并剥离模式关键词（排位/标准/巅峰），剩下的再按 ID/序号处理
     let mode = null
     for (const m of MODE_MAP) {
       if (input.includes(m.key)) {
