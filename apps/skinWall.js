@@ -1,7 +1,7 @@
 // 皮肤墙功能：营地皮肤列表接口调用逻辑参考自 https://github.com/KimigaiiWuyi/WzryUID
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import common from '../../../lib/common/common.js'
-import { ApiService, readYamlFile } from '#utils'
+import { ApiService, readYamlFile, getLocalImage } from '#utils'
 import path from 'path'
 import { PluginData } from '#components'
 
@@ -227,7 +227,7 @@ export class SkinWall extends plugin {
         skinId: conf.iSkinId,
         skinName: conf.szTitle,
         heroName: conf.szHeroTitle,
-        imgUrl: `${SKIN_IMG_BASE}/${conf.iSkinId}.jpg`,
+          imgUrl: `${SKIN_IMG_BASE}/${conf.iSkinId}.jpg`,
         // 702-1236 图集不含全部皮肤，缺失时回退到官方大图
         fallbackUrl: conf.szLargeIcon || conf.szSmallIcon || '',
         // 皮肤品质角标图（史诗/限定/荣耀典藏等），可能为空
@@ -243,6 +243,53 @@ export class SkinWall extends plugin {
     // 2) 营地评级(iClass 越小越高)——可靠的价值分层，不受接口字段缺失影响
     // 3) 同档同评级内按综合价值(真实估值)降序精排
     // 4) 综合价值缺失时按点券原价兜底，避免与综合价值混在同一维度比较
+    // 并发下载图片到本地缓存，避免 puppeteer 截图时逐张走网络
+    const toDataUrl = async (url) => {
+      if (!url) return ''
+      const img = await getLocalImage(url)
+      if (Buffer.isBuffer(img)) {
+        const ext = path.extname(new URL(url).pathname).toLowerCase()
+        const mime = ext === '.png' ? 'image/png' : 'image/jpeg'
+        return `data:${mime};base64,${img.toString('base64')}`
+      }
+      return url
+    }
+    const batch = async (tasks, limit = 8) => {
+      const results = new Array(tasks.length)
+      let i = 0
+      const worker = async () => {
+        while (i < tasks.length) {
+          const idx = i++
+          results[idx] = await tasks[idx]()
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, () => worker()))
+      return results
+    }
+
+    const avatarUrl = `https://q1.qlogo.cn/g?b=qq&s=100&nk=${userId}`
+    const avatarDataUrl = await toDataUrl(avatarUrl)
+
+    // 预下载皮肤图（主图失败则用 fallback）
+    const skinTasks = result.map((skin, idx) => async () => {
+      const mainImg = await getLocalImage(skin.imgUrl)
+      if (Buffer.isBuffer(mainImg)) {
+        result[idx].imgUrl = `data:image/jpeg;base64,${mainImg.toString('base64')}`
+      } else if (skin.fallbackUrl) {
+        const fbImg = await getLocalImage(skin.fallbackUrl)
+        if (Buffer.isBuffer(fbImg)) result[idx].imgUrl = `data:image/jpeg;base64,${fbImg.toString('base64')}`
+      }
+      if (skin.labelUrl) {
+        const labelImg = await getLocalImage(skin.labelUrl)
+        if (Buffer.isBuffer(labelImg)) {
+          const ext = path.extname(new URL(skin.labelUrl).pathname).toLowerCase()
+          const mime = ext === '.png' ? 'image/png' : 'image/jpeg'
+          result[idx].labelUrl = `data:${mime};base64,${labelImg.toString('base64')}`
+        }
+      }
+    })
+    await batch(skinTasks, 8)
+
     result.sort((a, b) =>
       (a.tier - b.tier) ||
       (a.iClass - b.iClass) ||
@@ -282,7 +329,7 @@ export class SkinWall extends plugin {
       // 降质压体积，避免满页大图 JPEG 过大导致部分适配器发送失败
       quality: SCREENSHOT_QUALITY,
       ydId: String(ID),
-      avatar: `https://q1.qlogo.cn/g?b=qq&s=100&nk=${userId}`,
+      avatar: avatarDataUrl,
       nickname,
       owned: skinInfo.owned,
       totalSkinNum: skinInfo.totalSkinNum || '',
