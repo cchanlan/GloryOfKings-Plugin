@@ -1,7 +1,7 @@
 import path from 'path'
-import { writeYamlFile, readYamlFile, getLocalImage } from '#utils'
+import { writeYamlFile, readYamlFile } from '#utils'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { Config, PluginData } from '#components'
+import { Config, PluginData, PluginPath } from '#components'
 import authStore from '../utils/authStore.js'
 import {
   createWechatLoginSession,
@@ -362,7 +362,7 @@ export class AccountManager extends plugin {
     const { userData } = this.getUserData(userId)
 
     if (!userData[userId]?.ids.length) {
-      return e.reply(segment.image(await getLocalImage('https://raw.gitcode.com/Kevin1217/resources/files/master/resources/img/example/王者营地ID获取.png')), true)
+      return e.reply(segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')), true)
     }
 
     const idList = this.formatIdList(userData[userId])

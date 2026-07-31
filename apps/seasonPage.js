@@ -1,7 +1,7 @@
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { ApiService, readYamlFile, getLocalImage } from '#utils'
-import { PluginData } from '#components'
+import { ApiService, readYamlFile } from '#utils'
+import { PluginData, PluginPath } from '#components'
 
 const BRANCH_NAME = { 1: '对抗路', 2: '中路', 3: '发育路', 4: '打野', 5: '游走' }
 // 分路五维雷达颜色（与场次统计的分路配色对应）
@@ -30,7 +30,7 @@ export class SeasonPage extends plugin {
       : userInfo?.ids?.[userInfo.current ?? 0]
 
     if (!campId) {
-      await e.reply(segment.image(await getLocalImage('https://raw.gitcode.com/Kevin1217/resources/files/master/resources/img/example/王者营地ID获取.png')), true)
+      await e.reply(segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')), true)
       return
     }
 
