@@ -5,8 +5,8 @@ import fetch from 'node-fetch'
 import { PluginData } from '#components'
 
 const IMG_CACHE_DIR = path.join(PluginData, 'imgCache')
-// 成功缓存过期时间（30天）
-const CACHE_MAX_AGE = 30 * 24 * 3600 * 1000
+// 成功缓存过期时间（7天）
+const CACHE_MAX_AGE = 7 * 24 * 3600 * 1000
 // 404 标记重试间隔（7天）——CDN 可能补图
 const FAIL_RETRY_INTERVAL = 7 * 24 * 3600 * 1000
 // 上次清理时间，避免每次调用都扫描目录
