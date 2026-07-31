@@ -1,17 +1,17 @@
 // 常用英雄榜：接口与字段参考自 https://github.com/KimigaiiWuyi/WzryUID
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { ApiService, readYamlFile } from '#utils'
+import { ApiService, readYamlFile, getLocalImage } from '#utils'
 import path from 'path'
-import { PluginData } from '#components'
+import { PluginData, PluginPath } from '#components'
 
 // 英雄头像图（营地战斗页头像，裁成横图）
 const HERO_IMG_BASE = 'https://game-1255653016.file.myqcloud.com/battle_skin_1250-326'
 // 称号标（郡/城/省/国 冠名）
 const HONOR_ICON = {
-  1: 'https://camp.qq.com/battle/home_v2/icon_honor_county.png',
-  2: 'https://camp.qq.com/battle/home_v2/icon_honor_city.png',
-  3: 'https://camp.qq.com/battle/home_v2/icon_honor_province.png',
-  4: 'https://camp.qq.com/battle/home_v2/icon_honor_contry.png'
+  1: `file://${path.join(PluginPath, 'resources', 'img', 'icon_honor_county.png')}`,
+  2: `file://${path.join(PluginPath, 'resources', 'img', 'icon_honor_city.png')}`,
+  3: `file://${path.join(PluginPath, 'resources', 'img', 'icon_honor_province.png')}`,
+  4: `file://${path.join(PluginPath, 'resources', 'img', 'icon_honor_contry.png')}`
 }
 
 // 荣誉标里的长名简化：元流之子(射手/法师/辅助/坦克/刺客) → 元射/元法/元辅/元坦/元刺
@@ -112,22 +112,21 @@ export class HeroList extends plugin {
       return
     }
 
-    const heroes = heroList.map(hero => {
+    const heroes = await Promise.all(heroList.map(async hero => {
       const basic = hero.basicInfo || {}
       const honor = hero.honorTitle
       const honorType = honor?.type
-      // 荣誉标为“冠名标”：该英雄在对应区域排名靠前才会拥有
-      // desc.full 带地区（如“中国澳门第58孙权”），desc.name/abbr 只是简称，故 full 优先
       const honorText = simplifyHeroName(honor?.desc?.full || honor?.desc?.name || honor?.desc?.abbr || '')
-      // 拆分带分类后缀的长名：“元流之子(射手)” → 主名 + 分类，便于两行显示
       const rawName = basic.title || ''
       const nameMatch = rawName.match(/^(.+?)\s*[（(]([^）)]+)[）)]\s*$/)
       const heroName = nameMatch ? nameMatch[1] : rawName
       const heroSubName = nameMatch ? nameMatch[2] : ''
+      const remoteImgUrl = `${HERO_IMG_BASE}/${basic.heroId}00.jpg?imageMogr2/thumbnail/x170/crop/270x170/gravity/east`
+      const localImg = await getLocalImage(remoteImgUrl)
       return {
         name: heroName,
         subName: heroSubName,
-        imgUrl: `${HERO_IMG_BASE}/${basic.heroId}00.jpg?imageMogr2/thumbnail/x170/crop/270x170/gravity/east`,
+        imgUrl: Buffer.isBuffer(localImg) ? `data:image/jpeg;base64,${localImg.toString('base64')}` : remoteImgUrl,
         playNum: basic.playNum ?? '-',
         winRate: basic.winRate ?? '-',
         fightPower: basic.heroFightPower ?? 0,
@@ -135,7 +134,7 @@ export class HeroList extends plugin {
         honorIcon: honorType ? (HONOR_ICON[honorType] || '') : '',
         honorText
       }
-    })
+    }))
 
     const img = await puppeteer.screenshot('HeroList', {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/HeroList.html',

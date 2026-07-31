@@ -1,5 +1,5 @@
-import fetch from 'node-fetch';
 import api from '../utils/api.js'
+import { getLocalImage } from '#utils'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 
 export class HeroSkin extends plugin {
@@ -43,9 +43,9 @@ export class HeroSkin extends plugin {
         while (true) {
             try {
                 const url = `https://game.gtimg.cn/images/yxzj/img201606/skin/hero-info/${hero.ename}/${hero.ename}-bigskin-${index}.jpg`;
-                const response = await fetch(url);
-
-                if (!response.ok) break;
+                const localImg = await getLocalImage(url);
+                // getLocalImage 失败时回退原 url（string），成功返回 Buffer
+                if (typeof localImg === 'string') break;
 
                 const skinName = skinNames[index - 1] || '';
 
