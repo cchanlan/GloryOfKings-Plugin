@@ -8,7 +8,6 @@ import { ApiService, readYamlFile } from '#utils'
 const MODE_MAP = [
   { key: '排位', match: ['排位'] },
   { key: '标准', match: ['标准'] },
-  { key: '娱乐', match: ['娱乐', '匹配'] },
   { key: '巅峰', match: ['巅峰'] }
 ]
 
