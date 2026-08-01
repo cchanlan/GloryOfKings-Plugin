@@ -26,6 +26,10 @@ export class AccountManager extends plugin {
           fnc: 'myWzryId'
         },
         {
+          reg: /^#(?:获取|怎么看|如何获取)营地ID$/i,
+          fnc: 'howToGetWzryId'
+        },
+        {
           reg: '^#绑定营地\\s*(.*)$',
           fnc: 'bindWzryId'
         },
@@ -376,6 +380,11 @@ export class AccountManager extends plugin {
     const currentId = userData[userId].ids[userData[userId].current] || userData[userId].ids[0]
     const html = await this.generateAccountManageHTML('查询', currentId, idList)
     await e.reply(html)
+  }
+
+  // 营地ID获取教程
+  async howToGetWzryId(e) {
+    await e.reply(segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')), true)
   }
 
   // 拉取各营地ID对应的游戏昵称，失败不影响列表展示；结果缓存 10 分钟

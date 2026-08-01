@@ -12,6 +12,7 @@ const helpSections = [
       { cmd: '#切换营地', args: '[序号]', desc: '切换当前使用的账号' },
       { cmd: '#删除营地', args: '[序号]', desc: '删除已绑定的账号' },
       { cmd: '#营地ID', alias: ['#王者ID', '#我的王者ID'], desc: '查看已绑定的账号列表及游戏名' },
+      { cmd: '#获取营地ID', alias: ['#怎么看营地ID'], desc: '查看营地ID获取教程图' },
       { cmd: '#营地wx登录', desc: '扫码登录获取登录态' }
     ]
   },
