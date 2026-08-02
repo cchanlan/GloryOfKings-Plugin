@@ -295,9 +295,9 @@ export class AccountManager extends plugin {
   // 绑定ID
   async bindWzryId(e) {
     let userId = this.getReplyUserId(e)
-    const wzryId = e.msg.replace(/^#绑定营地\s*/, '').trim()
-    if (!wzryId) {
-      await e.reply('请输入要绑定的营地ID，示例: #绑定营地123')
+    const wzryId = e.msg.replace(/^#绑定营地/, '')
+    if (!/^\d+$/.test(wzryId)) {
+      await e.reply('营地ID仅支持数字，后面不能有空格或其他字符，示例: #绑定营地123')
       return
     }
     const { userData } = this.getUserData(userId)
