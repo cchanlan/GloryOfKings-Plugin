@@ -805,14 +805,19 @@ class ApiService {
     return this.#request('POST', endpoint, body, {}, 2, targetUserId, requesterBotUserId)
   }
 
-  /** 获取战绩列表 */
-  async getMoreBattleList(ID, requesterBotUserId = '') {
+  /**
+   * 获取战绩列表（单页，服务端固定一页 30 场）
+   * @param {object} opts
+   * @param {number} opts.option   模式筛选，取值见响应里的 options 字段：0=全部 1=5v5排位 16=10v10排位 2=5v5标准 4=巅峰赛 19=2v2巅峰
+   * @param {number} opts.lastTime 翻页游标，传上一页响应的 lastTime 取更早的一页；0 为第一页
+   */
+  async getMoreBattleList(ID, requesterBotUserId = '', { option = 0, lastTime = 0 } = {}) {
     return this.#makeAuthRequest('/game/morebattlelist', {
-      lastTime: 0,
+      lastTime,
       recommendPrivacy: 0,
       apiVersion: 5,
       friendUserId: ID,
-      option: 0
+      option
     }, ID, requesterBotUserId)
   }
 

@@ -1,7 +1,7 @@
 // 皮肤墙功能：营地皮肤列表接口调用逻辑参考自 https://github.com/KimigaiiWuyi/WzryUID
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import common from '../../../lib/common/common.js'
-import { ApiService, readYamlFile, getLocalImage } from '#utils'
+import { ApiService, readYamlFile, getLocalImage, getUserAvatar } from '#utils'
 import path from 'path'
 import { PluginData } from '#components'
 
@@ -286,7 +286,9 @@ export class SkinWall extends plugin {
       return results
     }
 
-    const avatarUrl = `https://q1.qlogo.cn/g?b=qq&s=100&nk=${userId}`
+    // 头像走 getUserAvatar：官方 QQ 机器人的 user_id 是 openid 而非 QQ 号，
+    // 直接拼 q1.qlogo.cn 会回落到默认头像，导致所有人都渲染成同一张图
+    const avatarUrl = await getUserAvatar(e, userId)
     const avatarDataUrl = await toDataUrl(avatarUrl)
 
     // 预下载皮肤图（主图失败则用 fallback）

@@ -1,15 +1,29 @@
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { PluginData, PluginPath } from '#components'
-import { ApiService, readYamlFile } from '#utils'
+import { ApiService, readYamlFile, getUserAvatar, isQQNumber } from '#utils'
 
-// 战绩模式筛选：morebattlelist 接口的 option 参数服务端不生效（无论传什么都返回混合列表），
-// 因此改为客户端按 mapName 过滤。match 用于匹配每场战绩的 mapName（如「排位赛 双排」「巅峰赛」）。
+// 战绩模式筛选走服务端 option 参数（取值见 morebattlelist 响应里的 options 字段）。
+// 实测：排位(1) 与 巅峰(4) 是干净的单一模式，一页直接给满 30 场；
+//       标准(2) 是宽筛，会连带把排位和快速赛一起返回，所以还要在客户端二次过滤。
+// 各模式的 gametype/battleType 实测值：
+//   排位 gametype=4（mapName「排位赛 双排/五排」）
+//   标准 gametype=5 battleType=5（mapName「王者峡谷」，注意不含「标准」二字）
+//   快速赛 gametype=5 battleType=48（mapName「快速赛」，不算标准局）
+//   巅峰 gametype=14 battleType=32（mapName「巅峰赛」）
 const MODE_MAP = [
-  { key: '排位', match: ['排位'] },
-  { key: '标准', match: ['标准'] },
-  { key: '巅峰', match: ['巅峰'] }
+  { key: '排位', option: 1 },
+  {
+    key: '标准',
+    option: 2,
+    filter: item => Number(item.gametype) === 5 && Number(item.battleType) === 5
+  },
+  { key: '巅峰', option: 4 }
 ]
+
+// 服务端一页固定 30 场。宽筛模式过滤后可能不足，用 lastTime 游标往前翻页补齐。
+const TARGET_COUNT = 30
+const MAX_PAGES = 5
 
 export class QueryGameStats extends plugin {
   constructor() {
@@ -92,7 +106,7 @@ export class QueryGameStats extends plugin {
 
     let battleList
     try {
-      ({ data: battleList } = await ApiService.getMoreBattleList(ID, String(userId)))
+      battleList = await this.collectBattles(ID, String(userId), mode)
     } catch (error) {
       logger.error(`[战绩查询] 查询 ${ID} 失败: ${error.message}`)
       await e.reply(ApiService.formatUserFacingError(error, {
@@ -100,13 +114,6 @@ export class QueryGameStats extends plugin {
         scene: '战绩查询异常'
       }))
       return
-    }
-
-    // 服务端 option 不筛选，改为客户端按 mapName 过滤指定模式
-    if (mode && battleList?.list?.length) {
-      battleList.list = battleList.list.filter(item =>
-        mode.match.some(kw => (item.mapName || '').includes(kw))
-      )
     }
 
     if (!battleList?.list?.length) {
@@ -174,20 +181,71 @@ export class QueryGameStats extends plugin {
     }), true)
   }
 
+  /**
+   * 拉取战绩列表。指定模式时用服务端 option 精确筛选，
+   * 宽筛模式（标准）过滤后不足 30 场时用 lastTime 游标继续往前翻页补齐。
+   * @returns 与 morebattlelist 的 data 同构的对象，list 已按模式过滤
+   */
+  async collectBattles(ID, userId, mode) {
+    const option = mode?.option ?? 0
+    const collected = []
+    const seen = new Set()
+    let lastTime = 0
+    let root = null
+
+    for (let page = 0; page < MAX_PAGES; page += 1) {
+      const { data } = await ApiService.getMoreBattleList(ID, userId, { option, lastTime })
+      if (!data) break
+      // 保留首页的 invisDes / options 等顶层字段，翻页只累加 list
+      if (!root) root = data
+
+      const raw = data.list || []
+      const picked = mode?.filter ? raw.filter(mode.filter) : raw
+
+      for (const item of picked) {
+        // 翻页边界可能重复返回同一场，按 gameSeq 去重
+        const key = String(item.gameSeq ?? `${item.dtEventTime}-${item.heroIcon}`)
+        if (seen.has(key)) continue
+        seen.add(key)
+        collected.push(item)
+      }
+
+      logger.debug(`[战绩查询] 第 ${page + 1} 页 option=${option} 返回 ${raw.length} 场，命中 ${picked.length} 场，累计 ${collected.length} 场`)
+
+      if (collected.length >= TARGET_COUNT) break
+      // 服务端已给干净结果时不必翻页；只有宽筛模式过滤掉东西了才继续
+      if (!mode?.filter) break
+      if (!data.hasMore || !data.lastTime || data.lastTime === lastTime) break
+      lastTime = data.lastTime
+    }
+
+    if (!root) return null
+
+    if (collected.length < TARGET_COUNT) {
+      logger.debug(`[战绩查询] ${mode ? mode.key : '全部'}模式最终只凑到 ${collected.length} 场（上限 ${MAX_PAGES} 页），该账号可能就是打得少`)
+    }
+
+    return { ...root, list: collected.slice(0, TARGET_COUNT) }
+  }
+
   async getTargetInfo(e, userId) {
-    const qqAvatar = `https://q1.qlogo.cn/g?b=qq&s=100&nk=${userId}`
-    let nickname = String(userId)
+    // 头像统一走 getUserAvatar：官方 QQ 机器人的 user_id 是 openid 而非 QQ 号，
+    // 直接拼 q1.qlogo.cn 会回落到默认头像，导致所有人都渲染成同一张图
+    const qqAvatar = await getUserAvatar(e, userId)
+    let nickname = ''
     try {
       if (e.at && !e.atme) {
         const member = e.group?.pickMember ? e.group.pickMember(userId) : null
         const info = member?.info || (await member?.getInfo?.())
-        nickname = info?.card || info?.nickname || member?.card || member?.nickname || nickname
+        nickname = info?.card || info?.nickname || member?.card || member?.nickname || ''
       } else {
-        nickname = e.sender?.card || e.sender?.nickname || e.nickname || nickname
+        nickname = e.sender?.card || e.sender?.nickname || e.nickname || ''
       }
     } catch (err) {
       logger.debug(`[战绩查询] 获取昵称失败: ${err.message}`)
     }
+    // 兜底不用 openid（一长串十六进制展示出来很难看），非 QQ 号就显示「召唤师」
+    if (!nickname) nickname = isQQNumber(userId) ? String(userId) : '召唤师'
     return { qqAvatar, nickname }
   }
 
