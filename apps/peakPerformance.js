@@ -1,6 +1,6 @@
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { ApiService, readYamlFile } from '#utils'
+import { ApiService, readYamlFile, Button } from '#utils'
 import { PluginData, PluginPath } from '#components'
 
 // branchType：0=全部分路 1=对抗路 2=中路 3=发育路 4=打野 5=游走
@@ -34,7 +34,10 @@ export class PeakPerformance extends plugin {
       : userInfo?.ids?.[userInfo.current ?? 0]
 
     if (!campId) {
-      await e.reply(segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')), true)
+      await e.reply([
+        segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')),
+        Button.bind()
+      ], true)
       return
     }
 
@@ -164,7 +167,7 @@ export class PeakPerformance extends plugin {
       heros
     })
 
-    await e.reply(img, true)
+    await e.reply([img, Button.performance(campId, '巅峰')], true)
   }
 
   /** 把单条分路的 battleDataSelf 整理成模板需要的结构 */

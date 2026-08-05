@@ -1,5 +1,6 @@
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import api from '../utils/api.js'
+import { Button } from '#utils'
 
 export class HeroFightingCapacity extends plugin {
     constructor() {
@@ -20,7 +21,7 @@ export class HeroFightingCapacity extends plugin {
     async checkHeroFightingCapacity(e) {
         const heroName = e.msg.replace(/#|查战力|\s+|\n+/g, '').trim()
         if (!heroName) {
-            await e.reply('请输入要查询的英雄名称')
+            await e.reply(['请输入要查询的英雄名称', Button.hero()])
             return
         }
 
@@ -54,7 +55,7 @@ export class HeroFightingCapacity extends plugin {
                 minStats: minStats
             })
 
-            await e.reply(img, true)
+            await e.reply([img, Button.hero(heroFightingCapacity[0].name || heroName)], true)
         } catch (err) {
             logger.error(`[查战力] 查询失败: ${err}`)
             await e.reply(`查询失败!`)

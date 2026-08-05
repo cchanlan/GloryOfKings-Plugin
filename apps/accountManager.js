@@ -1,5 +1,5 @@
 import path from 'path'
-import { writeYamlFile, readYamlFile, ApiService, cache } from '#utils'
+import { writeYamlFile, readYamlFile, ApiService, cache, Button } from '#utils'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { Config, PluginData, PluginPath } from '#components'
 import authStore from '../utils/authStore.js'
@@ -289,7 +289,7 @@ export class AccountManager extends plugin {
 
     const idList = this.formatIdList(currentUserInfo)
     const html = await this.generateAccountManageHTML('绑定', wzryId, idList)
-    await e.reply(html)
+    await e.reply([html, Button.homepage(wzryId)])
   }
 
   // 绑定ID
@@ -297,13 +297,13 @@ export class AccountManager extends plugin {
     let userId = this.getReplyUserId(e)
     const wzryId = e.msg.replace(/^#绑定营地/, '')
     if (!/^\d+$/.test(wzryId)) {
-      await e.reply('营地ID仅支持数字，后面不能有空格或其他字符，示例: #绑定营地123')
+      await e.reply(['营地ID仅支持数字，后面不能有空格或其他字符，示例: #绑定营地123', Button.bind()])
       return
     }
     const { userData } = this.getUserData(userId)
 
     if (userData[userId].ids.includes(wzryId)) {
-      await e.reply('该ID已经绑定过了')
+      await e.reply(['该ID已经绑定过了', Button.homepage(wzryId)])
       return
     }
 
@@ -318,7 +318,7 @@ export class AccountManager extends plugin {
     const { userData, filePath } = this.getUserData(userId)
 
     if (!userData[userId].ids.length) {
-      await e.reply('您还没有绑定任何ID，请先绑定')
+      await e.reply(['您还没有绑定任何ID，请先绑定', Button.bind()])
       return
     }
 
@@ -332,7 +332,7 @@ export class AccountManager extends plugin {
 
     const idList = this.formatIdList(userData[userId])
     const html = await this.generateAccountManageHTML('切换', userData[userId].ids[index], idList)
-    await e.reply(html)
+    await e.reply([html, Button.homepage(userData[userId].ids[index])])
   }
 
   // 删除ID
@@ -342,7 +342,7 @@ export class AccountManager extends plugin {
     const { userData, filePath } = this.getUserData(userId)
 
     if (!userData[userId].ids.length) {
-      await e.reply('您还没有绑定任何ID')
+      await e.reply(['您还没有绑定任何ID', Button.bind()])
       return
     }
 
@@ -363,7 +363,7 @@ export class AccountManager extends plugin {
 
     const idList = this.formatIdList(userData[userId])
     const html = await this.generateAccountManageHTML('删除', deletedId, idList)
-    await e.reply(html)
+    await e.reply([html, Button.account(userData[userId].ids)])
   }
 
   // 展示ID列表
@@ -372,19 +372,25 @@ export class AccountManager extends plugin {
     const { userData } = this.getUserData(userId)
 
     if (!userData[userId]?.ids.length) {
-      return e.reply(segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')), true)
+      return e.reply([
+        segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')),
+        Button.bind()
+      ], true)
     }
 
     const nameMap = await this.fetchRoleNames(userData[userId].ids, userId)
     const idList = this.formatIdList(userData[userId], nameMap)
     const currentId = userData[userId].ids[userData[userId].current] || userData[userId].ids[0]
     const html = await this.generateAccountManageHTML('查询', currentId, idList)
-    await e.reply(html)
+    await e.reply([html, Button.account(userData[userId].ids)])
   }
 
   // 营地ID获取教程
   async howToGetWzryId(e) {
-    await e.reply(segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')), true)
+    await e.reply([
+      segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')),
+      Button.bind()
+    ], true)
   }
 
   // 拉取各营地ID对应的游戏昵称，失败不影响列表展示；结果缓存 10 分钟

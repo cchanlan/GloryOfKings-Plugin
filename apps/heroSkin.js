@@ -1,5 +1,5 @@
 import api from '../utils/api.js'
-import { getLocalImage } from '#utils'
+import { getLocalImage, Button } from '#utils'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 
 export class HeroSkin extends plugin {
@@ -18,7 +18,7 @@ export class HeroSkin extends plugin {
     async checkHeroSkin(e) {
         const heroName = e.msg.replace(/#|查皮肤|\s+|\n+/g, '').trim()
         if (!heroName) {
-            await e.reply('请输入要查询的英雄名称')
+            await e.reply(['请输入要查询的英雄名称', Button.hero()])
             return
         }
 
@@ -80,6 +80,6 @@ export class HeroSkin extends plugin {
             ...templateParams
         });
 
-        await e.reply(img, true);
+        await e.reply([img, Button.hero(hero.cname)], true);
     }
 }

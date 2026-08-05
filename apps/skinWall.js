@@ -1,7 +1,7 @@
 // 皮肤墙功能：营地皮肤列表接口调用逻辑参考自 https://github.com/KimigaiiWuyi/WzryUID
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import common from '../../../lib/common/common.js'
-import { ApiService, readYamlFile, getLocalImage, getUserAvatar } from '#utils'
+import { ApiService, readYamlFile, getLocalImage, getUserAvatar, Button } from '#utils'
 import path from 'path'
 import { PluginData } from '#components'
 
@@ -186,7 +186,7 @@ export class SkinWall extends plugin {
       : null)
 
     if (!ID) {
-      await e.reply('未查询到营地ID，请先使用 #绑定营地 绑定营地ID，或在指令后附带营地ID')
+      await e.reply(['未查询到营地ID，请先使用 #绑定营地 绑定营地ID，或在指令后附带营地ID', Button.bind()])
       return
     }
 
@@ -365,7 +365,7 @@ export class SkinWall extends plugin {
     // 单页直接发图
     if (totalPages === 1) {
       const img = await puppeteer.screenshot('SkinWall', buildParams(pages[0], 0))
-      await e.reply(img, true)
+      await e.reply([img, Button.skinWall(ID)], true)
       return
     }
 
@@ -387,6 +387,8 @@ export class SkinWall extends plugin {
 
     const forwardTitle = isLimited ? `皮肤墙 TOP${limited.length} · ${ID}` : `皮肤墙 · ${ID}`
     const forwardMsg = await common.makeForwardMsg(e, imgList, forwardTitle)
+    // 合并转发里塞不进按钮，按钮单独跟一条
     await e.reply(forwardMsg)
+    await e.reply(Button.skinWall(ID))
   }
 }

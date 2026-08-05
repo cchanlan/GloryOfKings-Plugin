@@ -1,7 +1,7 @@
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { PluginData, PluginPath } from '#components'
-import { ApiService, readYamlFile, getUserAvatar, isQQNumber } from '#utils'
+import { ApiService, readYamlFile, getUserAvatar, isQQNumber, Button } from '#utils'
 
 // 战绩模式筛选走服务端 option 参数（取值见 morebattlelist 响应里的 options 字段）。
 // 实测：排位(1) 与 巅峰(4) 是干净的单一模式，一页直接给满 30 场；
@@ -87,7 +87,10 @@ export class QueryGameStats extends plugin {
     } else if (idSlot) {
       const ids = userData[userId]?.ids || []
       if (!ids.length) {
-        await e.reply(segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')), true)
+        await e.reply([
+          segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')),
+          Button.bind()
+        ], true)
         return
       }
       ID = ids[idSlot - 1]
@@ -100,7 +103,10 @@ export class QueryGameStats extends plugin {
     }
 
     if (!ID) {
-      await e.reply(segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')), true)
+      await e.reply([
+        segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')),
+        Button.bind()
+      ], true)
       return
     }
 
@@ -122,7 +128,7 @@ export class QueryGameStats extends plugin {
         battleList
       })
 
-      await e.reply(await puppeteer.screenshot('QueryGameRecordList', {
+      const emptyImg = await puppeteer.screenshot('QueryGameRecordList', {
         tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordList.html',
         data: [],
         qqAvatar,
@@ -133,7 +139,8 @@ export class QueryGameStats extends plugin {
           ? `ID: ${ID} 最近没有${mode.key}战绩`
           : (battleList?.invisDes || `ID: ${ID} 当前没有可展示的战绩数据`),
         modeLabel: mode ? mode.key : ''
-      }), true)
+      })
+      await e.reply([emptyImg, Button.gameStats(ID, 0, mode ? mode.key : '')], true)
       return
     }
 
@@ -148,7 +155,7 @@ export class QueryGameStats extends plugin {
       if (detail) {
         try {
           const img = await this.generateDetailImage(detail)
-          await e.reply(img, true)
+          await e.reply([img, Button.gameStatsDetail(ID, mode ? mode.key : '')], true)
         } catch (err) {
           logger.error(`[战绩查询] 生成图片失败: ${err}`)
           await e.reply('生成战绩详情图片失败，请稍后再试')
@@ -170,7 +177,7 @@ export class QueryGameStats extends plugin {
       gradeGame: item.gradeGame
     }))
 
-    e.reply(await puppeteer.screenshot('QueryGameRecordList', {
+    const listImg = await puppeteer.screenshot('QueryGameRecordList', {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordList.html',
       data: processedData,
       qqAvatar,
@@ -178,7 +185,9 @@ export class QueryGameStats extends plugin {
       roleJobName: battleList.list[0].roleJobName,
       modeLabel: mode ? mode.key : '',
       winningStreak: this.calculateWinningStreak(processedData.map(d => d.gameResult))
-    }), true)
+    })
+
+    await e.reply([listImg, Button.gameStats(ID, processedData.length, mode ? mode.key : '')], true)
   }
 
   /**

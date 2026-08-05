@@ -1,6 +1,6 @@
 // 常用英雄榜：接口与字段参考自 https://github.com/KimigaiiWuyi/WzryUID
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { ApiService, readYamlFile, getLocalImage } from '#utils'
+import { ApiService, readYamlFile, getLocalImage, Button } from '#utils'
 import path from 'path'
 import { PluginData, PluginPath } from '#components'
 
@@ -60,7 +60,7 @@ export class HeroList extends plugin {
       : null)
 
     if (!ID) {
-      await e.reply('未查询到营地ID，请先使用 #绑定营地 绑定营地ID，或在指令后附带营地ID')
+      await e.reply(['未查询到营地ID，请先使用 #绑定营地 绑定营地ID，或在指令后附带营地ID', Button.bind()])
       return
     }
 
@@ -146,6 +146,6 @@ export class HeroList extends plugin {
       heroes
     })
 
-    await e.reply(img, true)
+    await e.reply([img, Button.heroList(msg ? ID : '')], true)
   }
 }

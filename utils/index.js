@@ -19,6 +19,7 @@ import {
   waitForWechatLogin,
   decodeEncodeResUserKey
 } from './wechatLogin.js'
+import Button from './button.js'
 import path from 'path'
 import { PluginData } from '#components'
 
@@ -39,7 +40,8 @@ export {
   isQQNumber,
   createWechatLoginSession,
   waitForWechatLogin,
-  decodeEncodeResUserKey
+  decodeEncodeResUserKey,
+  Button
 }
 
 export function getCurrentId (userId) {
