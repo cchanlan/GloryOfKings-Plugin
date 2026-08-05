@@ -27,7 +27,7 @@ export default class Button {
       ],
       [
         { text: '查战力', input: '#查战力' },
-        { text: '查皮肤', input: '#查皮肤' }
+        { text: '皮肤墙', callback: '#皮肤墙' }
       ]
     )
   }
