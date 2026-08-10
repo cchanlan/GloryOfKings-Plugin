@@ -40,7 +40,13 @@
         padding: 0;
     }
 
+    /*
+     * 整页缩放基准：所有尺寸都写成 rem，这里的根字号就是唯一的倍率开关。
+     * 原先用 zoom: 2，但部分渲染服务（如 snapka）取元素盒尺寸时不计 zoom，
+     * 截图会按缩放前的 860 宽裁切，只截到左上角一小块。rem 没有这个问题。
+     */
     html {
+        font-size: 2px;
         background: #05070b;
     }
 
@@ -52,19 +58,17 @@
         text-rendering: geometricPrecision;
     }
 
-    /* zoom 让整页按 2 倍布局，截出来是真 2x 分辨率，不是拉伸 */
     #container {
-        zoom: 2;
-        width: 860px;
-        padding: 24px;
+        width: 860rem;
+        padding: 24rem;
     }
 
     .page {
         position: relative;
-        border-radius: 26px;
+        border-radius: 26rem;
         overflow: hidden;
-        border: 1px solid var(--c-border);
-        box-shadow: 0 18px 52px rgba(0, 0, 0, 0.65);
+        border: 1rem solid var(--c-border);
+        box-shadow: 0 18rem 52rem rgba(0, 0, 0, 0.65);
         background:
             linear-gradient(180deg, rgba(11, 15, 23, 0.88) 0%, rgba(10, 14, 21, 0.95) 45%, rgba(8, 11, 17, 0.985) 100%),
             var(--c-bg) url('{{_res_path}}img/background.jpg') no-repeat center top / cover;
@@ -72,17 +76,17 @@
 
     .glow {
         position: absolute;
-        top: -180px;
-        right: -120px;
-        width: 520px;
-        height: 520px;
+        top: -180rem;
+        right: -120rem;
+        width: 520rem;
+        height: 520rem;
         border-radius: 50%;
         background: radial-gradient(circle, rgba(228, 190, 160, 0.16) 0%, rgba(228, 190, 160, 0) 70%);
     }
 
     .inner {
         position: relative;
-        padding: 34px 36px 28px;
+        padding: 34rem 36rem 28rem;
     }
 
     /* ---------- 头部 ---------- */
@@ -90,22 +94,22 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding-bottom: 20px;
-        border-bottom: 1px solid var(--c-border-soft);
+        padding-bottom: 20rem;
+        border-bottom: 1rem solid var(--c-border-soft);
     }
 
     .brand {
         display: flex;
         align-items: center;
-        gap: 14px;
+        gap: 14rem;
     }
 
     .brand-mark {
-        width: 52px;
-        height: 52px;
-        border-radius: 15px;
+        width: 52rem;
+        height: 52rem;
+        border-radius: 15rem;
         overflow: hidden;
-        border: 1px solid var(--c-border);
+        border: 1rem solid var(--c-border);
         background: rgba(255, 255, 255, 0.05);
         display: flex;
         align-items: center;
@@ -119,21 +123,21 @@
     }
 
     .brand-text h1 {
-        font-size: 25px;
-        letter-spacing: 1px;
+        font-size: 25rem;
+        letter-spacing: 1rem;
         color: var(--c-primary);
     }
 
     .brand-sub {
-        margin-top: 4px;
-        font-size: 12px;
+        margin-top: 4rem;
+        font-size: 12rem;
         color: var(--c-text-dim);
-        letter-spacing: 0.5px;
+        letter-spacing: 0.5rem;
     }
 
     .header-meta {
         text-align: right;
-        font-size: 12px;
+        font-size: 12rem;
         color: var(--c-text-muted);
         line-height: 1.8;
     }
@@ -141,7 +145,7 @@
     .header-meta b {
         font-family: 'tttgbnumber', sans-serif;
         color: var(--c-primary);
-        font-size: 15px;
+        font-size: 15rem;
     }
 
     /* ---------- 前三名领奖台 ---------- */
@@ -149,17 +153,17 @@
         display: flex;
         align-items: flex-end;
         justify-content: center;
-        gap: 16px;
-        margin: 26px 0 22px;
+        gap: 16rem;
+        margin: 26rem 0 22rem;
     }
 
     .podium-item {
         flex: 1;
-        max-width: 220px;
-        border-radius: 18px;
-        border: 1px solid var(--c-border-soft);
+        max-width: 220rem;
+        border-radius: 18rem;
+        border: 1rem solid var(--c-border-soft);
         background: var(--c-card);
-        padding: 18px 14px 16px;
+        padding: 18rem 14rem 16rem;
         text-align: center;
         position: relative;
     }
@@ -167,8 +171,8 @@
     .podium-item.p1 {
         border-color: rgba(245, 215, 110, 0.45);
         background: linear-gradient(180deg, rgba(245, 215, 110, 0.14) 0%, rgba(255, 255, 255, 0.04) 100%);
-        padding-top: 24px;
-        padding-bottom: 22px;
+        padding-top: 24rem;
+        padding-bottom: 22rem;
         /* 冠军居中，亚军在左、季军在右 */
         order: 2;
     }
@@ -187,19 +191,19 @@
 
     .medal {
         position: absolute;
-        top: -12px;
+        top: -12rem;
         left: 50%;
         transform: translateX(-50%);
-        width: 30px;
-        height: 30px;
+        width: 30rem;
+        height: 30rem;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
         font-family: 'tttgbnumber', sans-serif;
-        font-size: 15px;
+        font-size: 15rem;
         color: #1a1206;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+        box-shadow: 0 4rem 12rem rgba(0, 0, 0, 0.45);
     }
 
     .p1 .medal {
@@ -215,18 +219,18 @@
     }
 
     .podium-avatar {
-        width: 62px;
-        height: 62px;
-        margin: 6px auto 10px;
+        width: 62rem;
+        height: 62rem;
+        margin: 6rem auto 10rem;
         border-radius: 50%;
         overflow: hidden;
-        border: 2px solid var(--c-border);
+        border: 2rem solid var(--c-border);
         background: rgba(255, 255, 255, 0.06);
     }
 
     .p1 .podium-avatar {
-        width: 74px;
-        height: 74px;
+        width: 74rem;
+        height: 74rem;
         border-color: rgba(245, 215, 110, 0.6);
     }
 
@@ -237,7 +241,7 @@
     }
 
     .podium-name {
-        font-size: 15px;
+        font-size: 15rem;
         font-weight: bold;
         white-space: nowrap;
         overflow: hidden;
@@ -245,11 +249,11 @@
     }
 
     .podium-value {
-        margin-top: 8px;
+        margin-top: 8rem;
         font-family: 'tttgbnumber', sans-serif;
-        font-size: 21px;
+        font-size: 21rem;
         color: var(--c-gold);
-        letter-spacing: 0.5px;
+        letter-spacing: 0.5rem;
     }
 
     .p2 .podium-value {
@@ -261,8 +265,8 @@
     }
 
     .podium-sub {
-        margin-top: 5px;
-        font-size: 11px;
+        margin-top: 5rem;
+        font-size: 11rem;
         color: var(--c-text-dim);
         white-space: nowrap;
         overflow: hidden;
@@ -270,20 +274,33 @@
     }
 
     /* ---------- 榜单列表 ---------- */
+    /*
+     * 双列排布。单列时 30 人的图能高到 3700rem，宽高比 1:2 以上，
+     * QQ 会把这种长图折叠成顶部一条，点开才看得全。
+     * 用 column-count 而不是 grid：它按列填充（左列排完再排右列），
+     * 名次读起来是连续的，不像 grid 那样左右交替成 Z 字。
+     */
     .list {
-        display: flex;
-        flex-direction: column;
-        gap: 7px;
+        column-count: 2;
+        column-gap: 12rem;
+    }
+
+    /* 自己的名次只有一行，不参与分栏 */
+    .list.single {
+        column-count: 1;
     }
 
     .row {
         display: flex;
         align-items: center;
-        gap: 14px;
-        padding: 11px 16px;
-        border-radius: 13px;
-        border: 1px solid var(--c-border-soft);
+        gap: 10rem;
+        padding: 11rem 14rem;
+        border-radius: 13rem;
+        border: 1rem solid var(--c-border-soft);
         background: var(--c-card);
+        /* 分栏时不允许一行被拆到两列 */
+        break-inside: avoid;
+        margin-bottom: 7rem;
     }
 
     .row.is-self {
@@ -292,10 +309,10 @@
     }
 
     .row-index {
-        width: 30px;
+        width: 30rem;
         flex-shrink: 0;
         font-family: 'tttgbnumber', sans-serif;
-        font-size: 17px;
+        font-size: 17rem;
         color: var(--c-text-muted);
         text-align: center;
     }
@@ -303,64 +320,52 @@
     .row-name {
         flex: 1;
         min-width: 0;
-        font-size: 15px;
+        font-size: 15rem;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
 
-    .row-server {
-        flex-shrink: 0;
-        font-size: 11px;
-        color: var(--c-text-dim);
-        padding: 3px 9px;
-        border-radius: 7px;
-        background: rgba(255, 255, 255, 0.05);
-        max-width: 130px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
+    /* 双列后单行只有约 390rem，区服名太长挤掉昵称，故列表里不展示 */
     .row-value {
         flex-shrink: 0;
-        min-width: 118px;
+        min-width: 104rem;
         text-align: right;
         font-family: 'tttgbnumber', sans-serif;
-        font-size: 17px;
+        font-size: 16rem;
         color: var(--c-primary);
     }
 
     .row-value .unit {
         font-family: 'HYWenHei', sans-serif;
-        font-size: 11px;
+        font-size: 11rem;
         color: var(--c-text-dim);
-        margin-left: 3px;
+        margin-left: 3rem;
     }
 
     /* ---------- 自己的名次 ---------- */
     .self-block {
-        margin-top: 14px;
-        padding-top: 14px;
-        border-top: 1px dashed var(--c-border-soft);
+        margin-top: 14rem;
+        padding-top: 14rem;
+        border-top: 1rem dashed var(--c-border-soft);
     }
 
     .self-tip {
-        margin-bottom: 7px;
-        font-size: 11px;
+        margin-bottom: 7rem;
+        font-size: 11rem;
         color: var(--c-text-dim);
-        letter-spacing: 0.5px;
+        letter-spacing: 0.5rem;
     }
 
     /* ---------- 空态 / 页脚 ---------- */
     .footer {
-        margin-top: 22px;
-        padding-top: 16px;
-        border-top: 1px solid var(--c-border-soft);
+        margin-top: 22rem;
+        padding-top: 16rem;
+        border-top: 1rem solid var(--c-border-soft);
         display: flex;
         align-items: center;
         justify-content: space-between;
-        font-size: 11px;
+        font-size: 11rem;
         color: var(--c-text-dim);
     }
 
@@ -399,7 +404,7 @@
                         <div class="podium-name">{{item.roleName}}</div>
                         <div class="podium-value">
                             {{if isPeak}}{{item.peakScore}}{{else}}{{item.rankStar}}<span
-                                style="font-size:12px;font-family:'HYWenHei'"> 星</span>{{/if}}
+                                style="font-size:12rem;font-family:'HYWenHei'"> 星</span>{{/if}}
                         </div>
                         <div class="podium-sub">{{if isPeak}}{{item.rankName}}{{else}}{{item.rankName}}{{/if}}</div>
                     </div>
@@ -412,7 +417,6 @@
                     <div class="row">
                         <div class="row-index">{{item.index}}</div>
                         <div class="row-name">{{item.roleName}}</div>
-                        {{if item.serverName}}<div class="row-server">{{item.serverName}}</div>{{/if}}
                         <div class="row-value">
                             {{if isPeak}}{{item.peakScore}}<span class="unit">分</span>{{else}}{{item.rankName}}
                             {{item.rankStar}}<span class="unit">星</span>{{/if}}
@@ -425,11 +429,10 @@
                 {{if self}}
                 <div class="self-block">
                     <div class="self-tip">你的名次</div>
-                    <div class="list">
+                    <div class="list single">
                         <div class="row is-self">
                             <div class="row-index">{{self.index}}</div>
                             <div class="row-name">{{self.roleName}}</div>
-                            {{if self.serverName}}<div class="row-server">{{self.serverName}}</div>{{/if}}
                             <div class="row-value">
                                 {{if isPeak}}{{self.peakScore}}<span class="unit">分</span>{{else}}{{self.rankName}}
                                 {{self.rankStar}}<span class="unit">星</span>{{/if}}
