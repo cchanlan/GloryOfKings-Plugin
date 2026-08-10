@@ -38,6 +38,18 @@ const helpSections = [
     ]
   },
   {
+    title: '排行榜',
+    desc: '绑定用户之间的排名比拼',
+    theme: 'gold',
+    icon: '排名',
+    list: [
+      { cmd: '#排位排名', args: '[刷新]', desc: '本群成员的排位段位星数排名' },
+      { cmd: '#巅峰排名', args: '[刷新]', desc: '本群成员的巅峰分排名' },
+      { cmd: '#排位总排名', args: '[刷新]', desc: '全部绑定用户的排位排名' },
+      { cmd: '#巅峰总排名', args: '[刷新]', desc: '全部绑定用户的巅峰分排名' }
+    ]
+  },
+  {
     title: '主人指令',
     desc: '仅限主人使用',
     theme: 'orange',

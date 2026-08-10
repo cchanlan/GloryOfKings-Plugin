@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}}</title>
+</head>
+
+<style>
+    @font-face {
+        font-family: 'HYWenHei';
+        src: url('{{_res_path}}font/HYWH-65W.woff') format('woff');
+        font-weight: normal;
+    }
+
+    @font-face {
+        font-family: 'tttgbnumber';
+        src: url('{{_res_path}}font/tttgbnumber.woff') format('woff');
+        font-weight: normal;
+    }
+
+    :root {
+        --c-primary: #e4bea0;
+        --c-bg: #0d1118;
+        --c-card: rgba(255, 255, 255, 0.045);
+        --c-border: rgba(228, 190, 160, 0.22);
+        --c-border-soft: rgba(255, 255, 255, 0.07);
+        --c-text: #eef0f4;
+        --c-text-muted: rgba(238, 240, 244, 0.55);
+        --c-text-dim: rgba(238, 240, 244, 0.42);
+        --c-gold: #f5d76e;
+        --c-silver: #cfd6e2;
+        --c-bronze: #d79a6a;
+    }
+
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    html {
+        background: #05070b;
+    }
+
+    body {
+        color: var(--c-text);
+        background: #05070b;
+        font-family: 'HYWenHei', 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: geometricPrecision;
+    }
+
+    /* zoom 让整页按 2 倍布局，截出来是真 2x 分辨率，不是拉伸 */
+    #container {
+        zoom: 2;
+        width: 860px;
+        padding: 24px;
+    }
+
+    .page {
+        position: relative;
+        border-radius: 26px;
+        overflow: hidden;
+        border: 1px solid var(--c-border);
+        box-shadow: 0 18px 52px rgba(0, 0, 0, 0.65);
+        background:
+            linear-gradient(180deg, rgba(11, 15, 23, 0.88) 0%, rgba(10, 14, 21, 0.95) 45%, rgba(8, 11, 17, 0.985) 100%),
+            var(--c-bg) url('{{_res_path}}img/background.jpg') no-repeat center top / cover;
+    }
+
+    .glow {
+        position: absolute;
+        top: -180px;
+        right: -120px;
+        width: 520px;
+        height: 520px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(228, 190, 160, 0.16) 0%, rgba(228, 190, 160, 0) 70%);
+    }
+
+    .inner {
+        position: relative;
+        padding: 34px 36px 28px;
+    }
+
+    /* ---------- 头部 ---------- */
+    .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 20px;
+        border-bottom: 1px solid var(--c-border-soft);
+    }
+
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+
+    .brand-mark {
+        width: 52px;
+        height: 52px;
+        border-radius: 15px;
+        overflow: hidden;
+        border: 1px solid var(--c-border);
+        background: rgba(255, 255, 255, 0.05);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .brand-mark img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .brand-text h1 {
+        font-size: 25px;
+        letter-spacing: 1px;
+        color: var(--c-primary);
+    }
+
+    .brand-sub {
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--c-text-dim);
+        letter-spacing: 0.5px;
+    }
+
+    .header-meta {
+        text-align: right;
+        font-size: 12px;
+        color: var(--c-text-muted);
+        line-height: 1.8;
+    }
+
+    .header-meta b {
+        font-family: 'tttgbnumber', sans-serif;
+        color: var(--c-primary);
+        font-size: 15px;
+    }
+
+    /* ---------- 前三名领奖台 ---------- */
+    .podium {
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        gap: 16px;
+        margin: 26px 0 22px;
+    }
+
+    .podium-item {
+        flex: 1;
+        max-width: 220px;
+        border-radius: 18px;
+        border: 1px solid var(--c-border-soft);
+        background: var(--c-card);
+        padding: 18px 14px 16px;
+        text-align: center;
+        position: relative;
+    }
+
+    .podium-item.p1 {
+        border-color: rgba(245, 215, 110, 0.45);
+        background: linear-gradient(180deg, rgba(245, 215, 110, 0.14) 0%, rgba(255, 255, 255, 0.04) 100%);
+        padding-top: 24px;
+        padding-bottom: 22px;
+        /* 冠军居中，亚军在左、季军在右 */
+        order: 2;
+    }
+
+    .podium-item.p2 {
+        border-color: rgba(207, 214, 226, 0.32);
+        background: linear-gradient(180deg, rgba(207, 214, 226, 0.1) 0%, rgba(255, 255, 255, 0.035) 100%);
+        order: 1;
+    }
+
+    .podium-item.p3 {
+        border-color: rgba(215, 154, 106, 0.32);
+        background: linear-gradient(180deg, rgba(215, 154, 106, 0.1) 0%, rgba(255, 255, 255, 0.035) 100%);
+        order: 3;
+    }
+
+    .medal {
+        position: absolute;
+        top: -12px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'tttgbnumber', sans-serif;
+        font-size: 15px;
+        color: #1a1206;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+    }
+
+    .p1 .medal {
+        background: linear-gradient(135deg, #ffe89a 0%, #f5d76e 100%);
+    }
+
+    .p2 .medal {
+        background: linear-gradient(135deg, #eef1f6 0%, #cfd6e2 100%);
+    }
+
+    .p3 .medal {
+        background: linear-gradient(135deg, #f0bd93 0%, #d79a6a 100%);
+    }
+
+    .podium-avatar {
+        width: 62px;
+        height: 62px;
+        margin: 6px auto 10px;
+        border-radius: 50%;
+        overflow: hidden;
+        border: 2px solid var(--c-border);
+        background: rgba(255, 255, 255, 0.06);
+    }
+
+    .p1 .podium-avatar {
+        width: 74px;
+        height: 74px;
+        border-color: rgba(245, 215, 110, 0.6);
+    }
+
+    .podium-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .podium-name {
+        font-size: 15px;
+        font-weight: bold;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .podium-value {
+        margin-top: 8px;
+        font-family: 'tttgbnumber', sans-serif;
+        font-size: 21px;
+        color: var(--c-gold);
+        letter-spacing: 0.5px;
+    }
+
+    .p2 .podium-value {
+        color: var(--c-silver);
+    }
+
+    .p3 .podium-value {
+        color: var(--c-bronze);
+    }
+
+    .podium-sub {
+        margin-top: 5px;
+        font-size: 11px;
+        color: var(--c-text-dim);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* ---------- 榜单列表 ---------- */
+    .list {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+    }
+
+    .row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 11px 16px;
+        border-radius: 13px;
+        border: 1px solid var(--c-border-soft);
+        background: var(--c-card);
+    }
+
+    .row.is-self {
+        border-color: rgba(228, 190, 160, 0.5);
+        background: linear-gradient(90deg, rgba(228, 190, 160, 0.14) 0%, rgba(255, 255, 255, 0.05) 100%);
+    }
+
+    .row-index {
+        width: 30px;
+        flex-shrink: 0;
+        font-family: 'tttgbnumber', sans-serif;
+        font-size: 17px;
+        color: var(--c-text-muted);
+        text-align: center;
+    }
+
+    .row-name {
+        flex: 1;
+        min-width: 0;
+        font-size: 15px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .row-server {
+        flex-shrink: 0;
+        font-size: 11px;
+        color: var(--c-text-dim);
+        padding: 3px 9px;
+        border-radius: 7px;
+        background: rgba(255, 255, 255, 0.05);
+        max-width: 130px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .row-value {
+        flex-shrink: 0;
+        min-width: 118px;
+        text-align: right;
+        font-family: 'tttgbnumber', sans-serif;
+        font-size: 17px;
+        color: var(--c-primary);
+    }
+
+    .row-value .unit {
+        font-family: 'HYWenHei', sans-serif;
+        font-size: 11px;
+        color: var(--c-text-dim);
+        margin-left: 3px;
+    }
+
+    /* ---------- 自己的名次 ---------- */
+    .self-block {
+        margin-top: 14px;
+        padding-top: 14px;
+        border-top: 1px dashed var(--c-border-soft);
+    }
+
+    .self-tip {
+        margin-bottom: 7px;
+        font-size: 11px;
+        color: var(--c-text-dim);
+        letter-spacing: 0.5px;
+    }
+
+    /* ---------- 空态 / 页脚 ---------- */
+    .footer {
+        margin-top: 22px;
+        padding-top: 16px;
+        border-top: 1px solid var(--c-border-soft);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 11px;
+        color: var(--c-text-dim);
+    }
+
+    .footer b {
+        color: var(--c-primary);
+    }
+</style>
+
+<body>
+    <div id="container">
+        <div class="page">
+            <div class="glow"></div>
+            <div class="inner">
+                <div class="header">
+                    <div class="brand">
+                        <div class="brand-mark"><img src="{{_res_path}}img/app_logo.png" /></div>
+                        <div class="brand-text">
+                            <h1>{{title}}</h1>
+                            <div class="brand-sub">GloryOfKings-Plugin · {{scope}}排名</div>
+                        </div>
+                    </div>
+                    <div class="header-meta">
+                        <div>上榜 <b>{{total}}</b> 人</div>
+                        <div>展示前 <b>{{shown}}</b> 名</div>
+                    </div>
+                </div>
+
+                <div class="podium">
+                    {{each top3 item}}
+                    <div class="podium-item p{{item.index}}">
+                        <div class="medal">{{item.index}}</div>
+                        <div class="podium-avatar">
+                            <img src="{{item.avatar || item.roleIcon}}"
+                                onerror="this.onerror=null;this.src='{{item.roleIcon}}'" />
+                        </div>
+                        <div class="podium-name">{{item.roleName}}</div>
+                        <div class="podium-value">
+                            {{if isPeak}}{{item.peakScore}}{{else}}{{item.rankStar}}<span
+                                style="font-size:12px;font-family:'HYWenHei'"> 星</span>{{/if}}
+                        </div>
+                        <div class="podium-sub">{{if isPeak}}{{item.rankName}}{{else}}{{item.rankName}}{{/if}}</div>
+                    </div>
+                    {{/each}}
+                </div>
+
+                {{if hasRest}}
+                <div class="list">
+                    {{each rest item}}
+                    <div class="row">
+                        <div class="row-index">{{item.index}}</div>
+                        <div class="row-name">{{item.roleName}}</div>
+                        {{if item.serverName}}<div class="row-server">{{item.serverName}}</div>{{/if}}
+                        <div class="row-value">
+                            {{if isPeak}}{{item.peakScore}}<span class="unit">分</span>{{else}}{{item.rankName}}
+                            {{item.rankStar}}<span class="unit">星</span>{{/if}}
+                        </div>
+                    </div>
+                    {{/each}}
+                </div>
+                {{/if}}
+
+                {{if self}}
+                <div class="self-block">
+                    <div class="self-tip">你的名次</div>
+                    <div class="list">
+                        <div class="row is-self">
+                            <div class="row-index">{{self.index}}</div>
+                            <div class="row-name">{{self.roleName}}</div>
+                            {{if self.serverName}}<div class="row-server">{{self.serverName}}</div>{{/if}}
+                            <div class="row-value">
+                                {{if isPeak}}{{self.peakScore}}<span class="unit">分</span>{{else}}{{self.rankName}}
+                                {{self.rankStar}}<span class="unit">星</span>{{/if}}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {{/if}}
+
+                <div class="footer">
+                    <div>数据来源：王者营地 · 仅统计已绑定营地ID的用户 · 发送 <b>#{{if isPeak}}巅峰{{else}}排位{{/if}}排名 刷新</b> 可强制更新</div>
+                    <div>更新于 {{updatedAt}}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

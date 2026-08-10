@@ -204,6 +204,25 @@ export default class Button {
     )
   }
 
+  /**
+   * 排行榜
+   * @param {'rank'|'peak'} type 当前榜单类型
+   */
+  static rank(type = 'rank') {
+    const other = type === 'peak' ? '排位' : '巅峰'
+    const self = type === 'peak' ? '巅峰' : '排位'
+    return segment.button(
+      [
+        { text: `${other}排名`, callback: `#${other}排名` },
+        { text: `${self}总排名`, callback: `#${self}总排名` }
+      ],
+      [
+        { text: '刷新榜单', callback: `#${self}排名刷新` },
+        { text: '王者主页', callback: '#王者主页' }
+      ]
+    )
+  }
+
   /** 赛季/巅峰表现 */
   static performance(id = '', type = '排位') {
     const s = id ? String(id) : ''
