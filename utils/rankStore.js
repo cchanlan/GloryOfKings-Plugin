@@ -22,8 +22,8 @@ import { PluginData } from '#components'
 const SNAPSHOT_FILE = path.join(PluginData, 'RankSnapshot.json')
 const USER_DATA_FILE = path.join(PluginData, 'UserData.yaml')
 
-/** 快照有效期，30 分钟 */
-export const SNAPSHOT_TTL = 30 * 60 * 1000
+/** 快照有效期，12 小时。过期后下次查榜才会重新拉取，想立刻更新用「#排位排名刷新」 */
+export const SNAPSHOT_TTL = 12 * 60 * 60 * 1000
 
 /**
  * 营地对 profile 接口有频控：并发拉取时大量返回 -30107「操作频繁」，

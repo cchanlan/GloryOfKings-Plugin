@@ -5,7 +5,8 @@ import { collectRankData, buildRankList, getAllBindings, readSnapshot, SNAPSHOT_
 import { PluginData } from '#components'
 
 /** 榜单最多展示多少人，太长图片会非常高 */
-const MAX_ROWS = 30
+const MAX_ROWS_GROUP = 10
+const MAX_ROWS_GLOBAL = 30
 
 export class RankList extends plugin {
   constructor() {
@@ -121,12 +122,13 @@ export class RankList extends plugin {
       return
     }
 
-    const list = full.slice(0, MAX_ROWS)
+    const maxRows = isGlobal ? MAX_ROWS_GLOBAL : MAX_ROWS_GROUP
+    const list = full.slice(0, maxRows)
 
     // 查询者自己的名次：即使掉出前 N 也单独显示一行
     const selfId = String(e.user_id)
     const selfEntry = full.find(item => item.botUserId === selfId)
-    const self = selfEntry && selfEntry.index > MAX_ROWS ? selfEntry : null
+    const self = selfEntry && selfEntry.index > maxRows ? selfEntry : null
 
     // 前三名取 QQ 头像做展示，取不到就回落到营地头像
     await Promise.all(list.slice(0, 3).map(async item => {

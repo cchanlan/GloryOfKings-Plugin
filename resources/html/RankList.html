@@ -274,20 +274,9 @@
     }
 
     /* ---------- 榜单列表 ---------- */
-    /*
-     * 双列排布。单列时 30 人的图能高到 3700rem，宽高比 1:2 以上，
-     * QQ 会把这种长图折叠成顶部一条，点开才看得全。
-     * 用 column-count 而不是 grid：它按列填充（左列排完再排右列），
-     * 名次读起来是连续的，不像 grid 那样左右交替成 Z 字。
-     */
     .list {
-        column-count: 2;
-        column-gap: 12rem;
-    }
-
-    /* 自己的名次只有一行，不参与分栏 */
-    .list.single {
-        column-count: 1;
+        display: flex;
+        flex-direction: column;
     }
 
     .row {
@@ -298,8 +287,6 @@
         border-radius: 13rem;
         border: 1rem solid var(--c-border-soft);
         background: var(--c-card);
-        /* 分栏时不允许一行被拆到两列 */
-        break-inside: avoid;
         margin-bottom: 7rem;
     }
 
@@ -429,7 +416,7 @@
                 {{if self}}
                 <div class="self-block">
                     <div class="self-tip">你的名次</div>
-                    <div class="list single">
+                    <div class="list">
                         <div class="row is-self">
                             <div class="row-index">{{self.index}}</div>
                             <div class="row-name">{{self.roleName}}</div>
