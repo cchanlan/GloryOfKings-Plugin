@@ -28,6 +28,10 @@ export default class Button {
       [
         { text: '查战力', input: '#查战力' },
         { text: '皮肤墙', callback: '#皮肤墙' }
+      ],
+      [
+        { text: '排位排名', callback: '#排位排名' },
+        { text: '巅峰排名', callback: '#巅峰排名' }
       ]
     )
   }
@@ -80,6 +84,10 @@ export default class Button {
       [
         { text: '皮肤墙', callback: `#皮肤墙${s}` },
         { text: '全部皮肤', callback: `#全部皮肤${s}` }
+      ],
+      [
+        { text: '排位排名', callback: '#排位排名' },
+        { text: '巅峰排名', callback: '#巅峰排名' }
       ]
     )
   }
@@ -207,17 +215,23 @@ export default class Button {
   /**
    * 排行榜
    * @param {'rank'|'peak'} type 当前榜单类型
+   * @param {boolean} isGlobal 当前是否为总排名，用于给出反向的范围切换入口
    */
-  static rank(type = 'rank') {
-    const other = type === 'peak' ? '排位' : '巅峰'
+  static rank(type = 'rank', isGlobal = false) {
     const self = type === 'peak' ? '巅峰' : '排位'
+    const other = type === 'peak' ? '排位' : '巅峰'
+    // 当前榜的指令前缀，刷新按钮要带上同样的范围，否则会跳到另一个范围的榜
+    const scope = isGlobal ? '总排名' : '排名'
     return segment.button(
       [
-        { text: `${other}排名`, callback: `#${other}排名` },
-        { text: `${self}总排名`, callback: `#${self}总排名` }
+        { text: `${other}${scope}`, callback: `#${other}${scope}` },
+        // 已经在总榜就给回本群榜的入口，反之给总榜入口
+        isGlobal
+          ? { text: `${self}排名`, callback: `#${self}排名` }
+          : { text: `${self}总排名`, callback: `#${self}总排名` }
       ],
       [
-        { text: '刷新榜单', callback: `#${self}排名刷新` },
+        { text: '刷新榜单', callback: `#${self}${scope}刷新` },
         { text: '王者主页', callback: '#王者主页' }
       ]
     )
@@ -235,6 +249,10 @@ export default class Button {
       [
         { text: '王者主页', callback: `#王者主页${s}` },
         { text: '常用英雄', callback: `#常用英雄${s}` }
+      ],
+      [
+        // 当前看的是哪种表现，就给哪种榜单的入口
+        { text: `${type}排名`, callback: `#${type}排名` }
       ]
     )
   }

@@ -57,6 +57,7 @@ export class RankList extends plugin {
       force,
       bindings,
       scope: '本群',
+      isGlobal: false,
       title: `本群${type === 'peak' ? '巅峰分' : '排位'}排行榜`
     })
   }
@@ -80,11 +81,12 @@ export class RankList extends plugin {
       force,
       bindings,
       scope: '全服',
+      isGlobal: true,
       title: `${type === 'peak' ? '巅峰分' : '排位'}总排行榜`
     })
   }
 
-  async render(e, { type, force, bindings, scope, title }) {
+  async render(e, { type, force, bindings, scope, title, isGlobal = false }) {
     // 采集要逐个拉接口（营地有频控，只能串行），命中缓存时很快，需要刷新时先给个提示
     const needFetch = force || Date.now() - readSnapshot().updatedAt >= SNAPSHOT_TTL
     if (needFetch) {
@@ -156,7 +158,7 @@ export class RankList extends plugin {
       fromCache: snapshot.fromCache
     })
 
-    await e.reply([img, Button.rank(type)], true)
+    await e.reply([img, Button.rank(type, isGlobal)], true)
   }
 }
 
