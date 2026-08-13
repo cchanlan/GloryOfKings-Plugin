@@ -4,20 +4,11 @@ import { PluginData, PluginPath } from '#components'
 import { ApiService, readYamlFile, getUserAvatar, isQQNumber, Button } from '#utils'
 
 // 战绩模式筛选走服务端 option 参数（取值见 morebattlelist 响应里的 options 字段）。
-// 实测：排位(1) 与 巅峰(4) 是干净的单一模式，一页直接给满 30 场；
-//       标准(2) 是宽筛，会连带把排位和快速赛一起返回，所以还要在客户端二次过滤。
 // 各模式的 gametype/battleType 实测值：
 //   排位 gametype=4（mapName「排位赛 双排/五排」）
-//   标准 gametype=5 battleType=5（mapName「王者峡谷」，注意不含「标准」二字）
-//   快速赛 gametype=5 battleType=48（mapName「快速赛」，不算标准局）
 //   巅峰 gametype=14 battleType=32（mapName「巅峰赛」）
 const MODE_MAP = [
   { key: '排位', option: 1 },
-  {
-    key: '标准',
-    option: 2,
-    filter: item => Number(item.gametype) === 5 && Number(item.battleType) === 5
-  },
   { key: '巅峰', option: 4 }
 ]
 
@@ -35,7 +26,7 @@ export class QueryGameStats extends plugin {
       priority: 1,
       rule: [
         {
-          reg: '^#?(查询|王者)(\\d+)(排位|标准|巅峰)?战绩\\s*(.*)$',
+          reg: '^#?(查询|王者)(\\d+)(排位|巅峰)?战绩\\s*(.*)$',
           fnc: 'queryGameStatsBySlot'
         },
         {
@@ -43,7 +34,7 @@ export class QueryGameStats extends plugin {
           fnc: 'queryHeroStats'
         },
         {
-          reg: '^#?查\\s*(.*?)\\s*战\\s*绩\\s*$',
+          reg: '^#?查(?!询|王)\\s*(.*?)\\s*战\\s*绩\\s*$',
           fnc: 'queryHeroStats'
         },
         {
@@ -61,7 +52,7 @@ export class QueryGameStats extends plugin {
   // #查询2战绩 —— 2 为绑定列表中的营地ID序号；数字大于 9999 时视为直接传营地ID
   // 后面仍可接模式与场次序号，如 #查询2排位战绩3
   async queryGameStatsBySlot(e) {
-    const [, , num, mode = '', rest = ''] = e.msg.match(/^#?(查询|王者)(\d+)(排位|标准|巅峰)?战绩\s*(.*)$/) || []
+    const [, , num, mode = '', rest = ''] = e.msg.match(/^#?(查询|王者)(\d+)(排位|巅峰)?战绩\s*(.*)$/) || []
     const value = Number(num)
     if (value > 9999) {
       return this.handleQuery(e, `${mode}${rest}`, 0, value)
@@ -233,7 +224,7 @@ export class QueryGameStats extends plugin {
     const userData = readYamlFile(path.join(PluginData, 'UserData.yaml')) || {}
     let input = rawInput || ''
 
-    // 先解析并剥离模式关键词（排位/标准/巅峰），剩下的再按 ID/序号处理
+    // 先解析并剥离模式关键词（排位/巅峰），剩下的再按 ID/序号处理
     let mode = null
     for (const m of MODE_MAP) {
       if (input.includes(m.key)) {
@@ -356,7 +347,7 @@ export class QueryGameStats extends plugin {
 
   /**
    * 拉取战绩列表。指定模式时用服务端 option 精确筛选，
-   * 宽筛模式（标准）过滤后不足 30 场时用 lastTime 游标继续往前翻页补齐。
+   * 过滤后不足 30 场时用 lastTime 游标继续往前翻页补齐。
    * @param {object} [mode] 模式筛选
    * @param {object} [opts]
    * @param {boolean} [opts.forcePaginate=false] 强制翻满 MAX_PAGES 页（英雄战绩查询用）

@@ -99,7 +99,7 @@ export default class Button {
    * 不带ID时走 `#查询战绩<模式><序号>`。两种写法模式关键词的位置不同，别写反。
    * @param {string|number} id 营地ID，可为空
    * @param {number} count 本次返回的场次数，用于生成「第N场」按钮
-   * @param {string} mode 当前模式（排位/标准/巅峰），空表示全部
+   * @param {string} mode 当前模式（排位/巅峰），空表示全部
    */
   static gameStats(id = '', count = 0, mode = '') {
     const s = id ? String(id) : ''
@@ -114,7 +114,7 @@ export default class Button {
     if (detail.length) rows.push(detail)
 
     // 模式切换：只列出当前模式之外的选项
-    const others = ['排位', '巅峰', '标准'].filter(m => m !== mode)
+    const others = ['排位', '巅峰'].filter(m => m !== mode)
     const modeRow = others.map(m => ({ text: `${m}战绩`, callback: cmd(m) }))
     if (mode) modeRow.unshift({ text: '全部战绩', callback: cmd() })
     // 一行最多放 3 个
