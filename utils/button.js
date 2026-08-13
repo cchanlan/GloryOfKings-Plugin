@@ -22,10 +22,11 @@ export default class Button {
         { text: '查询战绩', callback: '#查询战绩' }
       ],
       [
-        { text: '常用英雄', callback: '#常用英雄' },
-        { text: '英雄梯度', callback: '#英雄梯度' }
+        { text: '查英雄战绩', input: '#查英雄战绩' },
+        { text: '常用英雄', callback: '#常用英雄' }
       ],
       [
+        { text: '英雄梯度', callback: '#英雄梯度' },
         { text: '查战力', input: '#查战力' },
         { text: '皮肤墙', callback: '#皮肤墙' }
       ],
@@ -154,6 +155,27 @@ export default class Button {
         { text: '查询战绩', callback: `#查询战绩${s}` }
       ]
     )
+  }
+
+  /**
+   * 英雄战绩列表
+   * @param {string} heroName 英雄名
+   * @param {string|number} id 营地ID
+   */
+  static heroStats(heroName = '', id = '') {
+    const s = id ? String(id) : ''
+    const rows = []
+    if (heroName) {
+      rows.push([
+        { text: `${heroName}战力`, callback: `#查战力${heroName}` },
+        { text: `${heroName}皮肤`, callback: `#查皮肤${heroName}` }
+      ])
+    }
+    rows.push([
+      { text: '全部战绩', callback: `#查询战绩${s}` },
+      { text: '常用英雄', callback: `#常用英雄${s}` }
+    ])
+    return segment.button(...rows)
   }
 
   /**
