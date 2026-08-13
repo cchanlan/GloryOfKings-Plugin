@@ -23,7 +23,8 @@ const MODE_MAP = [
 
 // 服务端一页固定 30 场。宽筛模式过滤后可能不足，用 lastTime 游标往前翻页补齐。
 const TARGET_COUNT = 30
-const MAX_PAGES = 5
+const HERO_TARGET = 100
+const MAX_PAGES = 10
 
 export class QueryGameStats extends plugin {
   constructor() {
@@ -38,7 +39,11 @@ export class QueryGameStats extends plugin {
           fnc: 'queryGameStatsBySlot'
         },
         {
-          reg: '^#?(?:查|王者)英雄战绩\\s*(.+)$',
+          reg: '^#?查战绩\\s*(.+)$',
+          fnc: 'queryHeroStats'
+        },
+        {
+          reg: '^#?查\\s*(.*?)\\s*战\\s*绩\\s*$',
           fnc: 'queryHeroStats'
         },
         {
@@ -65,7 +70,11 @@ export class QueryGameStats extends plugin {
   }
 
   async queryHeroStats(e) {
-    const heroName = e.msg.replace(/^#?(?:查|王者)英雄战绩\s*/, '').trim()
+    const heroName = (
+      e.msg.match(/^#?查战绩\s*(.+)$/)?.[1] ||
+      e.msg.match(/^#?查\s*(.*?)\s*战\s*绩\s*$/)?.[1] ||
+      ''
+    ).trim()
     if (!heroName) {
       await e.reply('请输入英雄名称，例如：#查英雄战绩 妲己')
       return
@@ -123,15 +132,15 @@ export class QueryGameStats extends plugin {
       return false
     })
 
-    logger.debug(`[英雄战绩查询] ${matchedName}(heroId=${heroId})，总战绩 ${battleList?.list?.length || 0} 场，命中 ${heroBattles.length} 场`)
-    if (battleList?.list?.length) {
+    const total = battleList?.list?.length || 0
+    logger.info(`[英雄战绩查询] ${matchedName}(heroId=${heroId})，总战绩 ${total} 场，命中 ${heroBattles.length} 场`)
+    if (total) {
       const sample = battleList.list[0]
-      logger.debug('[英雄战绩查询] 首条战绩字段', {
-        heroId: sample.heroId,
-        heroName: sample.heroName,
-        heroIcon: sample.heroIcon,
-        keys: Object.keys(sample).join(',')
-      })
+      const sampleIconId = sample.heroIcon?.match(/\/(\d+)00\.jpg/)?.[1] || 'N/A'
+      logger.info(`[英雄战绩查询] 首条: heroId=${sample.heroId} heroName=${sample.heroName} heroIconId=${sampleIconId} keys=[${Object.keys(sample).join(',')}]`)
+      // 列出所有不同的 heroIconId，方便排查
+      const iconIds = [...new Set(battleList.list.map(i => i.heroIcon?.match(/\/(\d+)00\.jpg/)?.[1]).filter(Boolean))]
+      logger.info(`[英雄战绩查询] 本页 heroIconId 去重: ${iconIds.join(',')}`)
     }
 
     if (!heroBattles.length) {
@@ -379,7 +388,7 @@ export class QueryGameStats extends plugin {
 
       logger.debug(`[战绩查询] 第 ${page + 1} 页 option=${option} 返回 ${raw.length} 场，命中 ${picked.length} 场，累计 ${collected.length} 场`)
 
-      if (!forcePaginate && collected.length >= TARGET_COUNT) break
+      if (forcePaginate ? collected.length >= HERO_TARGET : collected.length >= TARGET_COUNT) break
       // 服务端已给干净结果时不必翻页；只有宽筛模式或强制翻页才继续
       if (!forcePaginate && !mode?.filter) break
       if (!data.hasMore || !data.lastTime || data.lastTime === lastTime) break
@@ -392,7 +401,7 @@ export class QueryGameStats extends plugin {
       logger.debug(`[战绩查询] ${mode ? mode.key : '全部'}模式最终只凑到 ${collected.length} 场（上限 ${MAX_PAGES} 页），该账号可能就是打得少`)
     }
 
-    return { ...root, list: forcePaginate ? collected : collected.slice(0, TARGET_COUNT) }
+    return { ...root, list: forcePaginate ? collected.slice(0, HERO_TARGET) : collected.slice(0, TARGET_COUNT) }
   }
 
   async getTargetInfo(e, userId) {

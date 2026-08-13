@@ -22,7 +22,7 @@ export default class Button {
         { text: '查询战绩', callback: '#查询战绩' }
       ],
       [
-        { text: '查英雄战绩', input: '#查英雄战绩' },
+        { text: '查英雄战绩', input: '#查战绩' },
         { text: '常用英雄', callback: '#常用英雄' }
       ],
       [
