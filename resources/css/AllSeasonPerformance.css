@@ -82,10 +82,10 @@ body::before {
   margin-top: 6px;
   font-size: 13px;
   letter-spacing: 0;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255,255,255,0.45);
 }
 
-/* 核心数据格子 */
+/* 全赛季汇总格子 */
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -122,122 +122,100 @@ body::before {
   margin-bottom: 16px;
   letter-spacing: 1px;
 }
+.section-title .tip {
+  margin-left: 10px;
+  font-size: 13px;
+  font-weight: normal;
+  letter-spacing: 0;
+  color: rgba(255,255,255,0.4);
+}
 .hl { font-family: Number, YS, sans-serif; color: #f5d76e; font-weight: bold; }
 
 /* 上分趋势 */
 .trend-wrap canvas { display: block; width: 100%; height: auto; }
 
-/* 常用英雄 */
-.hero-row { display: flex; gap: 16px; }
-.hero-card {
-  flex: 1;
+/* 赛季总结 */
+.season-list { display: flex; flex-direction: column; gap: 14px; }
+.season-card {
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.09);
-  border-radius: 12px;
-  padding: 14px;
-  text-align: center;
+  border-radius: 14px;
+  padding: 16px 18px;
 }
-.hero-icon {
-  width: 64px; height: 64px;
-  border-radius: 50%;
-  border: 2px solid rgba(245,215,110,0.4);
-  object-fit: cover;
-  margin-bottom: 8px;
+.season-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
-.hero-name { font-size: 15px; margin-bottom: 4px; }
-.hero-stats { font-size: 13px; color: rgba(255,255,255,0.55); }
+.season-name { font-size: 20px; font-weight: bold; color: #eef2f8; }
+.season-cur {
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #f5d76e;
+  background: rgba(245,215,110,0.14);
+  border: 1px solid rgba(245,215,110,0.4);
+}
+.season-date { margin-left: auto; font-size: 13px; color: rgba(255,255,255,0.4); }
 
-/* 场次统计 */
-.branch-wrap { display: flex; align-items: center; gap: 28px; }
-.donut-wrap { position: relative; flex-shrink: 0; width: 120px; height: 120px; }
-.donut-wrap canvas { display: block; }
-.donut-center {
-  position: absolute;
-  inset: 0;
+.season-body {
+  display: grid;
+  grid-template-columns: 150px repeat(3, 1fr);
+  gap: 10px 4px;
+  padding: 14px 0 4px;
+}
+.rank-cell {
+  grid-row: span 2;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 6px;
+  border-right: 1px solid rgba(255,255,255,0.07);
+}
+.rank-name { font-size: 17px; font-weight: bold; }
+.rank-star { font-family: Number, YS, sans-serif; font-size: 13px; color: rgba(255,255,255,0.5); }
+.rank-score { font-family: Number, YS, sans-serif; font-size: 26px; font-weight: bold; }
+.mini-cell { text-align: center; }
+.mini-val {
+  font-family: Number, YS, sans-serif;
+  font-size: 24px;
+  font-weight: bold;
+  color: #eef2f8;
+  line-height: 1.2;
+}
+.mini-cell.gold .mini-val { color: #f5d76e; }
+.mini-key { font-size: 12px; color: rgba(255,255,255,0.45); margin-top: 2px; }
+
+/* 赛季常用英雄 */
+.hero-row { display: flex; gap: 10px; margin-top: 12px; }
+.hero-card {
+  flex: 1;
+  background: rgba(0,0,0,0.22);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+  padding: 10px 6px 8px;
   text-align: center;
 }
-.donut-center .hl { font-size: 22px; line-height: 1.1; }
-.donut-center .donut-sub {
-  font-size: 11px;
-  color: rgba(255,255,255,0.5);
-  line-height: 1.4;
-  margin-top: 2px;
-}
-.branch-list { flex: 1; display: flex; flex-direction: column; gap: 10px; justify-content: center; }
-.branch-item { display: flex; align-items: center; gap: 10px; font-size: 14px; }
-.branch-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.branch-name { width: 52px; color: rgba(255,255,255,0.75); }
-.branch-cnt { flex: 1; color: rgba(255,255,255,0.55); }
-.branch-rate { color: #f5d76e; font-family: Number, YS, sans-serif; }
-
-/* 对战资料 */
-.radar-wrap { display: flex; align-items: center; gap: 20px; padding-left: 10px; }
-.radar-wrap canvas { flex-shrink: 0; }
-.radar-stats {
-  flex: 1;
-  display: flex;
-  flex-direction: row;
-  justify-content: space-around;
-  align-items: center;
-}
-.rs-item { text-align: center; }
-.rs-item .hl { font-size: 30px; display: block; line-height: 1.2; }
-.rs-item .rs-label { font-size: 14px; color: rgba(255,255,255,0.5); margin-top: 4px; }
-
-/* 分路五维 */
-.lane-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-}
-.lane-card {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.09);
-  border-radius: 12px;
-  padding: 14px 12px 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.lane-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
+.hero-icon {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  border: 2px solid rgba(245,215,110,0.4);
+  object-fit: cover;
   margin-bottom: 6px;
 }
-.lane-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.lane-name { font-size: 15px; font-weight: bold; color: #eef2f8; }
-.lane-meta { margin-left: auto; font-size: 12px; color: rgba(255,255,255,0.5); }
-.lane-radar { display: block; }
-.lane-score { font-size: 13px; color: rgba(255,255,255,0.55); margin-top: 4px; }
-.lane-score .hl { font-size: 18px; }
-
-/* 荣誉 */
-.honor-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-}
-.honor-item {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.09);
-  border-radius: 10px;
-  padding: 14px;
-  text-align: center;
-}
-.honor-val {
-  font-family: Number, YS, sans-serif;
-  font-size: 28px;
-  font-weight: bold;
-  color: #f5d76e;
+.hero-name {
+  font-size: 12px;
+  color: #eef2f8;
   margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.honor-key { font-size: 13px; color: rgba(255,255,255,0.5); }
+.hero-stats { font-size: 11px; color: rgba(255,255,255,0.5); line-height: 1.6; }
+.hero-stats .hl { font-size: 13px; }
 
 .footer {
   text-align: center;

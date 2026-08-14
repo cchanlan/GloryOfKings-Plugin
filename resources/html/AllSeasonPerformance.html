@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>全部赛季表现</title>
+  <link rel="stylesheet" href="{{_res_path}}css/AllSeasonPerformance.css">
+</head>
+<body>
+<div class="card">
+  <!-- 头部 -->
+  <div class="card-header">
+    <img src="{{roleIcon}}" class="avatar" alt="">
+    <div class="user-info">
+      <h2 class="username">{{roleName}}</h2>
+      <span class="badge role">{{serverName}}</span>
+    </div>
+    <div class="season-label">
+      全部赛季 · {{modeLabel}}
+      <span class="sub">{{rangeText}}</span>
+    </div>
+  </div>
+
+  <!-- 全赛季汇总 -->
+  <div class="stat-grid">
+    <div class="stat-cell gold">
+      <div class="stat-val">{{topJob}}</div>
+      <div class="stat-key">最高段位</div>
+    </div>
+    <div class="stat-cell gold">
+      <div class="stat-val">{{topMasterScore}}</div>
+      <div class="stat-key">最高巅峰赛积分</div>
+    </div>
+    <div class="stat-cell gold">
+      <div class="stat-val">×{{wangzheCnt}}</div>
+      <div class="stat-key">王者印记总数</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val">{{totalGameCnt}}</div>
+      <div class="stat-key">全赛季排位场次</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val">{{totalWinRate}}</div>
+      <div class="stat-key">全赛季排位胜率</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val">{{branch}}</div>
+      <div class="stat-key">全赛季排位分路偏好</div>
+    </div>
+  </div>
+
+  <!-- 上分趋势 -->
+  {{if trend && trend.length > 1}}
+  <div class="section">
+    <div class="section-title">
+      {{if isPeak}}巅峰积分趋势{{else}}上分趋势{{/if}}
+      <span class="tip">按赛季结算，共 {{trend.length}} 个赛季</span>
+    </div>
+    <div class="trend-wrap">
+      <canvas id="trendCanvas" width="2910" height="780"></canvas>
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- 赛季总结 -->
+  <div class="section">
+    <div class="section-title">赛季总结</div>
+    <div class="season-list">
+      {{each seasons s}}
+      <div class="season-card">
+        <div class="season-head">
+          <span class="season-name">{{s.seasonName}}</span>
+          {{if s.isCurrent}}<span class="season-cur">当前赛季</span>{{/if}}
+          <span class="season-date">{{s.dateRange}}</span>
+        </div>
+        <div class="season-body">
+          <div class="rank-cell">
+            {{if isPeak}}
+            <div class="rank-score" style="color:{{s.masterScore ? '#f5d76e' : '#9aa7bd'}}">{{s.masterScore || '—'}}</div>
+            <div class="rank-star">巅峰赛积分</div>
+            {{else}}
+            <div class="rank-name" style="color:{{s.jobColor}}">{{s.jobName || '—'}}</div>
+            <div class="rank-star">{{s.rankingStar}} 星</div>
+            {{/if}}
+          </div>
+          <div class="mini-cell">
+            <div class="mini-val">{{s.games}}</div>
+            <div class="mini-key">场次</div>
+          </div>
+          <div class="mini-cell">
+            <div class="mini-val">{{s.streak}}</div>
+            <div class="mini-key">最高连胜</div>
+          </div>
+          <div class="mini-cell gold">
+            <div class="mini-val">{{s.winRate}}</div>
+            <div class="mini-key">胜率</div>
+          </div>
+          <div class="mini-cell">
+            <div class="mini-val">{{s.wins}}</div>
+            <div class="mini-key">胜场</div>
+          </div>
+          <div class="mini-cell">
+            <div class="mini-val">{{s.gold}} / {{s.silver}}</div>
+            <div class="mini-key">金牌 / 银牌</div>
+          </div>
+          <div class="mini-cell gold">
+            <div class="mini-val">{{s.avgScore || '—'}}</div>
+            <div class="mini-key">{{s.scoreLabel || '平均分数'}}</div>
+          </div>
+        </div>
+        {{if s.heros && s.heros.length}}
+        <div class="hero-row">
+          {{each s.heros h}}
+          <div class="hero-card">
+            <img src="{{h.heroIcon}}" class="hero-icon" alt="" onerror="this.style.visibility='hidden'">
+            <div class="hero-name">{{h.heroName}}</div>
+            <div class="hero-stats">
+              总 <span class="hl">{{h.gameCnt}}</span> · 胜 <span class="hl">{{h.winCnt}}</span><br>
+              胜率 <span class="hl">{{h.winRate}}</span>
+            </div>
+          </div>
+          {{/each}}
+        </div>
+        {{/if}}
+      </div>
+      {{/each}}
+    </div>
+  </div>
+
+  <div class="footer">GloryOfKings-Plugin · 全部赛季{{if isPeak}}巅峰{{else}}排位{{/if}}表现</div>
+</div>
+
+<script>
+const trend = {{@ trendJson}}
+
+// 赛季趋势折线：排位画跨段累计星数，巅峰画赛季结算积分
+if (trend && trend.length > 1) {
+  const c = document.getElementById('trendCanvas')
+  const ctx = c.getContext('2d')
+  const W = c.width, H = c.height
+  const pad = { t: 70, b: 96, l: 210, r: 90 }
+  const plotH = H - pad.t - pad.b
+  const vals = trend.map(t => t.value)
+  const dataMin = Math.min(...vals), dataMax = Math.max(...vals)
+  // 紧贴数据取值域，上下各留 12% 余量，让折线尽量铺满绘图区
+  const spanRaw = dataMax - dataMin
+  const paddingVal = spanRaw > 0 ? spanRaw * 0.12 : Math.max(dataMax * 0.05, 2)
+  const axisMin = dataMin - paddingVal
+  const axisMax = dataMax + paddingVal
+  const range = axisMax - axisMin || 1
+  const xs = trend.map((_, i) => pad.l + i * (W - pad.l - pad.r) / (trend.length - 1))
+  const ys = vals.map(v => pad.t + (1 - (v - axisMin) / range) * plotH)
+
+  // 背景网格
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+  ctx.lineWidth = 2
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + i * plotH / 4
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke()
+  }
+
+  // 平滑曲线路径（Catmull-Rom → 贝塞尔）
+  const buildSmoothPath = () => {
+    ctx.moveTo(xs[0], ys[0])
+    for (let i = 0; i < xs.length - 1; i++) {
+      const x0 = xs[i - 1] ?? xs[i], y0 = ys[i - 1] ?? ys[i]
+      const x1 = xs[i], y1 = ys[i]
+      const x2 = xs[i + 1], y2 = ys[i + 1]
+      const x3 = xs[i + 2] ?? x2, y3 = ys[i + 2] ?? y2
+      const cp1x = x1 + (x2 - x0) / 6, cp1y = y1 + (y2 - y0) / 6
+      const cp2x = x2 - (x3 - x1) / 6, cp2y = y2 - (y3 - y1) / 6
+      ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x2, y2)
+    }
+  }
+
+  // 填充渐变
+  const grad = ctx.createLinearGradient(0, pad.t, 0, H - pad.b)
+  grad.addColorStop(0, 'rgba(245,215,110,0.32)')
+  grad.addColorStop(1, 'rgba(245,215,110,0.02)')
+  ctx.beginPath()
+  ctx.moveTo(xs[0], H - pad.b)
+  ctx.lineTo(xs[0], ys[0])
+  buildSmoothPath()
+  ctx.lineTo(xs[xs.length - 1], H - pad.b)
+  ctx.closePath()
+  ctx.fillStyle = grad; ctx.fill()
+
+  // 折线
+  ctx.beginPath()
+  buildSmoothPath()
+  ctx.strokeStyle = '#f5d76e'; ctx.lineWidth = 5
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke()
+
+  // 数据点
+  xs.forEach((x, i) => {
+    ctx.beginPath(); ctx.arc(x, ys[i], 7, 0, Math.PI * 2)
+    ctx.fillStyle = '#f5d76e'; ctx.fill()
+  })
+
+  // Y 轴：最低、最高，以及中间一条参考线
+  const minIdx = vals.indexOf(dataMin), maxIdx = vals.indexOf(dataMax)
+  ctx.font = '30px YS,sans-serif'
+  ctx.textAlign = 'right'
+  if (minIdx !== maxIdx) {
+    const midVal = (dataMin + dataMax) / 2
+    let midT = trend[0], best = Infinity
+    trend.forEach(t => { const d = Math.abs(t.value - midVal); if (d < best) { best = d; midT = t } })
+    const midY = pad.t + (1 - (midVal - axisMin) / range) * plotH
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 2
+    ctx.setLineDash([8, 8])
+    ctx.beginPath(); ctx.moveTo(pad.l, midY); ctx.lineTo(W - pad.r, midY); ctx.stroke()
+    ctx.setLineDash([])
+    ctx.fillStyle = 'rgba(255,255,255,0.4)'
+    ctx.fillText(midT.tip, pad.l - 14, midY + 10)
+  }
+  ctx.fillStyle = 'rgba(255,255,255,0.6)'
+  ctx.fillText(trend[minIdx].tip, pad.l - 14, ys[minIdx] + 10)
+  if (minIdx !== maxIdx) ctx.fillText(trend[maxIdx].tip, pad.l - 14, ys[maxIdx] + 10)
+
+  // X 轴：首尾赛季名，首点左对齐、尾点右对齐，避免被画布边缘截断
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'
+  ctx.textAlign = 'left'
+  ctx.fillText(trend[0].label, xs[0], H - 20)
+  ctx.textAlign = 'right'
+  ctx.fillText(trend[trend.length - 1].label, xs[xs.length - 1], H - 20)
+}
+</script>
+</body>
+</html>

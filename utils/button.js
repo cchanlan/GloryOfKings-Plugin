@@ -259,11 +259,16 @@ export default class Button {
     )
   }
 
-  /** 赛季/巅峰表现 */
-  static performance(id = '', type = '排位') {
+  /**
+   * 赛季/巅峰表现
+   * @param {string|number} id 营地ID，带上后按钮直接查该ID
+   * @param {string} type 当前看的是排位还是巅峰
+   * @param {number|string} [prevSeason] 上一个赛季号，用于给出「S43表现」这类历史赛季入口
+   */
+  static performance(id = '', type = '排位', prevSeason = '') {
     const s = id ? String(id) : ''
     const other = type === '排位' ? '巅峰' : '排位'
-    return segment.button(
+    const rows = [
       [
         { text: `${other}表现`, callback: `#${other}表现${s}` },
         { text: '查询战绩', callback: `#查询战绩${s}` }
@@ -274,7 +279,41 @@ export default class Button {
       ],
       [
         // 当前看的是哪种表现，就给哪种榜单的入口
-        { text: `${type}排名`, callback: `#${type}排名` }
+        { text: `${type}排名`, callback: `#${type}排名` },
+        { text: `全部${type}表现`, callback: `#全部${type}表现${s}` }
+      ]
+    ]
+    // 指令支持 #排位表现s40 指定赛季，这里给个直达上一赛季的入口
+    if (prevSeason) {
+      rows.push([
+        { text: `S${prevSeason}${type}表现`, callback: `#${type}表现${s}s${prevSeason}` },
+        { text: '指定赛季', input: `#${type}表现s` }
+      ])
+    }
+    return segment.button(...rows)
+  }
+
+  /**
+   * 全部赛季表现
+   * @param {string|number} id 营地ID
+   * @param {string} type 排位 / 巅峰
+   */
+  static allPerformance(id = '', type = '排位') {
+    const s = id ? String(id) : ''
+    const other = type === '排位' ? '巅峰' : '排位'
+    return segment.button(
+      [
+        { text: `全部${other}表现`, callback: `#全部${other}表现${s}` },
+        { text: `${type}表现`, callback: `#${type}表现${s}` }
+      ],
+      [
+        // 指令后可跟数量或 all，控制展示多少个赛季
+        { text: '全部赛季', callback: `#全部${type}表现${s} all` },
+        { text: '指定数量', input: `#全部${type}表现${s} ` }
+      ],
+      [
+        { text: '王者主页', callback: `#王者主页${s}` },
+        { text: '查询战绩', callback: `#查询战绩${s}` }
       ]
     )
   }

@@ -1,6 +1,6 @@
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { ApiService, readYamlFile, Button } from '#utils'
+import { ApiService, readYamlFile, Button, parsePerfArgs, seasonNo } from '#utils'
 import { PluginData, PluginPath } from '#components'
 
 // branchType：0=全部分路 1=对抗路 2=中路 3=发育路 4=打野 5=游走
@@ -28,10 +28,11 @@ export class PeakPerformance extends plugin {
     const userData = readYamlFile(path.join(PluginData, 'UserData.yaml')) || {}
     const input = e.msg.replace(/^#巅峰表现\s*/, '').trim()
     const userInfo = userData[userId]
+    const args = parsePerfArgs(input)
+    // 不带 s 的小数字也当赛季号，#巅峰表现40 与 #巅峰表现s40 等价
+    const wantSeason = args.season ?? args.count
 
-    const campId = input && /^\d+$/.test(input)
-      ? input
-      : userInfo?.ids?.[userInfo.current ?? 0]
+    const campId = args.campId || userInfo?.ids?.[userInfo.current ?? 0]
 
     if (!campId) {
       await e.reply([
@@ -60,11 +61,16 @@ export class PeakPerformance extends plugin {
     const roleName = roleData.roleName || '召唤师'
     const roleIcon = roleData.roleIcon || ''
     const serverName = roleData.roleText || roleData.areaName || '王者荣耀'
+    const who = { roleId, userId, campId, roleName, roleIcon, serverName }
+
+    // 指定赛季走赛季汇总（getFightData 只有近30天/近30场，取不到历史赛季）
+    if (wantSeason) return this.renderSeason(e, who, wantSeason)
 
     // 全部分路 + 5 条分路 + 赛季页（巅峰英雄/上分趋势），一次性并发拉取
     const branchTypes = [0, 1, 2, 3, 4, 5]
     let results
     let seasonData = null
+    let history = []
     try {
       const [fightResults, sData] = await Promise.all([
         Promise.all(
@@ -73,14 +79,16 @@ export class PeakPerformance extends plugin {
         (async () => {
           try {
             const first = await ApiService.getSeasonpage(roleId, String(userId), 0)
-            const sid = first?.data?.historyList?.[0]?.seasonId
+            const list = first?.data?.historyList || []
+            const sid = list[0]?.seasonId
             if (!sid) return null
-            return ApiService.getSeasonpage(roleId, String(userId), sid)
+            return { res: await ApiService.getSeasonpage(roleId, String(userId), sid), list }
           } catch { return null }
         })()
       ])
       results = fightResults
-      seasonData = sData?.data || null
+      seasonData = sData?.res?.data || null
+      history = sData?.list || []
     } catch (err) {
       await e.reply(ApiService.formatUserFacingError(err, { isMaster: Boolean(e.isMaster), scene: '巅峰表现查询异常' }))
       return
@@ -117,17 +125,17 @@ export class PeakPerformance extends plugin {
       return
     }
 
-    const honor = {
-      mvp: overall.raw.mvp || 0,
-      loseMvp: overall.raw.loseMvp || 0,
-      threeKill: overall.raw.threeKill || 0,
-      fourKill: overall.raw.fourKill || 0,
-      fiveKill: overall.raw.fiveKill || 0,
-      godLike: overall.raw.godLike || 0,
-      goldMedal: overall.raw.goldMedal || 0,
-      sliverMedal: overall.raw.sliverMedal || 0
-    }
-    const hasHonor = Object.values(honor).some(v => v > 0)
+    const honor = [
+      { val: overall.raw.mvp || 0, key: '全场最佳' },
+      { val: overall.raw.loseMvp || 0, key: '败方最佳' },
+      { val: overall.raw.threeKill || 0, key: '三连决胜' },
+      { val: overall.raw.fourKill || 0, key: '四连超凡' },
+      { val: overall.raw.fiveKill || 0, key: '五连绝世' },
+      { val: overall.raw.godLike || 0, key: '超神' },
+      { val: overall.raw.goldMedal || 0, key: '金牌' },
+      { val: overall.raw.sliverMedal || 0, key: '银牌' }
+    ]
+    const hasHonor = honor.some(h => h.val > 0)
 
     const branches = lanes.map(l => ({
       name: l.name,
@@ -148,6 +156,13 @@ export class PeakPerformance extends plugin {
       roleName,
       roleIcon,
       serverName,
+      seasonLabel: '巅峰表现 · 近30天',
+      subLabel: '',
+      stats: [
+        { val: overall.gameCnt, key: '巅峰赛场次' },
+        { val: overall.winRate, key: `胜率（${overall.raw.winNum || 0}胜${overall.raw.loseNum || 0}负）` },
+        { val: overall.avgScore, key: '平均得分' }
+      ],
       gameCnt: overall.gameCnt,
       winRate: overall.winRate,
       winNum: overall.raw.winNum || 0,
@@ -157,9 +172,11 @@ export class PeakPerformance extends plugin {
       honor,
       hasHonor,
       branches,
+      hasBranches: branches.length > 0,
       branchesJson: JSON.stringify(branches),
       lanes,
       hasLanes: lanes.length > 0,
+      hasOverallRadar: true,
       overallJson: JSON.stringify(overall),
       lanesJson: JSON.stringify(lanes),
       trend,
@@ -167,7 +184,134 @@ export class PeakPerformance extends plugin {
       heros
     })
 
-    await e.reply([img, Button.performance(campId, '巅峰')], true)
+    // 近30天口径下把上一赛季（history[1]）作为历史赛季入口
+    await e.reply([img, Button.performance(campId, '巅峰', seasonNo(history[1]?.seasonName) || '')], true)
+  }
+
+  /**
+   * 指定赛季的巅峰表现。
+   * 数据源是 seasonpage：headCard.masterScore 是该赛季巅峰分，behavior.masterInfo 给分路场次和常用英雄，
+   * historyList 里对应赛季的 masterInfo 给胜场/连胜/金银牌/评分。五维雷达只有近30天口径，赛季模式不展示。
+   */
+  async renderSeason(e, who, wantSeason) {
+    const { roleId, userId, campId, roleName, roleIcon, serverName } = who
+    const scene = '巅峰表现查询异常'
+
+    let firstRes
+    try {
+      firstRes = await ApiService.getSeasonpage(roleId, String(userId), 0)
+    } catch (err) {
+      await e.reply(ApiService.formatUserFacingError(err, { isMaster: Boolean(e.isMaster), scene }))
+      return
+    }
+
+    const history = firstRes?.data?.historyList || []
+    if (!history.length) {
+      await e.reply('暂无赛季数据')
+      return
+    }
+
+    const target = history.find(h => seasonNo(h.seasonName) === wantSeason)
+    if (!target) {
+      await e.reply(`未找到 S${wantSeason} 的赛季记录，可查询：${history.map(h => h.seasonName).join(' / ')}`)
+      return
+    }
+
+    let seasonRes
+    try {
+      seasonRes = await ApiService.getSeasonpage(roleId, String(userId), target.seasonId)
+    } catch (err) {
+      await e.reply(ApiService.formatUserFacingError(err, { isMaster: Boolean(e.isMaster), scene }))
+      return
+    }
+
+    const data = seasonRes?.data || {}
+    const hc = data.headCard || {}
+    const mi = data.behavior?.masterInfo || {}
+    const ti = target.masterInfo || {}
+
+    const games = Number(ti.totalCnt) || Number(mi.totalGameCnt) || 0
+    if (!games) {
+      await e.reply(`${target.seasonName} 暂无巅峰赛数据，可能是该赛季未参与巅峰赛或对方隐藏了战绩`)
+      return
+    }
+
+    const wins = Number(ti.totalWinCnt) || 0
+    const winRate = ti.winRate
+      ? Math.round(ti.winRate * 100) + '%'
+      : (games ? Math.round(wins / games * 100) + '%' : '0%')
+
+    const branches = (mi.branches || [])
+      .filter(b => Number(b.gameCnt) > 0)
+      .map(b => ({
+        name: BRANCH_NAME[b.branchType] || String(b.branchType),
+        color: BRANCH_COLORS[b.branchType] || '#f5d76e',
+        gameCnt: Number(b.gameCnt) || 0,
+        winNum: Number(b.winNum) || 0,
+        loseNum: Number(b.loseNum) || 0,
+        winRate: b.winRate || '0%'
+      }))
+    const branch = branches.length
+      ? branches.reduce((a, b) => a.gameCnt >= b.gameCnt ? a : b).name
+      : '—'
+
+    const heros = (mi.heros || []).slice(0, 3).map(h => ({
+      heroName: h.heroName,
+      heroIcon: h.heroIcon,
+      winRate: Math.round((h.winRate || 0) * 100) + '%',
+      gameCnt: h.gameCnt
+    }))
+
+    // S44 起对局评分改百分制，之前是 10 分制，跨赛季不可比，旧赛季标一下口径
+    const avgScore = Number(ti.averageScore) || 0
+    const scoreKey = avgScore > 0 && avgScore <= 20 ? '平均得分 · 旧10分制' : '平均得分'
+
+    const honor = [
+      { val: wins, key: '胜场' },
+      { val: Math.max(games - wins, 0), key: '负场' },
+      { val: Number(ti.goldCnt) || 0, key: '金牌' },
+      { val: Number(ti.silverCnt) || 0, key: '银牌' }
+    ]
+
+    const img = await puppeteer.screenshot('PeakPerformance', {
+      tplFile: 'plugins/GloryOfKings-Plugin/resources/html/PeakPerformance.html',
+      _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
+      roleName,
+      roleIcon,
+      serverName,
+      seasonLabel: `${target.seasonName} 巅峰表现`,
+      subLabel: '按赛季统计 · 无五维数据',
+      stats: [
+        { val: hc.masterScore || Number(ti.masterScore) || '—', key: '巅峰赛积分' },
+        { val: games, key: '巅峰赛场次' },
+        { val: winRate, key: `胜率（${wins}胜${Math.max(games - wins, 0)}负）` },
+        { val: avgScore || '—', key: scoreKey },
+        { val: Number(ti.maxContinuousWinCnt) || 0, key: '最高连胜' },
+        { val: branch, key: '分路偏好' }
+      ],
+      gameCnt: games,
+      winRate,
+      winNum: wins,
+      loseNum: Math.max(games - wins, 0),
+      avgScore: avgScore || '—',
+      branch,
+      honor,
+      hasHonor: honor.some(h => h.val > 0),
+      branches,
+      hasBranches: branches.length > 0,
+      branchesJson: JSON.stringify(branches),
+      lanes: [],
+      hasLanes: false,
+      hasOverallRadar: false,
+      overallJson: 'null',
+      lanesJson: '[]',
+      trend: [],
+      trendJson: '[]',
+      heros
+    })
+
+    const prevSeason = seasonNo(history[history.indexOf(target) + 1]?.seasonName) || ''
+    await e.reply([img, Button.performance(campId, '巅峰', prevSeason)], true)
   }
 
   /** 把单条分路的 battleDataSelf 整理成模板需要的结构 */

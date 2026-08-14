@@ -54,3 +54,42 @@ export function getCurrentId (userId) {
 
   return userData[userId].ids[userData[userId].current]
 }
+
+/**
+ * 解析「表现」类指令后面跟的参数，营地ID / 赛季号 / 数量 / all 混着写也能认出来。
+ * 判定依据：s 开头是赛季号；纯数字 5 位以上是营地ID（营地ID都是 8~10 位），4 位以内是数量/赛季号。
+ * @param {string} input 去掉指令前缀后的内容，如 "s40"、"1580886057 5"、"all"
+ * @returns {{campId: string, season: number|null, count: number|null, all: boolean}}
+ */
+export function parsePerfArgs (input = '') {
+  const out = { campId: '', season: null, count: null, all: false }
+  let rest = String(input || '').trim()
+  if (!rest) return out
+
+  // 赛季号 s40 / S40，允许和营地ID连写（#排位表现1580886057s40）
+  const sm = rest.match(/[sS](\d{1,3})(?!\d)/)
+  if (sm) {
+    out.season = Number(sm[1])
+    rest = rest.replace(sm[0], ' ')
+  }
+
+  if (/all|全部/i.test(rest)) {
+    out.all = true
+    rest = rest.replace(/all|全部/gi, ' ')
+  }
+
+  for (const tok of rest.split(/[\s,，、]+/).filter(Boolean)) {
+    if (!/^\d+$/.test(tok)) continue
+    if (tok.length >= 5) out.campId = tok
+    else if (out.count === null) out.count = Number(tok)
+  }
+
+  return out
+}
+
+/** 把赛季名（S44）转成数字，用于和用户输入的赛季号比对 */
+export function seasonNo (seasonName) {
+  const digits = String(seasonName || '').replace(/[^\d]/g, '')
+  return digits ? Number(digits) : null
+}
+

@@ -14,14 +14,17 @@
       <h2 class="username">{{roleName}}</h2>
       <span class="badge role">{{serverName}}</span>
     </div>
-    <div class="season-label">{{seasonName}} 排位表现</div>
+    <div class="season-label">
+      {{seasonName}} 排位表现
+      {{if subLabel}}<span class="sub">{{subLabel}}</span>{{/if}}
+    </div>
   </div>
 
   <!-- 核心数据格子 -->
   <div class="stat-grid">
     <div class="stat-cell gold">
       <div class="stat-val">{{jobName}} {{rankingStar}}星</div>
-      <div class="stat-key">当前段位</div>
+      <div class="stat-key">{{jobLabel || '当前段位'}}</div>
     </div>
     <div class="stat-cell gold">
       <div class="stat-val">{{masterScore || '—'}}</div>
@@ -137,12 +140,9 @@
   <div class="section">
     <div class="section-title">荣誉数据</div>
     <div class="honor-grid">
-      <div class="honor-item"><div class="honor-val">{{honor.mvp}}</div><div class="honor-key">全场最佳</div></div>
-      <div class="honor-item"><div class="honor-val">{{honor.loseMvp}}</div><div class="honor-key">败方最佳</div></div>
-      <div class="honor-item"><div class="honor-val">{{honor.threeKill}}</div><div class="honor-key">三连决胜</div></div>
-      <div class="honor-item"><div class="honor-val">{{honor.fourKill}}</div><div class="honor-key">四连超凡</div></div>
-      <div class="honor-item"><div class="honor-val">{{honor.fiveKill}}</div><div class="honor-key">五连绝世</div></div>
-      <div class="honor-item"><div class="honor-val">{{honor.godLike}}</div><div class="honor-key">超神</div></div>
+      {{each honor h}}
+      <div class="honor-item"><div class="honor-val">{{h.val}}</div><div class="honor-key">{{h.key}}</div></div>
+      {{/each}}
     </div>
   </div>
   {{/if}}
@@ -279,7 +279,7 @@ if (branches.length) {
 }
 
 // 雷达图
-if (radar.length) {
+if (radar.length && document.getElementById('radarCanvas')) {
   const c = document.getElementById('radarCanvas')
   const ctx = c.getContext('2d')
   const cx = 390, cy = 390, R = 285, N = radar.length

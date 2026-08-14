@@ -1,6 +1,6 @@
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { ApiService, readYamlFile, Button } from '#utils'
+import { ApiService, readYamlFile, Button, parsePerfArgs, seasonNo } from '#utils'
 import { PluginData, PluginPath } from '#components'
 
 const BRANCH_NAME = { 1: '对抗路', 2: '中路', 3: '发育路', 4: '打野', 5: '游走' }
@@ -25,9 +25,11 @@ export class SeasonPage extends plugin {
     const userData = readYamlFile(path.join(PluginData, 'UserData.yaml')) || {}
     const input = e.msg.replace(/^#排位表现\s*/, '').trim()
     const userInfo = userData[userId]
+    const args = parsePerfArgs(input)
+    // 不带 s 的小数字也当赛季号，#排位表现40 与 #排位表现s40 等价
+    const wantSeason = args.season ?? args.count
 
-    let campId = input && /^\d+$/.test(input) ? input
-      : userInfo?.ids?.[userInfo.current ?? 0]
+    let campId = args.campId || userInfo?.ids?.[userInfo.current ?? 0]
 
     if (!campId) {
       await e.reply([
@@ -51,7 +53,7 @@ export class SeasonPage extends plugin {
       return
     }
 
-    // 先用 seasonId=0 拿当前赛季 ID
+    // 先用 seasonId=0 拿赛季列表（seasonId 不等于赛季号：46=S44、9=S7，只能按 seasonName 匹配）
     let firstRes
     try {
       firstRes = await ApiService.getSeasonpage(roleId, String(userId), 0)
@@ -60,15 +62,25 @@ export class SeasonPage extends plugin {
       return
     }
 
-    const currentSeasonId = firstRes?.data?.historyList?.[0]?.seasonId
-    if (!currentSeasonId) {
+    const history = firstRes?.data?.historyList || []
+    if (!history.length) {
       await e.reply('暂无赛季数据')
       return
     }
 
+    const target = wantSeason
+      ? history.find(h => seasonNo(h.seasonName) === wantSeason)
+      : history[0]
+    if (!target) {
+      await e.reply(`未找到 S${wantSeason} 的赛季记录，可查询：${history.map(h => h.seasonName).join(' / ')}`)
+      return
+    }
+    // 历史赛季只有段位/分路/英雄，没有五维（battleStats 为 null）和上分趋势（gameTrend 为空）
+    const isCurrent = target.seasonId === history[0].seasonId
+
     let seasonRes
     try {
-      seasonRes = await ApiService.getSeasonpage(roleId, String(userId), currentSeasonId)
+      seasonRes = await ApiService.getSeasonpage(roleId, String(userId), target.seasonId)
     } catch (err) {
       await e.reply(ApiService.formatUserFacingError(err, { isMaster: Boolean(e.isMaster), scene: '赛季表现查询异常' }))
       return
@@ -80,16 +92,19 @@ export class SeasonPage extends plugin {
       return
     }
 
-    // 分路五维：seasonpage 不含分路五维，需对每条分路单独拉取 getFightData（排位赛 gameBattleType=3）
+    // 分路五维：seasonpage 不含分路五维，需对每条分路单独拉取 getFightData（排位赛 gameBattleType=3）。
+    // 该接口只有近30天/近30场两种周期，无法按赛季取，所以只在当前赛季展示。
     const laneTypes = [1, 2, 3, 4, 5]
     let laneResults = []
-    try {
-      laneResults = await Promise.all(
-        laneTypes.map(bt => ApiService.getFightData(roleId, String(userId), { gameBattleType: 3, branchType: bt })
-          .catch(() => null))
-      )
-    } catch {
-      laneResults = []
+    if (isCurrent) {
+      try {
+        laneResults = await Promise.all(
+          laneTypes.map(bt => ApiService.getFightData(roleId, String(userId), { gameBattleType: 3, branchType: bt })
+            .catch(() => null))
+        )
+      } catch {
+        laneResults = []
+      }
     }
     const lanes = laneResults
       .map((res, i) => this.buildLane(laneTypes[i], res?.data?.battleDataSelf))
@@ -98,6 +113,8 @@ export class SeasonPage extends plugin {
     const hc = data.headCard || {}
     const bs = data.battleStats || {}
     const ri = data.behavior?.rankInfo || {}
+    // historyList 里该赛季的排位汇总（胜场/连胜/金银牌），历史赛季拿不到 battleStats 时用它兜底
+    const ti = target.rankInfo || {}
     const BRANCH_COLORS = ['#f5d76e', '#f0932b', '#6ab0f5', '#57c98a', '#c97bdb']
     const branches = (ri.branches || []).map((b, i) => ({
       name: b.branchName || BRANCH_NAME[b.branchType] || b.branchType,
@@ -143,15 +160,25 @@ export class SeasonPage extends plugin {
       time: t.time
     }))
 
-    const honor = {
-      mvp: bs.mvp || 0,
-      loseMvp: bs.loseMvp || 0,
-      threeKill: bs.threeKill || 0,
-      fourKill: bs.fourKill || 0,
-      fiveKill: bs.fiveKill || 0,
-      godLike: bs.godLike || 0
-    }
-    const hasHonor = Object.values(honor).some(v => v > 0)
+    const honor = isCurrent
+      ? [
+          { val: bs.mvp || 0, key: '全场最佳' },
+          { val: bs.loseMvp || 0, key: '败方最佳' },
+          { val: bs.threeKill || 0, key: '三连决胜' },
+          { val: bs.fourKill || 0, key: '四连超凡' },
+          { val: bs.fiveKill || 0, key: '五连绝世' },
+          { val: bs.godLike || 0, key: '超神' }
+        ]
+      // 历史赛季没有 battleStats，改用 historyList 里该赛季的排位汇总
+      : [
+          { val: Number(ti.totalWinCnt) || 0, key: '胜场' },
+          { val: Math.max((Number(ti.totalCnt) || 0) - (Number(ti.totalWinCnt) || 0), 0), key: '负场' },
+          { val: Number(ti.maxContinuousWinCnt) || 0, key: '最高连胜' },
+          { val: Number(ti.goldCnt) || 0, key: '金牌' },
+          { val: Number(ti.silverCnt) || 0, key: '银牌' }
+        ]
+    const hasHonor = honor.some(h => h.val > 0)
+    const hasBattleStats = radar.some(r => r.value > 0)
 
     const img = await puppeteer.screenshot('SeasonPage', {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/SeasonPage.html',
@@ -160,6 +187,7 @@ export class SeasonPage extends plugin {
       roleIcon: hc.roleIcon,
       serverName: hc.serverName,
       jobName: hc.jobName,
+      jobLabel: isCurrent ? '当前段位' : '赛季最终段位',
       rankingStar: hc.rankingStar,
       masterScore: hc.masterScore,
       masterRank: hc.masterRank,
@@ -167,15 +195,17 @@ export class SeasonPage extends plugin {
       winRate: fallbackWinRate,
       gameCnt: fallbackGameCnt,
       branch: hc.branch,
-      seasonName: firstRes?.data?.historyList?.[0]?.seasonName || 'S44',
+      seasonName: target.seasonName || 'S44',
+      subLabel: isCurrent ? '' : '历史赛季 · 无五维与上分趋势数据',
       heros,
       totalGames,
       honor,
       hasHonor,
       branchesJson: JSON.stringify(branches),
-      radarJson: JSON.stringify(radar),
+      // 无五维数据时连 canvas 都不渲染，脚本按空数组跳过绘制
+      radarJson: JSON.stringify(hasBattleStats ? radar : []),
       trendJson: JSON.stringify(trend),
-      hasBattleStats: radar.some(r => r.value > 0),
+      hasBattleStats,
       branches,
       radar,
       trend,
@@ -184,7 +214,9 @@ export class SeasonPage extends plugin {
       lanesJson: JSON.stringify(lanes)
     })
 
-    await e.reply([img, Button.performance(campId, '排位')], true)
+    // 上一个赛季（history 是从新到旧），给按钮做历史赛季入口
+    const prevSeason = seasonNo(history[history.indexOf(target) + 1]?.seasonName) || ''
+    await e.reply([img, Button.performance(campId, '排位', prevSeason)], true)
   }
 
   /** 把单条分路的 battleDataSelf 整理成模板需要的五维结构 */
