@@ -502,9 +502,9 @@
                         <div class="player-info">
                             <div class="player-top-info">
                                 <span class="player-name">{{item.basicInfo.roleName}}</span>
-                                {{if item.battleStats.mvp}}<span class="mvp-badge">MVP</span>{{/if}}
-                                {{if item.battleStats.evalLocalIcon}}<img class="eval-icon" src="{{item.battleStats.evalLocalIcon}}" alt="{{item.battleStats.evalTag}}" onerror="this.style.display='none'">
-                                {{else if item.battleStats.evaluateIconV2 || item.battleStats.evaluateIcon}}<img class="eval-icon" src="{{item.battleStats.evaluateIconV2 || item.battleStats.evaluateIcon}}" alt="评价" onerror="this.style.display='none'">{{/if}}
+                                {{if item.battleStats.mvpIcon}}<img class="eval-icon" src="{{item.battleStats.mvpIcon}}" alt="{{item.battleStats.mvpTag}}" onerror="this.style.display='none'">
+                                {{else if item.battleStats.mvp}}<span class="mvp-badge">{{item.battleStats.mvpTag || 'MVP'}}</span>{{/if}}
+                                {{if item.battleStats.evalIcon}}<img class="eval-icon" src="{{item.battleStats.evalIcon}}" alt="{{item.battleStats.evalTag}}" onerror="this.style.display='none'">{{/if}}
                                 <span class="economy-display">{{item.battleStats.money}}</span>
                             </div>
                             <div class="player-stats">{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</div>
@@ -533,9 +533,9 @@
                         <div class="player-info">
                             <div class="player-top-info">
                                 <span class="player-name">{{item.basicInfo.roleName}}</span>
-                                {{if item.battleStats.mvp}}<span class="mvp-badge">MVP</span>{{/if}}
-                                {{if item.battleStats.evalLocalIcon}}<img class="eval-icon" src="{{item.battleStats.evalLocalIcon}}" alt="{{item.battleStats.evalTag}}" onerror="this.style.display='none'">
-                                {{else if item.battleStats.evaluateIconV2 || item.battleStats.evaluateIcon}}<img class="eval-icon" src="{{item.battleStats.evaluateIconV2 || item.battleStats.evaluateIcon}}" alt="评价" onerror="this.style.display='none'">{{/if}}
+                                {{if item.battleStats.mvpIcon}}<img class="eval-icon" src="{{item.battleStats.mvpIcon}}" alt="{{item.battleStats.mvpTag}}" onerror="this.style.display='none'">
+                                {{else if item.battleStats.mvp}}<span class="mvp-badge">{{item.battleStats.mvpTag || 'MVP'}}</span>{{/if}}
+                                {{if item.battleStats.evalIcon}}<img class="eval-icon" src="{{item.battleStats.evalIcon}}" alt="{{item.battleStats.evalTag}}" onerror="this.style.display='none'">{{/if}}
                                 <span class="economy-display">{{item.battleStats.money}}</span>
                             </div>
                             <div class="player-stats">{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</div>
@@ -574,9 +574,9 @@
                         <div class="player-info">
                             <div class="player-top-info">
                                 <span class="player-name">{{item.basicInfo.roleName}}</span>
-                                {{if item.battleStats.mvp}}<span class="mvp-badge">MVP</span>{{/if}}
-                                {{if item.battleStats.evalLocalIcon}}<img class="eval-icon" src="{{item.battleStats.evalLocalIcon}}" alt="{{item.battleStats.evalTag}}" onerror="this.style.display='none'">
-                                {{else if item.battleStats.evaluateIconV2 || item.battleStats.evaluateIcon}}<img class="eval-icon" src="{{item.battleStats.evaluateIconV2 || item.battleStats.evaluateIcon}}" alt="评价" onerror="this.style.display='none'">{{/if}}
+                                {{if item.battleStats.mvpIcon}}<img class="eval-icon" src="{{item.battleStats.mvpIcon}}" alt="{{item.battleStats.mvpTag}}" onerror="this.style.display='none'">
+                                {{else if item.battleStats.mvp}}<span class="mvp-badge">{{item.battleStats.mvpTag || 'MVP'}}</span>{{/if}}
+                                {{if item.battleStats.evalIcon}}<img class="eval-icon" src="{{item.battleStats.evalIcon}}" alt="{{item.battleStats.evalTag}}" onerror="this.style.display='none'">{{/if}}
                                 <span class="economy-display">{{item.battleStats.money}}</span>
                             </div>
                             <div class="player-stats">{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</div>
@@ -605,9 +605,9 @@
                         <div class="player-info">
                             <div class="player-top-info">
                                 <span class="player-name">{{item.basicInfo.roleName}}</span>
-                                {{if item.battleStats.mvp}}<span class="mvp-badge">MVP</span>{{/if}}
-                                {{if item.battleStats.evalLocalIcon}}<img class="eval-icon" src="{{item.battleStats.evalLocalIcon}}" alt="{{item.battleStats.evalTag}}" onerror="this.style.display='none'">
-                                {{else if item.battleStats.evaluateIconV2 || item.battleStats.evaluateIcon}}<img class="eval-icon" src="{{item.battleStats.evaluateIconV2 || item.battleStats.evaluateIcon}}" alt="评价" onerror="this.style.display='none'">{{/if}}
+                                {{if item.battleStats.mvpIcon}}<img class="eval-icon" src="{{item.battleStats.mvpIcon}}" alt="{{item.battleStats.mvpTag}}" onerror="this.style.display='none'">
+                                {{else if item.battleStats.mvp}}<span class="mvp-badge">{{item.battleStats.mvpTag || 'MVP'}}</span>{{/if}}
+                                {{if item.battleStats.evalIcon}}<img class="eval-icon" src="{{item.battleStats.evalIcon}}" alt="{{item.battleStats.evalTag}}" onerror="this.style.display='none'">{{/if}}
                                 <span class="economy-display">{{item.battleStats.money}}</span>
                             </div>
                             <div class="player-stats">{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</div>

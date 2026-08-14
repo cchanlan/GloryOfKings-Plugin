@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { PluginData, PluginPath } from '#components'
@@ -11,6 +12,54 @@ const MODE_MAP = [
   { key: '排位', option: 1 },
   { key: '巅峰', option: 4 }
 ]
+
+// 评价图标分两套，同一场高分局会同时下发：
+//   分路评价 —— custom_wzry_battledetail_tags/<md5>.png，198×48 长条，图上直接印着「档位 + 分路」
+//   角色奖牌 —— evaluateV3/<档位>_<职业>.png（V2）、evaluate-v2/<档位>_<职业>_<n>.png（V1），180×48
+// 两者档位并不同步（同一场可能是铜牌打野 + 银牌坦克），所以不能用奖牌去反推分路评价。
+// 分路评价共 20 张（顶级/金牌/银牌/铜牌 × 5 分路），文件名是无规律哈希，逐张下载核对后登记在
+// 下表并存到 resources/img/branch_<档位>_<分路>.png。列表接口的 branchEvaluate 只覆盖金银两档
+// （奇数金、偶数银，按对抗/中/发育/打野/游走 成对排），顶级和铜牌一律为 0，没法当判据。
+const BRANCH_TAG_RE = /custom_wzry_battledetail_tags/
+const BRANCH_TAGS = {
+  '5db4fef1bfc72dd2c5ae71b01ef3951b': ['top', 'warrior'],
+  '4b4f396f8e6d18bdf8bf699b8c5d9be4': ['top', 'mid'],
+  '926ba0111984464ad46e72dc93157fcd': ['top', 'marksman'],
+  '9eb904626303912a65d9b69bc8d88aa9': ['top', 'jungle'],
+  'a8b5101bc81ae64cf96c67ed1ab21975': ['top', 'roam'],
+  c30089b8daf9a4792f85c8a6d97a3e9c: ['gold', 'warrior'],
+  f63de8a7f98863ab3a34aada6bc4bd6f: ['gold', 'mid'],
+  c717aab51e99a4bfa9c6d2e024e97512: ['gold', 'marksman'],
+  '5142af35177e111837efbf85071f373b': ['gold', 'jungle'],
+  '1147db2cd2a46031783a9a0fc34f7f3c': ['gold', 'roam'],
+  '116bb42c52b7d83b9d80ac9dd9580607': ['silver', 'warrior'],
+  a2c96893471637e5cf5c0a1e2c9829f3: ['silver', 'mid'],
+  '7577421618c781e7a59b81904937a8a0': ['silver', 'marksman'],
+  '39d8211165f3730700fc6db10abd170e': ['silver', 'jungle'],
+  '977937945942799fd618773e5c378d3a': ['silver', 'roam'],
+  e8602ae4b427f06dd1349438fbeab68f: ['bronze', 'warrior'],
+  '029706c958a71f2aa5c187e2ef021430': ['bronze', 'mid'],
+  af6fd95b08fd1b58340b48374707262c: ['bronze', 'marksman'],
+  c8a09fe55b4614d0307a6161f32ae479: ['bronze', 'jungle'],
+  '3159d2f1733203167a9a3d5d3e4656ad': ['bronze', 'roam']
+}
+const BRANCH_TIER = { top: '顶级', gold: '金牌', silver: '银牌', bronze: '铜牌' }
+const BRANCH_LANE = { warrior: '对抗路', mid: '中路', marksman: '发育路', jungle: '打野', roam: '游走' }
+// 奖牌逐个探测确认过：只有 gold、silver 两档，职业 6 种，没有铜牌
+const MEDAL_RE = /\/(gold|silver)_(warrior|archer|mage|support|assassin|tank)(?:_\d+)?\.png/
+const MEDAL_TIER = { gold: '金牌', silver: '银牌' }
+const MEDAL_ROLE = { warrior: '战士', archer: '射手', mage: '法师', support: '辅助', assassin: '刺客', tank: '坦克' }
+
+// 图标全部落地到本地，避免渲染时等远程 CDN；缺图时回退接口给的远程地址
+const IMG_DIR = path.join(PluginPath, 'resources', 'img')
+let LOCAL_IMGS = new Set()
+try {
+  LOCAL_IMGS = new Set(fs.readdirSync(IMG_DIR))
+} catch (err) {
+  logger.error(`[战绩查询] 读取图标目录失败: ${err.message}`)
+}
+const localImg = (name, fallback = '') =>
+  LOCAL_IMGS.has(name) ? `file://${path.join(IMG_DIR, name)}` : fallback
 
 // 服务端一页固定 30 场。宽筛模式过滤后可能不足，用 lastTime 游标往前翻页补齐。
 const TARGET_COUNT = 30
@@ -154,16 +203,7 @@ export class QueryGameStats extends plugin {
     const totalWins = heroBattles.filter(item => Number(item.gameresult) === 1).length
     const winRate = Math.round((totalWins / totalGames) * 100)
 
-    const processedData = heroBattles.slice(0, TARGET_COUNT).map(item => ({
-      gameType: item.mapName,
-      gameTime: item.gametime,
-      gameDuration: `${~~(item.usedTime / 60)}分${item.usedTime % 60}秒`,
-      ...this.getBattleStats(item),
-      heroIcon: item.heroIcon,
-      desc: item.desc,
-      tags: this.getTags(item),
-      gradeGame: item.gradeGame
-    }))
+    const processedData = heroBattles.slice(0, TARGET_COUNT).map(this.toListItem)
 
     const listImg = await puppeteer.screenshot('QueryGameRecordList', {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordList.html',
@@ -321,16 +361,7 @@ export class QueryGameStats extends plugin {
       return
     }
 
-    const processedData = battleList.list.map(item => ({
-      gameType: item.mapName,
-      gameTime: item.gametime,
-      gameDuration: `${~~(item.usedTime / 60)}分${item.usedTime % 60}秒`,
-      ...this.getBattleStats(item),
-      heroIcon: item.heroIcon,
-      desc: item.desc,
-      tags: this.getTags(item),
-      gradeGame: item.gradeGame
-    }))
+    const processedData = battleList.list.map(this.toListItem)
 
     const listImg = await puppeteer.screenshot('QueryGameRecordList', {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordList.html',
@@ -450,43 +481,24 @@ export class QueryGameStats extends plugin {
     return detail
   }
 
-  // 评价标签 URL → 本地图标
-  evalLocalImg = {
-    // 顶级分路
-    'https://game-1255653016.file.myqcloud.com/manage/custom_wzry_battledetail_tags/4b4f396f8e6d18bdf8bf699b8c5d9be4.png': `file://${path.join(PluginPath, 'resources', 'img', 'top_mid.png')}`,
-    'https://game-1255653016.file.myqcloud.com/manage/custom_wzry_battledetail_tags/9eb904626303912a65d9b69bc8d88aa9.png': `file://${path.join(PluginPath, 'resources', 'img', 'top_jungle.png')}`,
-    'https://game-1255653016.file.myqcloud.com/manage/custom_wzry_battledetail_tags/5db4fef1bfc72dd2c5ae71b01ef3951b.png': `file://${path.join(PluginPath, 'resources', 'img', 'top_warrior.png')}`,
-    'https://game-1255653016.file.myqcloud.com/manage/custom_wzry_battledetail_tags/a8b5101bc81ae64cf96c67ed1ab21975.png': `file://${path.join(PluginPath, 'resources', 'img', 'top_roam.png')}`,
-    'https://game-1255653016.file.myqcloud.com/manage/custom_wzry_battledetail_tags/926ba0111984464ad46e72dc93157fcd.png': `file://${path.join(PluginPath, 'resources', 'img', 'top_marksman.png')}`,
-    // 金牌
-    'https://camp.qq.com/battle/common/evaluateV3/gold_warrior.png': `file://${path.join(PluginPath, 'resources', 'img', 'gold_warrior.png')}`,
-    'https://camp.qq.com/battle/common/evaluateV3/gold_archer.png': `file://${path.join(PluginPath, 'resources', 'img', 'gold_archer.png')}`,
-    'https://camp.qq.com/battle/common/evaluateV3/gold_mage.png': `file://${path.join(PluginPath, 'resources', 'img', 'gold_mage.png')}`,
-    'https://camp.qq.com/battle/common/evaluateV3/gold_support.png': `file://${path.join(PluginPath, 'resources', 'img', 'gold_support.png')}`,
-    // 银牌
-    'https://camp.qq.com/battle/common/evaluateV3/silver_warrior.png': `file://${path.join(PluginPath, 'resources', 'img', 'silver_warrior.png')}`,
-    'https://camp.qq.com/battle/common/evaluateV3/silver_archer.png': `file://${path.join(PluginPath, 'resources', 'img', 'silver_archer.png')}`,
-    'https://camp.qq.com/battle/common/evaluateV3/silver_mage.png': `file://${path.join(PluginPath, 'resources', 'img', 'silver_mage.png')}`,
-    'https://camp.qq.com/battle/common/evaluateV3/silver_support.png': `file://${path.join(PluginPath, 'resources', 'img', 'silver_support.png')}`
-  }
-
   generateDetailImage = async ({ head, battle, redTeam, blueTeam, redRoles, blueRoles }) => {
     const isBlue = head.acntCamp === blueTeam.acntCamp
     const [myTeam, enemyTeam] = isBlue ? [blueTeam, redTeam] : [redTeam, blueTeam]
     const [myRoles, enemyRoles] = isBlue ? [blueRoles, redRoles] : [redRoles, blueRoles]
 
-    // 为每个玩家补上评价标签（顶级优先，本地图片）
-    const TOP_RE = /custom_wzry_battledetail_tags/
-    for (const role of [...myRoles, ...enemyRoles]) {
-      const bs = role.battleStats || {}
-      const urls = [bs.evaluateIconV3, bs.evaluateIconV2, bs.evaluateIcon].filter(Boolean)
-      const topTag = urls.find(u => TOP_RE.test(u) && this.evaluateMap[u])
-      const medalTag = urls.find(u => !TOP_RE.test(u) && this.evaluateMap[u])
-      const bestTag = topTag || medalTag
-      bs.evalTag = bestTag ? this.evaluateMap[bestTag] : ''
-      // 用本地图标替代远程图片
-      if (bestTag && this.evalLocalImg[bestTag]) {
-        bs.evalLocalIcon = this.evalLocalImg[bestTag]
+    // 为每个玩家补上评价图标。详情接口的 mvp 只是布尔值，没给图，按胜负自己挑 MVP / SVP
+    const myWin = !!head.gameResult
+    for (const [roles, win] of [[myRoles, myWin], [enemyRoles, !myWin]]) {
+      for (const role of roles) {
+        const bs = role.battleStats
+        if (!bs) continue
+        const { label, icon } = this.resolveEvaluate([bs.evaluateIconV3, bs.evaluateIconV2, bs.evaluateIcon])
+        bs.evalTag = label
+        bs.evalIcon = icon
+        if (bs.mvp) {
+          bs.mvpTag = win ? 'MVP' : 'SVP'
+          bs.mvpIcon = localImg(win ? 'mvp.png' : 'svp.png')
+        }
       }
     }
 
@@ -507,46 +519,70 @@ export class QueryGameStats extends plugin {
     gameResult: { 1: '胜利', 2: '失败' }[gameresult] || gameresult
   })
 
-  getTags = ({ desc, evaluateUrlV2, mvpUrlV2, evaluateUrlV3 }) => {
-    const tags = []
-    if (mvpUrlV2) tags.push('MVP')
+  // 单场战绩 → 列表模板需要的字段
+  toListItem = item => ({
+    gameType: item.mapName,
+    gameTime: item.gametime,
+    gameDuration: `${~~(item.usedTime / 60)}分${item.usedTime % 60}秒`,
+    ...this.getBattleStats(item),
+    heroIcon: item.heroIcon,
+    desc: item.desc,
+    tags: this.getTags(item),
+    mvp: this.resolveMvp(item),
+    evaluate: this.resolveEvaluate([item.evaluateUrlV3, item.evaluateUrlV2, item.evaluateUrl]),
+    gradeGame: item.gradeGame
+  })
 
-    // 顶级标签优先于奖牌：不管来自 V2 还是 V3，只要 URL 包含顶级标签就取它
-    const TOP_RE = /custom_wzry_battledetail_tags/
-    const v3Tag = evaluateUrlV3 && this.evaluateMap[evaluateUrlV3]
-    const v2Tag = evaluateUrlV2 && this.evaluateMap[evaluateUrlV2]
-    const v3IsTop = TOP_RE.test(evaluateUrlV3)
-    const v2IsTop = TOP_RE.test(evaluateUrlV2)
+  getTags = ({ desc }) => (desc ? [desc] : [])
 
-    if (v3IsTop) {
-      tags.push(v3Tag)
-    } else if (v2IsTop) {
-      tags.push(v2Tag)
-    } else {
-      tags.push(v3Tag || v2Tag)
+  /**
+   * 全场最佳。mvp.png 是胜方，svp.png 是败方，图上都印着 MVP，只是配色不同。
+   * @returns {{ label: string, icon: string }}
+   */
+  resolveMvp({ mvpUrlV3, mvpUrlV2 }) {
+    const url = mvpUrlV3 || mvpUrlV2
+    if (!url) return { label: '', icon: '' }
+    const isSvp = /svp/i.test(url)
+    return {
+      label: isSvp ? 'SVP' : 'MVP',
+      icon: localImg(isSvp ? 'svp.png' : 'mvp.png', url)
     }
-
-    if (desc && !tags.includes(desc)) tags.push(desc)
-    return tags.filter(t => t)
   }
 
-  evaluateMap = {
-    // 原有的金牌/银牌标签
-    'https://camp.qq.com/battle/common/evaluateV3/gold_warrior.png': '金牌战士',
-    'https://camp.qq.com/battle/common/evaluateV3/gold_archer.png': '金牌射手',
-    'https://camp.qq.com/battle/common/evaluateV3/silver_archer.png': '银牌射手',
-    'https://camp.qq.com/battle/common/evaluateV3/gold_mage.png': '金牌法师',
-    'https://camp.qq.com/battle/common/evaluateV3/gold_support.png': '金牌辅助',
-    'https://camp.qq.com/battle/common/evaluateV3/silver_warrior.png': '银牌战士',
-    'https://camp.qq.com/battle/common/evaluateV3/silver_archer.png': '银牌射手',
-    'https://camp.qq.com/battle/common/evaluateV3/silver_mage.png': '银牌法师',
-    'https://camp.qq.com/battle/common/evaluateV3/silver_support.png': '银牌辅助',
-    // 顶级标签 evaluateUrlV3
-    'https://game-1255653016.file.myqcloud.com/manage/custom_wzry_battledetail_tags/4b4f396f8e6d18bdf8bf699b8c5d9be4.png': '顶级中路',
-    'https://game-1255653016.file.myqcloud.com/manage/custom_wzry_battledetail_tags/9eb904626303912a65d9b69bc8d88aa9.png': '顶级打野',
-    'https://game-1255653016.file.myqcloud.com/manage/custom_wzry_battledetail_tags/5db4fef1bfc72dd2c5ae71b01ef3951b.png': '顶级对抗路',
-    'https://game-1255653016.file.myqcloud.com/manage/custom_wzry_battledetail_tags/a8b5101bc81ae64cf96c67ed1ab21975.png': '顶级游走',
-    'https://game-1255653016.file.myqcloud.com/manage/custom_wzry_battledetail_tags/926ba0111984464ad46e72dc93157fcd.png': '顶级发育路'
+  /**
+   * 解析评价图标。分路评价比角色奖牌具体（带档位和分路），优先用。
+   * 之前只认 5 个顶级哈希，金/银/铜分路的哈希对不上就整个标签丢空，
+   * 表现出来就是「顶级以下的评分不显示」。
+   * @param {Array<string|undefined>} urls 候选图标 URL，按 V3 → V2 → V1 顺序传入
+   * @returns {{ label: string, icon: string }}
+   */
+  resolveEvaluate(urls) {
+    const list = (urls || []).filter(Boolean)
+
+    const branchUrl = list.find(u => BRANCH_TAG_RE.test(u))
+    if (branchUrl) {
+      const [tier, lane] = BRANCH_TAGS[branchUrl.match(/([0-9a-f]{32})\.png/)?.[1]] || []
+      if (tier) {
+        return {
+          label: `${BRANCH_TIER[tier]}${BRANCH_LANE[lane]}`,
+          icon: localImg(`branch_${tier}_${lane}.png`, branchUrl)
+        }
+      }
+      // 新出的图没登记过：图上本来就印着文案，直接挂远程地址，别把标签丢空
+      logger.debug(`[战绩查询] 未登记的分路评价图标: ${branchUrl}`)
+      return { label: '分路评价', icon: branchUrl }
+    }
+
+    const medal = list.map(u => MEDAL_RE.exec(u)).find(Boolean)
+    if (medal) {
+      const [, tier, role] = medal
+      return {
+        label: `${MEDAL_TIER[tier]}${MEDAL_ROLE[role]}`,
+        icon: localImg(`${tier}_${role}.png`, medal.input)
+      }
+    }
+
+    return { label: '', icon: '' }
   }
 
   getTeamData = (myTeam, enemyTeam, myRoles, enemyRoles, head, battle) => ({

@@ -203,8 +203,17 @@
 
         .tags {
             display: flex;
+            align-items: center;
             gap: 6px;
             flex-wrap: wrap;
+        }
+
+        /* 全场最佳 / 分路评价 / 角色奖牌，原图 180~198×48 的长条 */
+        .eval-badge {
+            height: 28px;
+            width: auto;
+            object-fit: contain;
+            flex-shrink: 0;
         }
 
         .tag {
@@ -220,6 +229,31 @@
             background: rgba(245, 215, 110, 0.14);
             color: #f5d76e;
             border-color: rgba(245, 215, 110, 0.4);
+        }
+
+        .tag[data-tag="SVP"] {
+            background: rgba(154, 167, 189, 0.14);
+            color: #c3cddd;
+            border-color: rgba(154, 167, 189, 0.4);
+        }
+
+        /* 分路/奖牌评价按档位配色：顶级紫 / 金牌金 / 银牌银 */
+        .tag[data-tag^="顶级"] {
+            background: rgba(191, 111, 255, 0.14);
+            color: #d79bff;
+            border-color: rgba(191, 111, 255, 0.4);
+        }
+
+        .tag[data-tag^="金牌"] {
+            background: rgba(240, 147, 43, 0.14);
+            color: #f0b04b;
+            border-color: rgba(240, 147, 43, 0.4);
+        }
+
+        .tag[data-tag^="银牌"] {
+            background: rgba(176, 190, 210, 0.12);
+            color: #b8c4d6;
+            border-color: rgba(176, 190, 210, 0.35);
         }
 
         .tag[data-tag="五杀"] {
@@ -350,6 +384,16 @@
                     {{item.killCnt}} / {{item.deadCnt}} / {{item.assistCnt}}<span class="kda-label">KDA</span>
                 </div>
                 <div class="tags">
+                    {{if item.mvp.icon}}
+                    <img class="eval-badge" src="{{item.mvp.icon}}" alt="{{item.mvp.label}}" onerror="this.style.display='none'">
+                    {{else if item.mvp.label}}
+                    <span class="tag" data-tag="{{item.mvp.label}}">{{item.mvp.label}}</span>
+                    {{/if}}
+                    {{if item.evaluate.icon}}
+                    <img class="eval-badge" src="{{item.evaluate.icon}}" alt="{{item.evaluate.label}}" onerror="this.style.display='none'">
+                    {{else if item.evaluate.label}}
+                    <span class="tag" data-tag="{{item.evaluate.label}}">{{item.evaluate.label}}</span>
+                    {{/if}}
                     {{each item.tags tag}}
                     {{if !['实力局', '翻盘局', '暴走局', '尽力局', '带飞局', '翻车局', '伯仲局'].includes(tag)}}
                     <span class="tag" data-tag="{{tag}}">{{tag}}</span>
