@@ -14,6 +14,7 @@ import monitor from './monitor.js'
 import cache from './cache.js'
 import authStore from './authStore.js'
 import { getUserAvatar, qlogoUrl, isQQNumber } from './avatar.js'
+import { getPvpSkinCover } from './pvpSkinImage.js'
 import {
   createWechatLoginSession,
   waitForWechatLogin,
@@ -38,6 +39,7 @@ export {
   getUserAvatar,
   qlogoUrl,
   isQQNumber,
+  getPvpSkinCover,
   createWechatLoginSession,
   waitForWechatLogin,
   decodeEncodeResUserKey,

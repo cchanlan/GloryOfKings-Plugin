@@ -1150,6 +1150,22 @@ class ApiService {
     }
   }
 
+  // 官网资料库的皮肤总表（约 780KB，816 条），按皮肤ID索引，含每张皮肤的官方立绘图。
+  // 营地接口对刚上线的新皮肤常只给占位图，这里是唯一图片覆盖率 100% 的公开图源。
+  // 体积不小，调用方需自行缓存，勿逐张皮肤调用。
+  async getPvpSkinList() {
+    try {
+      const response = await fetch('https://pvp.qq.com/zlkdatasys/heroskinlist.json')
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      return await response.json()
+    } catch (error) {
+      logger.error('[获取官网皮肤总表] 接口请求失败', error)
+      throw new Error(`获取官网皮肤总表失败。错误: ${error}`)
+    }
+  }
+
   async getHeroXpflby() {
     try {
       const response = await fetch('https://pvp.qq.com/zlkdatasys/data_zlk_xpflby.json')

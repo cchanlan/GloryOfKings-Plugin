@@ -1,12 +1,11 @@
 // 皮肤墙功能：营地皮肤列表接口调用逻辑参考自 https://github.com/KimigaiiWuyi/WzryUID
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import common from '../../../lib/common/common.js'
-import { ApiService, readYamlFile, getLocalImage, getUserAvatar, Button } from '#utils'
+import { ApiService, readYamlFile, getLocalImage, getUserAvatar, getPvpSkinCover, Button } from '#utils'
 import path from 'path'
 import { PluginData } from '#components'
 
 const SZ_ORDER = ['SR', 'S++', 'S+', 'S', 'A', 'B', 'C', 'D']
-const SKIN_IMG_BASE = 'https://game-1255653016.file.myqcloud.com/battle_skin_702-1236'
 const PAGE_SIZE = 50
 // 皮肤墙截图 JPEG 质量：满页 50 张大图在 q90 下可达 8MB+，部分适配器发送失败。
 // 保持每页 50 张，仅靠降质压体积——q75 视觉几乎无损但体积约为 q90 的 1/3，满页可压到 ~3MB。
@@ -89,6 +88,16 @@ function assignBandLayout(pageSkins, cols) {
     if (remaining >= bandSize) {
       // 满段：随机选大图所在列 [0, cols-2]，占 baseRow/baseRow+1 两行的相邻两列
       const bc = Math.floor(Math.random() * (cols - 1))
+      // 大图位会把图放大到约 2.6 倍，只剩 180x280 卡面图(lowRes)的皮肤摆上去会发虚。
+      // 段内换一张有大图的顶上，段外顺序不动——只在两行内挪位，价值高低的整体排布不受影响。
+      if (pageSkins[idx].lowRes) {
+        for (let k = idx + 1; k < idx + bandSize; k++) {
+          if (!pageSkins[k].lowRes) {
+            [pageSkins[idx], pageSkins[k]] = [pageSkins[k], pageSkins[idx]]
+            break
+          }
+        }
+      }
       const big = pageSkins[idx]
       big.big = true
       big.row = baseRow + 1
@@ -246,9 +255,14 @@ export class SkinWall extends plugin {
         skinId: conf.iSkinId,
         skinName: conf.szTitle,
         heroName: conf.szHeroTitle,
-          imgUrl: `${SKIN_IMG_BASE}/${conf.iSkinId}.jpg`,
-        // 702-1236 图集不含全部皮肤，缺失时回退到官方大图
-        fallbackUrl: conf.szLargeIcon || conf.szSmallIcon || '',
+        // 皮肤图三级回退，逐个尝试直到拿到真图（下载时才逐级取，见后面的 skinTasks）：
+        //   1) 营地 szLargeIcon 竖版大图(720x1280)——卡片最大也只有 434x732，画质足够富余
+        //   2) 官网立绘裁成的竖版图(720x1280)——营地对刚上线的新皮肤常只给占位图，
+        //      官网这张表的封面图 816 条全齐，是唯一能补齐新皮肤的图源
+        //   3) 营地 bigCover 卡面图(180x280)——营地 App“我的皮肤”用的就是它，清晰度垫底
+        // getLocalImage 会识别并跳过占位图，所以能落到第一张真图上，不会渲染成灰块。
+        imgUrl: conf.szLargeIcon || '',
+        coverUrl: conf.bigCover || conf.szSmallIcon || '',
         // 皮肤品质角标图（史诗/限定/荣耀典藏等），可能为空
         labelUrl: conf.classLabel || '',
         // 文字品质兜底：角标图缺失或加载失败时，用品质名渲染一个文字标
@@ -291,14 +305,29 @@ export class SkinWall extends plugin {
     const avatarUrl = await getUserAvatar(e, userId)
     const avatarDataUrl = await toDataUrl(avatarUrl)
 
-    // 预下载皮肤图（主图失败则用 fallback）
+    // 预下载皮肤图：按回退链逐级尝试，拿到真图即止
     const skinTasks = result.map((skin, idx) => async () => {
-      const mainImg = await getLocalImage(skin.imgUrl)
-      if (Buffer.isBuffer(mainImg)) {
-        result[idx].imgUrl = `data:image/jpeg;base64,${mainImg.toString('base64')}`
-      } else if (skin.fallbackUrl) {
-        const fbImg = await getLocalImage(skin.fallbackUrl)
-        if (Buffer.isBuffer(fbImg)) result[idx].imgUrl = `data:image/jpeg;base64,${fbImg.toString('base64')}`
+      // skin 与 result[idx] 是同一对象，先把营地的候选地址取出来再清空，否则会把待试的源一起清掉
+      const campSources = [skin.imgUrl, skin.coverUrl]
+      // 一张都拿不到时 imgUrl 保持为空，让模板走无图分支只显示底色和名字——
+      // 浏览器端算不了 md5、识别不了占位图，交给它重试只会把灰块渲染出来
+      result[idx].imgUrl = ''
+      // 官网图排在两个营地源中间：它比 bigCover 清晰得多，但要多拉一次官网总表(780KB)，
+      // 故写成惰性求值——只有营地大图确实取不到时才会真去拉，全部命中首选时零额外开销。
+      const sources = [
+        () => campSources[0],
+        () => getPvpSkinCover(skin.skinId),
+        () => campSources[1]
+      ]
+      for (let si = 0; si < sources.length; si++) {
+        const url = await sources[si]()
+        if (!url) continue
+        const img = await getLocalImage(url)
+        if (!Buffer.isBuffer(img)) continue
+        result[idx].imgUrl = `data:image/jpeg;base64,${img.toString('base64')}`
+        // 只剩 180x280 的卡面图可用，标记低清：大图位要放大到 2.6 倍，会明显发虚
+        result[idx].lowRes = si === sources.length - 1
+        break
       }
       if (skin.labelUrl) {
         const labelImg = await getLocalImage(skin.labelUrl)
