@@ -31,7 +31,7 @@
             bottom: 0;
             background-image:
                 linear-gradient(160deg, rgba(15, 20, 32, 0.88) 0%, rgba(20, 25, 45, 0.93) 100%),
-                url("../img/background.jpg");
+                url("{{_res_path}}img/background.jpg");
             background-size: cover;
             background-position: center top;
             filter: blur(6px);
@@ -81,16 +81,31 @@
 
         .th {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
+            /* 和 hero-item 的 1px 边框对齐，保证表头列和数值列同心 */
+            border: 1px solid transparent;
             padding: 0 18px 10px;
             font-size: 18px;
             color: #8794aa;
         }
 
-        .th .col-hero { flex: 1; }
-        .th .col-num, .th .col-rate, .th .col-power {
-            width: 120px;
+        .th .col-hero {
+            flex: 1 1 0;
+            min-width: 0;
+        }
+
+        .th .col-mode, .th .col-power {
+            width: 180px;
             text-align: center;
+        }
+
+        .th .col-power { width: 140px; }
+
+        .th .sub {
+            display: block;
+            margin-top: 4px;
+            font-size: 14px;
+            color: #6f7c92;
         }
 
         .hero-item {
@@ -104,7 +119,9 @@
         }
 
         .hero-item .col-hero {
-            flex: 1;
+            /* flex-basis 归零 + min-width 0：英雄名再长也只会被裁掉，不会把右侧数值列顶偏 */
+            flex: 1 1 0;
+            min-width: 0;
             display: flex;
             align-items: center;
             gap: 16px;
@@ -116,19 +133,32 @@
             border-radius: 10px;
             object-fit: cover;
             background: rgba(0, 0, 0, 0.3);
+            flex-shrink: 0;
         }
 
         .hero-item .name-box {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            justify-content: center;
+            gap: 6px;
+            min-width: 0;
+            overflow: hidden;
         }
 
         .hero-item .name-row {
             display: flex;
-            align-items: center;
-            gap: 10px;
+            align-items: baseline;
+            gap: 8px;
             flex-wrap: nowrap;
+            white-space: nowrap;
+        }
+
+        /* 称号单独占一行，行高固定，没有称号的英雄也和别人对齐 */
+        .hero-item .honor-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            height: 30px;
             white-space: nowrap;
         }
 
@@ -144,13 +174,13 @@
         }
 
         .hero-item .honor {
-            width: 34px;
-            height: 34px;
+            width: 28px;
+            height: 28px;
             object-fit: contain;
         }
 
         .hero-item .honor-text {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: bold;
             color: #f5d76e;
             background: rgba(245, 215, 110, 0.14);
@@ -159,17 +189,38 @@
             padding: 2px 8px;
         }
 
-        .hero-item .col-num,
-        .hero-item .col-rate,
+        .hero-item .col-mode,
         .hero-item .col-power {
-            width: 120px;
+            width: 180px;
             text-align: center;
+            /* 等宽数字，保证各行数值居中后仍成列 */
+            font-variant-numeric: tabular-nums;
+        }
+
+        .hero-item .col-power { width: 140px; }
+
+        .hero-item .col-mode .cnt {
+            font-size: 26px;
+            font-weight: bold;
+            color: #c8d0dd;
+        }
+
+        .hero-item .col-mode .rate {
+            margin-top: 2px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #57c98a;
+        }
+
+        .hero-item .col-mode .none {
+            font-size: 24px;
+            color: #5b6679;
+        }
+
+        .hero-item .col-power {
             font-size: 26px;
             font-weight: bold;
         }
-
-        .hero-item .col-num { color: #c8d0dd; }
-        .hero-item .col-rate { color: #57c98a; }
 
         .footer {
             margin-top: 26px;
@@ -187,13 +238,13 @@
             {{if roleIcon}}<img src="{{roleIcon}}" onerror="this.style.display='none'">{{/if}}
             <span class="nick">{{roleName}}</span>
         </div>
-        <div class="yd-id">营地ID: {{ydId}}{{if roleArea}} · {{roleArea}}{{/if}} · 共 {{heroCount}} 个</div>
+        <div class="yd-id">营地ID: {{ydId}}{{if roleArea}} · {{roleArea}}{{/if}}{{if scopeName}} · {{scopeName}}{{/if}} · 共 {{heroCount}} 个</div>
     </div>
 
     <div class="th">
         <div class="col-hero">英雄</div>
-        <div class="col-num">场次</div>
-        <div class="col-rate">胜率</div>
+        <div class="col-mode">{{if showModes}}排位赛{{else}}生涯累计{{/if}}<span class="sub">场次 · 胜率</span></div>
+        {{if showModes}}<div class="col-mode">巅峰赛<span class="sub">场次 · 胜率</span></div>{{/if}}
         <div class="col-power">战力</div>
     </div>
 
@@ -204,19 +255,37 @@
             <div class="name-box">
                 <div class="name-row">
                     <span class="hero-name">{{hero.name}}</span>
+                    {{if hero.subName}}<span class="hero-sub">（{{hero.subName}}）</span>{{/if}}
+                </div>
+                <div class="honor-row">
                     {{if hero.honorIcon}}<img class="honor" src="{{hero.honorIcon}}" onerror="this.style.display='none'">{{/if}}
                     {{if hero.honorText}}<span class="honor-text">{{hero.honorText}}</span>{{/if}}
                 </div>
-                {{if hero.subName}}<span class="hero-sub">（{{hero.subName}}）</span>{{/if}}
             </div>
         </div>
-        <div class="col-num">{{hero.playNum}}</div>
-        <div class="col-rate">{{hero.winRate}}</div>
+        <div class="col-mode">
+            {{if hero.rankCnt}}
+            <div class="cnt">{{hero.rankCnt}}</div>
+            <div class="rate">{{hero.rankRate}}</div>
+            {{else}}
+            <div class="none">—</div>
+            {{/if}}
+        </div>
+        {{if showModes}}
+        <div class="col-mode">
+            {{if hero.peakCnt}}
+            <div class="cnt">{{hero.peakCnt}}</div>
+            <div class="rate">{{hero.peakRate}}</div>
+            {{else}}
+            <div class="none">—</div>
+            {{/if}}
+        </div>
+        {{/if}}
         <div class="col-power" style="color: {{hero.fightColor}};">{{hero.fightPower}}</div>
     </div>
     {{/each}}
 
-    <div class="footer">GloryOfKings-Plugin · 常用英雄</div>
+    <div class="footer">GloryOfKings-Plugin · 常用英雄{{if showModes}} · 排位/巅峰常用英雄按战力取前 {{heroCount}}{{/if}}</div>
 </body>
 
 </html>
