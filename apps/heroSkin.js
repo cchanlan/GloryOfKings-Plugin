@@ -2,6 +2,18 @@ import api from '../utils/api.js'
 import { getLocalImage, Button } from '#utils'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 
+// 元流之子的 5 个分身统一用缩写：元法/元射/元辅/元坦/元刺
+const YUAN_ABBR = { 法: '法师', 射: '射手', 辅: '辅助', 坦: '坦克', 刺: '刺客' }
+
+// 英雄列表里存的是半角括号全名，输入侧把缩写展开
+const expandYuan = name => {
+    const abbr = name.match(/^元(.)$/)
+    return abbr && YUAN_ABBR[abbr[1]] ? `元流之子(${YUAN_ABBR[abbr[1]]})` : name
+}
+
+// 展示侧反向简化：元流之子(法师) → 元法
+const simplifyYuan = text => String(text ?? '').replace(/元流之子\s*[（(]\s*(.)[^）)]*[）)]/g, '元$1')
+
 export class HeroSkin extends plugin {
     constructor() {
         super({
@@ -30,7 +42,7 @@ export class HeroSkin extends plugin {
             return;
         }
 
-        const hero = heroList.find(h => h.cname === heroName);
+        const hero = heroList.find(h => h.cname === expandYuan(heroName));
         if (!hero) {
             await e.reply('未找到该英雄的皮肤信息');
             return;
@@ -66,8 +78,10 @@ export class HeroSkin extends plugin {
             return;
         }
 
+        const displayName = simplifyYuan(hero.cname);
+
         const templateParams = {
-            heroName: hero.cname,
+            heroName: displayName,
             skinData: skinData.map((skin, index) => ({
                 name: skin.name,
                 url: skin.url,
@@ -80,6 +94,6 @@ export class HeroSkin extends plugin {
             ...templateParams
         });
 
-        await e.reply([img, Button.hero(hero.cname)], true);
+        await e.reply([img, Button.hero(displayName)], true);
     }
 }
