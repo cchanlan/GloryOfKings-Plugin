@@ -96,14 +96,17 @@ export default class Button {
   /**
    * 战绩列表
    * 带营地ID时走 `#查询<ID><模式>战绩<序号>` 这一路（reg 里 \d+ 捕获组，>9999 视为直接传ID）；
-   * 不带ID时走 `#查询战绩<模式><序号>`。两种写法模式关键词的位置不同，别写反。
+   * 不带ID时模式独立成指令 `#排位战绩<序号>`，无模式则是 `#查询战绩<序号>`。
    * @param {string|number} id 营地ID，可为空
    * @param {number} count 本次返回的场次数，用于生成「第N场」按钮
    * @param {string} mode 当前模式（排位/巅峰），空表示全部
    */
   static gameStats(id = '', count = 0, mode = '') {
     const s = id ? String(id) : ''
-    const cmd = (m = '', n = '') => (s ? `#查询${s}${m}战绩${n}` : `#查询战绩${m}${n}`)
+    const cmd = (m = '', n = '') => {
+      if (s) return `#查询${s}${m}战绩${n}`
+      return m ? `#${m}战绩${n}` : `#查询战绩${n}`
+    }
     const rows = []
 
     // 单场详情：必须带上当前模式，否则序号会对应到未筛选的列表
@@ -135,7 +138,7 @@ export default class Button {
    */
   static gameStatsDetail(id = '', mode = '') {
     const s = id ? String(id) : ''
-    const back = s ? `#查询${s}${mode}战绩` : `#查询战绩${mode}`
+    const back = s ? `#查询${s}${mode}战绩` : (mode ? `#${mode}战绩` : '#查询战绩')
     return segment.button([
       { text: '返回战绩列表', callback: back },
       { text: '王者主页', callback: `#王者主页${s}` }

@@ -13,6 +13,8 @@ const MODE_MAP = [
   { key: '巅峰', option: 4 }
 ]
 
+const findMode = key => MODE_MAP.find(m => m.key === key) || null
+
 // 评价图标分两套，同一场高分局会同时下发：
 //   分路评价 —— custom_wzry_battledetail_tags/<md5>.png，198×48 长条，图上直接印着「档位 + 分路」
 //   角色奖牌 —— evaluateV3/<档位>_<职业>.png（V2）、evaluate-v2/<档位>_<职业>_<n>.png（V1），180×48
@@ -75,6 +77,10 @@ export class QueryGameStats extends plugin {
       priority: 1,
       rule: [
         {
+          reg: '^#?(排位|巅峰)战绩\\s*(.*)$',
+          fnc: 'queryModeStats'
+        },
+        {
           reg: '^#?(查询|王者)(\\d+)(排位|巅峰)?战绩\\s*(.*)$',
           fnc: 'queryGameStatsBySlot'
         },
@@ -98,15 +104,22 @@ export class QueryGameStats extends plugin {
     return this.handleQuery(e, e.msg.replace(/^#?(查询|王者)战绩\s*/, ''), 0)
   }
 
+  // #排位战绩 / #巅峰战绩 —— 后面可接场次序号或营地ID，如 #排位战绩3
+  async queryModeStats(e) {
+    const [, key, rest = ''] = e.msg.match(/^#?(排位|巅峰)战绩\s*(.*)$/) || []
+    return this.handleQuery(e, rest, 0, 0, findMode(key))
+  }
+
   // #查询2战绩 —— 2 为绑定列表中的营地ID序号；数字大于 9999 时视为直接传营地ID
   // 后面仍可接模式与场次序号，如 #查询2排位战绩3
   async queryGameStatsBySlot(e) {
-    const [, , num, mode = '', rest = ''] = e.msg.match(/^#?(查询|王者)(\d+)(排位|巅峰)?战绩\s*(.*)$/) || []
+    const [, , num, key = '', rest = ''] = e.msg.match(/^#?(查询|王者)(\d+)(排位|巅峰)?战绩\s*(.*)$/) || []
     const value = Number(num)
+    const mode = findMode(key)
     if (value > 9999) {
-      return this.handleQuery(e, `${mode}${rest}`, 0, value)
+      return this.handleQuery(e, rest, 0, value, mode)
     }
-    return this.handleQuery(e, `${mode}${rest}`, value)
+    return this.handleQuery(e, rest, value, 0, mode)
   }
 
   async queryHeroStats(e) {
@@ -255,25 +268,17 @@ export class QueryGameStats extends plugin {
     return { heroId: String(hero.ename), matchedName: simplify(hero.cname) }
   }
 
-  async handleQuery(e, rawInput, idSlot = 0, directId = 0) {
+  /**
+   * @param {object} [mode] 模式筛选（排位/巅峰），由指令前缀显式解析，null 表示全部
+   */
+  async handleQuery(e, rawInput, idSlot = 0, directId = 0, mode = null) {
     const userId = (e.at && !e.atme) ? e.at : e.user_id
     logger.debug(`用户 ${userId} 请求查询战绩...`)
 
     const { qqAvatar, nickname } = await this.getTargetInfo(e, userId)
 
     const userData = readYamlFile(path.join(PluginData, 'UserData.yaml')) || {}
-    let input = rawInput || ''
-
-    // 先解析并剥离模式关键词（排位/巅峰），剩下的再按 ID/序号处理
-    let mode = null
-    for (const m of MODE_MAP) {
-      if (input.includes(m.key)) {
-        mode = m
-        input = input.replace(m.key, '')
-        break
-      }
-    }
-    input = input.trim()
+    const input = (rawInput || '').trim()
     const index = Number(input) || false
 
     let ID
