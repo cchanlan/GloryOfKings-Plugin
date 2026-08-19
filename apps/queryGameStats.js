@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { PluginData, PluginPath } from '#components'
-import { ApiService, readYamlFile, getUserAvatar, isQQNumber, Button } from '#utils'
+import { ApiService, readYamlFile, getUserAvatar, isQQNumber, Button, AT_HEAD, stripAtText, resolveTargetUserId } from '#utils'
 
 // 战绩模式筛选走服务端 option 参数（取值见 morebattlelist 响应里的 options 字段）。
 // 各模式的 gametype/battleType 实测值：
@@ -77,23 +77,23 @@ export class QueryGameStats extends plugin {
       priority: 1,
       rule: [
         {
-          reg: '^#?(排位|巅峰)战绩\\s*(.*)$',
+          reg: `${AT_HEAD}#?(排位|巅峰)战绩\\s*(.*)$`,
           fnc: 'queryModeStats'
         },
         {
-          reg: '^#?(查询|王者)(\\d+)(排位|巅峰)?战绩\\s*(.*)$',
+          reg: `${AT_HEAD}#?(查询|王者)(\\d+)(排位|巅峰)?战绩\\s*(.*)$`,
           fnc: 'queryGameStatsBySlot'
         },
         {
-          reg: '^#?查战绩\\s*(.+)$',
+          reg: `${AT_HEAD}#?查战绩\\s*(.+)$`,
           fnc: 'queryHeroStats'
         },
         {
-          reg: '^#?查(?!询|王)\\s*(.*?)\\s*战\\s*绩\\s*$',
+          reg: `${AT_HEAD}#?查(?!询|王)\\s*(.*?)\\s*战\\s*绩\\s*$`,
           fnc: 'queryHeroStats'
         },
         {
-          reg: '^#?(查询|王者)战绩\\s*(.*)$',
+          reg: `${AT_HEAD}#?(查询|王者)战绩\\s*(.*)$`,
           fnc: 'queryGameStats'
         }
       ]
@@ -101,19 +101,19 @@ export class QueryGameStats extends plugin {
   }
 
   async queryGameStats(e) {
-    return this.handleQuery(e, e.msg.replace(/^#?(查询|王者)战绩\s*/, ''), 0)
+    return this.handleQuery(e, stripAtText(e.msg).replace(/^#?(查询|王者)战绩\s*/, ''), 0)
   }
 
   // #排位战绩 / #巅峰战绩 —— 后面可接场次序号或营地ID，如 #排位战绩3
   async queryModeStats(e) {
-    const [, key, rest = ''] = e.msg.match(/^#?(排位|巅峰)战绩\s*(.*)$/) || []
+    const [, key, rest = ''] = stripAtText(e.msg).match(/^#?(排位|巅峰)战绩\s*(.*)$/) || []
     return this.handleQuery(e, rest, 0, 0, findMode(key))
   }
 
   // #查询2战绩 —— 2 为绑定列表中的营地ID序号；数字大于 9999 时视为直接传营地ID
   // 后面仍可接模式与场次序号，如 #查询2排位战绩3
   async queryGameStatsBySlot(e) {
-    const [, , num, key = '', rest = ''] = e.msg.match(/^#?(查询|王者)(\d+)(排位|巅峰)?战绩\s*(.*)$/) || []
+    const [, , num, key = '', rest = ''] = stripAtText(e.msg).match(/^#?(查询|王者)(\d+)(排位|巅峰)?战绩\s*(.*)$/) || []
     const value = Number(num)
     const mode = findMode(key)
     if (value > 9999) {
@@ -123,9 +123,10 @@ export class QueryGameStats extends plugin {
   }
 
   async queryHeroStats(e) {
+    const msg = stripAtText(e.msg)
     const heroName = (
-      e.msg.match(/^#?查战绩\s*(.+)$/)?.[1] ||
-      e.msg.match(/^#?查\s*(.*?)\s*战\s*绩\s*$/)?.[1] ||
+      msg.match(/^#?查战绩\s*(.+)$/)?.[1] ||
+      msg.match(/^#?查\s*(.*?)\s*战\s*绩\s*$/)?.[1] ||
       ''
     ).trim()
     if (!heroName) {
@@ -144,7 +145,8 @@ export class QueryGameStats extends plugin {
       return
     }
 
-    const userId = (e.at && !e.atme) ? e.at : e.user_id
+    const { userId, hint } = await resolveTargetUserId(e)
+    if (hint) return e.reply(hint)
     const { qqAvatar, nickname } = await this.getTargetInfo(e, userId)
 
     const userData = readYamlFile(path.join(PluginData, 'UserData.yaml')) || {}
@@ -272,7 +274,8 @@ export class QueryGameStats extends plugin {
    * @param {object} [mode] 模式筛选（排位/巅峰），由指令前缀显式解析，null 表示全部
    */
   async handleQuery(e, rawInput, idSlot = 0, directId = 0, mode = null) {
-    const userId = (e.at && !e.atme) ? e.at : e.user_id
+    const { userId, hint } = await resolveTargetUserId(e)
+    if (hint) return e.reply(hint)
     logger.debug(`用户 ${userId} 请求查询战绩...`)
 
     const { qqAvatar, nickname } = await this.getTargetInfo(e, userId)
@@ -437,7 +440,7 @@ export class QueryGameStats extends plugin {
     const qqAvatar = await getUserAvatar(e, userId)
     let nickname = ''
     try {
-      if (e.at && !e.atme) {
+      if (String(userId) !== String(e.user_id)) {
         const member = e.group?.pickMember ? e.group.pickMember(userId) : null
         const info = member?.info || (await member?.getInfo?.())
         nickname = info?.card || info?.nickname || member?.card || member?.nickname || ''

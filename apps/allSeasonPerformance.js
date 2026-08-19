@@ -1,6 +1,6 @@
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { ApiService, readYamlFile, Button, parsePerfArgs } from '#utils'
+import { ApiService, readYamlFile, Button, parsePerfArgs, AT_HEAD, stripAtText, resolveTargetUserId } from '#utils'
 import { PluginData, PluginPath } from '#components'
 
 // 默认一屏放几个赛季总结。营地那边是全部赛季无限滚动，这里默认按 3 个赛季控制图片长度，
@@ -27,8 +27,8 @@ export class AllSeasonPerformance extends plugin {
       event: 'message',
       priority: 1,
       rule: [
-        { reg: '^#全部排位表现\\s*(.*)$', fnc: 'allRank' },
-        { reg: '^#全部巅峰表现\\s*(.*)$', fnc: 'allPeak' }
+        { reg: `${AT_HEAD}#全部排位表现\\s*(.*)$`, fnc: 'allRank' },
+        { reg: `${AT_HEAD}#全部巅峰表现\\s*(.*)$`, fnc: 'allPeak' }
       ]
     })
   }
@@ -42,9 +42,10 @@ export class AllSeasonPerformance extends plugin {
   }
 
   async render(e, mode) {
-    const userId = (e.at && !e.atme) ? e.at : e.user_id
+    const { userId, hint } = await resolveTargetUserId(e)
+    if (hint) return e.reply(hint)
     const userData = readYamlFile(path.join(PluginData, 'UserData.yaml')) || {}
-    const input = e.msg.replace(new RegExp(`^#全部${mode}表现\\s*`), '').trim()
+    const input = stripAtText(e.msg).replace(new RegExp(`^#全部${mode}表现\\s*`), '').trim()
     const userInfo = userData[userId]
     const args = parsePerfArgs(input)
 

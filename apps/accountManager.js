@@ -1,5 +1,5 @@
 import path from 'path'
-import { writeYamlFile, readYamlFile, ApiService, cache, Button } from '#utils'
+import { writeYamlFile, readYamlFile, ApiService, cache, Button, AT_HEAD, AT_TAIL, stripAtText, resolveTargetUserId } from '#utils'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { Config, PluginData, PluginPath } from '#components'
 import authStore from '../utils/authStore.js'
@@ -22,7 +22,7 @@ export class AccountManager extends plugin {
       priority: 1,
       rule: [
         {
-          reg: /^#(?:营地|我的(?:王者|荣耀|农药)|(?:王者|荣耀|农药))ID$/i,
+          reg: new RegExp(`${AT_HEAD}#(?:营地|我的(?:王者|荣耀|农药)|(?:王者|荣耀|农药))ID${AT_TAIL}`, 'i'),
           fnc: 'myWzryId'
         },
         {
@@ -30,15 +30,15 @@ export class AccountManager extends plugin {
           fnc: 'howToGetWzryId'
         },
         {
-          reg: '^#绑定营地\\s*(.*)$',
+          reg: `${AT_HEAD}#绑定营地\\s*(.*)$`,
           fnc: 'bindWzryId'
         },
         {
-          reg: '^#切换营地\\s*(.*)$',
+          reg: `${AT_HEAD}#切换营地\\s*(.*)$`,
           fnc: 'switchWzryId'
         },
         {
-          reg: '^#删除营地\\s*(.*)$',
+          reg: `${AT_HEAD}#删除营地\\s*(.*)$`,
           fnc: 'deleteWzryId'
         },
         {
@@ -85,8 +85,15 @@ export class AccountManager extends plugin {
     })
   }
 
-  getReplyUserId(e) {
-    return (e.at && e.isMaster && !e.atme) ? e.at : e.user_id
+  // 主人可以艾特别人代为操作（真 at 段与纯文本 @昵称都认），其他人只能操作自己
+  // 返回空串表示 @ 的人没认出来，提示已经回给用户了
+  async getReplyUserId(e) {
+    const { userId, hint } = await resolveTargetUserId(e, { requireMaster: true })
+    if (hint) {
+      await e.reply(hint)
+      return ''
+    }
+    return userId
   }
 
   // 获取用户数据
@@ -294,8 +301,9 @@ export class AccountManager extends plugin {
 
   // 绑定ID
   async bindWzryId(e) {
-    let userId = this.getReplyUserId(e)
-    const wzryId = e.msg.replace(/^#绑定营地/, '')
+    let userId = await this.getReplyUserId(e)
+    if (!userId) return
+    const wzryId = stripAtText(e.msg).replace(/^#绑定营地/, '')
     if (!/^\d+$/.test(wzryId)) {
       await e.reply(['营地ID仅支持数字，后面不能有空格或其他字符，示例: #绑定营地123', Button.bind()])
       return
@@ -313,8 +321,9 @@ export class AccountManager extends plugin {
 
   // 切换ID
   async switchWzryId(e) {
-    let userId = this.getReplyUserId(e)
-    const index = parseInt(e.msg.replace(/^#切换营地\s*/, '')) - 1
+    let userId = await this.getReplyUserId(e)
+    if (!userId) return
+    const index = parseInt(stripAtText(e.msg).replace(/^#切换营地\s*/, '')) - 1
     const { userData, filePath } = this.getUserData(userId)
 
     if (!userData[userId].ids.length) {
@@ -337,8 +346,9 @@ export class AccountManager extends plugin {
 
   // 删除ID
   async deleteWzryId(e) {
-    let userId = this.getReplyUserId(e)
-    const index = parseInt(e.msg.replace(/^#删除营地\s*/, '')) - 1
+    let userId = await this.getReplyUserId(e)
+    if (!userId) return
+    const index = parseInt(stripAtText(e.msg).replace(/^#删除营地\s*/, '')) - 1
     const { userData, filePath } = this.getUserData(userId)
 
     if (!userData[userId].ids.length) {
@@ -368,7 +378,8 @@ export class AccountManager extends plugin {
 
   // 展示ID列表
   async myWzryId(e) {
-    let userId = this.getReplyUserId(e)
+    let userId = await this.getReplyUserId(e)
+    if (!userId) return
     const { userData } = this.getUserData(userId)
 
     if (!userData[userId]?.ids.length) {
@@ -549,7 +560,8 @@ export class AccountManager extends plugin {
   }
 
   async wechatScanLogin(e) {
-    const botUserId = this.getReplyUserId(e)
+    const botUserId = await this.getReplyUserId(e)
+    if (!botUserId) return
     return this.startWechatLogin(e, botUserId, {
       mode: 'personal',
       qrPromptLines: [

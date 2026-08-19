@@ -1,6 +1,6 @@
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { ApiService, readYamlFile, Button, parsePerfArgs, seasonNo } from '#utils'
+import { ApiService, readYamlFile, Button, parsePerfArgs, seasonNo, AT_HEAD, stripAtText, resolveTargetUserId } from '#utils'
 import { PluginData, PluginPath } from '#components'
 
 // branchType：0=全部分路 1=对抗路 2=中路 3=发育路 4=打野 5=游走
@@ -19,14 +19,15 @@ export class PeakPerformance extends plugin {
       dsc: '巅峰赛五维全分路数据',
       event: 'message',
       priority: 1,
-      rule: [{ reg: '^#巅峰表现\\s*(.*)$', fnc: 'peakPerformance' }]
+      rule: [{ reg: `${AT_HEAD}#巅峰表现\\s*(.*)$`, fnc: 'peakPerformance' }]
     })
   }
 
   async peakPerformance(e) {
-    const userId = (e.at && !e.atme) ? e.at : e.user_id
+    const { userId, hint } = await resolveTargetUserId(e)
+    if (hint) return e.reply(hint)
     const userData = readYamlFile(path.join(PluginData, 'UserData.yaml')) || {}
-    const input = e.msg.replace(/^#巅峰表现\s*/, '').trim()
+    const input = stripAtText(e.msg).replace(/^#巅峰表现\s*/, '').trim()
     const userInfo = userData[userId]
     const args = parsePerfArgs(input)
     // 不带 s 的小数字也当赛季号，#巅峰表现40 与 #巅峰表现s40 等价

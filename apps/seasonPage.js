@@ -1,6 +1,6 @@
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { ApiService, readYamlFile, Button, parsePerfArgs, seasonNo } from '#utils'
+import { ApiService, readYamlFile, Button, parsePerfArgs, seasonNo, AT_HEAD, stripAtText, resolveTargetUserId } from '#utils'
 import { PluginData, PluginPath } from '#components'
 
 const BRANCH_NAME = { 1: '对抗路', 2: '中路', 3: '发育路', 4: '打野', 5: '游走' }
@@ -16,14 +16,15 @@ export class SeasonPage extends plugin {
       dsc: '赛季表现',
       event: 'message',
       priority: 1,
-      rule: [{ reg: '^#排位表现\\s*(.*)$', fnc: 'seasonPage' }]
+      rule: [{ reg: `${AT_HEAD}#排位表现\\s*(.*)$`, fnc: 'seasonPage' }]
     })
   }
 
   async seasonPage(e) {
-    const userId = (e.at && !e.atme) ? e.at : e.user_id
+    const { userId, hint } = await resolveTargetUserId(e)
+    if (hint) return e.reply(hint)
     const userData = readYamlFile(path.join(PluginData, 'UserData.yaml')) || {}
-    const input = e.msg.replace(/^#排位表现\s*/, '').trim()
+    const input = stripAtText(e.msg).replace(/^#排位表现\s*/, '').trim()
     const userInfo = userData[userId]
     const args = parsePerfArgs(input)
     // 不带 s 的小数字也当赛季号，#排位表现40 与 #排位表现s40 等价

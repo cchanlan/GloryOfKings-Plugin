@@ -1,6 +1,6 @@
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import common from '../../../lib/common/common.js'
-import { ApiService, readYamlFile, Button } from '#utils'
+import { ApiService, readYamlFile, Button, AT_HEAD, AT_TAIL, stripAtText, resolveTargetUserId } from '#utils'
 import path from 'path'
 import { PluginData, PluginPath } from '#components'
 import moment from 'moment'
@@ -14,11 +14,12 @@ export class MyKingHomepage extends plugin {
       priority: 1,
       rule: [
         {
-          reg: '^#全部王者(主页|卡片|信息)$',
+          // 「王者」两个字可省，#全部主页 是很自然的简写
+          reg: `${AT_HEAD}#全部(王者)?(主页|卡片|信息)${AT_TAIL}`,
           fnc: 'allKingHomepage'
         },
         {
-          reg: '^#王者(主页|卡片|信息)\\s*(.*)$',
+          reg: `${AT_HEAD}#王者(主页|卡片|信息)\\s*(.*)$`,
           fnc: 'myKingHomepage'
         }
       ]
@@ -32,8 +33,9 @@ export class MyKingHomepage extends plugin {
 
   // 查询单个ID的主页，默认取当前营地ID；也支持 #王者主页[序号] 与 #王者主页[营地ID]
   async myKingHomepage(e) {
-    const input = e.msg.replace(/^#王者(主页|卡片|信息)\s*/, '').trim()
-    const userId = (e.at && !e.atme) ? e.at : e.user_id
+    const input = stripAtText(e.msg).replace(/^#王者(主页|卡片|信息)\s*/, '').trim()
+    const { userId, hint } = await resolveTargetUserId(e)
+    if (hint) return e.reply(hint)
     const userInfo = this.getUserInfo(userId)
     const ids = userInfo?.ids || []
 
@@ -64,7 +66,8 @@ export class MyKingHomepage extends plugin {
 
   // 查询已绑定的全部营地ID主页
   async allKingHomepage(e) {
-    const userId = (e.at && !e.atme) ? e.at : e.user_id
+    const { userId, hint } = await resolveTargetUserId(e)
+    if (hint) return e.reply(hint)
     const userInfo = this.getUserInfo(userId)
     const ids = userInfo?.ids || []
 

@@ -3,7 +3,7 @@
 // 注意只有传具体 seasonId 时才带 heroFightPower/honorTitle，seasonId=0 的 historyList 里这两个字段是空的。
 // 生涯累计榜（/game/profile/herolist）作为赛季无数据时的兜底，字段参考自 https://github.com/KimigaiiWuyi/WzryUID
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { ApiService, readYamlFile, getLocalImage, Button } from '#utils'
+import { ApiService, readYamlFile, getLocalImage, Button, AT_HEAD, stripAtText, resolveTargetUserId } from '#utils'
 import path from 'path'
 import { PluginData, PluginPath } from '#components'
 
@@ -61,7 +61,7 @@ export class HeroList extends plugin {
       priority: 5,
       rule: [
         {
-          reg: '^#(王者)?(常用英雄|我的英雄|英雄战力榜)\\s*(.*)$',
+          reg: `${AT_HEAD}#(王者)?(常用英雄|我的英雄|英雄战力榜)\\s*(.*)$`,
           fnc: 'heroList'
         }
       ]
@@ -69,8 +69,9 @@ export class HeroList extends plugin {
   }
 
   async heroList(e) {
-    const msg = e.msg.replace(/^#(王者)?(常用英雄|我的英雄|英雄战力榜)\s*/, '').trim()
-    const userId = (e.at && !e.atme) ? e.at : e.user_id
+    const msg = stripAtText(e.msg).replace(/^#(王者)?(常用英雄|我的英雄|英雄战力榜)\s*/, '').trim()
+    const { userId, hint } = await resolveTargetUserId(e)
+    if (hint) return e.reply(hint)
 
     const userFilePath = path.join(PluginData, 'UserData.yaml')
     const allUserData = readYamlFile(userFilePath) || {}

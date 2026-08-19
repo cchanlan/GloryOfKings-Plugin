@@ -1,7 +1,7 @@
 // 皮肤墙功能：营地皮肤列表接口调用逻辑参考自 https://github.com/KimigaiiWuyi/WzryUID
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import common from '../../../lib/common/common.js'
-import { ApiService, readYamlFile, getLocalImage, getUserAvatar, getPvpSkinCover, Button } from '#utils'
+import { ApiService, readYamlFile, getLocalImage, getUserAvatar, getPvpSkinCover, Button, AT_HEAD, stripAtText, resolveTargetUserId } from '#utils'
 import path from 'path'
 import { PluginData } from '#components'
 
@@ -140,11 +140,11 @@ export class SkinWall extends plugin {
       priority: 5,
       rule: [
         {
-          reg: '^#(王者)?皮肤墙\\s*(.*)$',
+          reg: `${AT_HEAD}#(王者)?皮肤墙\\s*(.*)$`,
           fnc: 'skinWall'
         },
         {
-          reg: '^#(王者)?全部皮肤\\s*(.*)$',
+          reg: `${AT_HEAD}#(王者)?全部皮肤\\s*(.*)$`,
           fnc: 'allSkins'
         }
       ]
@@ -152,7 +152,7 @@ export class SkinWall extends plugin {
   }
 
   async skinWall(e) {
-    const rest = e.msg.replace(/^#(王者)?皮肤墙\s*/, '').trim()
+    const rest = stripAtText(e.msg).replace(/^#(王者)?皮肤墙\s*/, '').trim()
     // 参数可含营地ID和数量，任意顺序；纯数字且不超过4位视为“数量”，其余视为营地ID
     const tokens = rest.split(/\s+/).filter(Boolean)
     let ID = ''
@@ -165,13 +165,15 @@ export class SkinWall extends plugin {
   }
 
   async allSkins(e) {
-    const ID = e.msg.replace(/^#(王者)?全部皮肤\s*/, '').trim()
+    const ID = stripAtText(e.msg).replace(/^#(王者)?全部皮肤\s*/, '').trim()
     return this.#render(e, ID, null)
   }
 
   async #render(e, msgID, topCount) {
-    const isAt = Boolean(e.at && !e.atme)
-    const userId = isAt ? e.at : e.user_id
+    const { userId, hint } = await resolveTargetUserId(e)
+    if (hint) return e.reply(hint)
+    // 查的不是自己（艾特了别人）
+    const isAt = String(userId) !== String(e.user_id)
 
     // 昵称：查自己用触发者信息；@别人时从群成员信息取被@人的昵称
     let nickname = e.sender?.card || e.sender?.nickname || String(userId)
