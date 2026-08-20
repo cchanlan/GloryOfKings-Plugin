@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import api from '../utils/api.js'
 import {
   getLocalImage,
@@ -7,6 +9,7 @@ import {
   getCurrentId,
   Button
 } from '#utils'
+import { PluginPath } from '#components'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 
 // 元流之子的 5 个分身统一用缩写：元法/元射/元辅/元坦/元刺
@@ -25,6 +28,20 @@ const simplifyYuan = text => String(text ?? '').replace(/元流之子\s*[（(]\s
 // 只覆盖上线一段时间的皮肤，新皮肤和联动皮肤常年 404，但它是原皮立绘的唯一来源。
 const gtimgBigSkin = (ename, seq) =>
     `https://game.gtimg.cn/images/yxzj/img201606/skin/hero-info/${ename}/${ename}-bigskin-${seq}.jpg`
+
+// 手动补图目录：按「皮肤ID.后缀」放图，命中就优先用它，压过所有线上图源。
+// 给官方各处都只给 180x280 卡面的皮肤(如墨子的迪迦奥特曼 10807)兜底，
+// 以后再遇到这种皮肤，往这个目录丢一张 <皮肤ID>.jpg 就行，不用改代码。
+const LOCAL_SKIN_DIR = path.join(PluginPath, 'resources', 'img', 'skin')
+const LOCAL_SKIN_EXTS = ['.jpg', '.jpeg', '.png', '.webp']
+
+function findLocalSkinImage (skinId) {
+    for (const ext of LOCAL_SKIN_EXTS) {
+        const file = path.join(LOCAL_SKIN_DIR, `${skinId}${ext}`)
+        if (fs.existsSync(file)) return file
+    }
+    return ''
+}
 
 // 皮肤图并发下载数，和皮肤墙保持一致
 const CONCURRENCY = 6
@@ -166,14 +183,26 @@ export class HeroSkin extends plugin {
         const ename = hero?.ename || Math.floor(Number(skins[0].skinId) / 100)
 
         // 每张皮肤逐级找图，拿到第一张真图即止（惰性求值，命中首选就不会去问后面的源）：
+        //   0) resources/img/skin/<皮肤ID> 手动补的图——线上各处都没有大图时人工补，优先级最高
         //   1) 官方 bigskin 横版大图(1920x882)——游戏内的皮肤大图，构图完整、观感最好，
         //      仅当序号位置的皮肤名与 herolist 对得上才用，否则营地跳号(海月缺 52105)会把图配错
         //   2) 官网总表立绘裁成的横版图(1400x788)——覆盖 800+ 张售卖皮肤，bigskin 还没铺图的新皮靠它；
         //      它取的是官网横幅立绘，构图偏局部特写，故排在 bigskin 之后
         //   3) 营地 szLargeIcon 竖版大图(720x1280)——新皮肤这里常是无效地址，能用则用
-        //   4) 营地 bigCover 卡面图(180x280)——清晰度垫底，但联动皮肤(如墨子的迪迦奥特曼)往往只剩它
+        //   4) 营地 bigCover 卡面图(180x280)——清晰度垫底，但联动皮肤往往只剩它
         // 后两级是竖图，模板一律按整卡宽度铺满显示，故内联前会先放大到展示尺寸再锐化。
         const tasks = skins.map(skin => async () => {
+            const localFile = findLocalSkinImage(skin.skinId)
+            if (localFile) {
+                try {
+                    skin.url = await toInlineImage(fs.readFileSync(localFile), localFile)
+                    skin.tier = 'L'
+                    return
+                } catch (err) {
+                    logger.error(`[查皮肤] 本地补图读取失败 ${localFile}: ${err.message}`)
+                }
+            }
+
             const seq = Number(skin.skinId) % 100
             const nameMatched = heroSkinNames[seq] && heroSkinNames[seq] === skin.name
             const sources = [
