@@ -48,11 +48,40 @@
             display: block;
         }
 
-        /* 只有卡面图/竖版立绘可用时(多为刚上线的联动皮肤)，居中定高显示，避免被横向拉伸 */
+        /* 只有卡面图可用时(多为刚上线的联动皮肤，营地只给 180x280)的排版：
+           同一张图放大模糊铺满整框当背景，卡面本身居中清晰显示，
+           框内不留空白，又不必把小图硬拉到整框宽度糊成一片。 */
+        .skin-frame {
+            position: relative;
+            height: 600px;
+            border-radius: 5px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .skin-frame::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.55);
+        }
+
+        .skin-blur {
+            position: absolute;
+            inset: -12%;
+            background-size: cover;
+            background-position: center;
+            filter: blur(24px) brightness(0.72) saturate(1.15);
+        }
+
         .skin-image.portrait {
+            position: relative;
             width: auto;
-            height: 420px;
-            margin: 0 auto;
+            height: 540px;
+            border-radius: 8px;
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
         }
 
         .skin-noimg {
@@ -122,8 +151,13 @@
         {{each skinData skin}}
         <div class="skin-item">
             <span class="skin-name">{{skin.name}}</span>
-            {{if skin.url}}
-            <img src="{{skin.url}}" alt="{{skin.name}}" class="skin-image {{skin.portrait ? 'portrait' : ''}}">
+            {{if skin.url && skin.portrait}}
+            <div class="skin-frame">
+                <div class="skin-blur" style="background-image: url({{skin.url}})"></div>
+                <img src="{{skin.url}}" alt="{{skin.name}}" class="skin-image portrait">
+            </div>
+            {{else if skin.url}}
+            <img src="{{skin.url}}" alt="{{skin.name}}" class="skin-image">
             {{else}}
             <div class="skin-noimg">暂无立绘</div>
             {{/if}}

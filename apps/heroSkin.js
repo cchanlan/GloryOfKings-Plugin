@@ -31,9 +31,12 @@ const CONCURRENCY = 6
 // 内联进模板前的宽度上限：官方 bigskin 原图 1920x882 单张就有 1.3MB，
 // 一个英雄十几张会把 HTML 撑到十几 MB、拖慢截图，缩到 1400 宽后单张约 250KB，画质仍富余。
 const MAX_INLINE_WIDTH = 1400
+// 反过来，营地卡面图只有 180x280，交给浏览器直接拉大会糊成一团，
+// 先用 lanczos 放大三倍并锐化，再让模板缩着显示，观感明显干净些。
+const MIN_INLINE_WIDTH = 480
 
 /**
- * 把下载好的图片转成模板可直接内联的 data URL，过宽的先缩一档。
+ * 把下载好的图片转成模板可直接内联的 data URL，过宽的缩一档、过小的放大一档。
  * sharp 是 Yunzai 的核心依赖，缺失或解码失败时原样内联，不影响出图。
  */
 async function toInlineImage (buffer, url) {
@@ -44,8 +47,16 @@ async function toInlineImage (buffer, url) {
             const resized = await sharp(buffer).resize({ width: MAX_INLINE_WIDTH }).jpeg({ quality: 85 }).toBuffer()
             return `data:image/jpeg;base64,${resized.toString('base64')}`
         }
+        if (meta.width && meta.width < MIN_INLINE_WIDTH) {
+            const enlarged = await sharp(buffer)
+                .resize({ width: meta.width * 3, kernel: 'lanczos3' })
+                .sharpen()
+                .jpeg({ quality: 88 })
+                .toBuffer()
+            return `data:image/jpeg;base64,${enlarged.toString('base64')}`
+        }
     } catch (err) {
-        logger.debug(`[查皮肤] 图片压缩跳过: ${err.message}`)
+        logger.debug(`[查皮肤] 图片预处理跳过: ${err.message}`)
     }
     const pathPart = String(url).split('?')[0]
     const dot = pathPart.lastIndexOf('.')
