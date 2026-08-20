@@ -119,7 +119,7 @@ export class AccountManager extends plugin {
   // 新增公共方法处理HTML生成
   async generateAccountManageHTML(type, wzryId, idList) {
     const parsedFuncs = [
-      { cmd: '#绑定营地', example: '示例: #绑定营地123' },
+      { cmd: '#绑定营地', example: '示例: #绑定营地 123' },
       { cmd: '#营地ID / #王者ID / #我的ID / #我的王者ID', example: '示例: #我的王者ID' },
       { cmd: '#切换营地', example: '示例: #切换营地2' },
       { cmd: '#删除营地', example: '示例: #删除营地2' },
@@ -303,9 +303,10 @@ export class AccountManager extends plugin {
   async bindWzryId(e) {
     let userId = await this.getReplyUserId(e)
     if (!userId) return
-    const wzryId = stripAtText(e.msg).replace(/^#绑定营地/, '')
+    // 指令与ID之间允许有空格：#绑定营地123 与 #绑定营地 123 等价
+    const wzryId = stripAtText(e.msg).replace(/^#绑定营地\s*/, '').trim()
     if (!/^\d+$/.test(wzryId)) {
-      await e.reply(['营地ID仅支持数字，后面不能有空格或其他字符，示例: #绑定营地123', Button.bind()])
+      await e.reply(['营地ID仅支持数字，示例: #绑定营地123 或 #绑定营地 123', Button.bind()])
       return
     }
     const { userData } = this.getUserData(userId)
