@@ -48,6 +48,31 @@
             display: block;
         }
 
+        /* 只有卡面图/竖版立绘可用时(多为刚上线的联动皮肤)，居中定高显示，避免被横向拉伸 */
+        .skin-image.portrait {
+            width: auto;
+            height: 420px;
+            margin: 0 auto;
+        }
+
+        .skin-noimg {
+            height: 180px;
+            border-radius: 5px;
+            border: 1px dashed var(--border-color);
+            color: #7a7a7a;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .skin-count {
+            text-align: center;
+            margin: -20px 0 30px;
+            color: #9a9a9a;
+            font-size: 16px;
+        }
+
         .skin-name {
             display: block;
             color: #ffffff !important;
@@ -91,12 +116,17 @@
 
 <body>
     <h1>{{heroName}}皮肤图鉴</h1>
+    <div class="skin-count">共 {{skinCount}} 款</div>
 
     <div class="skin-container">
         {{each skinData skin}}
         <div class="skin-item">
             <span class="skin-name">{{skin.name}}</span>
-            <img src="{{skin.url}}" alt="{{skin.name}}" class="skin-image">
+            {{if skin.url}}
+            <img src="{{skin.url}}" alt="{{skin.name}}" class="skin-image {{skin.portrait ? 'portrait' : ''}}">
+            {{else}}
+            <div class="skin-noimg">暂无立绘</div>
+            {{/if}}
         </div>
         {{/each}}
     </div>
