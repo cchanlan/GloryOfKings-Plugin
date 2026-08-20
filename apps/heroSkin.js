@@ -31,12 +31,12 @@ const CONCURRENCY = 6
 // 内联进模板前的宽度上限：官方 bigskin 原图 1920x882 单张就有 1.3MB，
 // 一个英雄十几张会把 HTML 撑到十几 MB、拖慢截图，缩到 1400 宽后单张约 250KB，画质仍富余。
 const MAX_INLINE_WIDTH = 1400
-// 反过来，营地卡面图只有 180x280，交给浏览器直接拉大会糊成一团，
-// 先用 lanczos 放大三倍并锐化，再让模板缩着显示，观感明显干净些。
+// 反过来，营地卡面图只有 180x280，模板里要铺满整卡宽度，交给浏览器直接拉大会糊成一团。
+// 先用 lanczos 放到展示尺寸再锐化一次，插值痕迹会干净不少。
 const MIN_INLINE_WIDTH = 480
 
 /**
- * 把下载好的图片转成模板可直接内联的 data URL，过宽的缩一档、过小的放大一档。
+ * 把下载好的图片转成模板可直接内联的 data URL，过宽的缩一档、过小的放大到展示尺寸。
  * sharp 是 Yunzai 的核心依赖，缺失或解码失败时原样内联，不影响出图。
  */
 async function toInlineImage (buffer, url) {
@@ -49,7 +49,7 @@ async function toInlineImage (buffer, url) {
         }
         if (meta.width && meta.width < MIN_INLINE_WIDTH) {
             const enlarged = await sharp(buffer)
-                .resize({ width: meta.width * 3, kernel: 'lanczos3' })
+                .resize({ width: MAX_INLINE_WIDTH, kernel: 'lanczos3' })
                 .sharpen()
                 .jpeg({ quality: 88 })
                 .toBuffer()
@@ -172,7 +172,7 @@ export class HeroSkin extends plugin {
         //      它取的是官网横幅立绘，构图偏局部特写，故排在 bigskin 之后
         //   3) 营地 szLargeIcon 竖版大图(720x1280)——新皮肤这里常是无效地址，能用则用
         //   4) 营地 bigCover 卡面图(180x280)——清晰度垫底，但联动皮肤(如墨子的迪迦奥特曼)往往只剩它
-        // 后两级是竖图，标记 portrait 交给模板改用居中不拉伸的排版。
+        // 后两级是竖图，模板一律按整卡宽度铺满显示，故内联前会先放大到展示尺寸再锐化。
         const tasks = skins.map(skin => async () => {
             const seq = Number(skin.skinId) % 100
             const nameMatched = heroSkinNames[seq] && heroSkinNames[seq] === skin.name
@@ -188,12 +188,10 @@ export class HeroSkin extends plugin {
                 const img = await getLocalImage(url)
                 if (!Buffer.isBuffer(img)) continue
                 skin.url = await toInlineImage(img, url)
-                skin.portrait = si >= 2
                 skin.tier = si + 1
                 return
             }
             skin.url = ''
-            skin.portrait = false
             skin.tier = 0
         })
         await batch(tasks)
@@ -215,7 +213,6 @@ export class HeroSkin extends plugin {
             skinData: skins.map((skin, index) => ({
                 name: simplifyYuan(skin.name),
                 url: skin.url,
-                portrait: skin.portrait,
                 index: index + 1
             }))
         })
