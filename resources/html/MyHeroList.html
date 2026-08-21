@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的英雄</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+            width: 1000px;
+            background: linear-gradient(160deg, #0f1420 0%, #1a2133 100%);
+            color: #fff;
+            padding: 40px;
+            position: relative;
+            z-index: 0;
+        }
+
+        body::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                linear-gradient(160deg, rgba(15, 20, 32, 0.88) 0%, rgba(20, 25, 45, 0.93) 100%),
+                url("{{_res_path}}img/background.jpg");
+            background-size: cover;
+            background-position: center top;
+            filter: blur(6px);
+            z-index: -1;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 26px;
+        }
+
+        .header h1 {
+            font-size: 42px;
+            letter-spacing: 4px;
+            background: linear-gradient(90deg, #f5d76e, #f0932b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header .yd-id {
+            margin-top: 12px;
+            font-size: 18px;
+            color: #9aa7bd;
+        }
+
+        .header .total {
+            margin-top: 6px;
+            font-size: 17px;
+            color: #8794aa;
+        }
+
+        .header .total b {
+            color: #c8d0dd;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .th {
+            display: flex;
+            align-items: flex-start;
+            /* 和 hero-item 的 1px 边框对齐，保证表头列和数值列同心 */
+            border: 1px solid transparent;
+            padding: 0 18px 10px;
+            font-size: 18px;
+            color: #8794aa;
+        }
+
+        .th .col-hero {
+            flex: 1 1 0;
+            min-width: 0;
+        }
+
+        .th .col-num {
+            width: 130px;
+            text-align: center;
+        }
+
+        .th .col-power {
+            width: 160px;
+            text-align: center;
+        }
+
+        .hero-item {
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            padding: 12px 18px;
+            margin-bottom: 12px;
+        }
+
+        .hero-item .col-hero {
+            /* flex-basis 归零 + min-width 0：英雄名再长也只会被裁掉，不会把右侧数值列顶偏 */
+            flex: 1 1 0;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .hero-item .rank-no {
+            width: 34px;
+            flex-shrink: 0;
+            text-align: center;
+            font-size: 22px;
+            font-weight: bold;
+            color: #5b6679;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .hero-item .rank-no.top {
+            color: #f5d76e;
+        }
+
+        .hero-item .avatar {
+            width: 120px;
+            height: 76px;
+            border-radius: 10px;
+            object-fit: cover;
+            background: rgba(0, 0, 0, 0.3);
+            flex-shrink: 0;
+        }
+
+        .hero-item .name-box {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 6px;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .hero-item .name-row {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            flex-wrap: nowrap;
+            white-space: nowrap;
+        }
+
+        /* 定位/熟练度单独占一行，行高固定，没有这些信息的英雄也和别人对齐 */
+        .hero-item .meta-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            height: 28px;
+            white-space: nowrap;
+        }
+
+        .hero-item .hero-name {
+            font-size: 26px;
+            font-weight: bold;
+            color: #eef2f8;
+        }
+
+        .hero-item .hero-sub {
+            font-size: 18px;
+            color: #c8d0dd;
+        }
+
+        .hero-item .type-tag {
+            font-size: 15px;
+            color: #a8b4c8;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 8px;
+            padding: 2px 8px;
+        }
+
+        .hero-item .skilled-tag {
+            font-size: 15px;
+            font-weight: bold;
+            color: #f5d76e;
+            background: rgba(245, 215, 110, 0.14);
+            border: 1px solid rgba(245, 215, 110, 0.4);
+            border-radius: 8px;
+            padding: 2px 8px;
+        }
+
+        .hero-item .col-num,
+        .hero-item .col-power {
+            text-align: center;
+            /* 等宽数字，保证各行数值居中后仍成列 */
+            font-variant-numeric: tabular-nums;
+        }
+
+        .hero-item .col-num {
+            width: 130px;
+            font-size: 26px;
+            font-weight: bold;
+            color: #c8d0dd;
+        }
+
+        .hero-item .col-num.rate {
+            color: #57c98a;
+        }
+
+        .hero-item .col-power {
+            width: 160px;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .footer {
+            margin-top: 26px;
+            text-align: center;
+            font-size: 15px;
+            color: #6f7c92;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>我 的 英 雄</h1>
+        <div class="yd-id">营地ID: {{ydId}} · 全部竞技模式 · 生涯累计</div>
+        <div class="total">
+            已解锁 <b>{{ownCount}}</b> 个 · 有战绩 <b>{{heroCount}}</b> 个 ·
+            总场次 <b>{{totalPlay}}</b> · 总胜率 <b>{{totalRate}}</b>
+        </div>
+    </div>
+
+    <div class="th">
+        <div class="col-hero">英雄</div>
+        <div class="col-num">场次</div>
+        <div class="col-num">胜率</div>
+        <div class="col-power">最高战力</div>
+    </div>
+
+    {{each heroes hero index}}
+    <div class="hero-item">
+        <div class="col-hero">
+            <div class="rank-no {{if index < 3}}top{{/if}}">{{index + 1}}</div>
+            <img class="avatar" src="{{hero.imgUrl}}" onerror="this.style.visibility='hidden'">
+            <div class="name-box">
+                <div class="name-row">
+                    <span class="hero-name">{{hero.name}}</span>
+                    {{if hero.subName}}<span class="hero-sub">（{{hero.subName}}）</span>{{/if}}
+                </div>
+                <div class="meta-row">
+                    {{if hero.heroType}}<span class="type-tag">{{hero.heroType}}</span>{{/if}}
+                    {{if hero.skilledText}}<span class="skilled-tag">{{hero.skilledText}}</span>{{/if}}
+                </div>
+            </div>
+        </div>
+        <div class="col-num">{{hero.playNum}}</div>
+        <div class="col-num rate">{{hero.winRate}}</div>
+        <div class="col-power" style="color: {{hero.fightColor}};">{{hero.fightPower}}</div>
+    </div>
+    {{/each}}
+
+    <div class="footer">GloryOfKings-Plugin · 我的英雄 · 按场次取前 {{shownCount}}（#我的英雄 20 可改数量）</div>
+</body>
+
+</html>

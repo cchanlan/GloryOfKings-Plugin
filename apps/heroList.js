@@ -61,7 +61,7 @@ export class HeroList extends plugin {
       priority: 5,
       rule: [
         {
-          reg: `${AT_HEAD}#(王者)?(常用英雄|我的英雄|英雄战力榜)\\s*(.*)$`,
+          reg: `${AT_HEAD}#(王者)?(常用英雄|英雄战力榜)\\s*(.*)$`,
           fnc: 'heroList'
         }
       ]
@@ -69,7 +69,7 @@ export class HeroList extends plugin {
   }
 
   async heroList(e) {
-    const msg = stripAtText(e.msg).replace(/^#(王者)?(常用英雄|我的英雄|英雄战力榜)\s*/, '').trim()
+    const msg = stripAtText(e.msg).replace(/^#(王者)?(常用英雄|英雄战力榜)\s*/, '').trim()
     const { userId, hint } = await resolveTargetUserId(e)
     if (hint) return e.reply(hint)
 

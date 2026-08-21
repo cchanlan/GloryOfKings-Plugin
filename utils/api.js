@@ -866,6 +866,22 @@ class ApiService {
       friendUserId: this.#toString(ID)
     }, this.#toString(ID), requesterBotUserId)
   }
+  /**
+   * 获取账号全量英雄列表（营地 App「我的英雄」页，全部竞技模式的生涯累计）。
+   * 和皮肤墙同属游戏侧 form 接口。实测返回该账号拥有的全部英雄（一个号 132 条），
+   * 单条含 playNum/winRate/heroFightPower/skilledLevel/heroTypes 等，一次请求就够，不用逐英雄拉。
+   * 注意 heroFightPower 在这里是**历史最高战力**（同一英雄：营地侧 profile/herolist 给的是当前战力，
+   * /gametoolbox/hero/record/pagedetails 的 powerData 给的是近 30 天峰值，三者数值不同）。
+   * 荣耀称号（「XX区第N英雄」）不在这个接口里，要另走 pagedetails 的 medalList。
+   */
+  async getGameHeroList(ID, requesterBotUserId = '') {
+    return this.#requestGameForm('/play/h5getherolist', {
+      noCache: '0',
+      recommendPrivacy: '0',
+      friendUserId: this.#toString(ID)
+    }, this.#toString(ID), requesterBotUserId)
+  }
+
   #buildGameFormBody(auth, extraFields = {}) {
     const fields = {
       cChannelId: auth.cChannelId,
