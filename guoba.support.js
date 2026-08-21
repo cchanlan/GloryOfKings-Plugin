@@ -57,6 +57,12 @@ export function supportGuoba () {
           component: 'Switch'
         },
         {
+          field: 'config.quoteReply',
+          label: '引用触发消息',
+          bottomHelpMessage: '默认开启。开启时回复会引用触发指令那条消息；关闭后直接发送，不带引用。',
+          component: 'Switch'
+        },
+        {
           field: 'config.onlineReminderCron',
           label: '上下线提醒',
           bottomHelpMessage: '王者上下线提醒的cron表达式',

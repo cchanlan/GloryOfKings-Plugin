@@ -1,7 +1,7 @@
 // 皮肤墙功能：营地皮肤列表接口调用逻辑参考自 https://github.com/KimigaiiWuyi/WzryUID
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import common from '../../../lib/common/common.js'
-import { ApiService, readYamlFile, getLocalImage, getUserAvatar, getPvpSkinCover, Button, AT_HEAD, stripAtText, resolveTargetUserId } from '#utils'
+import { ApiService, readYamlFile, getLocalImage, getUserAvatar, getPvpSkinCover, Button, AT_HEAD, stripAtText, resolveTargetUserId, shouldQuote } from '#utils'
 import path from 'path'
 import { PluginData } from '#components'
 
@@ -396,7 +396,7 @@ export class SkinWall extends plugin {
     // 单页直接发图
     if (totalPages === 1) {
       const img = await puppeteer.screenshot('SkinWall', buildParams(pages[0], 0))
-      await e.reply([img, Button.skinWall(ID)], true)
+      await e.reply([img, Button.skinWall(ID)], shouldQuote())
       return
     }
 

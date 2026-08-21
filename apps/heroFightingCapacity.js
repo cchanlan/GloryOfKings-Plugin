@@ -1,6 +1,6 @@
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import api from '../utils/api.js'
-import { Button } from '#utils'
+import { Button, shouldQuote } from '#utils'
 
 // 元流之子的 5 个分身名字太长，统一用缩写：元法/元射/元辅/元坦/元刺
 const YUAN_ABBR = { 法: '法师', 射: '射手', 辅: '辅助', 坦: '坦克', 刺: '刺客' }
@@ -69,7 +69,7 @@ export class HeroFightingCapacity extends plugin {
                 minStats: minStats
             })
 
-            await e.reply([img, Button.hero(displayName || heroName)], true)
+            await e.reply([img, Button.hero(displayName || heroName)], shouldQuote())
         } catch (err) {
             logger.error(`[查战力] 查询失败: ${err}`)
             await e.reply(`查询失败!`)

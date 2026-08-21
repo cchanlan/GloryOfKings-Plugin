@@ -1,6 +1,6 @@
 // 英雄梯度榜：数据来自官方营地 getdetailranklistbyid 接口，实时拉取
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { ApiService, Button } from '#utils'
+import { ApiService, Button, shouldQuote } from '#utils'
 
 // 段位筛选：文字 → segment（对应接口 tabFilter 下标）
 const SEGMENT_MAP = [
@@ -156,6 +156,6 @@ export class HeroTierList extends plugin {
     })
 
     // 注意：本函数内 segment 被 parseFilter 的返回值遮蔽，按钮统一在 Button 里构造
-    await e.reply([img, Button.heroTier()], true)
+    await e.reply([img, Button.heroTier()], shouldQuote())
   }
 }

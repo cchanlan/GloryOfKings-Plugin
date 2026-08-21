@@ -1,6 +1,6 @@
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { renderMasterPanel } from '../utils/masterPanel.js'
-import { Button } from '#utils'
+import { Button, shouldQuote } from '#utils'
 
 const helpSections = [
   {
@@ -113,7 +113,7 @@ export class Help extends plugin {
       sections: helpSections,
       generatedAt: new Date().toLocaleString()
     })
-    await e.reply([inventoryImage, Button.help()], true)
+    await e.reply([inventoryImage, Button.help()], shouldQuote())
   }
 
   async showMasterPanel(e) {

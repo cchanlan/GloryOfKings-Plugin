@@ -7,7 +7,8 @@ import {
   getPvpHeroSkins,
   getCampHeroSkins,
   getCurrentId,
-  Button
+  Button,
+  shouldQuote
 } from '#utils'
 import { PluginPath } from '#components'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
@@ -246,6 +247,6 @@ export class HeroSkin extends plugin {
             }))
         })
 
-        await e.reply([img, Button.hero(displayName)], true)
+        await e.reply([img, Button.hero(displayName)], shouldQuote())
     }
 }

@@ -1,6 +1,6 @@
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import common from '../../../lib/common/common.js'
-import { ApiService, readYamlFile, Button, AT_HEAD, AT_TAIL, stripAtText, resolveTargetUserId } from '#utils'
+import { ApiService, readYamlFile, Button, AT_HEAD, AT_TAIL, stripAtText, resolveTargetUserId, shouldQuote } from '#utils'
 import path from 'path'
 import { PluginData, PluginPath } from '#components'
 import moment from 'moment'
@@ -43,7 +43,7 @@ export class MyKingHomepage extends plugin {
       await e.reply([
         segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')),
         Button.bind()
-      ], true)
+      ], shouldQuote())
       return
     }
 
@@ -75,7 +75,7 @@ export class MyKingHomepage extends plugin {
       await e.reply([
         segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')),
         Button.bind()
-      ], true)
+      ], shouldQuote())
       return
     }
 
@@ -243,7 +243,7 @@ export class MyKingHomepage extends plugin {
     if (imgBuffers.length) {
       // 单ID时按钮带上营地ID，避免点击后又回落到当前账号；多ID时给通用按钮
       const button = IDs.length === 1 ? Button.homepage(IDs[0]) : Button.homepage()
-      await e.reply([...imgBuffers, button], true)
+      await e.reply([...imgBuffers, button], shouldQuote())
     }
 
     if (failedResults.length) {

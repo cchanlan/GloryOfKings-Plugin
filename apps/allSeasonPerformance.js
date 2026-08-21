@@ -1,6 +1,6 @@
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { ApiService, readYamlFile, Button, parsePerfArgs, AT_HEAD, stripAtText, resolveTargetUserId } from '#utils'
+import { ApiService, readYamlFile, Button, parsePerfArgs, AT_HEAD, stripAtText, resolveTargetUserId, shouldQuote } from '#utils'
 import { PluginData, PluginPath } from '#components'
 
 // 默认一屏放几个赛季总结。营地那边是全部赛季无限滚动，这里默认按 3 个赛季控制图片长度，
@@ -55,7 +55,7 @@ export class AllSeasonPerformance extends plugin {
       await e.reply([
         segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')),
         Button.bind()
-      ], true)
+      ], shouldQuote())
       return
     }
 
@@ -138,7 +138,7 @@ export class AllSeasonPerformance extends plugin {
       trendJson: JSON.stringify(trend)
     })
 
-    await e.reply([img, Button.allPerformance(campId, mode)], true)
+    await e.reply([img, Button.allPerformance(campId, mode)], shouldQuote())
   }
 
   /** 把 historyList 里的一个赛季整理成模板需要的结构，无对应模式数据时返回 null */

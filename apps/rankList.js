@@ -1,6 +1,6 @@
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { readYamlFile, Button, getUserAvatar } from '#utils'
+import { readYamlFile, Button, getUserAvatar, shouldQuote } from '#utils'
 import { collectRankData, buildRankList, getAllBindings, readSnapshot, SNAPSHOT_TTL } from '../utils/rankStore.js'
 import { PluginData } from '#components'
 
@@ -160,7 +160,7 @@ export class RankList extends plugin {
       fromCache: snapshot.fromCache
     })
 
-    await e.reply([img, Button.rank(type, isGlobal)], true)
+    await e.reply([img, Button.rank(type, isGlobal)], shouldQuote())
   }
 }
 

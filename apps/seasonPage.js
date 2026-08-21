@@ -1,6 +1,6 @@
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { ApiService, readYamlFile, Button, parsePerfArgs, seasonNo, AT_HEAD, stripAtText, resolveTargetUserId } from '#utils'
+import { ApiService, readYamlFile, Button, parsePerfArgs, seasonNo, AT_HEAD, stripAtText, resolveTargetUserId, shouldQuote } from '#utils'
 import { PluginData, PluginPath } from '#components'
 
 const BRANCH_NAME = { 1: '对抗路', 2: '中路', 3: '发育路', 4: '打野', 5: '游走' }
@@ -36,7 +36,7 @@ export class SeasonPage extends plugin {
       await e.reply([
         segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')),
         Button.bind()
-      ], true)
+      ], shouldQuote())
       return
     }
 
@@ -217,7 +217,7 @@ export class SeasonPage extends plugin {
 
     // 上一个赛季（history 是从新到旧），给按钮做历史赛季入口
     const prevSeason = seasonNo(history[history.indexOf(target) + 1]?.seasonName) || ''
-    await e.reply([img, Button.performance(campId, '排位', prevSeason)], true)
+    await e.reply([img, Button.performance(campId, '排位', prevSeason)], shouldQuote())
   }
 
   /** 把单条分路的 battleDataSelf 整理成模板需要的五维结构 */

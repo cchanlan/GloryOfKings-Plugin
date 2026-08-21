@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { PluginData, PluginPath } from '#components'
-import { ApiService, readYamlFile, getUserAvatar, isQQNumber, Button, AT_HEAD, stripAtText, resolveTargetUserId } from '#utils'
+import { ApiService, readYamlFile, getUserAvatar, isQQNumber, Button, AT_HEAD, stripAtText, resolveTargetUserId, shouldQuote } from '#utils'
 
 // 战绩模式筛选走服务端 option 参数（取值见 morebattlelist 响应里的 options 字段）。
 // 各模式的 gametype/battleType 实测值：
@@ -155,7 +155,7 @@ export class QueryGameStats extends plugin {
       await e.reply([
         segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')),
         Button.bind()
-      ], true)
+      ], shouldQuote())
       return
     }
 
@@ -209,7 +209,7 @@ export class QueryGameStats extends plugin {
         emptyDescription: `ID: ${ID} 近期战绩中没有使用过 ${matchedName}`,
         heroLabel: matchedName
       })
-      await e.reply([emptyImg, Button.heroStats(matchedName)], true)
+      await e.reply([emptyImg, Button.heroStats(matchedName)], shouldQuote())
       return
     }
 
@@ -229,7 +229,7 @@ export class QueryGameStats extends plugin {
       winningStreak: this.calculateWinningStreak(processedData.map(d => d.gameResult))
     })
 
-    await e.reply([listImg, Button.heroStats(matchedName, ID)], true)
+    await e.reply([listImg, Button.heroStats(matchedName, ID)], shouldQuote())
   }
 
   /**
@@ -293,7 +293,7 @@ export class QueryGameStats extends plugin {
         await e.reply([
           segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')),
           Button.bind()
-        ], true)
+        ], shouldQuote())
         return
       }
       ID = ids[idSlot - 1]
@@ -309,7 +309,7 @@ export class QueryGameStats extends plugin {
       await e.reply([
         segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')),
         Button.bind()
-      ], true)
+      ], shouldQuote())
       return
     }
 
@@ -343,7 +343,7 @@ export class QueryGameStats extends plugin {
           : (battleList?.invisDes || `ID: ${ID} 当前没有可展示的战绩数据`),
         modeLabel: mode ? mode.key : ''
       })
-      await e.reply([emptyImg, Button.gameStats(ID, 0, mode ? mode.key : '')], true)
+      await e.reply([emptyImg, Button.gameStats(ID, 0, mode ? mode.key : '')], shouldQuote())
       return
     }
 
@@ -358,7 +358,7 @@ export class QueryGameStats extends plugin {
       if (detail) {
         try {
           const img = await this.generateDetailImage(detail)
-          await e.reply([img, Button.gameStatsDetail(ID, mode ? mode.key : '')], true)
+          await e.reply([img, Button.gameStatsDetail(ID, mode ? mode.key : '')], shouldQuote())
         } catch (err) {
           logger.error(`[战绩查询] 生成图片失败: ${err}`)
           await e.reply('生成战绩详情图片失败，请稍后再试')
@@ -381,7 +381,7 @@ export class QueryGameStats extends plugin {
       winningStreak: this.calculateWinningStreak(processedData.map(d => d.gameResult))
     })
 
-    await e.reply([listImg, Button.gameStats(ID, processedData.length, mode ? mode.key : '')], true)
+    await e.reply([listImg, Button.gameStats(ID, processedData.length, mode ? mode.key : '')], shouldQuote())
   }
 
   /**

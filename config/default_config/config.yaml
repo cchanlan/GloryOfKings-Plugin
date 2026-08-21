@@ -4,3 +4,5 @@ onlineReminder: true
 onlineReminderCron: '*/10 * * * * *'
 #*王者战绩推送的cron表达式
 battleResultCron: '0 */1 * * * *'
+#*回复时是否引用触发指令那条消息
+quoteReply: true

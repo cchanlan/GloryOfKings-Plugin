@@ -1,5 +1,5 @@
 import path from 'path'
-import { writeYamlFile, readYamlFile, ApiService, cache, Button, AT_HEAD, AT_TAIL, stripAtText, resolveTargetUserId } from '#utils'
+import { writeYamlFile, readYamlFile, ApiService, cache, Button, AT_HEAD, AT_TAIL, stripAtText, resolveTargetUserId, shouldQuote } from '#utils'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { Config, PluginData, PluginPath } from '#components'
 import authStore from '../utils/authStore.js'
@@ -387,7 +387,7 @@ export class AccountManager extends plugin {
       return e.reply([
         segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')),
         Button.bind()
-      ], true)
+      ], shouldQuote())
     }
 
     const nameMap = await this.fetchRoleNames(userData[userId].ids, userId)
@@ -402,7 +402,7 @@ export class AccountManager extends plugin {
     await e.reply([
       segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')),
       Button.bind()
-    ], true)
+    ], shouldQuote())
   }
 
   // 拉取各营地ID对应的游戏昵称，失败不影响列表展示；结果缓存 10 分钟
@@ -672,7 +672,7 @@ export class AccountManager extends plugin {
 
     try {
       const img = await this.generateAuthPoolOverviewHTML(overviewData)
-      await e.reply(img, true)
+      await e.reply(img, shouldQuote())
     } catch (error) {
       logger.error(`[王者用户统计] 渲染统计面板失败: ${error.message}`)
       await e.reply([
