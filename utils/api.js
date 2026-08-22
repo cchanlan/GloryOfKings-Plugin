@@ -867,6 +867,29 @@ class ApiService {
     }, this.#toString(ID), requesterBotUserId)
   }
   /**
+   * 获取单个英雄的战绩详情（营地 App 英雄战绩页）。
+   * 这个端点在 kohcamp 网关，但有三个和别处不一样的硬性要求，改动前先看清：
+   *   1. serverId 必须放 HTTP header，放 body 里会返回 heroId=0 的空壳而 returnCode 仍是 0
+   *   2. 英雄 ID 的参数名是全小写 heroid，写成 heroId 拿不到数据
+   *   3. roleId 要传字符串，传 Number 会 returnCode=1
+   * 返回里可用的：medalList[] 荣耀称号（{UserMedalInfo:'天河区第25虞姬', TitleType:1}）、
+   * heroInfo（熟练度/胜负场/MVP/均分）、zjList[] 最近 5 场、powerData[] 战力曲线（仅近 30 天）。
+   * @param {string|number} roleId 角色 ID（getProfile 的 data.targetRoleId）
+   * @param {string|number} heroId 英雄 ID
+   * @param {object} [options]
+   * @param {string} [options.roleName] 角色名，缺省不影响返回
+   * @param {string|number} [options.serverId] 区服 ID（roleList 里对应角色的 serverId）
+   */
+  async getHeroRecordDetails(roleId, heroId, { roleName = '', serverId = '' } = {}, targetUserId = '', requesterBotUserId = '') {
+    return this.#request('POST', '/gametoolbox/hero/record/pagedetails', {
+      roleId: this.#toString(roleId),
+      heroid: Number(heroId),
+      roleName: this.#toString(roleName),
+      h5Get: 1
+    }, { serverId: this.#toString(serverId) }, 2, targetUserId, requesterBotUserId)
+  }
+
+  /**
    * 获取账号全量英雄列表（营地 App「我的英雄」页，全部竞技模式的生涯累计）。
    * 和皮肤墙同属游戏侧 form 接口。实测返回该账号拥有的全部英雄（一个号 132 条），
    * 单条含 playNum/winRate/heroFightPower/skilledLevel/heroTypes 等，一次请求就够，不用逐英雄拉。

@@ -5,7 +5,7 @@
 // 真正的近 30 天战力峰值在 /gametoolbox/hero/record/pagedetails 的 powerData 里，但要逐英雄请求，成本高没用。
 // 荣耀称号也不在这个接口里（同样要逐英雄拉 pagedetails），所以这里改用熟练度等级做副标。
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { ApiService, readYamlFile, getLocalImage, Button, AT_HEAD, stripAtText, resolveTargetUserId, shouldQuote } from '#utils'
+import { ApiService, readYamlFile, getLocalImage, cache, Button, AT_HEAD, stripAtText, resolveTargetUserId, shouldQuote } from '#utils'
 import path from 'path'
 import { PluginData, PluginPath } from '#components'
 
@@ -14,6 +14,9 @@ const HERO_IMG_BASE = 'https://game-1255653016.file.myqcloud.com/battle_skin_125
 // 默认展示数量，指令后可跟数字改
 const SHOW_COUNT = 10
 const MAX_COUNT = 30
+// 荣耀称号要逐英雄请求，串行间隔和缓存时长；营地有频控，别改小
+const MEDAL_GAP_MS = 250
+const MEDAL_TTL = 1800
 
 // 熟练度等级 → 营地里的叫法。实测 8=神话 7=传说 6=巅峰 5=超凡（对着 pagedetails 的 skilledTitle 核过），
 // 4 及以下没实测到，直接显示 Lv.N，不猜。
@@ -102,7 +105,11 @@ export class MyHeroList extends plugin {
     const sorted = [...played].sort(
       (a, b) => Number(b.heroFightPower) - Number(a.heroFightPower) || Number(b.playNum) - Number(a.playNum)
     )
-    const heroes = await Promise.all(sorted.slice(0, limit).map(hero => this.buildHeroCard(hero)))
+    const picked = sorted.slice(0, limit)
+
+    // 荣耀称号不在英雄列表接口里，要按角色逐英雄拉，拉不到就不显示，不影响出图
+    const medals = await this.fetchMedals(ID, picked, userId)
+    const heroes = await Promise.all(picked.map(hero => this.buildHeroCard(hero, medals.get(String(hero.heroId)))))
 
     const totalPlay = played.reduce((sum, hero) => sum + Number(hero.playNum || 0), 0)
     const totalWin = played.reduce((sum, hero) => sum + Number(hero.winNum || 0), 0)
@@ -122,8 +129,59 @@ export class MyHeroList extends plugin {
     await e.reply([img, Button.heroList(msg ? ID : '')], shouldQuote())
   }
 
+  /**
+   * 逐英雄拉荣耀称号（「天河区第25虞姬」这种）。
+   * 营地把称号放在单英雄战绩详情里，列表接口没有，所以只能一个一个拉；
+   * 串行 + 间隔是为了不触发营地频控，结果按角色+英雄缓存 30 分钟。
+   * 注意这里拿到的是**当前**称号，营地 App「历史赛季」页显示的是历史最高时的称号，
+   * 高战英雄可能差一个级别（实测同一英雄：这里「天河区第17孙权」、营地页「中国澳门第58孙权」）。
+   * @returns {Promise<Map<string, string>>} heroId → 称号文本，拿不到的英雄不进 Map
+   */
+  async fetchMedals(ID, heroes, userId) {
+    const result = new Map()
+
+    let roleId = ''
+    let role = {}
+    try {
+      const profile = await ApiService.getProfile(ID, String(userId))
+      roleId = profile?.data?.targetRoleId
+      role = (profile?.data?.roleList || []).find(item => String(item.roleId) === String(roleId)) || {}
+    } catch (error) {
+      logger.error(`[我的英雄] 取角色信息失败，跳过荣耀称号: ${error.message}`)
+      return result
+    }
+
+    if (!roleId) return result
+
+    for (const hero of heroes) {
+      const cacheKey = `gok:medal:${roleId}:${hero.heroId}`
+      const cached = cache.get(cacheKey)
+      if (typeof cached !== 'undefined') {
+        if (cached) result.set(String(hero.heroId), cached)
+        continue
+      }
+
+      try {
+        const res = await ApiService.getHeroRecordDetails(roleId, hero.heroId, {
+          roleName: role.roleName,
+          serverId: role.serverId
+        }, ID, String(userId))
+        // medalList 可能有多条（区/市榜各一条），营地按返回顺序展示，这里取第一条
+        const medal = res?.data?.medalList?.[0]?.UserMedalInfo || ''
+        cache.set(cacheKey, medal, MEDAL_TTL)
+        if (medal) result.set(String(hero.heroId), medal)
+      } catch (error) {
+        logger.debug(`[我的英雄] ${hero.name} 称号获取失败: ${error.message}`)
+      }
+
+      await new Promise(resolve => setTimeout(resolve, MEDAL_GAP_MS))
+    }
+
+    return result
+  }
+
   /** 整理成模板要的结构，头像转 base64 防截图时外链加载失败 */
-  async buildHeroCard(hero) {
+  async buildHeroCard(hero, medal = '') {
     const { name, subName } = splitHeroName(hero.name)
     const level = Number(hero.skilledLevel) || 0
 
@@ -133,6 +191,8 @@ export class MyHeroList extends plugin {
       // heroTypes 是数组（瑶是 ["辅助","法师"]），对应营地那页英雄名下面的定位
       heroType: (hero.heroTypes || []).join('/') || hero.heroType || '',
       skilledText: level ? (SKILLED_NAME[level] ? `${SKILLED_NAME[level]}` : `Lv.${level}`) : '',
+      // 称号原样展示（「天河区第25虞姬」），营地那页也是带英雄名的完整文本
+      honorText: medal || '',
       imgUrl: await this.resolveHeroImage(hero),
       playNum: Number(hero.playNum) || 0,
       // 这个接口的 winRate 已经是 "53.8%" 这种字符串，不用再换算

@@ -128,7 +128,7 @@
 
         .hero-item .avatar {
             width: 120px;
-            height: 76px;
+            height: 88px;
             border-radius: 10px;
             object-fit: cover;
             background: rgba(0, 0, 0, 0.3);
@@ -139,7 +139,7 @@
             display: flex;
             flex-direction: column;
             justify-content: center;
-            gap: 6px;
+            gap: 4px;
             min-width: 0;
             overflow: hidden;
         }
@@ -157,8 +157,26 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            height: 28px;
+            height: 26px;
             white-space: nowrap;
+        }
+
+        /* 荣耀称号同样固定行高，没称号的英雄留白占位，各行卡片才等高 */
+        .hero-item .honor-row {
+            display: flex;
+            align-items: center;
+            height: 26px;
+            white-space: nowrap;
+        }
+
+        .hero-item .honor-text {
+            font-size: 15px;
+            font-weight: bold;
+            color: #f5d76e;
+            background: rgba(245, 215, 110, 0.14);
+            border: 1px solid rgba(245, 215, 110, 0.4);
+            border-radius: 8px;
+            padding: 2px 8px;
         }
 
         .hero-item .hero-name {
@@ -238,7 +256,7 @@
         <div class="col-hero">英雄</div>
         <div class="col-num">场次</div>
         <div class="col-num">胜率</div>
-        <div class="col-power">最高战力</div>
+        <div class="col-power">战力</div>
     </div>
 
     {{each heroes hero index}}
@@ -254,6 +272,9 @@
                 <div class="meta-row">
                     {{if hero.heroType}}<span class="type-tag">{{hero.heroType}}</span>{{/if}}
                     {{if hero.skilledText}}<span class="skilled-tag">{{hero.skilledText}}</span>{{/if}}
+                </div>
+                <div class="honor-row">
+                    {{if hero.honorText}}<span class="honor-text">{{hero.honorText}}</span>{{/if}}
                 </div>
             </div>
         </div>
