@@ -512,7 +512,10 @@ export class GameRecordPush extends plugin {
    */
   async renderDetail (qq, campId, battle, sub) {
     try {
-      const detail = await fetchBattleDetail(campId, battle, qq)
+      // waitComplete：推送是在对局刚结束时触发的，此时详情里的 roles 常常还没落全，
+      // 出图就缺一两个玩家的卡片。给它两次机会等数据齐（判据见 isRolesComplete），
+      // 等不到就按现有数据出图 —— 宁可图上少个人，也不能把整条推送拖死或吞掉
+      const detail = await fetchBattleDetail(campId, battle, qq, { waitComplete: 2 })
       if (!detail) {
         logger.debug(`[王者推送] ${qq} 取不到 ${battle.gameSeq} 的战绩详情，回退纯文字`)
         return null

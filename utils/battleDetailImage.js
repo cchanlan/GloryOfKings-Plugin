@@ -115,6 +115,28 @@ export function resolveEvaluate (urls) {
 }
 
 /**
+ * 详情里的玩家数据是不是齐了。
+ *
+ * 对局刚结束时接口会「少人」：战绩列表已经能查到这一局（所以推送被触发），
+ * 但详情里的 redRoles / blueRoles 还没落全，出图就会缺一两个玩家的卡片。
+ * 实测同一局在推送时只有 4 个 redRoles，几分钟后再拉就是 5 个。
+ *
+ * 判据用 pickHeros：那是 BP 阶段的数据，实测比 roles 先落库且和实际出场英雄一一对应，
+ * 拿它当「这局本该有几个人」比写死 5 靠谱（10v10 / 3v3 / 娱乐模式人数都不一样）。
+ * 拿不到 pickHeros 就不卡着，直接当齐了。
+ */
+function isRolesComplete (detail) {
+  const need = team => (team?.pickHeros || []).length
+  const redNeed = need(detail?.redTeam)
+  const blueNeed = need(detail?.blueTeam)
+
+  if (!redNeed && !blueNeed) return true
+
+  return (detail?.redRoles || []).length >= redNeed &&
+    (detail?.blueRoles || []).length >= blueNeed
+}
+
+/**
  * 拉单场战绩详情。
  *
  * 需要的参数全在战绩列表项里，不用额外请求：battleType / gameSvrId / relaySvrId / gameSeq，
@@ -123,9 +145,30 @@ export function resolveEvaluate (urls) {
  * @param {string|number} ID 营地ID
  * @param {object} battle 战绩列表里的一项
  * @param {string} requesterBotUserId 属主QQ，authStore 按它取鉴权候选，不能省
+ * @param {object} [options]
+ * @param {number} [options.waitComplete=0] 玩家数据没落全时最多再重试几次（战绩推送用，
+ *   它是在对局刚结束时触发的；用户主动查战绩时对局早就结束了，不用重试）
+ * @param {number} [options.gapMs=9000] 重试间隔
  * @returns {Promise<object|null>} 详情数据，失败返回 null
  */
-export async function fetchBattleDetail (ID, battle, requesterBotUserId = '') {
+export async function fetchBattleDetail (ID, battle, requesterBotUserId = '', { waitComplete = 0, gapMs = 9000 } = {}) {
+  for (let attempt = 0; ; attempt += 1) {
+    const detail = await fetchBattleDetailOnce(ID, battle, requesterBotUserId)
+    if (!detail) return null
+
+    if (attempt >= waitComplete || isRolesComplete(detail)) {
+      if (attempt > 0) {
+        logger.debug(`[战绩详情] ${battle?.gameSeq} 等了 ${attempt} 次，redRoles=${(detail.redRoles || []).length} blueRoles=${(detail.blueRoles || []).length}`)
+      }
+      return detail
+    }
+
+    logger.debug(`[战绩详情] ${battle?.gameSeq} 玩家数据还没落全（redRoles=${(detail.redRoles || []).length}/${(detail.redTeam?.pickHeros || []).length}），${gapMs}ms 后重试`)
+    await new Promise(resolve => setTimeout(resolve, gapMs))
+  }
+}
+
+async function fetchBattleDetailOnce (ID, battle, requesterBotUserId) {
   const { battleType, gameSvrId, relaySvrId, gameSeq, battleDetailUrl } = battle || {}
   const targetRoleId = String(battleDetailUrl || '').match(/toAppRoleId=(\d+)/)?.[1]
 
