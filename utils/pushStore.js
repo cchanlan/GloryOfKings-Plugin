@@ -334,11 +334,14 @@ export function formatScoreChange (item, prev) {
   }
 
   if (prevJob === job) {
-    const diff = stars - toInt(prev?.stars)
+    const prevStars = toInt(prev?.stars)
+    const diff = stars - prevStars
     if (diff !== 0) {
       const sign = diff > 0 ? '+' : ''
-      return `${job} ${stars}星 (${sign}${diff})`
+      // 和巅峰分那行保持一致的「前 → 后 (差值)」格式，光给终点看不出这局涨了几颗
+      return `${job} ${prevStars} → ${stars}星 (${sign}${diff})`
     }
+    // 差值为 0：王者段输了有保星机制，星数不动是真实结果，如实只报当前星数
   }
 
   return `${job} ${stars}星`
