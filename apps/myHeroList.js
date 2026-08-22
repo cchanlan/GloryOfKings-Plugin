@@ -1,7 +1,9 @@
 // 我的英雄：数据取自游戏侧 /play/h5getherolist（全部竞技模式的生涯累计），一次请求拿全量英雄。
-// 和 heroList.js 的区别：那边走营地赛季页只有当前赛季 top5、战力是「当前战力」；
-// 这里是账号拥有的全部英雄（实测一个号 132 条），战力字段是**历史最高战力**，量级明显更高。
-// 荣耀称号不在这个接口里（要逐英雄拉 pagedetails），所以这里改用熟练度等级做副标。
+// 和 heroList.js 的区别：那边走营地赛季页只有当前赛季 top5，这里是账号拥有的全部英雄（实测一个号 132 条）。
+// heroFightPower 实测与营地侧 /game/profile/herolist 的同名字段完全一致（两个号 × 4 英雄同时刻比对），
+// 营地 App「我的英雄」页把这一列标成「最高战力」，所以这里沿用该叫法。
+// 真正的近 30 天战力峰值在 /gametoolbox/hero/record/pagedetails 的 powerData 里，但要逐英雄请求，成本高没用。
+// 荣耀称号也不在这个接口里（同样要逐英雄拉 pagedetails），所以这里改用熟练度等级做副标。
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { ApiService, readYamlFile, getLocalImage, Button, AT_HEAD, stripAtText, resolveTargetUserId, shouldQuote } from '#utils'
 import path from 'path'
@@ -96,9 +98,9 @@ export class MyHeroList extends plugin {
       return
     }
 
-    // 默认按场次降序，和营地「我的英雄」页的默认排序一致；场次相同的战力高的排前面
+    // 默认按战力降序（营地那页「最高战力」列排序），战力相同的场次多的排前面
     const sorted = [...played].sort(
-      (a, b) => Number(b.playNum) - Number(a.playNum) || Number(b.heroFightPower) - Number(a.heroFightPower)
+      (a, b) => Number(b.heroFightPower) - Number(a.heroFightPower) || Number(b.playNum) - Number(a.playNum)
     )
     const heroes = await Promise.all(sorted.slice(0, limit).map(hero => this.buildHeroCard(hero)))
 

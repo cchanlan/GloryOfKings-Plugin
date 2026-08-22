@@ -870,9 +870,10 @@ class ApiService {
    * 获取账号全量英雄列表（营地 App「我的英雄」页，全部竞技模式的生涯累计）。
    * 和皮肤墙同属游戏侧 form 接口。实测返回该账号拥有的全部英雄（一个号 132 条），
    * 单条含 playNum/winRate/heroFightPower/skilledLevel/heroTypes 等，一次请求就够，不用逐英雄拉。
-   * 注意 heroFightPower 在这里是**历史最高战力**（同一英雄：营地侧 profile/herolist 给的是当前战力，
-   * /gametoolbox/hero/record/pagedetails 的 powerData 给的是近 30 天峰值，三者数值不同）。
-   * 荣耀称号（「XX区第N英雄」）不在这个接口里，要另走 pagedetails 的 medalList。
+   * heroFightPower 实测与 getProfileHeroList 的同名字段完全一致（两个号 × 4 英雄同时刻比对），
+   * 营地 App 那页把这一列标成「最高战力」；近 30 天的战力峰值另在
+   * /gametoolbox/hero/record/pagedetails 的 powerData 里，需逐英雄请求。
+   * 荣耀称号（「XX区第N英雄」）不在这个接口里，同样要走 pagedetails 的 medalList。
    */
   async getGameHeroList(ID, requesterBotUserId = '') {
     return this.#requestGameForm('/play/h5getherolist', {
