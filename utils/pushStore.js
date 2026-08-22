@@ -351,25 +351,34 @@ export function formatDuration (seconds) {
  * @param {object} item 场次
  * @param {object} [prev] 更早的一场，用于比段位星数
  * @param {object} [heroMap] heroId -> 英雄名，列表项本身不带英雄名，只有 heroId 和 heroIcon
+ * @param {object} [options]
+ * @param {boolean} [options.brief=false] 精简模式：省略 KDA / 评分 / 时长 / 局评价。
+ *   配详情图发送时用——那些信息图里都有，文字只留图上没有的巅峰分与段位变化。
  */
-export function formatBattleText (item, prev, heroMap = {}) {
+export function formatBattleText (item, prev, heroMap = {}, { brief = false } = {}) {
   const win = item?.gameresult === 1
   const heroName = heroMap[String(item?.heroId)] || `英雄${item?.heroId ?? '?'}`
-  const kda = `${toInt(item?.killcnt)}/${toInt(item?.deadcnt)}/${toInt(item?.assistcnt)}`
 
-  const head = `${win ? '🏆 胜利' : '💧 失败'} · ${heroName} · ${kda}`
-  const grade = item?.gradeGame ? ` · 评分 ${item.gradeGame}` : ''
+  const lines = []
 
-  const lines = [head + grade]
+  if (brief) {
+    lines.push(`${win ? '🏆 胜利' : '💧 失败'} · ${heroName}`)
+  } else {
+    const kda = `${toInt(item?.killcnt)}/${toInt(item?.deadcnt)}/${toInt(item?.assistcnt)}`
+    const grade = item?.gradeGame ? ` · 评分 ${item.gradeGame}` : ''
+    lines.push(`${win ? '🏆 胜利' : '💧 失败'} · ${heroName} · ${kda}${grade}`)
+  }
 
   const score = formatScoreChange(item, prev)
   if (score) lines.push(`${win ? '📈' : '📉'} ${score}`)
 
-  const parts = []
-  const duration = formatDuration(item?.usedTime)
-  if (duration) parts.push(`⏱ ${duration}`)
-  if (item?.desc) parts.push(item.desc)
-  if (parts.length) lines.push(parts.join(' · '))
+  if (!brief) {
+    const parts = []
+    const duration = formatDuration(item?.usedTime)
+    if (duration) parts.push(`⏱ ${duration}`)
+    if (item?.desc) parts.push(item.desc)
+    if (parts.length) lines.push(parts.join(' · '))
+  }
 
   return lines.join('\n')
 }

@@ -11,6 +11,9 @@
  *   而且大部分人并不想被推送。
  * - 开局提醒和战绩推送共用同一次请求。实测 isGaming 翻转与新场次进 list 是同一时刻发生的，
  *   拆成两个 task 只会让请求量翻倍、频控风险翻倍。详见 utils/pushStore.js 文件头的实测记录。
+ * - 打完一局发的是和 #查询战绩N 同一张详情图（utils/battleDetailImage.js），这需要额外拉一次
+ *   battledetail 并走 puppeteer，所以只给最新那局出图；出图失败一律回退纯文字，不能吞掉推送。
+ * - 上下线提醒是独立开关，走的是主页接口（另一个端点），只有开了才会多花那次请求。
  *
  * 数据层与全部纯计算逻辑在 utils/pushStore.js，这里只管指令交互和消息发送。
  */
@@ -35,6 +38,7 @@ import {
   REQUEST_INTERVAL,
   sleep
 } from '../utils/pushStore.js'
+import { fetchBattleDetail, renderBattleDetail } from '../utils/battleDetailImage.js'
 import { getCurrentId, getLocalImage, Button, shouldQuote } from '#utils'
 import { Config } from '#components'
 
@@ -388,20 +392,34 @@ export class GameRecordPush extends plugin {
 
     if (!needGaming && !fresh.length) return
 
+    const newest = fresh[fresh.length - 1]
+
+    // 最新那局出详情图。要多拉一次 battledetail 并走 puppeteer，所以只给最新一局出图：
+    // 一轮补推多局是异常情况（重启 / 频控 / cron 被调长），不该在异常时把成本放大到 N 倍。
+    let detailImage = null
+    if (newest) {
+      detailImage = await this.renderDetail(qq, campId, newest)
+    }
+
     // 两件事凑在同一轮时合并成一条消息发。
     // 连着打排位时「上一局结算」和「下一局开局」几乎总是同一轮被读到，
     // 分两条发就是一轮刷两条，合并后阅读顺序也更顺（先说打完什么，再说又开了一局）。
     const blocks = []
-    if (fresh.length) blocks.push(this.buildBattleMessage(fresh, data.list, heroMap))
+    if (fresh.length) {
+      // 出了图就用精简文案：KDA / 评分 / 时长图里都有，文字只留图上没有的巅峰分与段位变化
+      blocks.push(this.buildBattleMessage(fresh, data.list, heroMap, !!detailImage))
+    }
     if (needGaming) {
       blocks.push(`${fresh.length ? '—— 又开了一局 ——\n' : ''}${formatGamingText(data.gaming, heroMap)}`)
     }
 
-    // 头像优先用正在打的那个英雄（反映当前状态），没有就用最新战绩的英雄
-    const newest = fresh[fresh.length - 1]
-    const icon = (needGaming && data.gaming?.heroIcon) || newest?.heroIcon
+    // 有详情图时就不再附英雄头像了，两张图挤在一条消息里没必要。
+    // 详情图没出来（接口失败或渲染失败）才回退到头像。
+    const icon = detailImage
+      ? ''
+      : ((needGaming && data.gaming?.heroIcon) || newest?.heroIcon)
 
-    const sent = await this.send(qq, sub.group, blocks.join('\n'), icon)
+    const sent = await this.send(qq, sub.group, blocks.join('\n'), icon, detailImage)
     if (!sent) return
 
     // 发送失败时一个游标都不动，下一轮整条消息重试
@@ -471,21 +489,43 @@ export class GameRecordPush extends plugin {
   }
 
   /**
+   * 出单场详情图。全过程失败都只记日志、返回 null，让调用方回退到纯文字——
+   * 定时任务里不能因为出图失败就把整条推送吞掉。
+   * @returns {Promise<object|null>} puppeteer 的图片消息段
+   */
+  async renderDetail (qq, campId, battle) {
+    try {
+      const detail = await fetchBattleDetail(campId, battle, qq)
+      if (!detail) {
+        logger.debug(`[王者推送] ${qq} 取不到 ${battle.gameSeq} 的战绩详情，回退纯文字`)
+        return null
+      }
+      return await renderBattleDetail(detail)
+    } catch (error) {
+      logger.error(`[王者推送] ${qq} 生成战绩详情图失败，回退纯文字: ${error.message}`)
+      return null
+    }
+  }
+
+  /**
    * 拼多场战绩的消息体。
    * @param {Array<object>} fresh 新场次，从旧到新
    * @param {Array<object>} fullList 完整列表（倒序），用来取「更早一场」比段位星数、算连胜
    * @param {Record<string,string>} heroMap
+   * @param {boolean} [hasImage=false] 最新一局是否已经出了详情图，决定最后一条用不用精简文案
    */
-  buildBattleMessage (fresh, fullList, heroMap) {
+  buildBattleMessage (fresh, fullList, heroMap, hasImage = false) {
     // 只详细展示最近几场，更早的漏推场次折叠成一行，避免刷屏
     const shown = fresh.slice(-MAX_DETAIL_BATTLES)
     const omitted = fresh.length - shown.length
 
-    const blocks = shown.map(item => {
+    const blocks = shown.map((item, idx) => {
       // 段位星数要和时间上更早的那场比，列表是倒序的，所以是 index + 1
       const index = fullList.findIndex(x => String(x.gameSeq || '') === String(item.gameSeq || ''))
       const prev = index >= 0 ? fullList[index + 1] : undefined
-      return formatBattleText(item, prev, heroMap)
+      // 只有最新那局（数组最后一项）配了详情图，它才用精简文案；补推的旧局仍是完整文字
+      const brief = hasImage && idx === shown.length - 1
+      return formatBattleText(item, prev, heroMap, { brief })
     })
 
     const head = fresh.length > 1
@@ -507,10 +547,11 @@ export class GameRecordPush extends plugin {
    * @param {string} qq 要 @ 的人
    * @param {string} groupId 群号
    * @param {string} text 文案
-   * @param {string} [iconUrl] 英雄头像 URL，取不到就只发文字
+   * @param {string} [iconUrl] 英雄头像 URL，没有详情图时才用
+   * @param {object} [image] 已渲染好的图片消息段（战绩详情图）
    * @returns {Promise<boolean>} 是否发送成功。失败时不推进游标，下一轮会重试
    */
-  async send (qq, groupId, text, iconUrl) {
+  async send (qq, groupId, text, iconUrl, image = null) {
     try {
       const group = Bot.pickGroup(Number(groupId))
       if (!group?.sendMsg) {
@@ -520,14 +561,16 @@ export class GameRecordPush extends plugin {
 
       const message = [segment.at(Number(qq)), ` ${text}`]
 
-      if (iconUrl) {
+      if (image) {
+        message.push(image)
+      } else if (iconUrl) {
         // getLocalImage 带 md5 缓存与占位图识别，同一个英雄头像只会真正下载一次
-        const image = await getLocalImage(iconUrl)
-        if (image) message.push(segment.image(image))
+        const icon = await getLocalImage(iconUrl)
+        if (icon) message.push(segment.image(icon))
       }
 
       await group.sendMsg(message)
-      logger.mark(`[王者推送] 已推送给 ${qq}@群${groupId}`)
+      logger.mark(`[王者推送] 已推送给 ${qq}@群${groupId}${image ? '（含详情图）' : ''}`)
       return true
     } catch (error) {
       logger.error(`[王者推送] 发送失败 ${qq}@群${groupId}: ${error.message}`)

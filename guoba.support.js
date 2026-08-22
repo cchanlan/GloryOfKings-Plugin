@@ -53,7 +53,7 @@ export function supportGuoba () {
         {
           field: 'config.onlineReminder',
           label: '推送总开关',
-          bottomHelpMessage: '战绩推送 / 开局提醒 / 上下线提醒的总开关。打开后用户还需各自在群里发送 #开启战绩推送 或 #开启上下线提醒 订阅，只有订阅过的人会被轮询。',
+          bottomHelpMessage: '战绩推送 / 开局提醒 / 上下线提醒的总开关。打开后用户还需各自在群里发送 #开启战绩推送 或 #开启上下线提醒 订阅，只有订阅过的人会被轮询。打完一局推送的是和 #查询战绩N 同一张全场详情图。',
           component: 'Switch'
         },
         {
@@ -65,7 +65,7 @@ export function supportGuoba () {
         {
           field: 'config.battleResultCron',
           label: '推送检查间隔',
-          bottomHelpMessage: '战绩推送、开局提醒、上下线提醒共用这一个轮询。每个订阅要串行拉接口（间隔 800 毫秒），开了上下线提醒的订阅每轮多占一次请求。设太短会触发营地频控 -30107，不建议低于 2 分钟。',
+          bottomHelpMessage: '战绩推送、开局提醒、上下线提醒共用这一个轮询。每个订阅要串行拉接口（间隔 800 毫秒）；真打完一局时会再拉一次详情并渲染图（约 1.3 秒），开了上下线提醒的订阅每轮还要多一次请求。设太短会触发营地频控 -30107，不建议低于 2 分钟。',
           helpMessage: '修改后重启生效',
           component: 'EasyCron',
           componentProps: {
