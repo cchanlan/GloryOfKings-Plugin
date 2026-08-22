@@ -54,6 +54,11 @@ const HERO_MAP_TTL = 6 * 60 * 60
 
 export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
+const toInt = value => {
+  const num = Number(value)
+  return Number.isFinite(num) ? Math.trunc(num) : 0
+}
+
 /* ------------------------------------------------------------------ 订阅存取 */
 
 /**
@@ -94,17 +99,6 @@ export function mergeSubState (qq, patch) {
   if (!list[key]) return false
 
   list[key] = { ...list[key], ...patch }
-  savePushList(list)
-  return true
-}
-
-/** 删除订阅 */
-export function removeSub (qq) {
-  const key = String(qq)
-  const list = loadPushList()
-  if (!list[key]) return false
-
-  delete list[key]
   savePushList(list)
   return true
 }
@@ -184,12 +178,66 @@ export async function getHeroNameMap () {
   }
 }
 
-/* ------------------------------------------------------------------ 纯计算 */
+/**
+ * 拉取账号的在线状态（上下线提醒用）。
+ *
+ * 走 /game/koh/profile，和战绩列表是两个不同的端点，所以开了上下线提醒的订阅
+ * 每轮要多花一次请求。只有订阅里 online 为真时才该调这个。
+ *
+ * gameOnline 三态实测（2026-08-22 采样 20 个账号 × 多轮）：
+ *   0 = 离线    1 = 在线（营地/游戏客户端开着，不在对局）    2 = 游戏中
+ * 关键：**gameOnline=2 不等于在对局里**。同一账号出现过 gameOnline=2 而 isGaming=false
+ * （在大厅、匹配中、翻战绩都算 2），真正在打的判据是战绩列表的 isGaming。
+ * 所以上下线提醒（0 ↔ 非0）和开局提醒（isGaming）是两件独立的事，不会互相顶替。
+ *
+ * onlineTime / offlineTime 单独看都判不了状态（见文件头注释里 523924587 那个反例），
+ * 而且 **offlineTime 在刚下线时不会立刻更新**（账号 1557825900 已经 gameOnline=0 时，
+ * offlineTime 19:23 仍早于 onlineTime 20:16），所以在线时长不能靠这两个相减，
+ * 要用推送自己记下的上线时刻（订阅项的 onlineSince）。
+ * 只有在 gameOnline 非 0 时 onlineTime 是可信的「本次上线时刻」，可作 onlineSince 的初值。
+ *
+ * @returns {Promise<{gameOnline:number, onlineTime:number, offlineTime:number, roleName:string}|null|symbol>}
+ */
+export async function fetchOnlineState (campId, qq) {
+  for (let attempt = 0; attempt <= RATE_LIMIT_RETRY; attempt += 1) {
+    try {
+      const res = await ApiService.getProfile(String(campId), String(qq))
+      const code = Number(res?.returnCode || 0)
 
-const toInt = value => {
-  const num = Number(value)
-  return Number.isFinite(num) ? Math.trunc(num) : 0
+      if (code === CODE_PROFILE_HIDDEN) return FETCH_HIDDEN
+
+      if (code === CODE_RATE_LIMITED) {
+        if (attempt < RATE_LIMIT_RETRY) {
+          await sleep(RATE_LIMIT_BACKOFF * (attempt + 1))
+          continue
+        }
+        return null
+      }
+
+      if (code !== 0) return null
+
+      const data = res?.data || {}
+      const roles = data.roleList || []
+      // 主角色认 targetRoleId，取不到就退回第一个（多角色账号只跟主角色的状态）
+      const role = roles.find(r => r.roleId === data.targetRoleId) || roles[0]
+      if (!role) return null
+
+      return {
+        gameOnline: toInt(role.gameOnline),
+        onlineTime: toInt(role.onlineTime),
+        offlineTime: toInt(role.offlineTime),
+        roleName: String(role.roleName || '')
+      }
+    } catch (error) {
+      logger.debug(`[王者推送] 拉取 ${campId} 在线状态失败: ${error.message}`)
+      return null
+    }
+  }
+
+  return null
 }
+
+/* ------------------------------------------------------------------ 纯计算 */
 
 /**
  * 从最新一场往前数连胜/连败。
@@ -349,6 +397,144 @@ export function formatGamingText (gaming, heroMap = {}) {
 
   const duration = toInt(gaming?.duration)
   if (duration > 0) lines.push(`已进行 ${duration} 分钟`)
+
+  return lines.join('\n')
+}
+
+/* ------------------------------------------------------------------ 上下线 */
+
+/** gameOnline 三态的展示名。实测只有这三个值，其它值按「在线」处理 */
+export const ONLINE_LABEL = { 0: '离线', 1: '在线', 2: '游戏中' }
+
+/**
+ * 判断上下线是否发生了值得提醒的变化。
+ *
+ * 只认「离线 <-> 非离线」的跨越，不认 1<->2 的抖动：
+ * 玩家在营地和游戏客户端之间来回切、打完一局退回大厅，都会让 gameOnline 在 1 和 2 之间跳，
+ * 每次都提醒就是刷屏。真正想知道的是「他上线了」和「他收工了」。
+ *
+ * @param {number} current 本轮的 gameOnline
+ * @param {number|string|undefined} previous 上一轮记录的 gameOnline，首次订阅时为空
+ * @returns {'online'|'offline'|''} 空串表示不用提醒
+ */
+export function diffOnlineState (current, previous) {
+  // 首次记录（订阅后第一轮）没有基准，只登记不提醒，否则一开启就收到一条
+  if (previous === undefined || previous === null || previous === '') return ''
+
+  const now = toInt(current)
+  const before = toInt(previous)
+
+  if (before === now) return ''
+  if (before === 0 && now !== 0) return 'online'
+  if (before !== 0 && now === 0) return 'offline'
+  // 1 <-> 2 的抖动，不提醒
+  return ''
+}
+
+/** 秒 -> 「2小时15分」/「45分钟」，用于在线时长 */
+export function formatOnlineDuration (seconds) {
+  const total = toInt(seconds)
+  if (total <= 0) return ''
+  const hours = Math.floor(total / 3600)
+  const mins = Math.floor((total % 3600) / 60)
+  if (hours > 0) return mins > 0 ? `${hours}小时${mins}分` : `${hours}小时`
+  return mins > 0 ? `${mins}分钟` : '不到1分钟'
+}
+
+/**
+ * 一次连续在线最长按多久算。超过就认为营地给的 onlineTime 是陈旧值，不是真的挂了这么久。
+ * 实测账号 1630945798 明明是离线状态，onlineTime 却是四个月前的时间戳，
+ * 直接拿来算时长会推出「本次在线 1427 小时」这种离谱文案。
+ */
+const MAX_SESSION_SECONDS = 24 * 3600
+
+/**
+ * 敲定「本次上线时刻」。
+ *
+ * 优先信我们自己观察到的时刻（nowSec）：上线提醒是在 0 -> 非0 那一轮检测到的，
+ * 此刻的时间就是上线时刻，误差最多一个轮询间隔，比营地的 onlineTime 可靠。
+ * 只有在订阅时对方已经在线、我们没观察到上线瞬间的情况下，才回退到 onlineTime，
+ * 且要求它落在最近 MAX_SESSION_SECONDS 之内，否则视为陈旧值改用 nowSec。
+ *
+ * @param {number|string} onlineTime 营地返回的 onlineTime
+ * @param {number} nowSec 当前时间戳（秒）
+ * @param {boolean} [observed=false] 是否是我们亲眼看到的上线跨越
+ * @returns {number} 上线时刻（秒）
+ */
+export function resolveOnlineSince (onlineTime, nowSec, observed = false) {
+  const now = toInt(nowSec)
+  if (observed) return now
+
+  const started = toInt(onlineTime)
+  if (started <= 0 || started > now) return now
+  if (now - started > MAX_SESSION_SECONDS) return now
+
+  return started
+}
+
+/**
+ * 统计一段时间内打了什么，用于下线时的收工总结。
+ * 用的还是同一份战绩列表，不额外发请求。
+ *
+ * @param {Array<object>} list 战绩列表（倒序）
+ * @param {number|string} sinceTime 起始时间戳（秒），一般是本次上线时刻
+ * @returns {{count:number, win:number, lose:number, scoreFrom:number, scoreTo:number}}
+ */
+export function summarizeSession (list = [], sinceTime = 0) {
+  const since = toInt(sinceTime)
+  const played = since > 0
+    ? (Array.isArray(list) ? list : []).filter(item => toInt(item?.dtEventTime) >= since)
+    : []
+
+  const win = played.filter(item => item?.gameresult === 1).length
+  const lose = played.filter(item => item?.gameresult === 2).length
+
+  // 列表倒序：最后一项最早、第一项最新，巅峰分取这段区间的首尾
+  const withScore = played.filter(item => toInt(item?.newMasterMatchScore) > 0)
+  const earliest = withScore[withScore.length - 1]
+  const newest = withScore[0]
+
+  return {
+    count: played.length,
+    win,
+    lose,
+    scoreFrom: toInt(earliest?.oldMasterMatchScore),
+    scoreTo: toInt(newest?.newMasterMatchScore)
+  }
+}
+
+/**
+ * 上线 / 下线提醒文案。
+ *
+ * 时长不在这里算：营地的 offlineTime 在刚下线时**不会立刻更新**
+ * （实测账号 1557825900 已经 gameOnline=0，offlineTime 19:23 仍早于 onlineTime 20:16，
+ * 相减是负数），所以在线时长必须由调用方拿「自己记下的上线时刻」算好传进来。
+ *
+ * @param {'online'|'offline'} kind 变化类型
+ * @param {object} [opts]
+ * @param {number} [opts.gameOnline] 当前状态值，用于区分「上线」和「上线并已进游戏」
+ * @param {number} [opts.durationSec] 本次在线秒数，0 表示算不出来、不显示
+ * @param {object} [opts.session] summarizeSession 的返回，只在下线时用
+ */
+export function formatOnlineText (kind, { gameOnline = 0, durationSec = 0, session = null } = {}) {
+  if (kind === 'online') {
+    return `🟢 上线了${toInt(gameOnline) === 2 ? ' · 已进游戏' : ''}`
+  }
+
+  const lines = ['⚫ 下线了']
+
+  const duration = formatOnlineDuration(durationSec)
+  if (duration) lines[0] += ` · 本次在线 ${duration}`
+
+  if (session?.count > 0) {
+    lines.push(`🎮 打了 ${session.count} 局 · ${session.win}胜${session.lose}负`)
+    if (session.scoreFrom > 0 && session.scoreTo > 0 && session.scoreFrom !== session.scoreTo) {
+      const diff = session.scoreTo - session.scoreFrom
+      lines.push(`${diff > 0 ? '📈' : '📉'} 巅峰分 ${session.scoreFrom} -> ${session.scoreTo} (${diff > 0 ? '+' : ''}${diff})`)
+    }
+  } else if (duration) {
+    lines.push('🎮 本次没有排位/巅峰战绩')
+  }
 
   return lines.join('\n')
 }

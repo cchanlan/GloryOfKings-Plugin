@@ -18,13 +18,18 @@ import {
   loadPushList,
   savePushList,
   mergeSubState,
-  removeSub,
   fetchLatest,
+  fetchOnlineState,
   getHeroNameMap,
   calcStreak,
   pickNewBattles,
+  diffOnlineState,
+  summarizeSession,
+  resolveOnlineSince,
   formatBattleText,
   formatGamingText,
+  formatOnlineText,
+  ONLINE_LABEL,
   FETCH_HIDDEN,
   MAX_DETAIL_BATTLES,
   REQUEST_INTERVAL,
@@ -51,6 +56,7 @@ export class GameRecordPush extends plugin {
       priority: 0,
       rule: [
         { reg: '^#(开启|关闭)(王者)?战绩推送$', fnc: 'toggle' },
+        { reg: '^#(开启|关闭)(王者)?上下线提醒$', fnc: 'toggleOnline' },
         { reg: '^#(王者)?战绩推送(状态|列表)?$', fnc: 'status' },
         { reg: '^#清空王者战绩推送$', fnc: 'clearAll', permission: 'master' }
       ]
@@ -68,15 +74,63 @@ export class GameRecordPush extends plugin {
       : { name: '', fnc: '', cron: '' }
   }
 
+  /**
+   * 两个开关的公共校验：必须在群里发（推送要群号）、总开关开着、绑过营地ID。
+   * @returns {Promise<string>} 通过时返回营地ID，未通过时已经回复过了，返回空串
+   */
+  async prepareToggle (e, label) {
+    if (!e.isGroup) {
+      await e.reply(`${label}需要在群里开启，提醒会发到你开启时所在的群`, shouldQuote())
+      return ''
+    }
+
+    if (readConfig().onlineReminder === false) {
+      await e.reply(`推送总开关当前是关闭状态，请让主人在 #王者设置 里打开`, shouldQuote())
+      return ''
+    }
+
+    const campId = getCurrentId(e.user_id)
+    if (!campId) {
+      await e.reply(['你还没有绑定营地ID，先发送 #绑定营地 [营地ID]', Button.bind()], shouldQuote())
+      return ''
+    }
+
+    return String(campId)
+  }
+
+  /**
+   * 关掉一个开关。两个开关都关了就把整条订阅删掉，别留个空壳还占着轮询名额。
+   * @returns {boolean} 之前是否真的开着
+   */
+  disableFlag (qq, key) {
+    const list = loadPushList()
+    const sub = list[String(qq)]
+    if (!sub) return false
+
+    // 老订阅没有 battle 字段，按开着算（向后兼容）
+    const wasOn = key === 'battle' ? sub.battle !== false : sub.online === true
+    if (!wasOn) return false
+
+    sub[key] = false
+    const battleOn = sub.battle !== false
+    const onlineOn = sub.online === true
+
+    if (!battleOn && !onlineOn) delete list[String(qq)]
+    else list[String(qq)] = sub
+
+    savePushList(list)
+    return true
+  }
+
   /** #开启战绩推送 / #关闭战绩推送 */
   async toggle (e) {
     const enable = e.msg.includes('开启')
     const qq = String(e.user_id)
 
     if (!enable) {
-      const removed = removeSub(qq)
+      const wasOn = this.disableFlag(qq, 'battle')
       await e.reply(
-        removed
+        wasOn
           ? ['已关闭战绩推送', Button.push(false)]
           : '你还没有开启战绩推送',
         shouldQuote()
@@ -84,22 +138,8 @@ export class GameRecordPush extends plugin {
       return
     }
 
-    // 推送要往群里发，私聊拿不到群号
-    if (!e.isGroup) {
-      await e.reply('战绩推送需要在群里开启，推送会发到你开启时所在的群', shouldQuote())
-      return
-    }
-
-    if (readConfig().onlineReminder === false) {
-      await e.reply('战绩推送总开关当前是关闭状态，请让主人在 #王者设置 里打开', shouldQuote())
-      return
-    }
-
-    const campId = getCurrentId(qq)
-    if (!campId) {
-      await e.reply(['你还没有绑定营地ID，先发送 #绑定营地 [营地ID]', Button.bind()], shouldQuote())
-      return
-    }
+    const campId = await this.prepareToggle(e, '战绩推送')
+    if (!campId) return
 
     // 立刻拉一次把游标初始化到当前最新一场。
     // 不做这一步，第一轮轮询会把最近打的那局当成新战绩推出来。
@@ -118,6 +158,8 @@ export class GameRecordPush extends plugin {
     const latest = (data.list || [])[0] || {}
     const list = loadPushList()
     list[qq] = {
+      ...(list[qq] || {}),
+      battle: true,
       group: String(e.group_id),
       campId: String(campId),
       lastGameSeq: String(latest.gameSeq || ''),
@@ -134,10 +176,64 @@ export class GameRecordPush extends plugin {
         `✅ 已开启战绩推送（营地ID ${campId}）`,
         '打完一局会在本群 @你 并发送战绩，开局也会提醒一次',
         cron ? `检查间隔：${cron}` : '',
-        '关闭发送 #关闭战绩推送'
+        '想连上下线一起提醒发送 #开启上下线提醒'
       ].filter(Boolean).join('\n'),
       Button.push(true)
     ], shouldQuote())
+  }
+
+  /** #开启上下线提醒 / #关闭上下线提醒 */
+  async toggleOnline (e) {
+    const enable = e.msg.includes('开启')
+    const qq = String(e.user_id)
+
+    if (!enable) {
+      const wasOn = this.disableFlag(qq, 'online')
+      await e.reply(wasOn ? '已关闭上下线提醒' : '你还没有开启上下线提醒', shouldQuote())
+      return
+    }
+
+    const campId = await this.prepareToggle(e, '上下线提醒')
+    if (!campId) return
+
+    // 立刻拉一次当前状态做基准。没有基准的话第一轮会把「当前在线」当成刚上线推一条
+    const state = await fetchOnlineState(campId, qq)
+
+    if (state === FETCH_HIDDEN) {
+      await e.reply('你的营地隐藏了主页，拿不到在线状态，请先在营地里关闭主页隐藏', shouldQuote())
+      return
+    }
+
+    if (!state) {
+      await e.reply('拉取在线状态失败，可能是营地接口频控或登录态失效，请稍后再试', shouldQuote())
+      return
+    }
+
+    const nowSec = Math.floor(Date.now() / 1000)
+    const list = loadPushList()
+    const existed = list[qq] || {}
+    list[qq] = {
+      ...existed,
+      online: true,
+      // 只开上下线提醒时也要有 group/campId，且不能顺手把战绩推送打开
+      battle: existed.battle === true,
+      group: String(e.group_id),
+      campId: String(campId),
+      lastOnlineState: String(state.gameOnline),
+      // 订阅时已经在线：没观察到上线瞬间，只能回退到营地的 onlineTime（会做陈旧值检查）
+      onlineSince: state.gameOnline !== 0 ? String(resolveOnlineSince(state.onlineTime, nowSec)) : '',
+      enabledAt: existed.enabledAt || Date.now()
+    }
+    savePushList(list)
+
+    const cron = readConfig().battleResultCron || ''
+    await e.reply([
+      `✅ 已开启上下线提醒（营地ID ${campId}）`,
+      `当前状态：${ONLINE_LABEL[state.gameOnline] || '未知'}`,
+      '上线和下线时会在本群 @你，下线时附带本次战绩总结',
+      cron ? `检查间隔：${cron}（这项会多占一次接口请求）` : '',
+      '关闭发送 #关闭上下线提醒'
+    ].filter(Boolean).join('\n'), shouldQuote())
   }
 
   /** #战绩推送状态 */
@@ -149,8 +245,9 @@ export class GameRecordPush extends plugin {
     if (!sub) {
       await e.reply([
         [
-          '你还没有开启战绩推送',
-          '在群里发送 #开启战绩推送 即可',
+          '你还没有开启任何推送',
+          '在群里发送 #开启战绩推送 推每局战绩',
+          '发送 #开启上下线提醒 推上下线',
           cfg.onlineReminder === false ? '（注意：插件的推送总开关当前是关闭的）' : ''
         ].filter(Boolean).join('\n'),
         Button.push(false)
@@ -158,16 +255,22 @@ export class GameRecordPush extends plugin {
       return
     }
 
+    const battleOn = sub.battle !== false
+    const onlineOn = sub.online === true
+
     await e.reply([
       [
-        '📢 战绩推送已开启',
+        '📢 推送订阅',
+        `战绩推送：${battleOn ? '已开启' : '未开启'}`,
+        `上下线提醒：${onlineOn ? '已开启' : '未开启'}`,
         `营地ID：${sub.campId || '—'}`,
         `推送群：${sub.group || '—'}`,
         `检查间隔：${cfg.battleResultCron || '—'}`,
         cfg.onlineReminder === false ? '⚠️ 插件推送总开关已关闭，暂时不会推送' : '',
-        '关闭发送 #关闭战绩推送'
+        battleOn ? '关闭战绩推送发送 #关闭战绩推送' : '开启战绩推送发送 #开启战绩推送',
+        onlineOn ? '关闭上下线提醒发送 #关闭上下线提醒' : '开启上下线提醒发送 #开启上下线提醒'
       ].filter(Boolean).join('\n'),
-      Button.push(true)
+      Button.push(battleOn)
     ], shouldQuote())
   }
 
@@ -211,10 +314,12 @@ export class GameRecordPush extends plugin {
   }
 
   /**
-   * 检查单个订阅。
+   * 检查单个订阅。两个开关各自独立：
+   * battle 走战绩列表（1 次请求），online 走主页接口（再 1 次请求），都开就是 2 次。
+   * 所以只开战绩推送的人不会因为别人开了上下线提醒而多花请求。
    * @param {string} qq 订阅者
    * @param {object} sub 订阅项
-   * @param {Record<string,string>} heroMap heroId → 英雄名
+   * @param {Record<string,string>} heroMap heroId -> 英雄名
    */
   async checkOne (qq, sub, heroMap) {
     if (!sub?.group) return
@@ -226,22 +331,51 @@ export class GameRecordPush extends plugin {
       return
     }
 
-    const data = await fetchLatest(campId, qq)
-    if (!data || data === FETCH_HIDDEN) return
+    // 老订阅没有 battle 字段，按开着算（向后兼容首个版本写下的订阅）
+    const battleOn = sub.battle !== false
+    const onlineOn = sub.online === true
 
+    // 战绩列表：battle 要用来推战绩，online 要用它做下线时的战绩总结，任一开着就得拉
+    let data = null
+    if (battleOn || onlineOn) {
+      data = await fetchLatest(campId, qq)
+      if (data === FETCH_HIDDEN) data = null
+    }
+
+    if (battleOn && data) {
+      const handled = await this.checkBattle(qq, sub, campId, data, heroMap)
+      // 换号时 checkBattle 已经重置过游标，本轮不再往下做上下线判断，等下一轮拿新号的基准
+      if (handled === 'switched') return
+    }
+
+    if (onlineOn) {
+      // 两个开关都开时中间隔一下，别把两个端点的请求贴在一起打
+      if (battleOn) await sleep(REQUEST_INTERVAL)
+      await this.checkOnline(qq, sub, campId, data)
+    }
+  }
+
+  /**
+   * 战绩推送 + 开局提醒。
+   * @returns {Promise<'switched'|void>} 检测到换号时返回 'switched'
+   */
+  async checkBattle (qq, sub, campId, data, heroMap) {
     const latest = (data.list || [])[0] || {}
 
     // 换号了：两个号的战绩时间线互不相干，直接把游标挪到新号的最新一场，本轮不推。
     // 不重置的话，新号的历史战绩会因为「时间比旧号游标新」被整批当成新战绩推出来。
     if (String(sub.campId || '') !== String(campId)) {
-      logger.mark(`[王者推送] ${qq} 营地ID 变更 ${sub.campId} → ${campId}，重置推送游标`)
+      logger.mark(`[王者推送] ${qq} 营地ID 变更 ${sub.campId} -> ${campId}，重置推送游标`)
       mergeSubState(qq, {
         campId: String(campId),
         lastGameSeq: String(latest.gameSeq || ''),
         lastGameTime: String(latest.dtEventTime || ''),
-        lastGamingStart: String(data.gaming?.dtEventTime || '')
+        lastGamingStart: String(data.gaming?.dtEventTime || ''),
+        // 在线状态也一起重置，新号的在线状态和旧号无关
+        lastOnlineState: '',
+        onlineSince: ''
       })
-      return
+      return 'switched'
     }
 
     // 开局提醒。用 gaming.dtEventTime（开局时间戳，一局之内恒定）做去重键，
@@ -278,6 +412,62 @@ export class GameRecordPush extends plugin {
       patch.lastGameTime = String(newest.dtEventTime || '')
     }
     mergeSubState(qq, patch)
+  }
+
+  /**
+   * 上下线提醒。
+   *
+   * 只在「离线 <-> 非离线」跨越时发，1(在线) <-> 2(游戏中) 的抖动不发 —— 实测账号
+   * 1832804263 就在两轮之间从 1 跳到 2（打开了游戏但还没开局），这种每次都提醒就是刷屏。
+   *
+   * @param {string} qq 订阅者
+   * @param {object} sub 订阅项
+   * @param {string} campId 当前营地ID
+   * @param {object|null} data 战绩列表数据，有的话用来做下线时的战绩总结（不额外请求）
+   */
+  async checkOnline (qq, sub, campId, data) {
+    const state = await fetchOnlineState(campId, qq)
+    if (!state || state === FETCH_HIDDEN) return
+
+    const kind = diffOnlineState(state.gameOnline, sub.lastOnlineState)
+    const nowSec = Math.floor(Date.now() / 1000)
+
+    if (!kind) {
+      // 状态没跨越，只把当前值记下来。
+      // 首轮（lastOnlineState 为空）也走这里，等于「只登记不提醒」。
+      const patch = { lastOnlineState: String(state.gameOnline) }
+      // 已经在线但没有上线时刻（比如订阅时就在线、或换号后重置过），补一个基准
+      if (state.gameOnline !== 0 && !sub.onlineSince) {
+        patch.onlineSince = String(resolveOnlineSince(state.onlineTime, nowSec))
+      }
+      mergeSubState(qq, patch)
+      return
+    }
+
+    let text
+    if (kind === 'online') {
+      text = formatOnlineText('online', { gameOnline: state.gameOnline })
+    } else {
+      // 本次在线时长用自己记的上线时刻算：营地的 offlineTime 刚下线时不会立刻更新，
+      // 拿它相减会得负数（实测 1557825900：gameOnline 已是 0，offlineTime 仍早于 onlineTime）
+      const since = Number(sub.onlineSince) || 0
+      text = formatOnlineText('offline', {
+        durationSec: since > 0 ? nowSec - since : 0,
+        // 收工总结复用本轮已经拉到的战绩列表，没拉到（只开了上下线提醒且列表请求失败）就不带
+        session: since > 0 && data ? summarizeSession(data.list, since) : null
+      })
+    }
+
+    const sent = await this.send(qq, sub.group, text)
+    if (!sent) return
+
+    mergeSubState(qq, {
+      lastOnlineState: String(state.gameOnline),
+      // 上线时记下时刻供下次下线算时长；下线时清空。
+      // observed=true：这是我们亲眼看到的 0 -> 非0 跨越，此刻就是上线时刻，
+      // 比营地的 onlineTime 可靠（那个字段实测会是几个月前的陈旧值）
+      onlineSince: kind === 'online' ? String(resolveOnlineSince(state.onlineTime, nowSec, true)) : ''
+    })
   }
 
   /**

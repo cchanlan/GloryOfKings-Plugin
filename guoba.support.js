@@ -52,8 +52,8 @@ export function supportGuoba () {
         },
         {
           field: 'config.onlineReminder',
-          label: '战绩推送总开关',
-          bottomHelpMessage: '开局提醒 + 打完自动推战绩的总开关。打开后用户还需各自在群里发送 #开启战绩推送 订阅，只有订阅过的人会被轮询。',
+          label: '推送总开关',
+          bottomHelpMessage: '战绩推送 / 开局提醒 / 上下线提醒的总开关。打开后用户还需各自在群里发送 #开启战绩推送 或 #开启上下线提醒 订阅，只有订阅过的人会被轮询。',
           component: 'Switch'
         },
         {
@@ -64,8 +64,8 @@ export function supportGuoba () {
         },
         {
           field: 'config.battleResultCron',
-          label: '战绩推送检查间隔',
-          bottomHelpMessage: '开局提醒与战绩推送共用这一个轮询。每个订阅要串行拉一次营地接口（间隔 800 毫秒），设太短会触发营地频控 -30107，不建议低于 2 分钟。',
+          label: '推送检查间隔',
+          bottomHelpMessage: '战绩推送、开局提醒、上下线提醒共用这一个轮询。每个订阅要串行拉接口（间隔 800 毫秒），开了上下线提醒的订阅每轮多占一次请求。设太短会触发营地频控 -30107，不建议低于 2 分钟。',
           helpMessage: '修改后重启生效',
           component: 'EasyCron',
           componentProps: {
@@ -140,7 +140,7 @@ export function supportGuoba () {
         },
         {
           component: 'Divider',
-          label: '命令入口：#营地wx登录 / #王者帮助 / #王者设置 / #营地wx全局登录 / #王者用户统计 / #王者设置共享账号候选启用|关闭 / #王者设置个人登录态兜底启用|关闭 / #共享营地账号 / #清理失效营地账号 / #开启战绩推送 / #关闭战绩推送 / #战绩推送状态 / #清空王者战绩推送'
+          label: '命令入口：#营地wx登录 / #王者帮助 / #王者设置 / #营地wx全局登录 / #王者用户统计 / #王者设置共享账号候选启用|关闭 / #王者设置个人登录态兜底启用|关闭 / #共享营地账号 / #清理失效营地账号 / #开启战绩推送 / #关闭战绩推送 / #开启上下线提醒 / #关闭上下线提醒 / #战绩推送状态 / #清空王者战绩推送'
         },
         {
           field: 'authPool.sharedIds',

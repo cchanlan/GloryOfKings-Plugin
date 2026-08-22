@@ -264,7 +264,7 @@ export default class Button {
 
   /**
    * 战绩推送
-   * @param {boolean} enabled 当前是否已订阅，决定给「开启」还是「关闭」按钮
+   * @param {boolean} enabled 当前是否已订阅战绩推送，决定给「开启」还是「关闭」按钮
    */
   static push(enabled = false) {
     return segment.button(
@@ -275,8 +275,8 @@ export default class Button {
         { text: '推送状态', callback: '#战绩推送状态' }
       ],
       [
-        { text: '查询战绩', callback: '#查询战绩' },
-        { text: '王者主页', callback: '#王者主页' }
+        { text: '上下线提醒', callback: '#开启上下线提醒' },
+        { text: '查询战绩', callback: '#查询战绩' }
       ]
     )
   }
