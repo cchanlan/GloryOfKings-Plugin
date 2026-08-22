@@ -199,8 +199,31 @@ const getTeamData = (myTeam, enemyTeam, myRoles, enemyRoles, head, battle) => ({
   enemyKillDeadAssistCnt: `${enemyTeam.killCnt}/${enemyTeam.deadCnt}/${enemyTeam.assistCnt}`,
   myRoles,
   enemyRoles,
+  ...getBanData(myTeam, enemyTeam),
   ...getDragonStats(myTeam, enemyTeam)
 })
+
+/**
+ * 禁用英雄（BP 的 ban 那半）。
+ *
+ * 只取 ban：pick 那半在下面的双方阵容里已经有了，实测 pickHeros 和各玩家的
+ * battleRecords.usedHero 完全一致（只是顺序不同），再单独列一排是重复信息。
+ *
+ * 注意别拿 banCnt 去截断 banHeros：实测某局 banHeros 是 5 个而 banCnt=3，两者不是一回事。
+ * 图片只有 heroIcon 有值，verticalIcon / skinIcon128128 等一律是空串。
+ * 娱乐模式等没有 BP 阶段的对局 banHeros 是空数组，此时整个区块隐藏（hasBan）。
+ */
+const getBanData = (myTeam, enemyTeam) => {
+  const pick = team => (team?.banHeros || []).filter(h => h?.heroIcon || h?.heroName)
+  const myBanHeros = pick(myTeam)
+  const enemyBanHeros = pick(enemyTeam)
+
+  return {
+    myBanHeros,
+    enemyBanHeros,
+    hasBan: myBanHeros.length > 0 || enemyBanHeros.length > 0
+  }
+}
 
 const formatMoney = money => money > 1000 ? `${(money / 1000).toFixed(1)}k` : money
 

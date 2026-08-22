@@ -171,6 +171,77 @@
             margin-bottom: 12px;
         }
 
+        /* 禁用英雄（BP）。选用英雄不单独列——下面双方阵容里每个玩家的英雄就是 pick，
+           实测 pickHeros 和各玩家的 usedHero 完全一致，再列一遍是重复。
+           我方/敌方两组并排放一行：卡片宽 1300px，10 个 54px 头像分两行会空掉大半，
+           还白涨一倍高度 */
+        .ban-rows {
+            display: flex;
+            align-items: flex-start;
+            gap: 56px;
+        }
+
+        .ban-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .ban-side {
+            flex: 0 0 62px;
+            font-size: 15px;
+            color: #9aa7bd;
+        }
+
+        .ban-side.my {
+            color: #7ee0a8;
+        }
+
+        .ban-side.enemy {
+            color: #ff8fa8;
+        }
+
+        .ban-hero {
+            position: relative;
+            width: 54px;
+            text-align: center;
+        }
+
+        .ban-hero img {
+            width: 54px;
+            height: 54px;
+            border-radius: 10px;
+            object-fit: cover;
+            background: rgba(0, 0, 0, 0.3);
+            display: block;
+            /* 禁用了就置灰，一眼区分于下面的出场英雄 */
+            filter: grayscale(100%) brightness(0.75);
+        }
+
+        /* 斜杠划掉，强调「被 ban」。
+           头像 54×54，对角线 ≈76px：从左下角起、绕左中心转 -45°，终点正好落在右上角 */
+        .ban-hero::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 52px;
+            width: 76px;
+            height: 2px;
+            background: rgba(255, 92, 122, 0.9);
+            transform: rotate(-45deg);
+            transform-origin: left center;
+        }
+
+        .ban-hero span {
+            display: block;
+            margin-top: 4px;
+            font-size: 12px;
+            color: #8b97ab;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         .resource-items {
             display: grid;
             grid-template-columns: repeat(6, 1fr);
@@ -481,6 +552,32 @@
             </div>
         </div>
     </div>
+
+    {{if hasBan}}
+    <div class="stats-card">
+        <div class="section-title">禁用英雄</div>
+        <div class="ban-rows">
+        <div class="ban-row">
+            <span class="ban-side my">我方禁</span>
+            {{each myBanHeros h}}
+            <div class="ban-hero">
+                <img src="{{h.heroIcon}}" alt="{{h.heroName}}" onerror="this.style.visibility='hidden'">
+                <span>{{h.heroName}}</span>
+            </div>
+            {{/each}}
+        </div>
+        <div class="ban-row">
+            <span class="ban-side enemy">敌方禁</span>
+            {{each enemyBanHeros h}}
+            <div class="ban-hero">
+                <img src="{{h.heroIcon}}" alt="{{h.heroName}}" onerror="this.style.visibility='hidden'">
+                <span>{{h.heroName}}</span>
+            </div>
+            {{/each}}
+        </div>
+        </div>
+    </div>
+    {{/if}}
 
     <div class="stats-container">
         <!-- 我方队伍（左侧） -->
