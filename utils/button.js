@@ -263,6 +263,25 @@ export default class Button {
   }
 
   /**
+   * 战绩推送
+   * @param {boolean} enabled 当前是否已订阅，决定给「开启」还是「关闭」按钮
+   */
+  static push(enabled = false) {
+    return segment.button(
+      [
+        enabled
+          ? { text: '关闭推送', callback: '#关闭战绩推送' }
+          : { text: '开启推送', callback: '#开启战绩推送' },
+        { text: '推送状态', callback: '#战绩推送状态' }
+      ],
+      [
+        { text: '查询战绩', callback: '#查询战绩' },
+        { text: '王者主页', callback: '#王者主页' }
+      ]
+    )
+  }
+
+  /**
    * 赛季/巅峰表现
    * @param {string|number} id 营地ID，带上后按钮直接查该ID
    * @param {string} type 当前看的是排位还是巅峰

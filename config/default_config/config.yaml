@@ -1,8 +1,10 @@
-#*是否启用王者上下线提醒
+#*战绩推送总开关（开局提醒 + 打完推战绩，用户需各自 #开启战绩推送 订阅）
 onlineReminder: true
-#*王者上下线提醒的cron表达式
+#*已废弃：开局提醒与战绩推送共用一个轮询，间隔统一看 battleResultCron。
+#*此项不能删——components/Config.js 的 validateConfig 硬性要求它存在，缺了会把配置重置成默认值
 onlineReminderCron: '*/10 * * * * *'
-#*王者战绩推送的cron表达式
-battleResultCron: '0 */1 * * * *'
+#*战绩推送的检查间隔（6 位 cron，含秒）。每个订阅串行拉一次营地接口、间隔 800ms，
+#*设太短会触发营地频控 -30107，不建议低于 2 分钟
+battleResultCron: '0 */2 * * * *'
 #*回复时是否引用触发指令那条消息
 quoteReply: true
