@@ -173,31 +173,29 @@
 
         /* 禁用英雄（BP）。选用英雄不单独列——下面双方阵容里每个玩家的英雄就是 pick，
            实测 pickHeros 和各玩家的 usedHero 完全一致，再列一遍是重复。
-           我方/敌方两组并排放一行：卡片宽 1300px，10 个 54px 头像分两行会空掉大半，
-           还白涨一倍高度 */
-        .ban-rows {
+           拆成左右两张卡片而不是挤在一张里：flex:1 + gap:20px 和下面 stats-container
+           的两个 team-container 完全一致，所以「我方禁」正对我方阵容、「敌方禁」正对敌方阵容 */
+        .ban-container {
             display: flex;
-            align-items: flex-start;
-            gap: 56px;
+            gap: 20px;
+            align-items: stretch;
+        }
+
+        .ban-card {
+            flex: 1;
         }
 
         .ban-row {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 10px;
         }
 
-        .ban-side {
-            flex: 0 0 62px;
-            font-size: 15px;
-            color: #9aa7bd;
-        }
-
-        .ban-side.my {
+        .ban-title.my {
             color: #7ee0a8;
         }
 
-        .ban-side.enemy {
+        .ban-title.enemy {
             color: #ff8fa8;
         }
 
@@ -340,7 +338,9 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
-            justify-content: space-between;
+            /* 必须是 flex-start：接口有时只返回部分玩家（隐私设置等，实测出现过我方 1 人、
+               敌方 4 人的排位局），space-between 会把这几张卡片分散钉在容器首尾 */
+            justify-content: flex-start;
         }
 
         .player-card {
@@ -351,7 +351,11 @@
             background: rgba(255, 255, 255, 0.06);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 12px;
-            flex: 1;
+            /* 不能用 flex: 1。两队等高（stats-container 是 align-items: stretch），
+               卡片一旦可伸缩就会去均分整列高度：满员 5 张时看不出来，
+               而接口只返回 1 名玩家时那张卡片会被拉成一个占满整列的巨框。
+               高度一律由内容决定 */
+            flex: 0 0 auto;
         }
 
         /* 查询者本人：金色描边 + 高亮底色，一眼定位自己 */
@@ -450,6 +454,9 @@
             color: #eef2f8;
             white-space: nowrap;
             margin-bottom: 4px;
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
         }
 
         .economy-display {
@@ -459,6 +466,26 @@
             white-space: nowrap;
             flex-shrink: 0;
             margin-left: auto;
+        }
+
+        /* 对英雄伤害（营地里的「输出」）。放在 KDA 那行的右端而不是名字行：
+           名字行已经有名字 + MVP/评价图标 + 经济，再塞一项会把装备行挤到换行、图白高 200px+。
+           KDA 行原本整条空着，且正好在经济正下方，上下紧邻，一眼就能一起看 */
+        .damage-display {
+            font-size: 17px;
+            font-weight: bold;
+            color: #ff8fa8;
+            white-space: nowrap;
+            flex-shrink: 0;
+            margin-left: auto;
+        }
+
+        .damage-display .label,
+        .economy-display .label {
+            font-size: 12px;
+            font-weight: normal;
+            color: #8b97ab;
+            margin-right: 3px;
         }
 
         .hero-name {
@@ -554,27 +581,28 @@
     </div>
 
     {{if hasBan}}
-    <div class="stats-card">
-        <div class="section-title">禁用英雄</div>
-        <div class="ban-rows">
-        <div class="ban-row">
-            <span class="ban-side my">我方禁</span>
-            {{each myBanHeros h}}
-            <div class="ban-hero">
-                <img src="{{h.heroIcon}}" alt="{{h.heroName}}" onerror="this.style.visibility='hidden'">
-                <span>{{h.heroName}}</span>
+    <div class="ban-container">
+        <div class="stats-card ban-card">
+            <div class="section-title ban-title my">我方禁用</div>
+            <div class="ban-row">
+                {{each myBanHeros h}}
+                <div class="ban-hero">
+                    <img src="{{h.heroIcon}}" alt="{{h.heroName}}" onerror="this.style.visibility='hidden'">
+                    <span>{{h.heroName}}</span>
+                </div>
+                {{/each}}
             </div>
-            {{/each}}
         </div>
-        <div class="ban-row">
-            <span class="ban-side enemy">敌方禁</span>
-            {{each enemyBanHeros h}}
-            <div class="ban-hero">
-                <img src="{{h.heroIcon}}" alt="{{h.heroName}}" onerror="this.style.visibility='hidden'">
-                <span>{{h.heroName}}</span>
+        <div class="stats-card ban-card">
+            <div class="section-title ban-title enemy">敌方禁用</div>
+            <div class="ban-row">
+                {{each enemyBanHeros h}}
+                <div class="ban-hero">
+                    <img src="{{h.heroIcon}}" alt="{{h.heroName}}" onerror="this.style.visibility='hidden'">
+                    <span>{{h.heroName}}</span>
+                </div>
+                {{/each}}
             </div>
-            {{/each}}
-        </div>
         </div>
     </div>
     {{/if}}
@@ -602,9 +630,12 @@
                                 {{if item.battleStats.mvpIcon}}<img class="eval-icon" src="{{item.battleStats.mvpIcon}}" alt="{{item.battleStats.mvpTag}}" onerror="this.style.display='none'">
                                 {{else if item.battleStats.mvp}}<span class="mvp-badge">{{item.battleStats.mvpTag || 'MVP'}}</span>{{/if}}
                                 {{if item.battleStats.evalIcon}}<img class="eval-icon" src="{{item.battleStats.evalIcon}}" alt="{{item.battleStats.evalTag}}" onerror="this.style.display='none'">{{/if}}
-                                <span class="economy-display">{{item.battleStats.money}}</span>
+                                <span class="economy-display"><span class="label">经济</span>{{item.battleStats.money}}</span>
                             </div>
-                            <div class="player-stats">{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</div>
+                            <div class="player-stats">
+                                <span>{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</span>
+                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}</span>{{/if}}
+                            </div>
                             <div class="hero-name">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
                             <div class="equipment-list">
                                 <div class="equipment-item"><img src="{{item.battleRecords.skill.skillIcon}}" alt="技能"></div>
@@ -633,9 +664,12 @@
                                 {{if item.battleStats.mvpIcon}}<img class="eval-icon" src="{{item.battleStats.mvpIcon}}" alt="{{item.battleStats.mvpTag}}" onerror="this.style.display='none'">
                                 {{else if item.battleStats.mvp}}<span class="mvp-badge">{{item.battleStats.mvpTag || 'MVP'}}</span>{{/if}}
                                 {{if item.battleStats.evalIcon}}<img class="eval-icon" src="{{item.battleStats.evalIcon}}" alt="{{item.battleStats.evalTag}}" onerror="this.style.display='none'">{{/if}}
-                                <span class="economy-display">{{item.battleStats.money}}</span>
+                                <span class="economy-display"><span class="label">经济</span>{{item.battleStats.money}}</span>
                             </div>
-                            <div class="player-stats">{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</div>
+                            <div class="player-stats">
+                                <span>{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</span>
+                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}</span>{{/if}}
+                            </div>
                             <div class="hero-name">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
                             <div class="equipment-list">
                                 <div class="equipment-item"><img src="{{item.battleRecords.skill.skillIcon}}" alt="技能"></div>
@@ -674,9 +708,12 @@
                                 {{if item.battleStats.mvpIcon}}<img class="eval-icon" src="{{item.battleStats.mvpIcon}}" alt="{{item.battleStats.mvpTag}}" onerror="this.style.display='none'">
                                 {{else if item.battleStats.mvp}}<span class="mvp-badge">{{item.battleStats.mvpTag || 'MVP'}}</span>{{/if}}
                                 {{if item.battleStats.evalIcon}}<img class="eval-icon" src="{{item.battleStats.evalIcon}}" alt="{{item.battleStats.evalTag}}" onerror="this.style.display='none'">{{/if}}
-                                <span class="economy-display">{{item.battleStats.money}}</span>
+                                <span class="economy-display"><span class="label">经济</span>{{item.battleStats.money}}</span>
                             </div>
-                            <div class="player-stats">{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</div>
+                            <div class="player-stats">
+                                <span>{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</span>
+                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}</span>{{/if}}
+                            </div>
                             <div class="hero-name">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
                             <div class="equipment-list">
                                 <div class="equipment-item"><img src="{{item.battleRecords.skill.skillIcon}}" alt="技能"></div>
@@ -705,9 +742,12 @@
                                 {{if item.battleStats.mvpIcon}}<img class="eval-icon" src="{{item.battleStats.mvpIcon}}" alt="{{item.battleStats.mvpTag}}" onerror="this.style.display='none'">
                                 {{else if item.battleStats.mvp}}<span class="mvp-badge">{{item.battleStats.mvpTag || 'MVP'}}</span>{{/if}}
                                 {{if item.battleStats.evalIcon}}<img class="eval-icon" src="{{item.battleStats.evalIcon}}" alt="{{item.battleStats.evalTag}}" onerror="this.style.display='none'">{{/if}}
-                                <span class="economy-display">{{item.battleStats.money}}</span>
+                                <span class="economy-display"><span class="label">经济</span>{{item.battleStats.money}}</span>
                             </div>
-                            <div class="player-stats">{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</div>
+                            <div class="player-stats">
+                                <span>{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</span>
+                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}</span>{{/if}}
+                            </div>
                             <div class="hero-name">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
                             <div class="equipment-list">
                                 <div class="equipment-item"><img src="{{item.battleRecords.skill.skillIcon}}" alt="技能"></div>

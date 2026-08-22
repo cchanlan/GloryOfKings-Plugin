@@ -171,6 +171,9 @@ export async function renderBattleDetail ({ head, battle, redTeam, blueTeam, red
         bs.mvpTag = win ? 'MVP' : 'SVP'
         bs.mvpIcon = localImg(win ? 'mvp.png' : 'svp.png')
       }
+      // 「输出」取对英雄伤害 totalHeroHurtCnt（实测 3.6万~10.4万），
+      // 不是 totalHurtCnt——那个含对小兵野怪的伤害，坦克清兵也能刷很高，看不出打人多少
+      bs.heroHurtText = formatDamage(bs.totalHeroHurtCnt)
     }
   }
 
@@ -226,6 +229,17 @@ const getBanData = (myTeam, enemyTeam) => {
 }
 
 const formatMoney = money => money > 1000 ? `${(money / 1000).toFixed(1)}k` : money
+
+/**
+ * 伤害数值 -> 紧凑文案。这些字段接口给的是字符串（"92687"），先转数字再算。
+ * 卡片右上角空间有限，上万一律折成「9.3万」。
+ */
+const formatDamage = value => {
+  const num = Number(value) || 0
+  if (num <= 0) return ''
+  if (num >= 10000) return `${(num / 10000).toFixed(1)}万`
+  return String(num)
+}
 
 const getDragonStats = (my, enemy) => ({
   myBdragon1: my.bdragon1, myBdragon2: my.bdragon2, myBdragon3: my.bdragon3,
