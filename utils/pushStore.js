@@ -9,9 +9,11 @@
  *
  * 三个实测出来的坑（光看返回体猜不出来，改动前务必先看）：
  * 1. straightWin / straightLose 不可用：上面那局明确赢了，两个字段仍是 0/0。连胜自己从 list 连续段算。
- * 2. 列表里的 oldMasterMatchScore / newMasterMatchScore 只有巅峰赛场次有值，排位场次恒为 0
- *    （data/BattleList.json 缓存里全是 0，就是因为那 30 场全是排位赛）。所以巅峰分拿不到时
- *    回落到 roleJobName + stars 显示段位星数变化。
+ * 2. 列表里的 oldMasterMatchScore / newMasterMatchScore 在巅峰赛场次才有意义。
+ *    排位赛场次也会带上这两个字段（实测「排位赛 三排」一局 old=new=1795），但前后相等，
+ *    表示这局不影响巅峰分 —— 所以判据是 old != new，不是「字段有没有值」。
+ *    真正没打过巅峰赛的号这两个字段才是 0（data/BattleList.json 那份缓存 30 场全是 0）。
+ *    巅峰分拿不到时回落到 roleJobName + stars 显示段位星数变化。
  * 3. stars 的语义随段位变化：同一批数据里「最强王者」是段内星数（1~5 循环），
  *    「荣耀王者」却是累计星数（59）。所以只在 roleJobName 相同时才做星数差值，
  *    段位名变了就只报段位变化，不算差。
@@ -23,6 +25,9 @@ import path from 'path'
 import { readYamlFile, writeYamlFile } from './yamlUtils.js'
 import ApiService from './api.js'
 import cache from './cache.js'
+// 营地昵称里常有私有区图标和不可见字符，直接拼进文案会显示成豆腐块或整段空白，
+// 清洗规则和排行榜是同一套，复用 rankStore 的实现
+import { normalizeName } from './rankStore.js'
 import { PluginData } from '#components'
 
 const PUSH_FILE = path.join(PluginData, 'GameRecordPush.yaml')
@@ -296,9 +301,12 @@ export function pickNewBattles (list = [], sub = {}) {
 /**
  * 一场战绩的分数变化。巅峰赛给巅峰分，排位给段位星数，都拿不到就返回空。
  *
- * 巅峰分：列表项自带 oldMasterMatchScore / newMasterMatchScore，实测只有巅峰赛场次有值。
+ * 巅峰分：列表项自带 oldMasterMatchScore / newMasterMatchScore。
+ *   注意**不能只看字段有没有值**：排位赛场次也会带上当前巅峰分（实测「排位赛 三排」
+ *   一局 old=new=1795），只是前后相等表示这局不影响巅峰分。所以要求 old != new 才当巅峰分用，
+ *   相等就回落到段位星数——否则排位赛会推出「巅峰分 1795 → 1795 (0)」这种废话。
  * 段位星数：列表项自带 roleJobName + stars，但 stars 的语义随段位变化（见文件头注释），
- *           所以要和上一场比，且只在段位名相同时才算差值。
+ *   所以要和上一场比，且只在段位名相同时才算差值。
  *
  * @param {object} item 当前场次
  * @param {object} [prev] 时间上更早的一场（list 里紧邻的下一项），用于比段位星数
@@ -308,7 +316,7 @@ export function formatScoreChange (item, prev) {
   const oldScore = toInt(item?.oldMasterMatchScore)
   const newScore = toInt(item?.newMasterMatchScore)
 
-  if (oldScore > 0 || newScore > 0) {
+  if ((oldScore > 0 || newScore > 0) && oldScore !== newScore) {
     const diff = newScore - oldScore
     const sign = diff > 0 ? '+' : ''
     return `巅峰分 ${oldScore} → ${newScore} (${sign}${diff})`
@@ -389,12 +397,15 @@ export function formatBattleText (item, prev, heroMap = {}, { brief = false } = 
  *                    mapName, duration(已进行分钟), gameNum(该英雄场次), winRate, detailUrl, watch }
  * @param {object} gaming data.gaming
  * @param {object} [heroMap] heroId -> 英雄名
+ * @param {string} [name] 玩家名。开局提醒不 @ 本人（是给群友看的），
+ *   所以要把名字写进文案里，否则群里没人知道是谁开打了。
  */
-export function formatGamingText (gaming, heroMap = {}) {
+export function formatGamingText (gaming, heroMap = {}, name = '') {
   const mode = String(gaming?.mapName || '').trim() || '对局'
   const heroName = heroMap[String(gaming?.heroId)] || (gaming?.heroId ? `英雄${gaming.heroId}` : '')
+  const who = normalizeName(name)
 
-  const lines = [`开打了 · ${mode}`]
+  const lines = [`${name ? `${who} · ` : ''}进入了${mode}`]
 
   if (heroName) {
     const stat = []
@@ -515,22 +526,27 @@ export function summarizeSession (list = [], sinceTime = 0) {
 /**
  * 上线 / 下线提醒文案。
  *
+ * 这两条都不 @ 本人（是给群友看的），所以名字必须写进文案，否则群里看不出是谁。
+ *
  * 时长不在这里算：营地的 offlineTime 在刚下线时**不会立刻更新**
  * （实测账号 1557825900 已经 gameOnline=0，offlineTime 19:23 仍早于 onlineTime 20:16，
  * 相减是负数），所以在线时长必须由调用方拿「自己记下的上线时刻」算好传进来。
  *
  * @param {'online'|'offline'} kind 变化类型
  * @param {object} [opts]
+ * @param {string} [opts.name] 玩家名（营地昵称）
  * @param {number} [opts.gameOnline] 当前状态值，用于区分「上线」和「上线并已进游戏」
  * @param {number} [opts.durationSec] 本次在线秒数，0 表示算不出来、不显示
  * @param {object} [opts.session] summarizeSession 的返回，只在下线时用
  */
-export function formatOnlineText (kind, { gameOnline = 0, durationSec = 0, session = null } = {}) {
+export function formatOnlineText (kind, { name = '', gameOnline = 0, durationSec = 0, session = null } = {}) {
+  const who = name ? `${normalizeName(name)} · ` : ''
+
   if (kind === 'online') {
-    return `🟢 上线了${toInt(gameOnline) === 2 ? ' · 已进游戏' : ''}`
+    return `🟢 ${who}王者已上线${toInt(gameOnline) === 2 ? ' · 已进游戏' : ''}`
   }
 
-  const lines = ['⚫ 下线了']
+  const lines = [`⚫ ${who}王者已下线`]
 
   const duration = formatOnlineDuration(durationSec)
   if (duration) lines[0] += ` · 本次在线 ${duration}`

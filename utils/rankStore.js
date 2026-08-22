@@ -56,8 +56,11 @@ const INVISIBLE_RE = /[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF\uFE00-\uFE0
  */
 const PRIVATE_USE_RE = /[\uE000-\uF8FF]|[\uDB80-\uDBBF][\uDC00-\uDFFF]/g
 
-/** 昵称兜底：剔除渲染不出来的字符，全没了就给个占位名 */
-function normalizeName(name) {
+/**
+ * 昵称兜底：剔除渲染不出来的字符，全没了就给个占位名。
+ * 推送那边（utils/pushStore.js）也要拿营地昵称拼文案，同一套清洗规则，所以导出复用。
+ */
+export function normalizeName(name) {
   const cleaned = String(name || '')
     .replace(PRIVATE_USE_RE, '')
     .replace(INVISIBLE_RE, '')

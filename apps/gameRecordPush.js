@@ -224,6 +224,8 @@ export class GameRecordPush extends plugin {
       group: String(e.group_id),
       campId: String(campId),
       lastOnlineState: String(state.gameOnline),
+      // 主页接口是玩家名的来源之一，缓存给不 @ 的那几条文案用
+      ...(state.roleName ? { roleName: String(state.roleName) } : {}),
       // 订阅时已经在线：没观察到上线瞬间，只能回退到营地的 onlineTime（会做陈旧值检查）
       onlineSince: state.gameOnline !== 0 ? String(resolveOnlineSince(state.onlineTime, nowSec)) : '',
       enabledAt: existed.enabledAt || Date.now()
@@ -398,28 +400,34 @@ export class GameRecordPush extends plugin {
     // 一轮补推多局是异常情况（重启 / 频控 / cron 被调长），不该在异常时把成本放大到 N 倍。
     let detailImage = null
     if (newest) {
-      detailImage = await this.renderDetail(qq, campId, newest)
+      detailImage = await this.renderDetail(qq, campId, newest, sub)
     }
+
+    // 只有「比赛结束推战绩」才 @ 本人。纯粹的开局提醒是给群友看的，不 @，
+    // 但要把玩家名写进文案，否则群里不知道是谁开打了。
+    const at = fresh.length > 0
+    const gamingName = at ? '' : await this.resolveDisplayName(qq, sub)
 
     // 两件事凑在同一轮时合并成一条消息发。
     // 连着打排位时「上一局结算」和「下一局开局」几乎总是同一轮被读到，
     // 分两条发就是一轮刷两条，合并后阅读顺序也更顺（先说打完什么，再说又开了一局）。
+    // 合并后整条已经 @ 了本人，开局那段就不再重复写名字。
     const blocks = []
     if (fresh.length) {
       // 出了图就用精简文案：KDA / 评分 / 时长图里都有，文字只留图上没有的巅峰分与段位变化
       blocks.push(this.buildBattleMessage(fresh, data.list, heroMap, !!detailImage))
     }
     if (needGaming) {
-      blocks.push(`${fresh.length ? '—— 又开了一局 ——\n' : ''}${formatGamingText(data.gaming, heroMap)}`)
+      blocks.push(`${fresh.length ? '—— 又开了一局 ——\n' : ''}${formatGamingText(data.gaming, heroMap, gamingName)}`)
     }
 
     // 有详情图时就不再附英雄头像了，两张图挤在一条消息里没必要。
     // 详情图没出来（接口失败或渲染失败）才回退到头像。
-    const icon = detailImage
+    const iconUrl = detailImage
       ? ''
-      : ((needGaming && data.gaming?.heroIcon) || newest?.heroIcon)
+      : ((needGaming && data.gaming?.heroIcon) || newest?.heroIcon || '')
 
-    const sent = await this.send(qq, sub.group, blocks.join('\n'), icon, detailImage)
+    const sent = await this.send(qq, sub.group, blocks.join('\n'), { at, iconUrl, image: detailImage })
     if (!sent) return
 
     // 发送失败时一个游标都不动，下一轮整条消息重试
@@ -449,11 +457,15 @@ export class GameRecordPush extends plugin {
 
     const kind = diffOnlineState(state.gameOnline, sub.lastOnlineState)
     const nowSec = Math.floor(Date.now() / 1000)
+    // 主页接口每轮都给玩家名，顺手缓存下来：战绩列表和 gaming 里没有这个字段，
+    // 而「进入比赛」那条也不 @ 本人、同样要靠名字认人
+    const roleName = state.roleName ? String(state.roleName) : ''
 
     if (!kind) {
       // 状态没跨越，只把当前值记下来。
       // 首轮（lastOnlineState 为空）也走这里，等于「只登记不提醒」。
       const patch = { lastOnlineState: String(state.gameOnline) }
+      if (roleName && roleName !== sub.roleName) patch.roleName = roleName
       // 已经在线但没有上线时刻（比如订阅时就在线、或换号后重置过），补一个基准
       if (state.gameOnline !== 0 && !sub.onlineSince) {
         patch.onlineSince = String(resolveOnlineSince(state.onlineTime, nowSec))
@@ -462,25 +474,30 @@ export class GameRecordPush extends plugin {
       return
     }
 
+    // 上下线都是给群友看的，不 @ 本人，名字写进文案
+    const name = roleName || await this.resolveDisplayName(qq, sub)
+
     let text
     if (kind === 'online') {
-      text = formatOnlineText('online', { gameOnline: state.gameOnline })
+      text = formatOnlineText('online', { name, gameOnline: state.gameOnline })
     } else {
       // 本次在线时长用自己记的上线时刻算：营地的 offlineTime 刚下线时不会立刻更新，
       // 拿它相减会得负数（实测 1557825900：gameOnline 已是 0，offlineTime 仍早于 onlineTime）
       const since = Number(sub.onlineSince) || 0
       text = formatOnlineText('offline', {
+        name,
         durationSec: since > 0 ? nowSec - since : 0,
         // 收工总结复用本轮已经拉到的战绩列表，没拉到（只开了上下线提醒且列表请求失败）就不带
         session: since > 0 && data ? summarizeSession(data.list, since) : null
       })
     }
 
-    const sent = await this.send(qq, sub.group, text)
+    const sent = await this.send(qq, sub.group, text, { at: false })
     if (!sent) return
 
     mergeSubState(qq, {
       lastOnlineState: String(state.gameOnline),
+      ...(roleName ? { roleName } : {}),
       // 上线时记下时刻供下次下线算时长；下线时清空。
       // observed=true：这是我们亲眼看到的 0 -> 非0 跨越，此刻就是上线时刻，
       // 比营地的 onlineTime 可靠（那个字段实测会是几个月前的陈旧值）
@@ -493,13 +510,20 @@ export class GameRecordPush extends plugin {
    * 定时任务里不能因为出图失败就把整条推送吞掉。
    * @returns {Promise<object|null>} puppeteer 的图片消息段
    */
-  async renderDetail (qq, campId, battle) {
+  async renderDetail (qq, campId, battle, sub) {
     try {
       const detail = await fetchBattleDetail(campId, battle, qq)
       if (!detail) {
         logger.debug(`[王者推送] ${qq} 取不到 ${battle.gameSeq} 的战绩详情，回退纯文字`)
         return null
       }
+
+      // 详情里带玩家名，顺手缓存给「不 @ 的那几条」文案用（战绩列表和 gaming 里都没有）
+      const roleName = detail.head?.roleName
+      if (roleName && roleName !== sub?.roleName) {
+        mergeSubState(qq, { roleName: String(roleName) })
+      }
+
       return await renderBattleDetail(detail)
     } catch (error) {
       logger.error(`[王者推送] ${qq} 生成战绩详情图失败，回退纯文字: ${error.message}`)
@@ -544,14 +568,21 @@ export class GameRecordPush extends plugin {
 
   /**
    * 往群里发一条推送。
-   * @param {string} qq 要 @ 的人
+   *
+   * 只有「比赛结束推战绩」才 @ 本人（那是给他自己看的）。
+   * 上线 / 下线 / 进入比赛是给群友看的热闹，不 @ ——
+   * 这几条的文案里带了玩家名，群里照样认得出是谁。
+   *
+   * @param {string} qq 订阅者
    * @param {string} groupId 群号
    * @param {string} text 文案
-   * @param {string} [iconUrl] 英雄头像 URL，没有详情图时才用
-   * @param {object} [image] 已渲染好的图片消息段（战绩详情图）
+   * @param {object} [opts]
+   * @param {boolean} [opts.at=false] 是否 @ 本人
+   * @param {string} [opts.iconUrl] 英雄头像 URL，没有详情图时才用
+   * @param {object} [opts.image] 已渲染好的图片消息段（战绩详情图）
    * @returns {Promise<boolean>} 是否发送成功。失败时不推进游标，下一轮会重试
    */
-  async send (qq, groupId, text, iconUrl, image = null) {
+  async send (qq, groupId, text, { at = false, iconUrl = '', image = null } = {}) {
     try {
       const group = Bot.pickGroup(Number(groupId))
       if (!group?.sendMsg) {
@@ -559,7 +590,7 @@ export class GameRecordPush extends plugin {
         return false
       }
 
-      const message = [segment.at(Number(qq)), ` ${text}`]
+      const message = at ? [segment.at(Number(qq)), ` ${text}`] : [text]
 
       if (image) {
         message.push(image)
@@ -570,12 +601,34 @@ export class GameRecordPush extends plugin {
       }
 
       await group.sendMsg(message)
-      logger.mark(`[王者推送] 已推送给 ${qq}@群${groupId}${image ? '（含详情图）' : ''}`)
+      logger.mark(`[王者推送] 已推送给 ${qq}@群${groupId}${image ? '（含详情图）' : ''}${at ? '' : '（未@）'}`)
       return true
     } catch (error) {
       logger.error(`[王者推送] 发送失败 ${qq}@群${groupId}: ${error.message}`)
       return false
     }
+  }
+
+  /**
+   * 拿玩家名给不 @ 的那几条文案用。
+   *
+   * 战绩列表和 data.gaming 里都没有玩家名，只有主页接口和战绩详情里有，
+   * 所以订阅项里缓存一份（checkOnline 每轮、出详情图时顺手更新）。
+   * 一次都没拿到过时退回 QQ 的群名片 / 昵称，最后退到 QQ 号。
+   */
+  async resolveDisplayName (qq, sub) {
+    if (sub?.roleName) return String(sub.roleName)
+
+    try {
+      const member = Bot.pickGroup(Number(sub.group))?.pickMember?.(Number(qq))
+      const info = await member?.getInfo?.()
+      const name = info?.card || info?.nickname
+      if (name) return String(name)
+    } catch {
+      // 群成员信息拿不到就算了，不值得为一句文案报错
+    }
+
+    return String(qq)
   }
 }
 
