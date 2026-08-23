@@ -6,6 +6,20 @@ import authStore from './authStore.js'
 
 const DEFAULT_PUBLIC_KEY = 'MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC0h62mV/zjJtFsNdfFNlxksfUOpjDI2KCcBrPiA8T7szABT4InLDTrdXAW84QyGNiazB0i7pgPCNGSAYbiJrCRutZ5jQsVS0Wg/RnXfwVQDJcAHJDjP5IXyroeLX7NUxDai8nPcpfRsvq6sneobyPexZSH0TlVSnecsJZTj5wu/wIDAQAB'
 
+/** 营地频控错误码：操作频繁 */
+const CODE_RATE_LIMITED = -30107
+
+/**
+ * 相邻两次真实 HTTP 请求的最小间隔。营地接口按请求方账号限频，
+ * 排行榜一次 19 连发、推送轮询和用户查询叠加时就触发 -30107，
+ * 全局串行队列把所有端点的请求拉平到这个节奏
+ */
+const MIN_REQUEST_GAP_MS = 1200
+
+/** 命中 -30107 后的冷却：60s 起步，冷却期间连续再命中则翻倍，封顶 10 分钟 */
+const RATE_LIMIT_BASE_COOLDOWN_MS = 60 * 1000
+const RATE_LIMIT_MAX_COOLDOWN_MS = 10 * 60 * 1000
+
 class AuthConfigError extends Error {
   constructor(message) {
     super(message)
@@ -18,12 +32,75 @@ class AuthConfigError extends Error {
  * 新版营地接口需要额外的安全参数，因此这里统一处理鉴权头、encodeParam 和响应解密。
  */
 class ApiService {
+  /** 频控冷却截止时间戳（ms），0 表示不在冷却 */
+  #rateLimitUntil = 0
+  /** 冷却期间连续命中频控的次数，决定下一次冷却时长 */
+  #rateLimitHits = 0
+  /** 全局串行队列的队尾 */
+  #queueTail = Promise.resolve()
+  /** 上次实际请求发出时刻 */
+  #lastRequestAt = 0
+
   constructor() {
     this.baseUrls = {
       main: 'https://kohcamp.qq.com',
       game: 'https://ssl.kohsocialapp.qq.com:10001'
     }
     this.generatedXLogUid = this.#buildUuid()
+  }
+
+  /* ------------------------------------------------------ 频控冷却与请求队列 */
+
+  /**
+   * 冷却检查。账号池通常只有一个 token，-30107 后换号重试没有意义，
+   * 唯一有效的策略是全体调用方立刻停手等冷却——期间的新请求在这里快速失败，
+   * 不再打到营地接口加重频控。冷却过期或某次请求成功后自动恢复
+   */
+  #assertNotRateLimited() {
+    if (Date.now() >= this.#rateLimitUntil) return
+
+    const waitSec = Math.ceil((this.#rateLimitUntil - Date.now()) / 1000)
+    throw new Error(`营地接口操作频繁，冷却中（约 ${waitSec} 秒后自动恢复），请稍后再试`)
+  }
+
+  /** 记录一次 -30107 命中，返回本次冷却毫秒数 */
+  #markRateLimited() {
+    this.#rateLimitHits = Math.min(this.#rateLimitHits + 1, 10)
+    const cooldown = Math.min(
+      RATE_LIMIT_BASE_COOLDOWN_MS * Math.pow(2, this.#rateLimitHits - 1),
+      RATE_LIMIT_MAX_COOLDOWN_MS
+    )
+    this.#rateLimitUntil = Date.now() + cooldown
+    logger.warn(`[王者接口] 命中频控 -30107，进入 ${Math.round(cooldown / 1000)}s 冷却（连续第 ${this.#rateLimitHits} 次）`)
+    return cooldown
+  }
+
+  /** 任一请求成功即视为恢复，清空冷却与连续命中计数 */
+  #clearRateLimit() {
+    if (this.#rateLimitHits > 0) {
+      logger.mark('[王者接口] 频控已恢复，清除冷却')
+    }
+    this.#rateLimitHits = 0
+    this.#rateLimitUntil = 0
+  }
+
+  /**
+   * 全局串行队列：所有营地端点的请求排队执行，相邻两次实际发出间隔不小于
+   * MIN_REQUEST_GAP_MS。排行榜批量刷新（19 连发）、推送轮询、用户查询同时
+   * 到来时在这里自动错峰，而不是叠着打同一个 token
+   */
+  #enqueue(requestFn) {
+    const run = this.#queueTail.then(async () => {
+      const wait = this.#lastRequestAt + MIN_REQUEST_GAP_MS - Date.now()
+      if (wait > 0) {
+        await new Promise(resolve => setTimeout(resolve, wait))
+      }
+      this.#lastRequestAt = Date.now()
+      return requestFn()
+    })
+
+    this.#queueTail = run.then(() => {}, () => {})
+    return run
   }
 
   #maskUserId(value, keepStart = 3, keepEnd = 3) {
@@ -690,8 +767,18 @@ class ApiService {
   /**
    * 通用请求方法。
    * 统一负责构造新版营地请求头、超时控制、重试和错误处理。
+   * 冷却期内直接快速失败；正常请求进入全局串行队列错峰发出。
    */
   async #request(method, endpoint, body = null, additionalHeaders = {}, retries = 2, targetUserId = '', requesterBotUserId = '') {
+    this.#assertNotRateLimited()
+    return this.#enqueue(() => this.#requestWithCandidates(method, endpoint, body, additionalHeaders, retries, targetUserId, requesterBotUserId))
+  }
+
+  async #requestWithCandidates(method, endpoint, body = null, additionalHeaders = {}, retries = 2, targetUserId = '', requesterBotUserId = '') {
+    // 排队期间冷却可能已被前面的请求触发，出队时再查一次，
+    // 让已在队列里的批量请求也快速失败，而不是连环命中把冷却翻倍
+    this.#assertNotRateLimited()
+
     const url = `${this.baseUrls.main}${endpoint}`
     const candidates = this.#getAuthCandidates(targetUserId, requesterBotUserId)
 
@@ -755,10 +842,17 @@ class ApiService {
         }
 
         // 业务错误码（频控 -30107、主页隐藏 -10107 等）：账号本身没问题，换账号重试没有意义，
-        // 也不算「请求成功」。响应原样交给上层按 returnCode 自行分流
+        // 也不算「请求成功」。
+        // -30107 直接触发全局冷却并抛错，让所有调用方立刻停手等恢复（单账号下重试只会加重频控）；
+        // 其它错误码响应原样交给上层按 returnCode 自行分流
         // （pushStore / rankStore 会对频控退避重试，myKingHomepage 会对隐藏主页提示）。
         const businessCode = Number(data?.returnCode)
         if (Number.isFinite(businessCode) && businessCode !== 0) {
+          if (businessCode === CODE_RATE_LIMITED) {
+            const cooldown = this.#markRateLimited()
+            throw new Error(`营地接口操作频繁(-30107)，冷却 ${Math.round(cooldown / 1000)}s 后自动恢复，请稍后再试`)
+          }
+
           logger.warn(`[王者接口] ${candidate.label} 返回业务错误码 ${businessCode}: ${data.returnMsg || data.message || ''}`.trim(), {
             endpoint,
             targetUserId: this.#toString(targetUserId),
@@ -767,6 +861,7 @@ class ApiService {
           return data
         }
 
+        this.#clearRateLimit()
         this.#markCandidateAuthSuccess(candidate)
 
         logger.debug('[王者接口] 请求成功，当前使用鉴权账号', {
@@ -1030,6 +1125,13 @@ class ApiService {
   }
 
   async #requestGameForm(endpoint, extraFields = {}, targetUserId = '', requesterBotUserId = '', retries = 2) {
+    this.#assertNotRateLimited()
+    return this.#enqueue(() => this.#requestGameFormWithCandidates(endpoint, extraFields, targetUserId, requesterBotUserId, retries))
+  }
+
+  async #requestGameFormWithCandidates(endpoint, extraFields = {}, targetUserId = '', requesterBotUserId = '', retries = 2) {
+    this.#assertNotRateLimited()
+
     const url = `${this.baseUrls.game}${endpoint}`
     const candidates = this.#getAuthCandidates(targetUserId, requesterBotUserId)
 
@@ -1054,6 +1156,11 @@ class ApiService {
 
         const returnCode = Number(data?.returnCode)
         if (Number.isFinite(returnCode) && returnCode !== 0) {
+          if (returnCode === CODE_RATE_LIMITED) {
+            const cooldown = this.#markRateLimited()
+            throw new Error(`营地接口操作频繁(-30107)，冷却 ${Math.round(cooldown / 1000)}s 后自动恢复，请稍后再试`)
+          }
+
           lastError = new AuthConfigError(`${candidate.label} 返回错误码 ${returnCode}: ${data.returnMsg || data.message || ''}`.trim())
 
           if (this.#isAuthFailureResponse(data) || this.#isAuthFailureResponse({ returnMsg: String(returnCode) })) {
