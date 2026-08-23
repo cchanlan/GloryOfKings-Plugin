@@ -603,7 +603,11 @@ class ApiService {
     }
 
     try {
-      return decodeURIComponent(value)
+      // 营地按 form-urlencoded 编码 header：空格是 `+` 而不是 %20，decodeURIComponent 不认它，
+      // 直接解会得到「-30107:操作频繁,+请稍后重试」这种带加号的文案，
+      // 而这段 returnMsg 会被 #requestWithAuth 拼进错误消息透给用户。
+      // 先把 `+` 还原成空格再解码；真正的加号服务端会编成 %2B，不会被误伤
+      return decodeURIComponent(value.replace(/\+/g, ' '))
     } catch {
       return value
     }
