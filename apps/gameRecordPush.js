@@ -422,10 +422,11 @@ export class GameRecordPush extends plugin {
     }
 
     // 有详情图时就不再附英雄头像了，两张图挤在一条消息里没必要。
-    // 详情图没出来（接口失败或渲染失败）才回退到头像。
+    // 开局提醒（纯开局那轮没有 fresh，newest 为 undefined）也因此不带头像——
+    // 群友反馈开局连头像图太多，只发文字；详情图没出来的战绩推送仍回退到头像。
     const iconUrl = detailImage
       ? ''
-      : ((needGaming && data.gaming?.heroIcon) || newest?.heroIcon || '')
+      : (newest?.heroIcon || '')
 
     const sent = await this.send(qq, sub.group, blocks.join('\n'), { at, iconUrl, image: detailImage })
     if (!sent) return

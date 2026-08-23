@@ -116,9 +116,9 @@ export class MyKingHomepage extends plugin {
 
       if (profileData.returnCode === -30107) {
         if (IDs.length === 1) {
-          await e.reply('获取数据失败,请稍后重试')
+          await e.reply('营地接口操作频繁，请稍后重试')
         } else {
-          pushFailure(ID, '获取数据失败,请稍后重试')
+          pushFailure(ID, '营地接口操作频繁，请稍后重试')
         }
         continue
       }

@@ -330,16 +330,18 @@ export function formatScoreChange (item, prev) {
 
   // 段位名变了：stars 两边不同口径，减出来的差没意义，只报段位变化
   if (prevJob && prevJob !== job) {
-    return `段位 ${prevJob} → ${job} ${stars}星`
+    return `段位 ${prevJob} → ${job}（${stars}星）`
   }
 
   if (prevJob === job) {
     const prevStars = toInt(prev?.stars)
     const diff = stars - prevStars
-    if (diff !== 0) {
-      const sign = diff > 0 ? '+' : ''
-      // 和巅峰分那行保持一致的「前 → 后 (差值)」格式，光给终点看不出这局涨了几颗
-      return `${job} ${prevStars} → ${stars}星 (${sign}${diff})`
+    if (diff > 0) return `${job} ${prevStars} → ${stars}星（上了${diff}星）`
+    if (diff < 0) {
+      // 段内星数循环的段位（如最强王者 1~5 循环）：赢一局从顶星回到 1 是升入下一个小段位，
+      // 不是掉星。累计星数的段位（荣耀王者）赢局星数只会涨，不会走进这个分支
+      if (item?.gameresult === 1) return `${job} ${prevStars} → ${stars}星（升段）`
+      return `${job} ${prevStars} → ${stars}星（掉了${-diff}星）`
     }
     // 差值为 0：王者段输了有保星机制，星数不动是真实结果，如实只报当前星数
   }
@@ -501,7 +503,9 @@ export function resolveOnlineSince (onlineTime, nowSec, observed = false) {
  *
  * @param {Array<object>} list 战绩列表（倒序）
  * @param {number|string} sinceTime 起始时间戳（秒），一般是本次上线时刻
- * @returns {{count:number, win:number, lose:number, scoreFrom:number, scoreTo:number}}
+ * @returns {{count:number, win:number, lose:number, scoreFrom:number, scoreTo:number,
+ *            jobFrom:string, starFrom:number, jobTo:string, starTo:number}}
+ *   jobFrom/starTo 一组是本次在线前后的段位与星数，全娱乐模式（无排位场次）时 jobTo 为空
  */
 export function summarizeSession (list = [], sinceTime = 0) {
   const since = toInt(sinceTime)
@@ -517,12 +521,32 @@ export function summarizeSession (list = [], sinceTime = 0) {
   const earliest = withScore[withScore.length - 1]
   const newest = withScore[0]
 
+  // 段位星数：取本次期间最早/最新一场带段位的场次（排位局才有 roleJobName）。
+  // 起点要用「最早一场之前那局」的快照才是本次开始前的星数；取不到（翻页翻没了）
+  // 就退回最早一场打完后的星数，差值会少算第一局的变动，但比什么都不报强。
+  const ranked = played.filter(item => String(item?.roleJobName || '').trim())
+  const firstRanked = ranked[ranked.length - 1]
+  const lastRanked = ranked[0]
+  let jobFrom = ''
+  let starFrom = 0
+  if (firstRanked) {
+    const idx = (Array.isArray(list) ? list : []).findIndex(x => x === firstRanked)
+    const prev = idx >= 0 ? list[idx + 1] : undefined
+    // prev 可能是娱乐模式场次（无段位但 stars 为 0），同样得回退
+    jobFrom = String(prev?.roleJobName || '').trim() || String(firstRanked.roleJobName).trim()
+    starFrom = toInt(prev?.stars) || toInt(firstRanked.stars)
+  }
+
   return {
     count: played.length,
     win,
     lose,
     scoreFrom: toInt(earliest?.oldMasterMatchScore),
-    scoreTo: toInt(newest?.newMasterMatchScore)
+    scoreTo: toInt(newest?.newMasterMatchScore),
+    jobFrom,
+    starFrom,
+    jobTo: lastRanked ? String(lastRanked.roleJobName).trim() : '',
+    starTo: toInt(lastRanked?.stars)
   }
 }
 
@@ -556,6 +580,18 @@ export function formatOnlineText (kind, { name = '', gameOnline = 0, durationSec
 
   if (session?.count > 0) {
     lines.push(`🎮 打了 ${session.count} 局 · ${session.win}胜${session.lose}负`)
+
+    // 段位星数变化。全娱乐模式（无排位场次）时 jobTo 为空不显示；
+    // 段位名不同（晋级/掉段）时两边星数口径不一样，只报段位变化不算差。
+    if (session.jobTo && session.starFrom > 0 && session.starTo > 0) {
+      if (session.jobFrom && session.jobFrom !== session.jobTo) {
+        lines.push(`📈 段位 ${session.jobFrom} → ${session.jobTo}（${session.starTo}星）`)
+      } else if (session.starTo !== session.starFrom) {
+        const diff = session.starTo - session.starFrom
+        lines.push(`${diff > 0 ? '📈' : '📉'} ${session.jobTo} ${session.starFrom} → ${session.starTo}星（${diff > 0 ? `上了${diff}` : `掉了${-diff}`}星）`)
+      }
+    }
+
     if (session.scoreFrom > 0 && session.scoreTo > 0 && session.scoreFrom !== session.scoreTo) {
       const diff = session.scoreTo - session.scoreFrom
       lines.push(`${diff > 0 ? '📈' : '📉'} 巅峰分 ${session.scoreFrom} -> ${session.scoreTo} (${diff > 0 ? '+' : ''}${diff})`)

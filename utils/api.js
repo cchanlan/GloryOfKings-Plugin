@@ -588,9 +588,11 @@ class ApiService {
       payloadPreview: this.#previewValue(payloadText)
     })
 
+    // 业务错误（频控 -30107、主页隐藏 -10107 等）常表现为空响应体 + header 里的 returnCode。
+    // headers.get 返回字符串，统一转成数字，和响应体解析出来的 returnCode 保持同类型
     if (!payloadText && returnCode) {
       return {
-        returnCode,
+        returnCode: Number(returnCode),
         returnMsg
       }
     }
@@ -750,6 +752,19 @@ class ApiService {
             returnMsg: data.returnMsg || data.message || data.msg
           })
           throw lastError
+        }
+
+        // 业务错误码（频控 -30107、主页隐藏 -10107 等）：账号本身没问题，换账号重试没有意义，
+        // 也不算「请求成功」。响应原样交给上层按 returnCode 自行分流
+        // （pushStore / rankStore 会对频控退避重试，myKingHomepage 会对隐藏主页提示）。
+        const businessCode = Number(data?.returnCode)
+        if (Number.isFinite(businessCode) && businessCode !== 0) {
+          logger.warn(`[王者接口] ${candidate.label} 返回业务错误码 ${businessCode}: ${data.returnMsg || data.message || ''}`.trim(), {
+            endpoint,
+            targetUserId: this.#toString(targetUserId),
+            requesterBotUserId: this.#toString(requesterBotUserId)
+          })
+          return data
         }
 
         this.#markCandidateAuthSuccess(candidate)
