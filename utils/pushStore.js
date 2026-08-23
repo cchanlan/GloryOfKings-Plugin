@@ -14,9 +14,10 @@
  *    表示这局不影响巅峰分 —— 所以判据是 old != new，不是「字段有没有值」。
  *    真正没打过巅峰赛的号这两个字段才是 0（data/BattleList.json 那份缓存 30 场全是 0）。
  *    巅峰分拿不到时回落到 roleJobName + stars 显示段位星数变化。
- * 3. stars 的语义随段位变化：同一批数据里「最强王者」是段内星数（1~5 循环），
- *    「荣耀王者」却是累计星数（59）。所以只在 roleJobName 相同时才做星数差值，
- *    段位名变了就只报段位变化，不算差。
+ * 3. stars 的语义随段位体系变化：旧体系「最强王者」按 roleJob 小编号每 5 星一段
+ *    （段内星 0~5 循环，2026-07 底赛季切换前的数据实测 roleJob=23~26）；新体系
+ *    「荣耀王者」恒为 roleJob=16、stars 直接是累计星数。所以判升降优先比 roleJob
+ *    编号，编号没变时星数差才是真实变动；段位名变了就只报段位变化，不算差。
  *
  * 纯计算逻辑（连胜、筛新场次、文案）都放在这个文件里而不是 apps/ 下，
  * 因为 apps/*.js 的 `extends plugin` 依赖 Yunzai 注入的全局，脱离 Bot 环境 import 就崩，没法单测。
@@ -327,6 +328,7 @@ export function formatScoreChange (item, prev) {
 
   const stars = toInt(item?.stars)
   const prevJob = String(prev?.roleJobName || '').trim()
+  const prevStars = toInt(prev?.stars)
 
   // 段位名变了：stars 两边不同口径，减出来的差没意义，只报段位变化
   if (prevJob && prevJob !== job) {
@@ -334,12 +336,24 @@ export function formatScoreChange (item, prev) {
   }
 
   if (prevJob === job) {
-    const prevStars = toInt(prev?.stars)
+    const jobNum = toInt(item?.roleJob)
+    const prevJobNum = toInt(prev?.roleJob)
+
+    // 同名段下营地还有个小编号 roleJob：旧体系把王者按 5 星编成连续小段
+    // （段内星 0~5 循环，跨小段时 stars 前后不可比），新体系（荣耀王者）恒为 16、
+    // stars 直接是累计星数。编号变了说明跨了小段，按编号判升降，不算星数差
+    if (jobNum && prevJobNum && jobNum !== prevJobNum) {
+      if (jobNum > prevJobNum) return `${job} ${prevStars} → ${stars}星（升段）`
+      // 赢了编号却降只可能是赛季切换/段位重置（实测 2026-07-26 26→16），不是掉段，
+      // 前后星数不可比，只报当前
+      if (item?.gameresult === 1) return `${job} ${stars}星`
+      return `${job} ${prevStars} → ${stars}星（掉段）`
+    }
+
     const diff = stars - prevStars
     if (diff > 0) return `${job} ${prevStars} → ${stars}星（上了${diff}星）`
     if (diff < 0) {
-      // 段内星数循环的段位（如最强王者 1~5 循环）：赢一局从顶星回到 1 是升入下一个小段位，
-      // 不是掉星。累计星数的段位（荣耀王者）赢局星数只会涨，不会走进这个分支
+      // roleJob 缺失时的兜底：赢了星数却下降，只可能是旧体系的段内循环重置
       if (item?.gameresult === 1) return `${job} ${prevStars} → ${stars}星（升段）`
       return `${job} ${prevStars} → ${stars}星（掉了${-diff}星）`
     }
@@ -504,8 +518,9 @@ export function resolveOnlineSince (onlineTime, nowSec, observed = false) {
  * @param {Array<object>} list 战绩列表（倒序）
  * @param {number|string} sinceTime 起始时间戳（秒），一般是本次上线时刻
  * @returns {{count:number, win:number, lose:number, scoreFrom:number, scoreTo:number,
- *            jobFrom:string, starFrom:number, jobTo:string, starTo:number}}
- *   jobFrom/starTo 一组是本次在线前后的段位与星数，全娱乐模式（无排位场次）时 jobTo 为空
+ *            jobFrom:string, starFrom:number, jobNumFrom:number,
+ *            jobTo:string, jobNumTo:number, starTo:number}}
+ *   jobFrom/starFrom 与 jobTo/starTo 是本次在线前后的段位与星数，全娱乐模式（无排位场次）时 jobTo 为空
  */
 export function summarizeSession (list = [], sinceTime = 0) {
   const since = toInt(sinceTime)
@@ -524,17 +539,21 @@ export function summarizeSession (list = [], sinceTime = 0) {
   // 段位星数：取本次期间最早/最新一场带段位的场次（排位局才有 roleJobName）。
   // 起点要用「最早一场之前那局」的快照才是本次开始前的星数；取不到（翻页翻没了）
   // 就退回最早一场打完后的星数，差值会少算第一局的变动，但比什么都不报强。
+  // jobNumFrom/To 是 roleJob 小编号：两边相等时 starFrom→starTo 的差才可信
+  // （旧体系段内星 0~5 循环，跨小段直接比星数会算出荒谬的差值）
   const ranked = played.filter(item => String(item?.roleJobName || '').trim())
   const firstRanked = ranked[ranked.length - 1]
   const lastRanked = ranked[0]
   let jobFrom = ''
   let starFrom = 0
+  let jobNumFrom = 0
   if (firstRanked) {
     const idx = (Array.isArray(list) ? list : []).findIndex(x => x === firstRanked)
     const prev = idx >= 0 ? list[idx + 1] : undefined
     // prev 可能是娱乐模式场次（无段位但 stars 为 0），同样得回退
     jobFrom = String(prev?.roleJobName || '').trim() || String(firstRanked.roleJobName).trim()
     starFrom = toInt(prev?.stars) || toInt(firstRanked.stars)
+    jobNumFrom = toInt(prev?.roleJob)
   }
 
   return {
@@ -545,7 +564,9 @@ export function summarizeSession (list = [], sinceTime = 0) {
     scoreTo: toInt(newest?.newMasterMatchScore),
     jobFrom,
     starFrom,
+    jobNumFrom,
     jobTo: lastRanked ? String(lastRanked.roleJobName).trim() : '',
+    jobNumTo: toInt(lastRanked?.roleJob),
     starTo: toInt(lastRanked?.stars)
   }
 }
@@ -586,6 +607,14 @@ export function formatOnlineText (kind, { name = '', gameOnline = 0, durationSec
     if (session.jobTo && session.starFrom > 0 && session.starTo > 0) {
       if (session.jobFrom && session.jobFrom !== session.jobTo) {
         lines.push(`📈 段位 ${session.jobFrom} → ${session.jobTo}（${session.starTo}星）`)
+      } else if (session.jobNumFrom && session.jobNumTo && session.jobNumFrom !== session.jobNumTo) {
+        // 同名段但 roleJob 小编号变了（旧体系 5 星一小段）：起止星数不可比，按编号报升降段。
+        // 编号下降不下结论——可能是掉段，也可能是期间跨了赛季重置（实测 26→16）
+        if (session.jobNumTo > session.jobNumFrom) {
+          lines.push(`📈 ${session.jobTo} ${session.starFrom} → ${session.starTo}星（升段）`)
+        } else {
+          lines.push(`${session.jobTo} ${session.starFrom} → ${session.starTo}星`)
+        }
       } else if (session.starTo !== session.starFrom) {
         const diff = session.starTo - session.starFrom
         lines.push(`${diff > 0 ? '📈' : '📉'} ${session.jobTo} ${session.starFrom} → ${session.starTo}星（${diff > 0 ? `上了${diff}` : `掉了${-diff}`}星）`)
