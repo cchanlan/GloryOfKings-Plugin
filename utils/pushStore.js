@@ -550,10 +550,16 @@ export function summarizeSession (list = [], sinceTime = 0) {
   if (firstRanked) {
     const idx = (Array.isArray(list) ? list : []).findIndex(x => x === firstRanked)
     const prev = idx >= 0 ? list[idx + 1] : undefined
-    // prev 可能是娱乐模式场次（无段位但 stars 为 0），同样得回退
-    jobFrom = String(prev?.roleJobName || '').trim() || String(firstRanked.roleJobName).trim()
-    starFrom = toInt(prev?.stars) || toInt(firstRanked.stars)
-    jobNumFrom = toInt(prev?.roleJob)
+    // prev 可能是娱乐模式场次（无段位），那就没有可用的起点快照。
+    // 判据只能是「有没有段位名」，不能拿 stars 真值判：**段内 0 星是真实值**
+    // （实测 30 场里出现 2 次，1 星再输一局就是 0 星），用 `||` 兜会把它当成取不到，
+    // 起点被顶成第一局打完后的星数，整段差值少算一颗
+    const snapshot = String(prev?.roleJobName || '').trim() ? prev : firstRanked
+    jobFrom = String(snapshot.roleJobName).trim()
+    starFrom = toInt(snapshot.stars)
+    // 回退到 firstRanked 时编号也要跟着取，漏了会让 jobNumFrom=0，
+    // 下游「两边编号都有值才比编号」的判断短路，跨小段时直接相减算出 -4
+    jobNumFrom = toInt(snapshot.roleJob)
   }
 
   return {
@@ -604,8 +610,10 @@ export function formatOnlineText (kind, { name = '', gameOnline = 0, durationSec
 
     // 段位星数变化。全娱乐模式（无排位场次）时 jobTo 为空不显示；
     // 段位名不同（晋级/掉段）时两边星数口径不一样，只报段位变化不算差。
-    if (session.jobTo && session.starFrom > 0 && session.starTo > 0) {
-      if (session.jobFrom && session.jobFrom !== session.jobTo) {
+    // 判据用 jobFrom/jobTo 而不是星数大于 0：**0 星是真实值**，
+    // 拿 starFrom > 0 当门槛会把「连输到 0 星收工」整行吞掉——那正是最该报的一次
+    if (session.jobTo && session.jobFrom) {
+      if (session.jobFrom !== session.jobTo) {
         lines.push(`📈 段位 ${session.jobFrom} → ${session.jobTo}（${session.starTo}星）`)
       } else if (session.jobNumFrom && session.jobNumTo && session.jobNumFrom !== session.jobNumTo) {
         // 同名段但 roleJob 小编号变了（旧体系 5 星一小段）：起止星数不可比，按编号报升降段。
@@ -618,6 +626,11 @@ export function formatOnlineText (kind, { name = '', gameOnline = 0, durationSec
       } else if (session.starTo !== session.starFrom) {
         const diff = session.starTo - session.starFrom
         lines.push(`${diff > 0 ? '📈' : '📉'} ${session.jobTo} ${session.starFrom} → ${session.starTo}星（${diff > 0 ? `上了${diff}` : `掉了${-diff}`}星）`)
+      } else {
+        // 净变化为 0（赢几局又输几局、或全程保星）也要给个说法：这条推送的意义就是
+        // 「今晚上了还是掉了」，一行都不显示会和「取不到数据」长得一模一样。
+        // 和单局文案的处理保持一致——那里星数不动时也如实只报当前星数
+        lines.push(`⭐ ${session.jobTo} ${session.starTo}星（星数没变）`)
       }
     }
 
