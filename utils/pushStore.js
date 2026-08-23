@@ -26,6 +26,7 @@ import path from 'path'
 import { readYamlFile, writeYamlFile } from './yamlUtils.js'
 import ApiService from './api.js'
 import cache from './cache.js'
+import { archiveBattles } from './battleArchive.js'
 // 营地昵称里常有私有区图标和不可见字符，直接拼进文案会显示成豆腐块或整段空白，
 // 清洗规则和排行榜是同一套，复用 rankStore 的实现。
 // 再导出一次：apps/gameRecordPush.js 拼战绩文案时也要洗名字，
@@ -170,6 +171,19 @@ export async function fetchLatest (campId, qq) {
 
       // 隐藏战绩时 returnCode 是 0，靠 invisible 标记判断
       if (res?.data?.invisible) return FETCH_HIDDEN
+
+      // 顺手归档，喂日报/周报。挂在这里而不是各调用方：轮询、#开启战绩推送 初始化游标、
+      // 日报补页全都走 fetchLatest，一处就覆盖所有入口。
+      // 玩家在线时轮询每 2 分钟拉一次第一页，这样数据是慢慢攒全的，日报周报读库就够，
+      // 不用为了「本周」现翻十几页（第二页起每页只有 10 场，详见 battleArchive 文件头）
+      if (res?.data?.list?.length) {
+        try {
+          archiveBattles(campId, res.data.list)
+        } catch (error) {
+          // 归档失败绝不能影响推送本身
+          logger.debug(`[王者推送] ${campId} 归档失败: ${error.message}`)
+        }
+      }
 
       return res?.data || null
     } catch (error) {
@@ -606,6 +620,66 @@ export function summarizeSession (list = [], sinceTime = 0) {
 }
 
 /**
+ * 段位星数变化的一行文案。
+ *
+ * 收工总结（formatOnlineText）和日报/周报（reportStore）共用这一套判据，别各写一份——
+ * 这里面有三个实测出来的坑：段位名变了两边星数口径不同、同名段下 roleJob 小编号变了
+ * 说明跨了小段（起止星数不可比）、编号下降可能是赛季重置而不是掉段。详见文件头第 3 点。
+ *
+ * @param {object} session summarizeSession 的返回（或同形状的对象）
+ * @returns {{text:string, icon:string, tone:'up'|'down'|'flat'}|null} 没有可报的变化时返回 null
+ */
+export function formatStarChange (session = {}) {
+  const { jobFrom, jobTo, starFrom, starTo, jobNumFrom, jobNumTo } = session
+  // 判据用 jobFrom/jobTo 而不是星数大于 0：**0 星是真实值**，
+  // 拿 starFrom > 0 当门槛会把「连输到 0 星收工」整行吞掉——那正是最该报的一次
+  if (!jobTo || !jobFrom) return null
+
+  if (jobFrom !== jobTo) {
+    return { text: `段位 ${jobFrom} → ${jobTo}（${starTo}星）`, icon: '📈', tone: 'up' }
+  }
+
+  // 同名段但 roleJob 小编号变了（旧体系 5 星一小段）：起止星数不可比，按编号报升降段。
+  // 编号下降不下结论——可能是掉段，也可能是期间跨了赛季重置（实测 26→16）
+  if (jobNumFrom && jobNumTo && jobNumFrom !== jobNumTo) {
+    return jobNumTo > jobNumFrom
+      ? { text: `${jobTo} ${starFrom} → ${starTo}星（升段）`, icon: '📈', tone: 'up' }
+      : { text: `${jobTo} ${starFrom} → ${starTo}星`, icon: '', tone: 'flat' }
+  }
+
+  if (starTo !== starFrom) {
+    const diff = starTo - starFrom
+    return {
+      text: `${jobTo} ${starFrom} → ${starTo}星（${diff > 0 ? `上了${diff}` : `掉了${-diff}`}星）`,
+      icon: diff > 0 ? '📈' : '📉',
+      tone: diff > 0 ? 'up' : 'down'
+    }
+  }
+
+  // 净变化为 0（赢几局又输几局、或全程保星）也要给个说法：一行都不显示会和
+  // 「取不到数据」长得一模一样，而这条推送的意义就是「今晚上了还是掉了」
+  return { text: `${jobTo} ${starTo}星（星数没变）`, icon: '⭐', tone: 'flat' }
+}
+
+/**
+ * 巅峰分变化的一行文案。判据是 from != to：
+ * 排位赛场次也会带上当前巅峰分，只是前后相等（详见文件头第 2 点）。
+ * @returns {{text:string, icon:string, tone:'up'|'down'}|null}
+ */
+export function formatScoreDelta (session = {}) {
+  const from = toInt(session.scoreFrom)
+  const to = toInt(session.scoreTo)
+  if (from <= 0 || to <= 0 || from === to) return null
+
+  const diff = to - from
+  return {
+    text: `巅峰分 ${from} → ${to} (${diff > 0 ? '+' : ''}${diff})`,
+    icon: diff > 0 ? '📈' : '📉',
+    tone: diff > 0 ? 'up' : 'down'
+  }
+}
+
+/**
  * 上线 / 下线提醒文案。
  *
  * 这两条都不 @ 本人（是给群友看的），所以名字必须写进文案，否则群里看不出是谁。
@@ -636,36 +710,12 @@ export function formatOnlineText (kind, { name = '', gameOnline = 0, durationSec
   if (session?.count > 0) {
     lines.push(`🎮 打了 ${session.count} 局 · ${session.win}胜${session.lose}负`)
 
-    // 段位星数变化。全娱乐模式（无排位场次）时 jobTo 为空不显示；
-    // 段位名不同（晋级/掉段）时两边星数口径不一样，只报段位变化不算差。
-    // 判据用 jobFrom/jobTo 而不是星数大于 0：**0 星是真实值**，
-    // 拿 starFrom > 0 当门槛会把「连输到 0 星收工」整行吞掉——那正是最该报的一次
-    if (session.jobTo && session.jobFrom) {
-      if (session.jobFrom !== session.jobTo) {
-        lines.push(`📈 段位 ${session.jobFrom} → ${session.jobTo}（${session.starTo}星）`)
-      } else if (session.jobNumFrom && session.jobNumTo && session.jobNumFrom !== session.jobNumTo) {
-        // 同名段但 roleJob 小编号变了（旧体系 5 星一小段）：起止星数不可比，按编号报升降段。
-        // 编号下降不下结论——可能是掉段，也可能是期间跨了赛季重置（实测 26→16）
-        if (session.jobNumTo > session.jobNumFrom) {
-          lines.push(`📈 ${session.jobTo} ${session.starFrom} → ${session.starTo}星（升段）`)
-        } else {
-          lines.push(`${session.jobTo} ${session.starFrom} → ${session.starTo}星`)
-        }
-      } else if (session.starTo !== session.starFrom) {
-        const diff = session.starTo - session.starFrom
-        lines.push(`${diff > 0 ? '📈' : '📉'} ${session.jobTo} ${session.starFrom} → ${session.starTo}星（${diff > 0 ? `上了${diff}` : `掉了${-diff}`}星）`)
-      } else {
-        // 净变化为 0（赢几局又输几局、或全程保星）也要给个说法：这条推送的意义就是
-        // 「今晚上了还是掉了」，一行都不显示会和「取不到数据」长得一模一样。
-        // 和单局文案的处理保持一致——那里星数不动时也如实只报当前星数
-        lines.push(`⭐ ${session.jobTo} ${session.starTo}星（星数没变）`)
-      }
-    }
+    // 段位星数与巅峰分变化，判据见 formatStarChange / formatScoreDelta（日报周报共用同一套）
+    const star = formatStarChange(session)
+    if (star) lines.push(`${star.icon} ${star.text}`.trim())
 
-    if (session.scoreFrom > 0 && session.scoreTo > 0 && session.scoreFrom !== session.scoreTo) {
-      const diff = session.scoreTo - session.scoreFrom
-      lines.push(`${diff > 0 ? '📈' : '📉'} 巅峰分 ${session.scoreFrom} -> ${session.scoreTo} (${diff > 0 ? '+' : ''}${diff})`)
-    }
+    const score = formatScoreDelta(session)
+    if (score) lines.push(`${score.icon} ${score.text}`)
   } else if (duration) {
     lines.push('🎮 本次没有排位/巅峰战绩')
   }

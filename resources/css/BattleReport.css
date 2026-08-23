@@ -1,0 +1,277 @@
+@charset "UTF-8";
+@font-face {
+  font-family: Number;
+  src: url(../font/tttgbnumber.woff) format("woff"), url(../font/tttgbnumber.ttf) format("truetype");
+}
+@font-face {
+  font-family: YS;
+  src: url(../font/HYWH-65W.woff) format("woff"), url(../font/HYWH-65W.ttf) format("truetype");
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: YS, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  width: 1050px;
+  padding: 40px;
+  color: #fff;
+  background: linear-gradient(160deg, #0f1420 0%, #1a2133 100%);
+  transform: scale(3);
+  transform-origin: 0 0;
+  position: relative;
+  z-index: 0;
+}
+
+body::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image:
+    linear-gradient(160deg, rgba(15, 20, 32, 0.9) 0%, rgba(20, 25, 45, 0.94) 100%),
+    url("https://game.gtimg.cn/images/yxzj/img201606/skin/hero-info/152/152-bigskin-8.jpg");
+  background-size: cover;
+  background-position: center top;
+  filter: blur(6px);
+  z-index: -1;
+}
+
+.card {
+  background: rgba(10,14,26,0.55);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 21px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+  overflow: hidden;
+}
+
+/* 头部 */
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 22px 26px;
+  background: linear-gradient(100deg, rgba(245,215,110,0.14), rgba(255,255,255,0.02));
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.avatar {
+  width: 62px; height: 62px;
+  border-radius: 50%;
+  border: 2px solid rgba(245,215,110,0.5);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.user-info { flex: 1; min-width: 0; }
+.username {
+  font-size: 26px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  /* 昵称可能很长，别把右边的标题挤出卡片 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  font-size: 13px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.09);
+  color: rgba(255,255,255,0.68);
+}
+.report-label {
+  text-align: right;
+  font-size: 20px;
+  font-weight: 600;
+  color: #f5d76e;
+  flex-shrink: 0;
+}
+.report-label .sub {
+  display: block;
+  margin-top: 5px;
+  font-size: 13px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.42);
+}
+
+/* 四格总览 */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: rgba(255,255,255,0.07);
+}
+.stat-cell {
+  background: rgba(10,14,26,0.5);
+  padding: 18px 10px;
+  text-align: center;
+}
+.stat-val {
+  font-family: Number, YS, sans-serif;
+  font-size: 34px;
+  line-height: 1.1;
+  margin-bottom: 6px;
+}
+/* 时长这种文字较长的值单独降一档，不然「10小时23分」会换行顶高格子 */
+.stat-val.small { font-size: 22px; padding-top: 8px; }
+.stat-key { font-size: 13px; color: rgba(255,255,255,0.42); }
+.stat-cell.gold .stat-val { color: #f5d76e; }
+.stat-cell.good .stat-val { color: #6fd39b; }
+.stat-cell.bad .stat-val { color: #e96e6e; }
+.stat-val .win { color: #6fd39b; }
+.stat-val .lose { color: #e96e6e; }
+.stat-val .slash { color: rgba(255,255,255,0.25); margin: 0 4px; font-size: 26px; }
+
+/* 段位 / 巅峰分变化 */
+.change-box {
+  padding: 14px 26px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.change-line { font-size: 16px; color: rgba(255,255,255,0.8); }
+.change-line.up { color: #f5d76e; }
+.change-line.down { color: #e96e6e; }
+
+/* 区块 */
+.section { padding: 18px 26px; border-bottom: 1px solid rgba(255,255,255,0.07); }
+.section-title {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-title::before {
+  content: "";
+  width: 3px; height: 15px;
+  background: #f5d76e;
+  border-radius: 2px;
+}
+.section-title .tip {
+  font-size: 12px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.35);
+}
+.chart-wrap canvas { display: block; width: 100%; height: auto; }
+
+/* 英雄榜 */
+.hero-list { display: flex; flex-direction: column; gap: 9px; }
+.hero-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 9px 14px;
+}
+.hero-rank {
+  font-family: Number, sans-serif;
+  font-size: 16px;
+  color: rgba(255,255,255,0.3);
+  width: 20px;
+  flex-shrink: 0;
+}
+.hero-icon {
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  border: 2px solid rgba(245,215,110,0.35);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.hero-main { flex: 1; min-width: 0; }
+.hero-name {
+  font-size: 15px;
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hero-bar {
+  height: 5px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.hero-bar-in {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(245,215,110,0.55), #f5d76e);
+  border-radius: 3px;
+}
+.hero-nums {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-shrink: 0;
+  font-size: 13px;
+}
+.hero-cnt { font-family: Number, sans-serif; font-size: 17px; color: #eef2f8; }
+.hero-cnt i { font-size: 11px; font-style: normal; color: rgba(255,255,255,0.35); margin-left: 2px; }
+.hero-wr { font-family: Number, sans-serif; font-size: 16px; width: 48px; text-align: right; }
+.hero-wr.good { color: #6fd39b; }
+.hero-wr.bad { color: #e96e6e; }
+.hero-grade { color: rgba(255,255,255,0.4); width: 62px; text-align: right; }
+
+/* 数据速览 */
+.fact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 9px;
+}
+.fact {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.fact-key { font-size: 13px; color: rgba(255,255,255,0.42); flex-shrink: 0; }
+.fact-val {
+  font-size: 15px;
+  color: #eef2f8;
+  text-align: right;
+  /* 「8.6分 · 影 · 12/3/8」这类长值要能折行，不能撑破格子 */
+  word-break: break-all;
+}
+.fact-val.gold { color: #f5d76e; }
+.fact-val.good { color: #6fd39b; }
+.fact-val.bad { color: #e96e6e; }
+
+/* 活跃时段 */
+.hour-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 92px;
+}
+.hour-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+}
+.hour-bar {
+  width: 100%;
+  min-height: 2px;
+  background: rgba(255,255,255,0.16);
+  border-radius: 3px 3px 0 0;
+}
+.hour-bar.peak { background: linear-gradient(180deg, #f5d76e, rgba(245,215,110,0.4)); }
+.hour-label {
+  font-size: 9px;
+  color: rgba(255,255,255,0.3);
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.footer {
+  text-align: center;
+  padding: 14px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.25);
+}

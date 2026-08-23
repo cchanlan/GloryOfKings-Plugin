@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>{{title}}</title>
+  <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
+</head>
+<body>
+<div class="card">
+  <!-- 头部 -->
+  <div class="card-header">
+    {{if roleIcon}}<img src="{{roleIcon}}" class="avatar" alt="" onerror="this.style.display='none'">{{/if}}
+    <div class="user-info">
+      <h2 class="username">{{roleName}}</h2>
+      <span class="badge">{{rangeText}}</span>
+    </div>
+    <div class="report-label">
+      {{title}}
+      <span class="sub">{{subText}}</span>
+    </div>
+  </div>
+
+  <!-- 四格总览 -->
+  <div class="stat-grid">
+    <div class="stat-cell gold">
+      <div class="stat-val">{{count}}</div>
+      <div class="stat-key">总场次</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val"><span class="win">{{win}}</span><span class="slash">/</span><span class="lose">{{lose}}</span></div>
+      <div class="stat-key">胜 / 负</div>
+    </div>
+    <div class="stat-cell {{winRateClass}}">
+      <div class="stat-val">{{winRate}}%</div>
+      <div class="stat-key">胜率</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val small">{{totalTimeText}}</div>
+      <div class="stat-key">对局时长</div>
+    </div>
+  </div>
+
+  <!-- 段位 / 巅峰分变化 -->
+  {{if changeLines && changeLines.length}}
+  <div class="change-box">
+    {{each changeLines line}}
+    <div class="change-line {{line.tone}}">{{line.text}}</div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  <!-- 每日趋势（只有周报有） -->
+  {{if isWeekly && byDay.length > 1}}
+  <div class="section">
+    <div class="section-title">
+      每日战况
+      <span class="tip">共 {{byDay.length}} 天有对局</span>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="dayCanvas" width="2910" height="620"></canvas>
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- 英雄榜 -->
+  {{if heroes.length}}
+  <div class="section">
+    <div class="section-title">
+      英雄使用
+      <span class="tip">共 {{heroTotal}} 个英雄</span>
+    </div>
+    <div class="hero-list">
+      {{each heroes h}}
+      <div class="hero-row">
+        <div class="hero-rank">{{h.rank}}</div>
+        <img class="hero-icon" src="{{h.icon}}" alt="">
+        <div class="hero-main">
+          <div class="hero-name">{{h.name}}</div>
+          <div class="hero-bar">
+            <div class="hero-bar-in" style="width:{{h.barWidth}}%"></div>
+          </div>
+        </div>
+        <div class="hero-nums">
+          <span class="hero-cnt">{{h.count}}<i>场</i></span>
+          <span class="hero-wr {{h.wrClass}}">{{h.winRate}}%</span>
+          <span class="hero-grade">{{if h.avgGrade}}均分 {{h.avgGrade}}{{else}}—{{/if}}</span>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- 亮点 -->
+  <div class="section">
+    <div class="section-title">数据速览</div>
+    <div class="fact-grid">
+      {{each facts f}}
+      <div class="fact">
+        <div class="fact-key">{{f.key}}</div>
+        <div class="fact-val {{f.tone}}">{{f.val}}</div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+
+  <!-- 活跃时段 -->
+  {{if hourBars.length}}
+  <div class="section">
+    <div class="section-title">
+      活跃时段
+      <span class="tip">{{peakHourText}}</span>
+    </div>
+    <div class="hour-wrap">
+      {{each hourBars b}}
+      <div class="hour-col">
+        <div class="hour-bar {{if b.peak}}peak{{/if}}" style="height:{{b.height}}%"></div>
+        <div class="hour-label">{{b.label}}</div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  <div class="footer">{{footText}}</div>
+</div>
+
+<script>
+const byDay = {{@ byDayJson}}
+
+// 每日战况：胜/负堆叠柱 + 场次折线。数据点少（最多 7 天），所以柱子画粗一点
+if (byDay && byDay.length > 1) {
+  const c = document.getElementById('dayCanvas')
+  const ctx = c.getContext('2d')
+  const W = c.width, H = c.height
+  const pad = { t: 40, b: 92, l: 96, r: 96 }
+  const plotH = H - pad.t - pad.b
+  const plotW = W - pad.l - pad.r
+  const maxCount = Math.max(...byDay.map(d => d.count), 1)
+  const slot = plotW / byDay.length
+  const barW = Math.min(slot * 0.52, 150)
+
+  // 背景网格
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+  ctx.lineWidth = 2
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + i * plotH / 4
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke()
+  }
+
+  byDay.forEach((d, i) => {
+    const cx = pad.l + slot * (i + 0.5)
+    const total = (d.count / maxCount) * plotH
+    const winH = d.count > 0 ? total * (d.win / d.count) : 0
+    const x = cx - barW / 2
+    const yTop = pad.t + plotH - total
+
+    // 负场在下、胜场在上，堆起来就是当天总场次
+    ctx.fillStyle = 'rgba(233,110,110,0.72)'
+    ctx.fillRect(x, pad.t + plotH - (total - winH), barW, total - winH)
+    ctx.fillStyle = 'rgba(245,215,110,0.86)'
+    ctx.fillRect(x, yTop, barW, winH)
+
+    // 当天总场次
+    ctx.fillStyle = '#fff'
+    ctx.font = '600 34px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.fillText(String(d.count), cx, yTop - 14)
+
+    // 日期 + 星期
+    ctx.fillStyle = 'rgba(255,255,255,0.62)'
+    ctx.font = '30px sans-serif'
+    ctx.fillText(d.date, cx, H - pad.b + 42)
+    ctx.fillStyle = 'rgba(255,255,255,0.34)'
+    ctx.font = '26px sans-serif'
+    ctx.fillText('周' + d.weekday, cx, H - pad.b + 78)
+  })
+}
+</script>
+</body>
+</html>

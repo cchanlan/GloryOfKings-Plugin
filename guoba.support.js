@@ -82,6 +82,26 @@ export function supportGuoba () {
           }
         },
         {
+          field: 'config.dailyReportCron',
+          label: '战绩日报推送时间',
+          bottomHelpMessage: '每天到点给订阅者发一张当日战绩总结图（#开启日报推送 订阅）。数据读的是本地归档，正常不额外请求营地接口。当天没有对局就不推送。留空 = 关掉自动推送，只保留 #王者日报 指令。',
+          helpMessage: '修改后重启生效',
+          component: 'EasyCron',
+          componentProps: {
+            placeholder: '默认每晚 23:47'
+          }
+        },
+        {
+          field: 'config.weeklyReportCron',
+          label: '战绩周报推送时间',
+          bottomHelpMessage: '同上，按「本周（周一 00:00 起）」汇总，默认周日晚推送。首次推送时本地归档可能还不全，图上会标明数据覆盖到哪天。',
+          helpMessage: '修改后重启生效',
+          component: 'EasyCron',
+          componentProps: {
+            placeholder: '默认周日 22:07'
+          }
+        },
+        {
           component: 'SOFT_GROUP_BEGIN',
           label: '账号鉴权管理'
         },
