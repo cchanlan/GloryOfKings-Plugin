@@ -27,8 +27,11 @@ import { readYamlFile, writeYamlFile } from './yamlUtils.js'
 import ApiService from './api.js'
 import cache from './cache.js'
 // 营地昵称里常有私有区图标和不可见字符，直接拼进文案会显示成豆腐块或整段空白，
-// 清洗规则和排行榜是同一套，复用 rankStore 的实现
+// 清洗规则和排行榜是同一套，复用 rankStore 的实现。
+// 再导出一次：apps/gameRecordPush.js 拼战绩文案时也要洗名字，
+// 让它只依赖 pushStore 这一个数据层，不用再单独引 rankStore
 import { normalizeName } from './rankStore.js'
+export { normalizeName }
 import { PluginData } from '#components'
 
 const PUSH_FILE = path.join(PluginData, 'GameRecordPush.yaml')

@@ -6,9 +6,11 @@
  * 没有任何定时任务，pushList 也没被读过。本文件就是补上那个缺口。
  *
  * 设计要点：
- * - 个人订阅制。用户在群里 #开启战绩推送，只轮询订阅过的人，推到他订阅时所在的那个群并 @ 他。
+ * - 个人订阅制。用户在群里 #开启战绩推送，只轮询订阅过的人，推到他订阅时所在的那个群。
  *   不做全群自动推送：UserData.yaml 里有 20+ 个绑定用户，全量轮询按 800ms 串行要 20 秒一轮，
  *   而且大部分人并不想被推送。
+ * - 三条播报（打完 / 开局 / 上下线）都不 @ 本人，一律把玩家名写进文案：订阅者自己刚打完
+ *   那局最清楚，@ 只是给他多刷一条红点，真正需要认人的是群里其他人。
  * - 开局提醒和战绩推送共用同一次请求。实测 isGaming 翻转与新场次进 list 是同一时刻发生的，
  *   拆成两个 task 只会让请求量翻倍、频控风险翻倍。详见 utils/pushStore.js 文件头的实测记录。
  * - 打完一局发的是和 #查询战绩N 同一张详情图（utils/battleDetailImage.js），这需要额外拉一次
@@ -41,6 +43,7 @@ import {
   needBattleList,
   isSubActive,
   resolveNextCheck,
+  normalizeName,
   ONLINE_LABEL,
   FETCH_HIDDEN,
   MAX_DETAIL_BATTLES,
@@ -192,7 +195,7 @@ export class GameRecordPush extends plugin {
     await e.reply([
       [
         `✅ 已开启战绩推送（营地ID ${campId}）`,
-        '打完一局会在本群 @你 并发送战绩，开局也会提醒一次',
+        '打完一局会在本群播报战绩（带你的名字，不 @ 你），开局也会提醒一次',
         cron ? `检查间隔：最快 ${cron}，你离线时会自动拉长以免触发营地频控` : '',
         '想连上下线一起提醒发送 #开启上下线提醒'
       ].filter(Boolean).join('\n'),
@@ -253,7 +256,7 @@ export class GameRecordPush extends plugin {
     await e.reply([
       `✅ 已开启上下线提醒（营地ID ${campId}）`,
       `当前状态：${ONLINE_LABEL[state.gameOnline] || '未知'}`,
-      '上线和下线时会在本群 @你，下线时附带本次战绩总结',
+      '上线和下线时会在本群播报（带你的名字，不 @ 你），下线时附带本次战绩总结',
       cron ? `检查间隔：最快 ${cron}，你离线时会自动拉长以免触发营地频控` : '',
       '关闭发送 #关闭上下线提醒'
     ].filter(Boolean).join('\n'), shouldQuote())
@@ -454,22 +457,21 @@ export class GameRecordPush extends plugin {
       detailImage = await this.renderDetail(qq, campId, newest, sub)
     }
 
-    // 只有「比赛结束推战绩」才 @ 本人。纯粹的开局提醒是给群友看的，不 @，
-    // 但要把玩家名写进文案，否则群里不知道是谁开打了。
-    const at = fresh.length > 0
-    const gamingName = at ? '' : await this.resolveDisplayName(qq, sub)
+    // 三条播报（打完、开局、上下线）现在都不 @ 本人，一律把玩家名写进文案。
+    // @ 会给订阅者刷一条红点提醒，而他自己刚打完那局最清楚，真正需要认人的是群里其他人。
+    const name = await this.resolveDisplayName(qq, sub)
 
     // 两件事凑在同一轮时合并成一条消息发。
     // 连着打排位时「上一局结算」和「下一局开局」几乎总是同一轮被读到，
     // 分两条发就是一轮刷两条，合并后阅读顺序也更顺（先说打完什么，再说又开了一局）。
-    // 合并后整条已经 @ 了本人，开局那段就不再重复写名字。
+    // 合并后名字已经写在战绩那段的开头，开局那段就不再重复。
     const blocks = []
     if (fresh.length) {
       // 出了图就用精简文案：KDA / 评分 / 时长图里都有，文字只留图上没有的巅峰分与段位变化
-      blocks.push(this.buildBattleMessage(fresh, data.list, heroMap, !!detailImage))
+      blocks.push(this.buildBattleMessage(fresh, data.list, heroMap, !!detailImage, name))
     }
     if (needGaming) {
-      blocks.push(`${fresh.length ? '—— 又开了一局 ——\n' : ''}${formatGamingText(data.gaming, heroMap, gamingName)}`)
+      blocks.push(`${fresh.length ? '—— 又开了一局 ——\n' : ''}${formatGamingText(data.gaming, heroMap, fresh.length ? '' : name)}`)
     }
 
     // 有详情图时就不再附英雄头像了，两张图挤在一条消息里没必要。
@@ -479,7 +481,7 @@ export class GameRecordPush extends plugin {
       ? ''
       : (newest?.heroIcon || '')
 
-    const sent = await this.send(qq, sub.group, blocks.join('\n'), { at, iconUrl, image: detailImage })
+    const sent = await this.send(qq, sub.group, blocks.join('\n'), { iconUrl, image: detailImage })
     if (!sent) return
 
     // 发送失败时一个游标都不动，下一轮整条消息重试
@@ -544,7 +546,7 @@ export class GameRecordPush extends plugin {
       })
     }
 
-    const sent = await this.send(qq, sub.group, text, { at: false })
+    const sent = await this.send(qq, sub.group, text)
     if (!sent) return
 
     mergeSubState(qq, {
@@ -592,8 +594,10 @@ export class GameRecordPush extends plugin {
    * @param {Array<object>} fullList 完整列表（倒序），用来取「更早一场」比段位星数、算连胜
    * @param {Record<string,string>} heroMap
    * @param {boolean} [hasImage=false] 最新一局是否已经出了详情图，决定最后一条用不用精简文案
+   * @param {string} [name] 玩家名。这条也不 @ 本人了，名字得写进文案里，
+   *   否则群里看不出是谁打完的（详情图上有名字，但纯文字回退时就没有了）
    */
-  buildBattleMessage (fresh, fullList, heroMap, hasImage = false) {
+  buildBattleMessage (fresh, fullList, heroMap, hasImage = false, name = '') {
     // 只详细展示最近几场，更早的漏推场次折叠成一行，避免刷屏
     const shown = fresh.slice(-MAX_DETAIL_BATTLES)
     const omitted = fresh.length - shown.length
@@ -607,9 +611,11 @@ export class GameRecordPush extends plugin {
       return formatBattleText(item, prev, heroMap, { brief })
     })
 
+    // 昵称里的私有区图标和不可见字符要洗掉，否则群里显示成豆腐块（和开局/上下线同一套规则）
+    const who = name ? `${normalizeName(name)} · ` : ''
     const head = fresh.length > 1
-      ? `打完 ${fresh.length} 局${omitted > 0 ? `（较早 ${omitted} 局略过）` : ''}`
-      : `打完一局${shown[0]?.mapName ? ` · ${shown[0].mapName}` : ''}`
+      ? `${who}打完 ${fresh.length} 局${omitted > 0 ? `（较早 ${omitted} 局略过）` : ''}`
+      : `${who}打完一局${shown[0]?.mapName ? ` · ${shown[0].mapName}` : ''}`
 
     const lines = [head, ...blocks]
 
@@ -624,20 +630,18 @@ export class GameRecordPush extends plugin {
   /**
    * 往群里发一条推送。
    *
-   * 只有「比赛结束推战绩」才 @ 本人（那是给他自己看的）。
-   * 上线 / 下线 / 进入比赛是给群友看的热闹，不 @ ——
-   * 这几条的文案里带了玩家名，群里照样认得出是谁。
+   * 一条都不 @ 本人：打完、开局、上下线全是群里看的播报，而订阅者自己刚打完那局最清楚，
+   * @ 只是给他多刷一条红点。要认人靠文案里的玩家名，每条都带。
    *
-   * @param {string} qq 订阅者
+   * @param {string} qq 订阅者，只用于日志
    * @param {string} groupId 群号
    * @param {string} text 文案
    * @param {object} [opts]
-   * @param {boolean} [opts.at=false] 是否 @ 本人
    * @param {string} [opts.iconUrl] 英雄头像 URL，没有详情图时才用
    * @param {object} [opts.image] 已渲染好的图片消息段（战绩详情图）
    * @returns {Promise<boolean>} 是否发送成功。失败时不推进游标，下一轮会重试
    */
-  async send (qq, groupId, text, { at = false, iconUrl = '', image = null } = {}) {
+  async send (qq, groupId, text, { iconUrl = '', image = null } = {}) {
     try {
       const group = Bot.pickGroup(Number(groupId))
       if (!group?.sendMsg) {
@@ -645,7 +649,7 @@ export class GameRecordPush extends plugin {
         return false
       }
 
-      const message = at ? [segment.at(Number(qq)), ` ${text}`] : [text]
+      const message = [text]
 
       if (image) {
         message.push(image)
@@ -656,7 +660,7 @@ export class GameRecordPush extends plugin {
       }
 
       await group.sendMsg(message)
-      logger.mark(`[王者推送] 已推送给 ${qq}@群${groupId}${image ? '（含详情图）' : ''}${at ? '' : '（未@）'}`)
+      logger.mark(`[王者推送] 已推送给 ${qq}@群${groupId}${image ? '（含详情图）' : ''}`)
       return true
     } catch (error) {
       logger.error(`[王者推送] 发送失败 ${qq}@群${groupId}: ${error.message}`)
@@ -665,7 +669,7 @@ export class GameRecordPush extends plugin {
   }
 
   /**
-   * 拿玩家名给不 @ 的那几条文案用。
+   * 拿玩家名写进文案。每条播报都不 @ 本人，所以名字是群里认人的唯一线索。
    *
    * 战绩列表和 data.gaming 里都没有玩家名，只有主页接口和战绩详情里有，
    * 所以订阅项里缓存一份（checkOnline 每轮、出详情图时顺手更新）。
