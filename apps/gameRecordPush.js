@@ -13,7 +13,13 @@
  *   拆成两个 task 只会让请求量翻倍、频控风险翻倍。详见 utils/pushStore.js 文件头的实测记录。
  * - 打完一局发的是和 #查询战绩N 同一张详情图（utils/battleDetailImage.js），这需要额外拉一次
  *   battledetail 并走 puppeteer，所以只给最新那局出图；出图失败一律回退纯文字，不能吞掉推送。
- * - 上下线提醒是独立开关，走的是主页接口（另一个端点），只有开了才会多花那次请求。
+ * - 上下线提醒是独立开关，走的是主页接口（另一个端点）。开了它反而更省：profile 的返回体比
+ *   战绩列表小一个量级，先查它拿到 gameOnline，就能判断这一轮值不值得再拉战绩列表。
+ * - 请求量是自适应的，不是恒定按 cron。这个 task 是插件里唯一的常驻定时任务，营地对总量敏感
+ *   （频控 -30107），而离线的号既不会开局也不会出新战绩。两层节流：
+ *   ① 该不该拉战绩列表 —— pushStore.needBattleList，零代价，不影响任何提醒；
+ *   ② 这一轮该不该查 —— pushStore.resolveNextCheck 按不活跃时长退避，跳过若干轮，
+ *      代价是上线播报最坏晚「封顶倍数 × cron」，配置项 idleBackoffMax 填 1 可关掉。
  *
  * 数据层与全部纯计算逻辑在 utils/pushStore.js，这里只管指令交互和消息发送。
  */
@@ -32,10 +38,14 @@ import {
   formatBattleText,
   formatGamingText,
   formatOnlineText,
+  needBattleList,
+  isSubActive,
+  resolveNextCheck,
   ONLINE_LABEL,
   FETCH_HIDDEN,
   MAX_DETAIL_BATTLES,
   REQUEST_INTERVAL,
+  DEFAULT_IDLE_BACKOFF_MAX,
   sleep
 } from '../utils/pushStore.js'
 import { fetchBattleDetail, renderBattleDetail } from '../utils/battleDetailImage.js'
@@ -170,6 +180,10 @@ export class GameRecordPush extends plugin {
       lastGameTime: String(latest.dtEventTime || ''),
       // 订阅时正在打的那局不提醒，否则一开启就收到一条「开打了」
       lastGamingStart: String(data.gaming?.dtEventTime || ''),
+      // 清掉可能残留的退避档位：这里是就地合并，上次关订阅前攒下的 skipTicks
+      // 会被继承，刚开启就要干等十分钟才第一次检查
+      skipTicks: 0,
+      idleSince: '',
       enabledAt: Date.now()
     }
     savePushList(list)
@@ -179,7 +193,7 @@ export class GameRecordPush extends plugin {
       [
         `✅ 已开启战绩推送（营地ID ${campId}）`,
         '打完一局会在本群 @你 并发送战绩，开局也会提醒一次',
-        cron ? `检查间隔：${cron}` : '',
+        cron ? `检查间隔：最快 ${cron}，你离线时会自动拉长以免触发营地频控` : '',
         '想连上下线一起提醒发送 #开启上下线提醒'
       ].filter(Boolean).join('\n'),
       Button.push(true)
@@ -228,6 +242,9 @@ export class GameRecordPush extends plugin {
       ...(state.roleName ? { roleName: String(state.roleName) } : {}),
       // 订阅时已经在线：没观察到上线瞬间，只能回退到营地的 onlineTime（会做陈旧值检查）
       onlineSince: state.gameOnline !== 0 ? String(resolveOnlineSince(state.onlineTime, nowSec)) : '',
+      // 同 toggle：就地合并会继承上次的退避档位，刚开启不该还在退避里
+      skipTicks: 0,
+      idleSince: '',
       enabledAt: existed.enabledAt || Date.now()
     }
     savePushList(list)
@@ -237,7 +254,7 @@ export class GameRecordPush extends plugin {
       `✅ 已开启上下线提醒（营地ID ${campId}）`,
       `当前状态：${ONLINE_LABEL[state.gameOnline] || '未知'}`,
       '上线和下线时会在本群 @你，下线时附带本次战绩总结',
-      cron ? `检查间隔：${cron}（这项会多占一次接口请求）` : '',
+      cron ? `检查间隔：最快 ${cron}，你离线时会自动拉长以免触发营地频控` : '',
       '关闭发送 #关闭上下线提醒'
     ].filter(Boolean).join('\n'), shouldQuote())
   }
@@ -263,6 +280,9 @@ export class GameRecordPush extends plugin {
 
     const battleOn = sub.battle !== false
     const onlineOn = sub.online === true
+    // 自适应节流的现状。不显示的话用户没法判断「怎么半天没动静」是退避还是坏了
+    const cap = Math.max(1, Number(cfg.idleBackoffMax) || DEFAULT_IDLE_BACKOFF_MAX)
+    const skip = Number(sub.skipTicks) || 0
 
     await e.reply([
       [
@@ -271,7 +291,8 @@ export class GameRecordPush extends plugin {
         `上下线提醒：${onlineOn ? '已开启' : '未开启'}`,
         `营地ID：${sub.campId || '—'}`,
         `推送群：${sub.group || '—'}`,
-        `检查间隔：${cfg.battleResultCron || '—'}`,
+        `检查间隔：最快 ${cfg.battleResultCron || '—'}`,
+        `离线退避：${cap === 1 ? '已关闭（恒定按上面的间隔）' : `离线时最长拉到 ${cap} 倍间隔`}${skip > 0 ? `｜当前退避中，还要跳过 ${skip} 轮` : ''}`,
         cfg.onlineReminder === false ? '⚠️ 插件推送总开关已关闭，暂时不会推送' : '',
         battleOn ? '关闭战绩推送发送 #关闭战绩推送' : '开启战绩推送发送 #开启战绩推送',
         onlineOn ? '关闭上下线提醒发送 #关闭上下线提醒' : '开启上下线提醒发送 #开启上下线提醒'
@@ -289,6 +310,10 @@ export class GameRecordPush extends plugin {
 
   /**
    * 定时轮询。一次请求同时判两件事：正在打的局（开局提醒）和新结算的局（战绩推送）。
+   *
+   * cron 只是「最快多久看一次」，实际每个订阅还要过一道自适应节流：玩家离线时
+   * 按 skipTicks 跳过若干轮（详见 pushStore.resolveNextCheck）。营地对请求总量敏感，
+   * 而离线的号既不会开局也不会出新战绩，那些轮次纯属白查。
    */
   async checkAll () {
     if (readConfig().onlineReminder === false) return
@@ -307,6 +332,13 @@ export class GameRecordPush extends plugin {
 
     try {
       for (const [qq, sub] of entries) {
+        // 退避中：递减计数就走，注意**不能 sleep**——跳过的订阅没发请求，没必要错峰
+        const skip = Number(sub?.skipTicks) || 0
+        if (skip > 0) {
+          mergeSubState(qq, { skipTicks: skip - 1 })
+          continue
+        }
+
         try {
           await this.checkOne(qq, sub, heroMap)
         } catch (error) {
@@ -320,9 +352,11 @@ export class GameRecordPush extends plugin {
   }
 
   /**
-   * 检查单个订阅。两个开关各自独立：
-   * battle 走战绩列表（1 次请求），online 走主页接口（再 1 次请求），都开就是 2 次。
-   * 所以只开战绩推送的人不会因为别人开了上下线提醒而多花请求。
+   * 检查单个订阅。
+   *
+   * 请求顺序是**先 profile 后战绩列表**，不是反过来：profile 的返回体比 morebattlelist
+   * 小一个量级，先拿到 gameOnline 就能判断这一轮值不值得再花一次战绩列表请求。
+   * 离线的号既不会开局也不会出新战绩，省下的那次请求不影响任何提醒的及时性。
    * @param {string} qq 订阅者
    * @param {object} sub 订阅项
    * @param {Record<string,string>} heroMap heroId -> 英雄名
@@ -341,9 +375,17 @@ export class GameRecordPush extends plugin {
     const battleOn = sub.battle !== false
     const onlineOn = sub.online === true
 
-    // 战绩列表：battle 要用来推战绩，online 要用它做下线时的战绩总结，任一开着就得拉
+    let state = null
+    if (onlineOn) {
+      state = await fetchOnlineState(campId, qq)
+      if (state === FETCH_HIDDEN) state = null
+    }
+
+    // 战绩列表这一轮拉不拉，判据见 pushStore.needBattleList
     let data = null
-    if (battleOn || onlineOn) {
+    if (needBattleList({ battleOn, onlineOn, state, sub })) {
+      // profile 刚打过，两个端点的请求别贴在一起
+      if (onlineOn) await sleep(REQUEST_INTERVAL)
       data = await fetchLatest(campId, qq)
       if (data === FETCH_HIDDEN) data = null
     }
@@ -355,10 +397,16 @@ export class GameRecordPush extends plugin {
     }
 
     if (onlineOn) {
-      // 两个开关都开时中间隔一下，别把两个端点的请求贴在一起打
-      if (battleOn) await sleep(REQUEST_INTERVAL)
-      await this.checkOnline(qq, sub, campId, data)
+      await this.checkOnline(qq, sub, data, state)
     }
+
+    // 收尾：按这一轮的活跃度定接下来跳过几轮
+    const nowMs = Date.now()
+    mergeSubState(qq, resolveNextCheck(sub, {
+      active: isSubActive(state, data, Math.floor(nowMs / 1000)),
+      nowMs,
+      maxMultiplier: readConfig().idleBackoffMax
+    }))
   }
 
   /**
@@ -379,7 +427,10 @@ export class GameRecordPush extends plugin {
         lastGamingStart: String(data.gaming?.dtEventTime || ''),
         // 在线状态也一起重置，新号的在线状态和旧号无关
         lastOnlineState: '',
-        onlineSince: ''
+        onlineSince: '',
+        // 退避档位也归零：换号等于一条全新的时间线，别让旧号攒下的退避拖着新号
+        skipTicks: 0,
+        idleSince: ''
       })
       return 'switched'
     }
@@ -449,12 +500,12 @@ export class GameRecordPush extends plugin {
    *
    * @param {string} qq 订阅者
    * @param {object} sub 订阅项
-   * @param {string} campId 当前营地ID
    * @param {object|null} data 战绩列表数据，有的话用来做下线时的战绩总结（不额外请求）
+   * @param {object|null} state 本轮的在线状态。由 checkOne 查好传进来——它要先拿 gameOnline
+   *   才能决定战绩列表拉不拉，这里再查一次就是同一轮打两次 profile
    */
-  async checkOnline (qq, sub, campId, data) {
-    const state = await fetchOnlineState(campId, qq)
-    if (!state || state === FETCH_HIDDEN) return
+  async checkOnline (qq, sub, data, state) {
+    if (!state) return
 
     const kind = diffOnlineState(state.gameOnline, sub.lastOnlineState)
     const nowSec = Math.floor(Date.now() / 1000)

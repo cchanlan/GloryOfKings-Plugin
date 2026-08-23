@@ -58,6 +58,31 @@ export const MAX_DETAIL_BATTLES = 3
 const HERO_MAP_CACHE_KEY = 'gok:heroNameMap'
 const HERO_MAP_TTL = 6 * 60 * 60
 
+/**
+ * 离线退避的档位：不活跃多久（毫秒）→ 检查间隔是 cron 的几倍。
+ * `multiplier: null` 表示用配置的封顶值。
+ *
+ * 用**倍数**而不是绝对分钟，是因为 Yunzai 的 task cron 在 constructor 里注册就固定了、
+ * 运行时改不了，所以降频只能在应用层按 tick 跳过。用倍数就不必解析 cron 表达式，
+ * 而且用户把 battleResultCron 从 2 分钟改成 5 分钟时，整套策略跟着缩放。
+ *
+ * 档位从长到短排列，取第一个命中的。
+ */
+const IDLE_BACKOFF_STEPS = [
+  { afterMs: 3 * 3600 * 1000, multiplier: null },
+  { afterMs: 1 * 3600 * 1000, multiplier: 3 },
+  { afterMs: 0, multiplier: 2 }
+]
+
+/** 离线最长退避到几倍 cron 间隔。1 = 关闭自适应，全程按 cron 轮询 */
+export const DEFAULT_IDLE_BACKOFF_MAX = 5
+
+/**
+ * 「最近打过」的判定窗口（秒）。只开战绩推送、没有 profile 信号的订阅靠它判活跃：
+ * 玩家真在连着打时每 15 分钟左右就有一局进列表，30 分钟没有新场次基本就是收工了。
+ */
+const RECENT_BATTLE_WINDOW = 30 * 60
+
 export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 const toInt = value => {
@@ -643,4 +668,97 @@ export function formatOnlineText (kind, { name = '', gameOnline = 0, durationSec
   }
 
   return lines.join('\n')
+}
+
+/* ------------------------------------------------------------------ 轮询节流 */
+
+/**
+ * 这一轮要不要花一次战绩列表请求（morebattlelist，返回体比 profile 大一个量级）。
+ *
+ * 玩家离线时既不会开局也不会出新战绩，那一次请求是纯浪费，跳过它不影响任何提醒：
+ * - 只开上下线提醒：战绩列表只在「刚下线」那一轮有用（喂 summarizeSession 做收工总结），
+ *   在线期间拉回来的数据原样丢掉
+ * - 两个都开：在线要推战绩/开局，刚下线要收尾最后那几局，持续离线就跳
+ * - 只开战绩推送：没有 profile 信号，战绩列表是唯一信息源，只能每轮拉
+ *
+ * profile 这轮拉失败（state 为 null）时一律按「要拉」处理——宁可多一次请求，
+ * 也不能因为拿不到在线状态就把战绩推送停掉。
+ *
+ * @param {object} opts
+ * @param {boolean} opts.battleOn 订阅开了战绩推送
+ * @param {boolean} opts.onlineOn 订阅开了上下线提醒
+ * @param {object|null} opts.state 本轮的 profile 结果
+ * @param {object} opts.sub 订阅项，读 lastOnlineState 判「是不是刚下线那一轮」
+ * @returns {boolean}
+ */
+export function needBattleList ({ battleOn, onlineOn, state, sub = {} } = {}) {
+  // 没有 profile 信号可用：只能靠战绩列表本身
+  if (!onlineOn || !state) return battleOn
+
+  const online = toInt(state.gameOnline) !== 0
+  const wasOnline = sub.lastOnlineState !== undefined &&
+    sub.lastOnlineState !== null &&
+    String(sub.lastOnlineState) !== '' &&
+    String(sub.lastOnlineState) !== '0'
+  const justWentOffline = !online && wasOnline
+
+  return battleOn ? (online || justWentOffline) : justWentOffline
+}
+
+/**
+ * 这个订阅现在算不算「活跃」，决定下一轮是保持高频还是开始退避。
+ *
+ * 判据按信号可靠性排序：
+ * 1. 有 profile → `gameOnline !== 0` 最可靠（三态语义见 fetchOnlineState 的注释）
+ * 2. 没有 profile（只开战绩推送、或 profile 这轮拉失败）→ 退回战绩列表本身：
+ *    正在打（isGaming）算活跃，最新一场在 RECENT_BATTLE_WINDOW 内也算
+ * 3. 两个都没拿到 → **算不活跃**。接口一直失败就该退避，别按高频硬刚，
+ *    正好和 api.js 的频控冷却一个方向
+ *
+ * @param {object|null} state fetchOnlineState 的返回（已排除 FETCH_HIDDEN）
+ * @param {object|null} data fetchLatest 的返回（已排除 FETCH_HIDDEN）
+ * @param {number} nowSec 当前时间戳（秒）
+ * @returns {boolean}
+ */
+export function isSubActive (state, data, nowSec) {
+  if (state) return toInt(state.gameOnline) !== 0
+
+  if (!data) return false
+  if (data.isGaming) return true
+
+  const latest = toInt((data.list || [])[0]?.dtEventTime)
+  if (latest <= 0) return false
+
+  return toInt(nowSec) - latest <= RECENT_BATTLE_WINDOW
+}
+
+/**
+ * 算这个订阅接下来要跳过几轮，顺带维护「从什么时候开始不活跃」。
+ *
+ * 返回的两个字段都要写回订阅项：`skipTicks` 每轮递减，减到 0 才真正去查；
+ * `idleSince` 是退避档位的计时起点，活跃时清空，这样玩家一上线就立刻回到高频。
+ *
+ * @param {object} sub 订阅项，读 idleSince
+ * @param {object} opts
+ * @param {boolean} opts.active isSubActive 的结果
+ * @param {number} opts.nowMs 当前时间戳（毫秒）
+ * @param {number} [opts.maxMultiplier] 封顶倍数，1 = 关闭自适应（全程按 cron）
+ * @returns {{skipTicks:number, idleSince:string}}
+ */
+export function resolveNextCheck (sub, { active, nowMs, maxMultiplier = DEFAULT_IDLE_BACKOFF_MAX } = {}) {
+  const now = toInt(nowMs)
+  // 封顶至少是 1（每轮都查），配置里填 0 或负数不该让轮询彻底停摆
+  const cap = Math.max(1, toInt(maxMultiplier) || DEFAULT_IDLE_BACKOFF_MAX)
+
+  if (active) return { skipTicks: 0, idleSince: '' }
+
+  // 第一次判定为不活跃：从现在开始计时，本轮之后先按最短那档退避
+  const idleSince = toInt(sub?.idleSince) > 0 ? toInt(sub.idleSince) : now
+  const idleFor = Math.max(0, now - idleSince)
+
+  const step = IDLE_BACKOFF_STEPS.find(item => idleFor >= item.afterMs)
+  const multiplier = Math.min(step?.multiplier ?? cap, cap)
+
+  // multiplier 倍间隔 = 查一轮 + 跳过 (multiplier - 1) 轮
+  return { skipTicks: Math.max(0, multiplier - 1), idleSince: String(idleSince) }
 }

@@ -65,11 +65,20 @@ export function supportGuoba () {
         {
           field: 'config.battleResultCron',
           label: '推送检查间隔',
-          bottomHelpMessage: '战绩推送、开局提醒、上下线提醒共用这一个轮询。每个订阅要串行拉接口（间隔 800 毫秒）；真打完一局时会再拉一次详情并渲染图（约 1.3 秒），开了上下线提醒的订阅每轮还要多一次请求。设太短会触发营地频控 -30107，不建议低于 2 分钟。',
+          bottomHelpMessage: '战绩推送、开局提醒、上下线提醒共用这一个轮询，这里定的是「最快多久看一次」。每个订阅串行拉接口（间隔 800 毫秒）；真打完一局时会再拉一次详情并渲染图（约 1.3 秒）。玩家离线时实际间隔会按下面的退避倍数自动拉长，不会一直按这个频率打接口。设太短仍会触发营地频控 -30107，不建议低于 2 分钟。',
           helpMessage: '修改后重启生效',
           component: 'EasyCron',
           componentProps: {
             placeholder: '请输入Cron表达式'
+          }
+        },
+        {
+          field: 'config.idleBackoffMax',
+          label: '离线退避倍数',
+          bottomHelpMessage: '玩家离线时把检查间隔拉长到几倍上面的轮询间隔。离线的号既不会开局也不会出新战绩，照高频查纯属白耗配额、更容易撞上 -30107。默认 5，即 2 分钟的间隔在离线满 3 小时后退到 10 分钟一次（不活跃 1 小时内 2 倍、1~3 小时 3 倍）。代价是上线播报最坏晚这么久，期间「上线又下线」的短会话可能整段漏掉。填 1 = 关闭自适应，恒定按上面的间隔轮询。',
+          component: 'InputNumber',
+          componentProps: {
+            placeholder: '默认 5'
           }
         },
         {
