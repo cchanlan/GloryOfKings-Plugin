@@ -281,6 +281,13 @@
 
         .team-container {
             flex: 1;
+            /* 必须有 min-width: 0。flex item 默认 min-width: auto，宽度不能小于内容的固有宽度，
+               于是「隐藏了昵称」的玩家那种 36 位乱码名（hUTy2xDAINTleG1zw6YNTwk6mIrnXWd51836）
+               会把所在那一列整个顶宽：实测两队变成 511px / 689px 而不是各 600px。
+               后果是三连的：被压窄的那队装备图标从 7 个一行挤成 6+1 两行、卡片变高、
+               两队等高（align-items: stretch）后另一队底部空出一大片。
+               这条收缩链上每一级都得放开，断一级 .player-name 的省略号就永远不触发 */
+            min-width: 0;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 16px;
@@ -331,6 +338,8 @@
             display: flex;
             gap: 12px;
             flex: 1;
+            /* 同 team-container：不放开的话乱码名照样从 player-column 顶穿上来 */
+            min-width: 0;
         }
 
         .player-column {
@@ -338,6 +347,7 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
+            min-width: 0;
             /* 必须是 flex-start：接口有时只返回部分玩家（隐私设置等，实测出现过我方 1 人、
                敌方 4 人的排位局），space-between 会把这几张卡片分散钉在容器首尾 */
             justify-content: flex-start;
