@@ -221,9 +221,10 @@ export async function renderBattleDetail ({ head, battle, redTeam, blueTeam, red
       // 「输出」取对英雄伤害 totalHeroHurtCnt（实测 3.6万~10.4万），
       // 不是 totalHurtCnt——那个含对小兵野怪的伤害，坦克清兵也能刷很高，看不出打人多少
       bs.heroHurtText = formatDamage(bs.totalHeroHurtCnt)
-      // 输出占比：本人对英雄伤害 / 本队总对英雄伤害，一眼看出谁是队里的主力输出
+      // 输出占比：本人对英雄伤害 / 本队总对英雄伤害，一眼看出谁是队里的主力输出。
+      // 存成数字（不带 %），模板才好按它分级配色，跟 gradeGame 的写法保持一致
       const hurt = Number(bs.totalHeroHurtCnt) || 0
-      bs.heroHurtRate = teamHurt > 0 && hurt > 0 ? `${Math.round((hurt / teamHurt) * 100)}%` : ''
+      bs.heroHurtRate = teamHurt > 0 && hurt > 0 ? Math.round((hurt / teamHurt) * 100) : 0
     }
   }
 

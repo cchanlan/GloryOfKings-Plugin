@@ -407,7 +407,9 @@
             font-size: 28px;
             font-weight: bold;
             flex-shrink: 0;
-            width: 52px;
+            /* 两位数评分（13.0 / 12.4）内容宽约 55px，原先写死 52px 会溢出 3px、把右边的
+               player-info 顶窄；个位数只占 52px 又留白。放宽到 58 并居中，两种都稳 */
+            width: 58px;
             text-align: center;
         }
 
@@ -498,13 +500,21 @@
             margin-right: 3px;
         }
 
-        /* 输出占比：跟在伤害数值后，弱化成灰色小字，别抢主数值的视觉 */
+        /* 输出占比。字号必须和伤害数值一致：原先给了 13px，夹在 12px 的「输出」标签和
+           17px 的数值之间，一行读下来是「小-大-小」的跳变，很难看。
+           主次改用字重（normal vs bold）+ 颜色区分，不靠字号 */
         .damage-display .rate {
-            font-size: 13px;
+            font-size: 17px;
             font-weight: normal;
-            color: #8b97ab;
-            margin-left: 4px;
+            margin-left: 5px;
         }
+
+        /* 占比分级配色。5 人队均值 20%，所以 25% 以上算挑大梁、12% 以下算基本没输出。
+           跟 .score 的 grade-* 用同一套色板，整张图的「强弱」语言保持一致 */
+        .rate.share-top { color: #ff5b7c; }
+        .rate.share-high { color: #f5d76e; }
+        .rate.share-mid { color: #6f8ef5; }
+        .rate.share-low { color: #9aa7bd; }
 
         .hero-name {
             font-size: 15px;
@@ -652,7 +662,7 @@
                             </div>
                             <div class="player-stats">
                                 <span>{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</span>
-                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate">{{item.battleStats.heroHurtRate}}</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate {{item.battleStats.heroHurtRate >= 25 ? 'share-top' : item.battleStats.heroHurtRate >= 18 ? 'share-high' : item.battleStats.heroHurtRate >= 12 ? 'share-mid' : 'share-low'}}">{{item.battleStats.heroHurtRate}}%</span>{{/if}}</span>{{/if}}
                             </div>
                             <div class="hero-name">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
                             <div class="equipment-list">
@@ -686,7 +696,7 @@
                             </div>
                             <div class="player-stats">
                                 <span>{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</span>
-                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate">{{item.battleStats.heroHurtRate}}</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate {{item.battleStats.heroHurtRate >= 25 ? 'share-top' : item.battleStats.heroHurtRate >= 18 ? 'share-high' : item.battleStats.heroHurtRate >= 12 ? 'share-mid' : 'share-low'}}">{{item.battleStats.heroHurtRate}}%</span>{{/if}}</span>{{/if}}
                             </div>
                             <div class="hero-name">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
                             <div class="equipment-list">
@@ -730,7 +740,7 @@
                             </div>
                             <div class="player-stats">
                                 <span>{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</span>
-                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate">{{item.battleStats.heroHurtRate}}</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate {{item.battleStats.heroHurtRate >= 25 ? 'share-top' : item.battleStats.heroHurtRate >= 18 ? 'share-high' : item.battleStats.heroHurtRate >= 12 ? 'share-mid' : 'share-low'}}">{{item.battleStats.heroHurtRate}}%</span>{{/if}}</span>{{/if}}
                             </div>
                             <div class="hero-name">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
                             <div class="equipment-list">
@@ -764,7 +774,7 @@
                             </div>
                             <div class="player-stats">
                                 <span>{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</span>
-                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate">{{item.battleStats.heroHurtRate}}</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate {{item.battleStats.heroHurtRate >= 25 ? 'share-top' : item.battleStats.heroHurtRate >= 18 ? 'share-high' : item.battleStats.heroHurtRate >= 12 ? 'share-mid' : 'share-low'}}">{{item.battleStats.heroHurtRate}}%</span>{{/if}}</span>{{/if}}
                             </div>
                             <div class="hero-name">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
                             <div class="equipment-list">
