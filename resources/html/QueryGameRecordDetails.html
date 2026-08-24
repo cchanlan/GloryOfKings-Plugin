@@ -492,12 +492,16 @@
             margin-left: auto;
         }
 
+        /* 「输出」「经济」这两个标签原先是 12px，跟右边 17px 的数值差了 5px，
+           一行读下来还是有落差。统一到和数值同等的 17px，
+           主次全靠字重（normal vs bold）+ 颜色区分，一个字号都不跳。
+           实测提到 17px 后 KDA 行仍零溢出、两队列宽仍各 600px，不挤名字 */
         .damage-display .label,
         .economy-display .label {
-            font-size: 12px;
+            font-size: 17px;
             font-weight: normal;
             color: #8b97ab;
-            margin-right: 3px;
+            margin-right: 4px;
         }
 
         /* 输出占比。字号必须和伤害数值一致：原先给了 13px，夹在 12px 的「输出」标签和
