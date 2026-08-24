@@ -498,6 +498,14 @@
             margin-right: 3px;
         }
 
+        /* 输出占比：跟在伤害数值后，弱化成灰色小字，别抢主数值的视觉 */
+        .damage-display .rate {
+            font-size: 13px;
+            font-weight: normal;
+            color: #8b97ab;
+            margin-left: 4px;
+        }
+
         .hero-name {
             font-size: 15px;
             color: #9aa7bd;
@@ -644,7 +652,7 @@
                             </div>
                             <div class="player-stats">
                                 <span>{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</span>
-                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}</span>{{/if}}
+                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate">{{item.battleStats.heroHurtRate}}</span>{{/if}}</span>{{/if}}
                             </div>
                             <div class="hero-name">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
                             <div class="equipment-list">
@@ -678,7 +686,7 @@
                             </div>
                             <div class="player-stats">
                                 <span>{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</span>
-                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}</span>{{/if}}
+                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate">{{item.battleStats.heroHurtRate}}</span>{{/if}}</span>{{/if}}
                             </div>
                             <div class="hero-name">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
                             <div class="equipment-list">
@@ -722,7 +730,7 @@
                             </div>
                             <div class="player-stats">
                                 <span>{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</span>
-                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}</span>{{/if}}
+                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate">{{item.battleStats.heroHurtRate}}</span>{{/if}}</span>{{/if}}
                             </div>
                             <div class="hero-name">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
                             <div class="equipment-list">
@@ -756,7 +764,7 @@
                             </div>
                             <div class="player-stats">
                                 <span>{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</span>
-                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}</span>{{/if}}
+                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate">{{item.battleStats.heroHurtRate}}</span>{{/if}}</span>{{/if}}
                             </div>
                             <div class="hero-name">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
                             <div class="equipment-list">

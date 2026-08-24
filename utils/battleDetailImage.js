@@ -204,6 +204,10 @@ export async function renderBattleDetail ({ head, battle, redTeam, blueTeam, red
   // 为每个玩家补上评价图标。详情接口的 mvp 只是布尔值，没给图，按胜负自己挑 MVP / SVP
   const myWin = !!head.gameResult
   for (const [roles, win] of [[myRoles, myWin], [enemyRoles, !myWin]]) {
+    // 输出占比的分母用本队「实际返回的玩家」之和，而不是按满员 5 人写死：
+    // 接口偶尔缺人（隐私设置，实测出现过我方 1 人、敌方 4 人的排位局），
+    // 用返回的这几个人求和，跟图上真正列出来的卡片对得上，占比加起来正好 100%
+    const teamHurt = roles.reduce((sum, r) => sum + (Number(r.battleStats?.totalHeroHurtCnt) || 0), 0)
     for (const role of roles) {
       const bs = role.battleStats
       if (!bs) continue
@@ -217,6 +221,9 @@ export async function renderBattleDetail ({ head, battle, redTeam, blueTeam, red
       // 「输出」取对英雄伤害 totalHeroHurtCnt（实测 3.6万~10.4万），
       // 不是 totalHurtCnt——那个含对小兵野怪的伤害，坦克清兵也能刷很高，看不出打人多少
       bs.heroHurtText = formatDamage(bs.totalHeroHurtCnt)
+      // 输出占比：本人对英雄伤害 / 本队总对英雄伤害，一眼看出谁是队里的主力输出
+      const hurt = Number(bs.totalHeroHurtCnt) || 0
+      bs.heroHurtRate = teamHurt > 0 && hurt > 0 ? `${Math.round((hurt / teamHurt) * 100)}%` : ''
     }
   }
 
