@@ -48,8 +48,15 @@
         text-rendering: geometricPrecision;
     }
 
+    /*
+     * 宽度 1800rem 配下面 .cards 的 5 列是一起定的，别单独改其中一个。
+     * 原先是 1080rem + 3 列，50 条指令堆成 2160x5718（高宽比 1:2.65 的细长条），
+     * 想一眼看全整页就只能缩到 20% 上下，字糊成一团。
+     * 实测 3/4/5/6 列：5 列出图 3600x4457（比 1:1.24），看全时的等效字号比 3 列大 28%，
+     * 且每张卡片反而更宽（571 -> 619px）。6 列收益就很小了，还会让最后一排空太多。
+     */
     #container {
-        width: 1080rem;
+        width: 1800rem;
         padding: 28rem;
     }
 
@@ -210,7 +217,8 @@
 <style>
     .cards {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        /* 列数与 #container 宽度绑定，改动见上面 #container 的注释 */
+        grid-template-columns: repeat(5, 1fr);
         gap: 14rem;
     }
 
