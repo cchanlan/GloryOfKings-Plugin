@@ -1,0 +1,204 @@
+@charset "UTF-8";
+/*
+ * 群报的增量样式。基础样式（卡片、四格、区块标题、活跃时段、footer）走 BattleReport.css，
+ * 这里只写群榜特有的部分，两张表一起 link，视觉和个人日报保持一致。
+ *
+ * 长昵称是这套布局的主要风险：营地里设了隐藏昵称的玩家 roleName 是 36 位随机串，
+ * flex item 默认 min-width:auto，不可断词的长串会沿
+ * .rank-row → .rank-main → .rank-top → .rank-name 一路把整行顶宽。
+ * 所以这条链上每一级都放开 min-width:0，断一级省略号就永远不触发。
+ */
+
+/* 头部：群报没有头像，用一个「群」字的圆标占位 */
+.group-mark {
+  width: 62px; height: 62px;
+  border-radius: 50%;
+  border: 2px solid rgba(245, 215, 110, 0.5);
+  background: rgba(245, 215, 110, 0.12);
+  color: #f5d76e;
+  font-size: 26px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+/* 两个 badge 并排（区间 + 上榜人数），别贴在一起 */
+.user-info .badge + .badge { margin-left: 6px; }
+
+/* 总览从 4 格变 5 格 */
+.stat-grid.group-stat { grid-template-columns: repeat(5, 1fr); }
+.stat-grid.group-stat .stat-val { font-size: 30px; }
+.stat-grid.group-stat .stat-val.small { font-size: 19px; padding-top: 7px; }
+.stat-grid.group-stat .stat-key { font-size: 12px; }
+
+/* 称号 */
+.award-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 9px;
+}
+.award {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 9px 13px;
+  min-width: 0;
+}
+.award-icon {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(245, 215, 110, 0.35);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.award-main { min-width: 0; flex: 1; }
+.award-key { font-size: 12px; color: #f5d76e; margin-bottom: 3px; }
+.award-val {
+  font-size: 14px;
+  color: #eef2f8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 成员排行榜 */
+.rank-list { display: flex; flex-direction: column; gap: 8px; }
+.rank-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 8px 13px;
+  min-width: 0;
+}
+.rank-no {
+  font-family: Number, sans-serif;
+  font-size: 17px;
+  color: rgba(255, 255, 255, 0.3);
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.rank-no.gold { color: #f5d76e; }
+.rank-no.silver { color: #d6dbe4; }
+.rank-no.bronze { color: #d9a06a; }
+.rank-avatar {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  border: 1px solid rgba(245, 215, 110, 0.35);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.rank-main { flex: 1; min-width: 0; }
+.rank-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  min-width: 0;
+}
+.rank-name {
+  font-size: 15px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.streak {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.streak.gold { color: #f5d76e; background: rgba(245, 215, 110, 0.14); }
+.streak.bad { color: #e96e6e; background: rgba(233, 110, 110, 0.14); }
+/* 常用英雄贴在名字后面，长英雄名也不许把名字挤没 */
+.rank-hero {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+}
+.rank-hero img {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.rank-nums {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.rank-cnt { font-family: Number, sans-serif; font-size: 17px; color: #eef2f8; width: 50px; text-align: right; }
+.rank-cnt i { font-size: 11px; font-style: normal; color: rgba(255, 255, 255, 0.35); margin-left: 2px; }
+.rank-wl {
+  font-family: Number, sans-serif;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.25);
+  width: 56px;
+  text-align: right;
+}
+.rank-wl b { font-weight: 400; }
+/* BattleReport.css 的 .win/.lose 只挂在 .stat-val 下，这里得自己上色，
+   否则胜负那列整段是灰的、看不出哪个是胜。这列是次要信息，用降饱和的版本 */
+.rank-wl b.win { color: rgba(111, 211, 155, 0.8); }
+.rank-wl b.lose { color: rgba(233, 110, 110, 0.8); }
+.rank-wr { font-family: Number, sans-serif; font-size: 15px; width: 46px; text-align: right; }
+.rank-wr.good { color: #6fd39b; }
+.rank-wr.bad { color: #e96e6e; }
+.rank-mvp { color: rgba(245, 215, 110, 0.75); width: 58px; text-align: right; }
+.rank-time { color: rgba(255, 255, 255, 0.35); width: 68px; text-align: right; }
+
+/* 全群热门英雄 */
+.ghero-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
+}
+.ghero {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 8px 12px;
+  min-width: 0;
+}
+.ghero-icon {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(245, 215, 110, 0.3);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.ghero-main { flex: 1; min-width: 0; }
+.ghero-name {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ghero-sub { font-size: 11px; color: rgba(255, 255, 255, 0.38); margin: 2px 0 5px; }
+.ghero-wr { font-family: Number, sans-serif; font-size: 14px; flex-shrink: 0; color: rgba(255, 255, 255, 0.7); }
+.ghero-wr.good { color: #6fd39b; }
+.ghero-wr.bad { color: #e96e6e; }
+
+/* 统计口径说明。和 footer 区分开：这条是「数据不全」的提醒，要比 footer 显眼一点 */
+.note {
+  text-align: center;
+  padding: 11px 26px 0;
+  font-size: 12px;
+  color: rgba(245, 215, 110, 0.62);
+}
+.note + .footer { padding-top: 9px; }

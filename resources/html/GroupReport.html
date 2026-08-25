@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>{{title}}</title>
+  <!-- 两张表：BattleReport.css 提供卡片 / 四格 / 区块 / 活跃时段的基础样式，
+       GroupReport.css 只写群榜特有的增量，视觉和个人日报保持一致 -->
+  <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
+  <link rel="stylesheet" href="{{_res_path}}css/GroupReport.css">
+</head>
+<body>
+<div class="card">
+  <!-- 头部 -->
+  <div class="card-header">
+    <div class="group-mark">群</div>
+    <div class="user-info">
+      <h2 class="username">{{groupName}}</h2>
+      <span class="badge">{{rangeText}}</span>
+      <span class="badge">{{scannedText}}</span>
+    </div>
+    <div class="report-label">
+      {{title}}
+      <span class="sub">{{subText}}</span>
+    </div>
+  </div>
+
+  <!-- 五格总览 -->
+  <div class="stat-grid group-stat">
+    <div class="stat-cell gold">
+      <div class="stat-val">{{count}}</div>
+      <div class="stat-key">总场次</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val"><span class="win">{{win}}</span><span class="slash">/</span><span class="lose">{{lose}}</span></div>
+      <div class="stat-key">胜 / 负</div>
+    </div>
+    <div class="stat-cell {{winRateClass}}">
+      <div class="stat-val">{{winRate}}%</div>
+      <div class="stat-key">全群胜率</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val">{{avgCount}}</div>
+      <div class="stat-key">人均场次</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val small">{{totalTimeText}}</div>
+      <div class="stat-key">总对局时长</div>
+    </div>
+  </div>
+
+  <!-- 称号 -->
+  {{if awards.length}}
+  <div class="section">
+    <div class="section-title">
+      本{{unit}}称号
+      <span class="tip">共 {{memberCount}} 人上榜</span>
+    </div>
+    <div class="award-grid">
+      {{each awards a}}
+      <div class="award">
+        {{if a.icon}}<img class="award-icon" src="{{a.icon}}" alt="" onerror="this.style.display='none'">{{/if}}
+        <div class="award-main">
+          <div class="award-key">{{a.key}}</div>
+          <div class="award-val">{{a.val}}</div>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- 成员排行榜 -->
+  {{if rows.length}}
+  <div class="section">
+    <div class="section-title">
+      战绩排行
+      <span class="tip">按场次排序{{if rowsHidden}} · 另有 {{rowsHidden}} 人未列出{{/if}}</span>
+    </div>
+    <div class="rank-list">
+      {{each rows r}}
+      <div class="rank-row">
+        <div class="rank-no {{r.rankClass}}">{{r.rank}}</div>
+        {{if r.icon}}<img class="rank-avatar" src="{{r.icon}}" alt="" onerror="this.style.display='none'">{{/if}}
+        <div class="rank-main">
+          <div class="rank-top">
+            <span class="rank-name">{{r.name}}</span>
+            {{if r.streakText}}<span class="streak {{r.streakClass}}">{{r.streakText}}</span>{{/if}}
+            {{if r.topHero}}
+            <span class="rank-hero">
+              {{if r.topHeroIcon}}<img src="{{r.topHeroIcon}}" alt="" onerror="this.style.display='none'">{{/if}}
+              {{r.topHero.name}} ×{{r.topHero.count}}
+            </span>
+            {{/if}}
+          </div>
+          <div class="hero-bar">
+            <div class="hero-bar-in" style="width:{{r.barWidth}}%"></div>
+          </div>
+        </div>
+        <div class="rank-nums">
+          <span class="rank-cnt">{{r.count}}<i>场</i></span>
+          <span class="rank-wl"><b class="win">{{r.win}}</b>/<b class="lose">{{r.lose}}</b></span>
+          <span class="rank-wr {{r.wrClass}}">{{r.winRate}}%</span>
+          <span class="rank-mvp">{{if r.mvp}}MVP {{r.mvp}}{{else}}—{{/if}}</span>
+          <span class="rank-time">{{r.totalTimeText}}</span>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- 每日战况（周报 / 月报） -->
+  {{if showDayChart}}
+  <div class="section">
+    <div class="section-title">
+      每日战况
+      <span class="tip">全群合计 · 共 {{byDay.length}} 天有对局</span>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="dayCanvas" width="2910" height="620"></canvas>
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- 群英雄榜 -->
+  {{if heroes.length}}
+  <div class="section">
+    <div class="section-title">
+      全群热门英雄
+      <span class="tip">共 {{heroTotal}} 个英雄被使用</span>
+    </div>
+    <div class="ghero-grid">
+      {{each heroes h}}
+      <div class="ghero">
+        <img class="ghero-icon" src="{{h.icon}}" alt="">
+        <div class="ghero-main">
+          <div class="ghero-name">{{h.name}}</div>
+          <div class="ghero-sub">{{h.count}} 场 · {{h.users}} 人</div>
+          <div class="hero-bar">
+            <div class="hero-bar-in" style="width:{{h.barWidth}}%"></div>
+          </div>
+        </div>
+        <div class="ghero-wr {{h.wrClass}}">{{h.winRate}}%</div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- 活跃时段 -->
+  {{if hourBars.length}}
+  <div class="section">
+    <div class="section-title">
+      全群活跃时段
+      <span class="tip">{{peakHourText}}</span>
+    </div>
+    <div class="hour-wrap">
+      {{each hourBars b}}
+      <div class="hour-col">
+        <div class="hour-bar {{if b.peak}}peak{{/if}}" style="height:{{b.height}}%"></div>
+        <div class="hour-label">{{b.label}}</div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  {{if noteText}}<div class="note">{{noteText}}</div>{{/if}}
+  <div class="footer">{{footText}}</div>
+</div>
+
+<script>
+const byDay = {{@ byDayJson}}
+
+// 每日战况：胜/负堆叠柱 + 当天总场次。和个人日报同一套画法，
+// 只是月报的点数多（最多 31 天），柱子按 slot 自适应变细
+if (byDay && byDay.length > 1) {
+  const c = document.getElementById('dayCanvas')
+  const ctx = c.getContext('2d')
+  const W = c.width, H = c.height
+  const pad = { t: 40, b: 92, l: 96, r: 96 }
+  const plotH = H - pad.t - pad.b
+  const plotW = W - pad.l - pad.r
+  const maxCount = Math.max(...byDay.map(d => d.count), 1)
+  const slot = plotW / byDay.length
+  const barW = Math.min(slot * 0.52, 150)
+  // 天数多时日期标签会糊成一片，隔几天标一个
+  const step = byDay.length > 16 ? 3 : byDay.length > 10 ? 2 : 1
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+  ctx.lineWidth = 2
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + i * plotH / 4
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke()
+  }
+
+  byDay.forEach((d, i) => {
+    const cx = pad.l + slot * (i + 0.5)
+    const total = (d.count / maxCount) * plotH
+    const winH = d.count > 0 ? total * (d.win / d.count) : 0
+    const x = cx - barW / 2
+    const yTop = pad.t + plotH - total
+
+    ctx.fillStyle = 'rgba(233,110,110,0.72)'
+    ctx.fillRect(x, pad.t + plotH - (total - winH), barW, total - winH)
+    ctx.fillStyle = 'rgba(245,215,110,0.86)'
+    ctx.fillRect(x, yTop, barW, winH)
+
+    // 柱子太细时数字会互相压住，只在最高的那天和抽稀后的位置标
+    if (step === 1 || i % step === 0 || d.count === maxCount) {
+      ctx.fillStyle = '#fff'
+      ctx.font = '600 34px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText(String(d.count), cx, yTop - 14)
+    }
+
+    if (i % step === 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.62)'
+      ctx.font = '30px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText(d.date, cx, H - pad.b + 42)
+      ctx.fillStyle = 'rgba(255,255,255,0.34)'
+      ctx.font = '26px sans-serif'
+      ctx.fillText('周' + d.weekday, cx, H - pad.b + 78)
+    }
+  })
+}
+</script>
+</body>
+</html>

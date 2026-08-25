@@ -49,8 +49,8 @@
   </div>
   {{/if}}
 
-  <!-- 每日趋势（只有周报有） -->
-  {{if isWeekly && byDay.length > 1}}
+  <!-- 每日趋势（周报 / 月报有多天数据时才画） -->
+  {{if showDayChart}}
   <div class="section">
     <div class="section-title">
       每日战况
@@ -128,7 +128,8 @@
 <script>
 const byDay = {{@ byDayJson}}
 
-// 每日战况：胜/负堆叠柱 + 场次折线。数据点少（最多 7 天），所以柱子画粗一点
+// 每日战况：胜/负堆叠柱 + 当天总场次。周报最多 7 天所以柱子画粗一点，
+// 月报能到 31 天，柱宽按 slot 自适应、日期标签抽稀，否则挤成一片糊
 if (byDay && byDay.length > 1) {
   const c = document.getElementById('dayCanvas')
   const ctx = c.getContext('2d')
@@ -139,6 +140,7 @@ if (byDay && byDay.length > 1) {
   const maxCount = Math.max(...byDay.map(d => d.count), 1)
   const slot = plotW / byDay.length
   const barW = Math.min(slot * 0.52, 150)
+  const step = byDay.length > 16 ? 3 : byDay.length > 10 ? 2 : 1
 
   // 背景网格
   ctx.strokeStyle = 'rgba(255,255,255,0.06)'
@@ -161,19 +163,24 @@ if (byDay && byDay.length > 1) {
     ctx.fillStyle = 'rgba(245,215,110,0.86)'
     ctx.fillRect(x, yTop, barW, winH)
 
-    // 当天总场次
-    ctx.fillStyle = '#fff'
-    ctx.font = '600 34px sans-serif'
-    ctx.textAlign = 'center'
-    ctx.fillText(String(d.count), cx, yTop - 14)
+    // 当天总场次。天数多时抽稀，但最高的那天一定标
+    if (step === 1 || i % step === 0 || d.count === maxCount) {
+      ctx.fillStyle = '#fff'
+      ctx.font = '600 34px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText(String(d.count), cx, yTop - 14)
+    }
 
     // 日期 + 星期
-    ctx.fillStyle = 'rgba(255,255,255,0.62)'
-    ctx.font = '30px sans-serif'
-    ctx.fillText(d.date, cx, H - pad.b + 42)
-    ctx.fillStyle = 'rgba(255,255,255,0.34)'
-    ctx.font = '26px sans-serif'
-    ctx.fillText('周' + d.weekday, cx, H - pad.b + 78)
+    if (i % step === 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.62)'
+      ctx.font = '30px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText(d.date, cx, H - pad.b + 42)
+      ctx.fillStyle = 'rgba(255,255,255,0.34)'
+      ctx.font = '26px sans-serif'
+      ctx.fillText('周' + d.weekday, cx, H - pad.b + 78)
+    }
   })
 }
 </script>

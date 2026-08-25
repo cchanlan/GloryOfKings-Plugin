@@ -102,6 +102,46 @@ export function supportGuoba () {
           }
         },
         {
+          field: 'config.monthlyReportCron',
+          label: '战绩月报推送时间',
+          bottomHelpMessage: '同上，按「本月（1 号 00:00 起）」汇总。cron 没法表达「每月最后一天」（各月天数不同），所以默认写成 28-31 号每晚触发，插件只在真正的月末那天推，不会连推四天。本地归档保留 35 天，刚好够一个月。',
+          helpMessage: '修改后重启生效',
+          component: 'EasyCron',
+          componentProps: {
+            placeholder: '默认每月最后一晚 23:41'
+          }
+        },
+        {
+          field: 'config.groupDailyReportCron',
+          label: '群日报推送时间',
+          bottomHelpMessage: '给开过 #开启群日报推送 的群发一张全群战绩排行榜。和个人日报不同，群报要逐个扫本群绑定营地ID的成员，每人至少一次营地请求（最多 25 个活跃账号，约 30 秒），所以默认时间和个人日报错开。全群当天没人打就不推送。留空 = 关掉自动推送，只保留 #群日报 指令。',
+          helpMessage: '修改后重启生效',
+          component: 'EasyCron',
+          componentProps: {
+            placeholder: '默认每晚 23:22'
+          }
+        },
+        {
+          field: 'config.groupWeeklyReportCron',
+          label: '群周报推送时间',
+          bottomHelpMessage: '同上，按「本周（周一 00:00 起）」汇总全群。',
+          helpMessage: '修改后重启生效',
+          component: 'EasyCron',
+          componentProps: {
+            placeholder: '默认周日 21:34'
+          }
+        },
+        {
+          field: 'config.groupMonthlyReportCron',
+          label: '群月报推送时间',
+          bottomHelpMessage: '同上，按「本月（1 号 00:00 起）」汇总全群。和个人月报一样是 28-31 号触发、只在真正的月末那天推。',
+          helpMessage: '修改后重启生效',
+          component: 'EasyCron',
+          componentProps: {
+            placeholder: '默认每月最后一晚 23:18'
+          }
+        },
+        {
           component: 'SOFT_GROUP_BEGIN',
           label: '账号鉴权管理'
         },

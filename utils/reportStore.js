@@ -45,6 +45,34 @@ export function weekStart (nowMs = Date.now()) {
   return Math.floor(d.getTime() / 1000)
 }
 
+/** 本月 1 号 00:00 的时间戳（秒） */
+export function monthStart (nowMs = Date.now()) {
+  const d = new Date(nowMs)
+  d.setHours(0, 0, 0, 0)
+  d.setDate(1)
+  return Math.floor(d.getTime() / 1000)
+}
+
+/**
+ * 月报的推送日闸门。
+ *
+ * 月报口径是「本月至今」（monthStart 起），所以只有月末那天推出来的才是完整的一个月。
+ * cron 没法表达「每月最后一天」——2 月 28/29、其余月 30/31 都不一样，
+ * 默认配置只能写成 28-31 号每晚触发，再由这里挑出真正的最后一天。
+ *
+ * 只在 28 号及以后设闸：这样把 cron 改成「每天」的人仍能每天收到本月进度，
+ * 月末几天才收敛成一次，不至于同一份数据连推四天。
+ *
+ * @returns {boolean} 今天该不该推月报
+ */
+export function isMonthlyPushDay (nowMs = Date.now()) {
+  const d = new Date(nowMs)
+  if (d.getDate() < 28) return true
+  const next = new Date(d)
+  next.setDate(d.getDate() + 1)
+  return next.getMonth() !== d.getMonth()
+}
+
 /* ------------------------------------------------------------------ 统计 */
 
 /**
@@ -248,6 +276,97 @@ export function summarizeReport (battles = [], { fromSec = 0, heroMap = {} } = {
 /** 英雄名映射的薄封装，让 app 只依赖 reportStore 一个模块 */
 export { getHeroNameMap }
 
+/* ------------------------------------------------------------------ 群汇总 */
+
+/**
+ * 把多个成员的 summarizeReport 结果聚成一份群榜。
+ *
+ * 不做成「把战绩混一起再 summarizeReport」：段位星数那套（summarizeSession）
+ * 是单人口径，混着算出来的星数变化没有任何意义；群榜要的是「谁打得多、谁胜率高」，
+ * 逐人汇总再排行就够了。
+ *
+ * @param {Array<{name:string, icon:string, report:object}>} members
+ * @returns {object} 给 buildGroupView 用的聚合结果
+ */
+export function summarizeGroup (members = []) {
+  const rows = members
+    .filter(m => m?.report?.count > 0)
+    .map(m => ({
+      name: m.name || '召唤师',
+      icon: m.icon || '',
+      count: m.report.count,
+      win: m.report.win,
+      lose: m.report.lose,
+      winRate: m.report.winRate,
+      totalSec: m.report.totalSec,
+      totalTimeText: m.report.totalTimeText,
+      mvp: m.report.mvp,
+      loseMvp: m.report.loseMvp,
+      topHero: m.report.topHero
+        ? { heroId: m.report.topHero.heroId, name: m.report.topHero.name, count: m.report.topHero.count }
+        : null,
+      streak: m.report.streak || { type: '', count: 0 }
+    }))
+    .sort((a, b) => b.count - a.count || b.winRate - a.winRate)
+
+  const totalCount = rows.reduce((s, r) => s + r.count, 0)
+  const totalWin = rows.reduce((s, r) => s + r.win, 0)
+  const totalLose = rows.reduce((s, r) => s + r.lose, 0)
+  const decided = totalWin + totalLose
+
+  // 所有成员的战绩合起来算活跃时段 / 每日分布——这是「群」的作息，单人的没意义
+  const allBattles = members.flatMap(m => m.battles || [])
+
+  // 全群英雄合计。直接合并各成员 report.heroes 而不是拿 allBattles 重跑 rankHeroes：
+  // 英雄名已经在 summarizeReport 那边解析过了，这样 summarizeGroup 就不用再接一份 heroMap
+  const heroTotals = new Map()
+  for (const m of members) {
+    for (const h of m?.report?.heroes || []) {
+      const id = String(h?.heroId ?? '')
+      if (!id) continue
+      if (!heroTotals.has(id)) {
+        heroTotals.set(id, { heroId: id, name: h.name, count: 0, win: 0, lose: 0, users: 0 })
+      }
+      const entry = heroTotals.get(id)
+      entry.count += h.count || 0
+      entry.win += h.win || 0
+      entry.lose += h.lose || 0
+      // 有多少个人玩过这个英雄，用来说明「全群都在玩」还是「某一个人在刷」
+      entry.users += 1
+    }
+  }
+
+  const heroes = [...heroTotals.values()]
+    .map(entry => ({
+      ...entry,
+      winRate: entry.win + entry.lose > 0 ? Math.round((entry.win / (entry.win + entry.lose)) * 100) : 0
+    }))
+    .sort((a, b) => b.count - a.count || b.winRate - a.winRate)
+
+  return {
+    rows,
+    memberCount: rows.length,
+    count: totalCount,
+    win: totalWin,
+    lose: totalLose,
+    winRate: decided > 0 ? Math.round((totalWin / decided) * 100) : 0,
+    totalSec: rows.reduce((s, r) => s + r.totalSec, 0),
+    mvp: rows.reduce((s, r) => s + r.mvp, 0),
+    heroes,
+    byDay: groupByDay(allBattles),
+    byHour: groupByHour(allBattles),
+    // 各榜的头名，没有就是 null，模板自己兜底
+    topGrinder: rows[0] || null, // 肝帝：场次最多
+    topWinner: rows.length ? [...rows].sort((a, b) => b.win - a.win)[0] : null, // 胜场王
+    topRate: rows.filter(r => r.count >= 3).sort((a, b) => b.winRate - a.winRate)[0] || null, // 胜率王（≥3 场防一场 100% 刷榜）
+    topMvp: rows.filter(r => r.mvp > 0).sort((a, b) => b.mvp - a.mvp)[0] || null,
+    topLoseMvp: rows.filter(r => r.loseMvp > 0).sort((a, b) => b.loseMvp - a.loseMvp)[0] || null, // 尽力局长
+    // 最长连败也值一个称号，群里就爱看这个
+    topStreak: rows.filter(r => r.streak?.type === 'win' && r.streak.count >= 3)
+      .sort((a, b) => b.streak.count - a.streak.count)[0] || null
+  }
+}
+
 /* ------------------------------------------------------------------ 模板数据 */
 
 /**
@@ -302,8 +421,9 @@ export function buildReportView (report, {
   heroLimit = 0
 } = {}) {
   const isWeekly = kind === 'weekly'
+  const isMonthly = kind === 'monthly'
   const nowSec = Math.floor(nowMs / 1000)
-  const limit = heroLimit || (isWeekly ? 8 : 5)
+  const limit = heroLimit || (isWeekly ? 8 : isMonthly ? 10 : 5)
 
   const star = formatStarChange(report.stars)
   const score = formatScoreDelta(report.score)
@@ -353,13 +473,13 @@ export function buildReportView (report, {
   if (report.count > 0) {
     facts.push({ key: '场均时长', val: formatOnlineDuration(Math.round(report.totalSec / report.count)) || '—', tone: '' })
   }
-  if (isWeekly && report.byDay.length) {
+  if ((isWeekly || isMonthly) && report.byDay.length) {
     const busiest = report.byDay.reduce((a, b) => (b.count > a.count ? b : a))
     facts.push({ key: '最勤快的一天', val: `${busiest.date} 打了 ${busiest.count} 局`, tone: '' })
   }
   // 奇数个 fact 会在两列布局里留一个空格子，补一条把它填满
   if (facts.length % 2 === 1) {
-    facts.push({ key: '统计范围', val: isWeekly ? '本周至今' : '今日', tone: '' })
+    facts.push({ key: '统计范围', val: isMonthly ? '本月至今' : isWeekly ? '本周至今' : '今日', tone: '' })
   }
 
   // 活跃时段：24 格，按最高的那小时归一
@@ -371,7 +491,7 @@ export function buildReportView (report, {
     peak: count === maxHour && count > 0
   }))
 
-  const rangeText = isWeekly
+  const rangeText = isWeekly || isMonthly
     ? `${MD(fromSec)} - ${MD(nowSec)}`
     : `${MD(fromSec)} ${WEEKDAY(fromSec)}`
 
@@ -382,8 +502,11 @@ export function buildReportView (report, {
     : ''
 
   return {
-    title: isWeekly ? '战绩周报' : '战绩日报',
+    title: isMonthly ? '战绩月报' : isWeekly ? '战绩周报' : '战绩日报',
     isWeekly,
+    isMonthly,
+    // 每日趋势图：周报/月报都有多天数据才画，日报只有一天画了也是一根孤柱
+    showDayChart: (isWeekly || isMonthly) && report.byDay.length > 1,
     rangeText,
     subText: new Date(nowMs).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
     roleName: roleName || '召唤师',
@@ -402,6 +525,122 @@ export function buildReportView (report, {
     facts,
     hourBars,
     peakHourText: report.count ? `${peakHour} 点最活跃` : '',
-    footText: covered || `王者插件 · ${isWeekly ? '周报' : '日报'}生成于 ${new Date(nowMs).toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+    footText: covered || `王者插件 · ${isMonthly ? '月报' : isWeekly ? '周报' : '日报'}生成于 ${new Date(nowMs).toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+  }
+}
+
+/* ------------------------------------------------------------------ 群模板数据 */
+
+/**
+ * 把 summarizeGroup 的结果转成群榜模板变量。
+ * @param {object} group summarizeGroup 的返回
+ * @param {object} opts
+ * @param {'daily'|'weekly'|'monthly'} opts.kind
+ * @param {number} opts.fromSec 区间起点
+ * @param {number} opts.nowMs 生成时刻
+ * @param {string} [opts.groupName] 群名（取不到就用群号）
+ * @param {number} [opts.coveredFrom] 覆盖边界（取所有成员水位的最大值——最差的那个）
+ * @param {boolean} [opts.truncated] 有成员翻页撞上限
+ * @param {number} [opts.rowLimit] 排行榜最多列几个人，超出的只计入合计
+ * @param {number} [opts.heroLimit] 群英雄榜最多列几个
+ * @param {number} [opts.scanned] 实际扫了几个绑定成员（含没打的），用于「N 人有对局 / 共扫 M 人」
+ */
+export function buildGroupView (group, {
+  kind = 'daily',
+  fromSec = 0,
+  nowMs = Date.now(),
+  groupName = '',
+  coveredFrom = 0,
+  truncated = false,
+  rowLimit = 15,
+  heroLimit = 6,
+  scanned = 0
+} = {}) {
+  const isWeekly = kind === 'weekly'
+  const isMonthly = kind === 'monthly'
+  const nowSec = Math.floor(nowMs / 1000)
+  const label = isMonthly ? '月报' : isWeekly ? '周报' : '日报'
+
+  const topCount = group.rows[0]?.count || 1
+  const rows = group.rows.slice(0, rowLimit).map((r, idx) => ({
+    ...r,
+    rank: idx + 1,
+    topHeroIcon: r.topHero ? heroIconUrl(r.topHero.heroId) : '',
+    barWidth: Math.max(6, Math.round((r.count / topCount) * 100)),
+    wrClass: rateTone(r.winRate, r.count),
+    // 前三名给金银铜色调，模板按 rankClass 上色
+    rankClass: idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : '',
+    // 连胜/连败徽标，3 连起才值得标
+    streakText: r.streak?.count >= 3 ? `${r.streak.count}连${r.streak.type === 'win' ? '胜' : '败'}` : '',
+    streakClass: r.streak?.type === 'win' ? 'gold' : 'bad'
+  }))
+
+  // 称号栏：只列存在的，空的不占位
+  const awards = []
+  const award = (key, row, fmt) => row && awards.push({ key, val: fmt(row), icon: row.icon })
+  award('肝帝', group.topGrinder, r => `${r.name} · ${r.count} 场`)
+  award('胜场王', group.topWinner, r => `${r.name} · ${r.win} 胜`)
+  award('胜率王', group.topRate, r => `${r.name} · ${r.winRate}%（${r.count} 场）`)
+  award('MVP 收割机', group.topMvp, r => `${r.name} · ${r.mvp} 次`)
+  award('尽力局长', group.topLoseMvp, r => `${r.name} · 败方 MVP ${r.loseMvp} 次`)
+  award('连胜之星', group.topStreak, r => `${r.name} · ${r.streak.count} 连胜`)
+
+  const heroTop = group.heroes?.[0]?.count || 1
+  const heroes = (group.heroes || []).slice(0, heroLimit).map((h, idx) => ({
+    ...h,
+    rank: idx + 1,
+    icon: heroIconUrl(h.heroId),
+    barWidth: Math.max(6, Math.round((h.count / heroTop) * 100)),
+    wrClass: rateTone(h.winRate, h.count)
+  }))
+
+  const maxHour = Math.max(...group.byHour, 1)
+  const peakHour = group.byHour.indexOf(maxHour)
+  const hourBars = group.byHour.map((count, hour) => ({
+    label: hour % 3 === 0 ? String(hour) : '',
+    height: count > 0 ? Math.max(6, Math.round((count / maxHour) * 100)) : 0,
+    peak: count === maxHour && count > 0
+  }))
+
+  const rangeText = isWeekly || isMonthly
+    ? `${MD(fromSec)} - ${MD(nowSec)}`
+    : `${MD(fromSec)} ${WEEKDAY(fromSec)}`
+
+  const covered = truncated && coveredFrom > fromSec
+    ? `数据覆盖自 ${MD(coveredFrom)}（更早的还没归档）`
+    : ''
+
+  return {
+    title: `群战绩${label}`,
+    label,
+    // 「本日 / 本周 / 本月称号」的量词。别拿 label 拼，那会拼出「本日报称号」
+    unit: isMonthly ? '月' : isWeekly ? '周' : '日',
+    isWeekly,
+    isMonthly,
+    showDayChart: (isWeekly || isMonthly) && group.byDay.length > 1,
+    rangeText,
+    subText: new Date(nowMs).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+    groupName: groupName || '本群',
+    memberCount: group.memberCount,
+    // 扫了几个人：群里绑定了但这段时间没打的不上榜，图上要说清分母
+    scannedText: scanned > group.memberCount ? `${group.memberCount} / ${scanned} 人有对局` : `${group.memberCount} 人上榜`,
+    count: group.count,
+    win: group.win,
+    lose: group.lose,
+    winRate: group.winRate,
+    winRateClass: rateTone(group.winRate, group.count),
+    totalTimeText: formatOnlineDuration(group.totalSec) || '—',
+    avgCount: group.memberCount > 0 ? (group.count / group.memberCount).toFixed(1) : '0',
+    mvp: group.mvp || 0,
+    rows,
+    rowsHidden: Math.max(0, group.rows.length - rows.length),
+    awards,
+    heroes,
+    heroTotal: (group.heroes || []).length,
+    byDay: group.byDay,
+    byDayJson: JSON.stringify(group.byDay),
+    hourBars,
+    peakHourText: group.count ? `${peakHour} 点最活跃` : '',
+    footText: covered || `王者插件 · 群${label}生成于 ${new Date(nowMs).toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
   }
 }

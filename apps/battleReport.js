@@ -1,5 +1,5 @@
 /**
- * 王者战绩日报 / 周报。
+ * 王者战绩日报 / 周报 / 月报。
  *
  * 数据不是现拉的，读的是 battleArchive 的归档库 —— 实测 `getMoreBattleList`
  * **第一页 30 场、第二页起只给 10 场**，而测试账号一天能打 28 场，
@@ -7,10 +7,15 @@
  * 顺手落库（挂在 pushStore.fetchLatest 里），日报周报读库就够，零请求。
  * 库不够时才补页，有上限，盖不住的区间在图上如实标注。
  *
+ * 月报同一套路，但归档只保留 35 天（ARCHIVE_KEEP_DAYS），所以月初查上个月是查不到的，
+ * 「本月」最多 31 天正好在窗口内。
+ *
  * 分层：
  * - utils/battleArchive.js  归档与补页
  * - utils/reportStore.js    汇总与模板数据（纯计算，可脱机测）
  * - 本文件                   只管指令交互、定时推送、出图
+ *
+ * 群维度的日报/周报/月报在 apps/groupReport.js，共用 reportStore 的汇总层。
  *
  * 段位星数与巅峰分变化复用 pushStore 的 formatStarChange / formatScoreDelta，
  * 和收工总结同一套判据 —— 那里面的坑（小编号回绕、赛季切换、0 星是真实值）已经踩平了。
@@ -23,7 +28,9 @@ import {
   buildReportView,
   getHeroNameMap,
   todayStart,
-  weekStart
+  weekStart,
+  monthStart,
+  isMonthlyPushDay
 } from '../utils/reportStore.js'
 import { loadPushList, savePushList, mergeSubState, disableSubFlag, sleep, REQUEST_INTERVAL } from '../utils/pushStore.js'
 import {
@@ -36,20 +43,31 @@ import { Config, PluginData } from '#components'
  * 补页上限。日报只要盖住今天（实测单日最多 28 场，30+10+10=50 场足够）；
  * 周报最多 7 天，重度玩家能打 200 场，12 页只有 140 场——盖不住的部分靠 truncated 标注，
  * 不为了凑全而翻二十几页，那样一次日报就把频控预算烧光了。
+ * 月报同理但更极端（一个月可能 900 场），15 页 ≈ 170 场，剩下的全靠轮询长期攒库，
+ * 不在一次指令里硬翻——月报本来就是「看趋势」，不是对账。
  */
-const MAX_PAGES = { daily: 3, weekly: 12 }
+const MAX_PAGES = { daily: 3, weekly: 12, monthly: 15 }
+
+/** 三路报告的中文名，文案里到处要用 */
+const LABEL = { daily: '日报', weekly: '周报', monthly: '月报' }
+
+/** 区间起点。口径分别是今天 00:00 / 本周一 00:00 / 本月 1 号 00:00 */
+const RANGE_START = { daily: todayStart, weekly: weekStart, monthly: monthStart }
+
+/** 每路对应的配置字段名（cron） */
+const CRON_KEY = { daily: 'dailyReportCron', weekly: 'weeklyReportCron', monthly: 'monthlyReportCron' }
 
 /** 定时推送时每个订阅之间的间隔。出图本身就要一秒多，这里只防接口补页扎堆 */
 const PUSH_GAP = REQUEST_INTERVAL
 
-/** 轮询并发锁，两个 task 共用一把：都要出图，撞在一起会把 puppeteer 拖垮 */
+/** 轮询并发锁，三个 task 共用一把：都要出图，撞在一起会把 puppeteer 拖垮 */
 let pushing = false
 
 export class BattleReport extends plugin {
   constructor () {
     super({
       name: '王者战绩日报',
-      dsc: '按天 / 按周汇总战绩',
+      dsc: '按天 / 按周 / 按月汇总战绩',
       event: 'message',
       // 和 gameRecordPush 一样用 0：queryGameStats 的 `#?(查询|王者)战绩\s*(.*)$` 是宽匹配，
       // 虽然验证过「日报」「周报」不会被它吞掉，但抢先匹配更稳，也符合插件里新指令的惯例
@@ -57,8 +75,10 @@ export class BattleReport extends plugin {
       rule: [
         { reg: `${AT_HEAD}#(王者|战绩)日报\\s*(.*)$`, fnc: 'daily' },
         { reg: `${AT_HEAD}#(王者|战绩)周报\\s*(.*)$`, fnc: 'weekly' },
+        { reg: `${AT_HEAD}#(王者|战绩)月报\\s*(.*)$`, fnc: 'monthly' },
         { reg: '^#(开启|关闭)(王者|战绩)?日报推送$', fnc: 'toggleDaily' },
-        { reg: '^#(开启|关闭)(王者|战绩)?周报推送$', fnc: 'toggleWeekly' }
+        { reg: '^#(开启|关闭)(王者|战绩)?周报推送$', fnc: 'toggleWeekly' },
+        { reg: '^#(开启|关闭)(王者|战绩)?月报推送$', fnc: 'toggleMonthly' }
       ]
     })
 
@@ -67,7 +87,8 @@ export class BattleReport extends plugin {
     // 所以配置里把 cron 留空就等于关掉这一路推送
     this.task = [
       { name: '王者战绩日报', cron: cfg.dailyReportCron, fnc: () => this.pushAll('daily'), log: false },
-      { name: '王者战绩周报', cron: cfg.weeklyReportCron, fnc: () => this.pushAll('weekly'), log: false }
+      { name: '王者战绩周报', cron: cfg.weeklyReportCron, fnc: () => this.pushAll('weekly'), log: false },
+      { name: '王者战绩月报', cron: cfg.monthlyReportCron, fnc: () => this.pushAll('monthly'), log: false }
     ]
   }
 
@@ -79,15 +100,19 @@ export class BattleReport extends plugin {
     return this.render(e, 'weekly')
   }
 
+  monthly (e) {
+    return this.render(e, 'monthly')
+  }
+
   /** 指令查询 */
   async render (e, kind) {
-    const label = kind === 'weekly' ? '周报' : '日报'
+    const label = LABEL[kind]
 
     // 支持 @某人 / 序号 / 直接给营地ID，和 #排位表现 那套一致
     const { userId, hint } = await resolveTargetUserId(e)
     if (hint) return e.reply(hint, shouldQuote())
 
-    const input = stripAtText(e.msg).replace(/^#(王者|战绩)(日报|周报)\s*/, '').trim()
+    const input = stripAtText(e.msg).replace(/^#(王者|战绩)(日报|周报|月报)\s*/, '').trim()
     // parsePerfArgs 的分法正好够用：5 位以上当营地ID（营地ID都是 8~10 位），4 位以内当序号
     const args = parsePerfArgs(input)
     let campId = args.campId
@@ -107,11 +132,16 @@ export class BattleReport extends plugin {
       return e.reply(['你还没有绑定营地ID，先发送 #绑定营地 [营地ID]', Button.bind()], shouldQuote())
     }
 
+    // 月报第一次查很可能要翻十几页（约 20 秒），先给个回执，不然用户以为指令没响应
+    if (kind === 'monthly') {
+      await e.reply('正在汇总本月战绩，数据多的话要十几秒，请稍候...', shouldQuote())
+    }
+
     const view = await this.buildView(String(campId), String(userId), kind, { qq: userId, e })
 
     if (!view) {
       return e.reply(
-        kind === 'weekly' ? '本周还没有对局记录' : '今天还没有对局记录',
+        { daily: '今天还没有对局记录', weekly: '本周还没有对局记录', monthly: '本月还没有对局记录' }[kind],
         shouldQuote()
       )
     }
@@ -128,13 +158,13 @@ export class BattleReport extends plugin {
    */
   async buildView (campId, qq, kind, { roleName = '', qq: ownerQQ = '', e = null } = {}) {
     const nowMs = Date.now()
-    const fromSec = kind === 'weekly' ? weekStart(nowMs) : todayStart(nowMs)
+    const fromSec = (RANGE_START[kind] || todayStart)(nowMs)
 
     let collected
     try {
       collected = await collectBattles(campId, qq, fromSec, { maxPages: MAX_PAGES[kind] || 3 })
     } catch (error) {
-      logger.error(`[王者${kind === 'weekly' ? '周报' : '日报'}] ${campId} 取战绩失败: ${error.message}`)
+      logger.error(`[王者${LABEL[kind]}] ${campId} 取战绩失败: ${error.message}`)
       return null
     }
 
@@ -187,17 +217,21 @@ export class BattleReport extends plugin {
     return this.toggle(e, 'weekly')
   }
 
+  toggleMonthly (e) {
+    return this.toggle(e, 'monthly')
+  }
+
   /**
    * 开关一路推送。订阅表复用 GameRecordPush.yaml 的 pushList——
    * group / campId / roleName 都是现成的，没必要再存一份。
    */
   async toggle (e, kind) {
-    const label = kind === 'weekly' ? '周报' : '日报'
+    const label = LABEL[kind]
     const enable = e.msg.includes('开启')
     const qq = String(e.user_id)
 
     if (!enable) {
-      // 走 disableSubFlag 而不是 mergeSubState：四路开关全关了要把整条订阅删掉，
+      // 走 disableSubFlag 而不是 mergeSubState：所有开关全关了要把整条订阅删掉，
       // 否则留个空壳一直占着 pushList 的名额
       const { wasOn } = disableSubFlag(qq, kind)
       return e.reply(wasOn ? `已关闭战绩${label}推送` : `你还没有开启战绩${label}推送`, shouldQuote())
@@ -228,13 +262,17 @@ export class BattleReport extends plugin {
 
     mergeSubState(qq, { [kind]: true, group: String(e.group_id), campId: String(campId) })
 
-    const cron = readConfig()[kind === 'weekly' ? 'weeklyReportCron' : 'dailyReportCron'] || ''
+    const cron = readConfig()[CRON_KEY[kind]] || ''
+    const period = { daily: '每天', weekly: '每周', monthly: '每月' }[kind]
+    const unit = { daily: '天', weekly: '周', monthly: '月' }[kind]
+    const scope = { daily: '当日', weekly: '本周', monthly: '本月' }[kind]
+
     return e.reply([
       [
         `✅ 已开启战绩${label}推送（营地ID ${campId}）`,
-        kind === 'weekly' ? '每周会在本群发一张本周战绩总结' : '每天会在本群发一张当日战绩总结',
+        `${period}会在本群发一张${scope}战绩总结`,
         cron ? `推送时间：${cron}` : '（主人还没配推送时间，暂时不会自动发）',
-        `没有对局的${kind === 'weekly' ? '周' : '天'}不会推送。想立刻看发送 #王者${label}`
+        `没有对局的${unit}不会推送。想立刻看发送 #王者${label}`
       ].join('\n'),
       Button.push(true)
     ], shouldQuote())
@@ -244,10 +282,17 @@ export class BattleReport extends plugin {
 
   /**
    * 遍历订阅推送报告。
-   * @param {'daily'|'weekly'} kind
+   * @param {'daily'|'weekly'|'monthly'} kind
    */
   async pushAll (kind) {
-    const label = kind === 'weekly' ? '周报' : '日报'
+    const label = LABEL[kind]
+
+    // 月报的 cron 是 28-31 号每晚触发，只有真正的月末才推完整的一个月
+    if (kind === 'monthly' && !isMonthlyPushDay()) {
+      logger.debug(`[王者${label}] 今天不是本月最后一天，跳过`)
+      return
+    }
+
     const subs = Object.entries(loadPushList()).filter(([, sub]) => sub?.[kind] === true && sub?.group)
     if (!subs.length) return
 
@@ -272,7 +317,7 @@ export class BattleReport extends plugin {
   }
 
   async pushOne (qq, sub, kind) {
-    const label = kind === 'weekly' ? '周报' : '日报'
+    const label = LABEL[kind]
 
     // 营地ID 动态取，用户 #切换营地 后跟着换
     const campId = getCurrentId(qq) || sub.campId
@@ -295,7 +340,7 @@ export class BattleReport extends plugin {
 
     // 这段时间没打就不发。推一张「0 场」的图纯属刷屏
     if (!view) {
-      logger.debug(`[王者${label}] ${qq} 本${kind === 'weekly' ? '周' : '日'}无对局，跳过`)
+      logger.debug(`[王者${label}] ${qq} 本${{ daily: '日', weekly: '周', monthly: '月' }[kind]}无对局，跳过`)
       return
     }
 

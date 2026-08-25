@@ -12,5 +12,15 @@ idleBackoffMax: 5
 dailyReportCron: '0 47 23 * * *'
 #*战绩周报的推送时间。默认周日晚，和「本周（周一起）」的口径对齐
 weeklyReportCron: '0 7 22 * * 0'
+#*战绩月报的推送时间。月报口径是「本月至今」，只有月末推才是完整的一个月，
+#*但 cron 表达不了「每月最后一天」，所以写成 28-31 号每晚触发、代码里挑真正的最后一天
+monthlyReportCron: '0 41 23 28-31 * *'
+#*群日报的推送时间（群里 #开启群日报推送 后生效）。群报要逐个扫本群绑定的账号，
+#*一个号至少一次营地请求，25 个号约 30 秒，所以和个人日报错开时间，别撞在一起
+groupDailyReportCron: '0 22 23 * * *'
+#*群周报的推送时间
+groupWeeklyReportCron: '0 34 21 * * 0'
+#*群月报的推送时间。同 monthlyReportCron，28-31 号触发、只在月末那天真推
+groupMonthlyReportCron: '0 18 23 28-31 * *'
 #*回复时是否引用触发指令那条消息
 quoteReply: true

@@ -147,15 +147,16 @@ export function mergeSubState (qq, patch) {
  * 漏一个就会在关掉某个开关时把整条订阅删掉，连带把漏掉那个也静默关了。
  * 加新的推送种类时记得往这里补一项。
  *
- * battle / online 在 apps/gameRecordPush.js，daily / weekly 在 apps/battleReport.js，
- * 四者共用 GameRecordPush.yaml 的同一条记录（group / campId / roleName 都是现成的）。
+ * battle / online 在 apps/gameRecordPush.js，daily / weekly / monthly 在 apps/battleReport.js，
+ * 五者共用 GameRecordPush.yaml 的同一条记录（group / campId / roleName 都是现成的）。
+ * 群报的订阅不在这里——那是按群存的，见 utils/groupReportStore.js。
  */
-export const SUB_FLAGS = ['battle', 'online', 'daily', 'weekly']
+export const SUB_FLAGS = ['battle', 'online', 'daily', 'weekly', 'monthly']
 
 /**
  * 某个开关是否开着。
  * battle 要按「缺字段算开着」处理——首个版本的订阅没写这个字段，
- * 其余三个都是后加的，缺失就是没开。
+ * 其余几个都是后加的，缺失就是没开。
  */
 export function isFlagOn (sub, key) {
   if (!sub) return false
@@ -174,7 +175,7 @@ export function hasAnyFlag (sub) {
  * 于是先 #开启日报推送 再 #关闭战绩推送 会把整条记录 delete，日报跟着静默失效。
  *
  * @param {string|number} qq 订阅者 QQ
- * @param {'battle'|'online'|'daily'|'weekly'} key 要关掉的开关
+ * @param {'battle'|'online'|'daily'|'weekly'|'monthly'} key 要关掉的开关
  * @returns {{wasOn: boolean, removed: boolean}} wasOn 为假时什么都没改
  */
 export function disableSubFlag (qq, key) {
