@@ -190,9 +190,17 @@ export function archiveBattles (campId, list) {
 /**
  * 取「fromSec 到现在」这段的战绩，读库优先、不够才翻页补。
  *
- * 「库够不够」看的是**水位** `oldestFetched`，不是「库里最早一场的时间」——
- * 玩家那段时间可能压根没打，库里最早一场永远晚于区间起点，
- * 拿它当判据就会每次查都重新翻一遍页。水位记的是「我们确实翻页翻到过哪里」。
+ * 「库够不够」要同时看两头，只看一头就会出错：
+ * - **老的那头**看水位 `oldestFetched`，不是「库里最早一场的时间」——玩家那段时间
+ *   可能压根没打，库里最早一场永远晚于区间起点，拿它当判据就会每次查都重翻一遍页。
+ *   水位记的是「我们确实翻页翻到过哪里」。
+ * - **新的那头**必须实拉第一页，不能只靠水位就直接读库。水位只保证「更早的翻过」，
+ *   完全不保证库是新的：只开了日报/周报、没开战绩推送的订阅，
+ *   `needBattleList` 判定为 false，轮询根本不会调 fetchLatest，库的头就一直冻在
+ *   上次落库那天。实测 2026-08-25 有账号库里最新一场停在 08-22，
+ *   而水位 08-19 已越过今天零点 —— 于是日报零请求读库、答「今天还没有对局记录」，
+ *   同一时刻 #查询战绩 现拉却明明有 6 场。第一页固定 30 场、一次请求，
+ *   日报是用户主动查或一天一次的定时，这点开销换正确性是值的。
  *
  * @param {string|number} campId 营地ID
  * @param {string|number} qq 属主QQ，authStore 按它取鉴权候选，不能省
@@ -209,12 +217,9 @@ export async function collectBattles (campId, qq, fromSec, { maxPages = 12 } = {
   const from = toInt(fromSec)
   const inRange = list => list.filter(item => toInt(item?.dtEventTime) >= from)
 
-  const watermark = getWatermark(key)
-
-  // 水位已经越过区间起点：这段翻过了，直接读库，零请求
-  if (watermark > 0 && watermark <= from) {
-    return { battles: inRange(loadArchive(key)), coveredFrom: watermark, truncated: false, fetched: 0 }
-  }
+  // 落库前库里最新一场。第一页要一直翻到接上它，中间才没有空洞：
+  // 库冻了几天的情况下，光拉第一页可能只补上最近几场，和库之间还缺一段
+  const headBefore = toInt(loadArchive(key)[0]?.dtEventTime)
 
   let lastTime = 0
   let reached = 0
@@ -245,6 +250,14 @@ export async function collectBattles (campId, qq, fromSec, { maxPages = 12 } = {
 
     // 这一页已经翻过区间起点，够了
     if (reached <= from) break
+
+    // 水位说更早的翻过了，而且这一页已经接上了原来库里的头 —— 中间没空洞，可以收工。
+    // 顺序很重要：这个判断必须在实拉第一页之后，放在循环外就退化成「只看水位」的旧 bug
+    const watermark = getWatermark(key)
+    if (watermark > 0 && watermark <= from && headBefore > 0 && reached <= headBefore) {
+      reached = watermark
+      break
+    }
 
     if (!data.hasMore || !data.lastTime) {
       // 接口说没有更多历史了。再往前也拉不到，把水位直接推到区间起点，
