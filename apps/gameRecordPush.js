@@ -29,6 +29,8 @@ import {
   loadPushList,
   savePushList,
   mergeSubState,
+  disableSubFlag,
+  isFlagOn,
   fetchLatest,
   fetchOnlineState,
   getHeroNameMap,
@@ -115,37 +117,13 @@ export class GameRecordPush extends plugin {
     return String(campId)
   }
 
-  /**
-   * 关掉一个开关。两个开关都关了就把整条订阅删掉，别留个空壳还占着轮询名额。
-   * @returns {boolean} 之前是否真的开着
-   */
-  disableFlag (qq, key) {
-    const list = loadPushList()
-    const sub = list[String(qq)]
-    if (!sub) return false
-
-    // 老订阅没有 battle 字段，按开着算（向后兼容）
-    const wasOn = key === 'battle' ? sub.battle !== false : sub.online === true
-    if (!wasOn) return false
-
-    sub[key] = false
-    const battleOn = sub.battle !== false
-    const onlineOn = sub.online === true
-
-    if (!battleOn && !onlineOn) delete list[String(qq)]
-    else list[String(qq)] = sub
-
-    savePushList(list)
-    return true
-  }
-
   /** #开启战绩推送 / #关闭战绩推送 */
   async toggle (e) {
     const enable = e.msg.includes('开启')
     const qq = String(e.user_id)
 
     if (!enable) {
-      const wasOn = this.disableFlag(qq, 'battle')
+      const { wasOn } = disableSubFlag(qq, 'battle')
       await e.reply(
         wasOn
           ? ['已关闭战绩推送', Button.push(false)]
@@ -209,7 +187,7 @@ export class GameRecordPush extends plugin {
     const qq = String(e.user_id)
 
     if (!enable) {
-      const wasOn = this.disableFlag(qq, 'online')
+      const { wasOn } = disableSubFlag(qq, 'online')
       await e.reply(wasOn ? '已关闭上下线提醒' : '你还没有开启上下线提醒', shouldQuote())
       return
     }
@@ -321,8 +299,11 @@ export class GameRecordPush extends plugin {
   async checkAll () {
     if (readConfig().onlineReminder === false) return
 
-    const subs = loadPushList()
-    const entries = Object.entries(subs)
+    // 只轮询这两个开关沾一个的订阅。日报/周报共用同一张 pushList，但它们自己有 cron、
+    // 读的是归档库，不需要这个轮询——只开了日报的订阅进来会白发一次 mergeSubState
+    // 再干等 800ms，订阅多了就是纯浪费
+    const entries = Object.entries(loadPushList())
+      .filter(([, sub]) => isFlagOn(sub, 'battle') || isFlagOn(sub, 'online'))
     if (!entries.length) return
 
     if (running) {

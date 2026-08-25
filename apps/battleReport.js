@@ -25,7 +25,7 @@ import {
   todayStart,
   weekStart
 } from '../utils/reportStore.js'
-import { loadPushList, savePushList, mergeSubState, sleep, REQUEST_INTERVAL } from '../utils/pushStore.js'
+import { loadPushList, savePushList, mergeSubState, disableSubFlag, sleep, REQUEST_INTERVAL } from '../utils/pushStore.js'
 import {
   getCurrentId, getUserAvatar, Button, shouldQuote, readYamlFile, parsePerfArgs,
   AT_HEAD, stripAtText, resolveTargetUserId
@@ -197,9 +197,10 @@ export class BattleReport extends plugin {
     const qq = String(e.user_id)
 
     if (!enable) {
-      const was = loadPushList()[qq]?.[kind] === true
-      mergeSubState(qq, { [kind]: false })
-      return e.reply(was ? `已关闭战绩${label}推送` : `你还没有开启战绩${label}推送`, shouldQuote())
+      // 走 disableSubFlag 而不是 mergeSubState：四路开关全关了要把整条订阅删掉，
+      // 否则留个空壳一直占着 pushList 的名额
+      const { wasOn } = disableSubFlag(qq, kind)
+      return e.reply(wasOn ? `已关闭战绩${label}推送` : `你还没有开启战绩${label}推送`, shouldQuote())
     }
 
     if (!e.isGroup) {

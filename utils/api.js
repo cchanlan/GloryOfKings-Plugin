@@ -28,6 +28,18 @@ class AuthConfigError extends Error {
 }
 
 /**
+ * 频控错误。单独一个类型，是因为它和别的失败处理方式相反：
+ * 不能重试（重试只会加重频控），也不能换账号（账号池通常只有一个 token），
+ * 唯一有效的做法是立刻放弃、等冷却过去。重试循环和候选账号循环都靠这个类型提前退出。
+ */
+class RateLimitError extends Error {
+  constructor(message) {
+    super(message)
+    this.name = 'RateLimitError'
+  }
+}
+
+/**
  * API 服务类，封装了王者营地相关接口请求。
  * 新版营地接口需要额外的安全参数，因此这里统一处理鉴权头、encodeParam 和响应解密。
  */
@@ -60,7 +72,7 @@ class ApiService {
     if (Date.now() >= this.#rateLimitUntil) return
 
     const waitSec = Math.ceil((this.#rateLimitUntil - Date.now()) / 1000)
-    throw new Error(`营地接口操作频繁，冷却中（约 ${waitSec} 秒后自动恢复），请稍后再试`)
+    throw new RateLimitError(`营地接口操作频繁，冷却中（约 ${waitSec} 秒后自动恢复），请稍后再试`)
   }
 
   /** 记录一次 -30107 命中，返回本次冷却毫秒数 */
@@ -85,22 +97,41 @@ class ApiService {
   }
 
   /**
-   * 全局串行队列：所有营地端点的请求排队执行，相邻两次实际发出间隔不小于
-   * MIN_REQUEST_GAP_MS。排行榜批量刷新（19 连发）、推送轮询、用户查询同时
-   * 到来时在这里自动错峰，而不是叠着打同一个 token
+   * 领一个发车名额：排到队尾，等够 MIN_REQUEST_GAP_MS 再放行。
+   * 排行榜批量刷新（19 连发）、推送轮询、用户查询同时到来时在这里自动错峰，
+   * 而不是叠着打同一个 token。
+   *
+   * 只管**发出节奏**，不等响应回来——响应时间不该算进间隔里，
+   * 更不该让一个慢请求把后面所有人堵住。等响应、重试、换账号都在名额之外做。
    */
-  #enqueue(requestFn) {
-    const run = this.#queueTail.then(async () => {
+  #acquireSlot() {
+    const slot = this.#queueTail.then(async () => {
       const wait = this.#lastRequestAt + MIN_REQUEST_GAP_MS - Date.now()
       if (wait > 0) {
         await new Promise(resolve => setTimeout(resolve, wait))
       }
       this.#lastRequestAt = Date.now()
-      return requestFn()
     })
 
-    this.#queueTail = run.then(() => {}, () => {})
-    return run
+    this.#queueTail = slot.then(() => {}, () => {})
+    return slot
+  }
+
+  /**
+   * 发一次真实 HTTP 请求：先领名额，再打出去。
+   *
+   * 关键是队列的粒度只到「一次 fetch」。早先是把整条「候选账号循环 × 重试链」
+   * 塞进队列跑，于是一个超时（10s）+ 两次退避（1s、2s）的请求，最坏能独占队头
+   * 三十多秒，期间全群所有查询都在后面干等。现在退避和换号都发生在名额之外，
+   * 别人的请求可以正常插进空出来的节奏里。
+   *
+   * 冷却检查放在拿到名额之后：排队期间冷却可能已被前面的请求触发，
+   * 这时立刻快速失败，不再打到营地接口加重频控。
+   */
+  async #gatedFetch(url, options) {
+    await this.#acquireSlot()
+    this.#assertNotRateLimited()
+    return fetch(url, options)
   }
 
   #maskUserId(value, keepStart = 3, keepEnd = 3) {
@@ -741,7 +772,7 @@ class ApiService {
           }
         ))
 
-        const response = await fetch(url, {
+        const response = await this.#gatedFetch(url, {
           method,
           headers,
           body: requestBody,
@@ -759,7 +790,9 @@ class ApiService {
       } catch (error) {
         clearTimeout(timer)
 
-        if (attempt === retries || error instanceof AuthConfigError) {
+        // 频控和鉴权配置错误都不该重试：前者重试只会加重频控、把冷却翻倍，
+        // 后者换多少次也还是缺字段
+        if (attempt === retries || error instanceof AuthConfigError || error instanceof RateLimitError) {
           throw error
         }
 
@@ -771,18 +804,16 @@ class ApiService {
   /**
    * 通用请求方法。
    * 统一负责构造新版营地请求头、超时控制、重试和错误处理。
-   * 冷却期内直接快速失败；正常请求进入全局串行队列错峰发出。
+   *
+   * 冷却期内直接快速失败，连队都不排。真正的错峰在 #gatedFetch 里按「每次 fetch」
+   * 做，而不是把整条候选账号循环 × 重试链塞进队列——那样一个慢请求会独占队头几十秒。
    */
   async #request(method, endpoint, body = null, additionalHeaders = {}, retries = 2, targetUserId = '', requesterBotUserId = '') {
     this.#assertNotRateLimited()
-    return this.#enqueue(() => this.#requestWithCandidates(method, endpoint, body, additionalHeaders, retries, targetUserId, requesterBotUserId))
+    return this.#requestWithCandidates(method, endpoint, body, additionalHeaders, retries, targetUserId, requesterBotUserId)
   }
 
   async #requestWithCandidates(method, endpoint, body = null, additionalHeaders = {}, retries = 2, targetUserId = '', requesterBotUserId = '') {
-    // 排队期间冷却可能已被前面的请求触发，出队时再查一次，
-    // 让已在队列里的批量请求也快速失败，而不是连环命中把冷却翻倍
-    this.#assertNotRateLimited()
-
     const url = `${this.baseUrls.main}${endpoint}`
     const candidates = this.#getAuthCandidates(targetUserId, requesterBotUserId)
 
@@ -854,7 +885,7 @@ class ApiService {
         if (Number.isFinite(businessCode) && businessCode !== 0) {
           if (businessCode === CODE_RATE_LIMITED) {
             const cooldown = this.#markRateLimited()
-            throw new Error(`营地接口操作频繁(-30107)，冷却 ${Math.round(cooldown / 1000)}s 后自动恢复，请稍后再试`)
+            throw new RateLimitError(`营地接口操作频繁(-30107)，冷却 ${Math.round(cooldown / 1000)}s 后自动恢复，请稍后再试`)
           }
 
           logger.warn(`[王者接口] ${candidate.label} 返回业务错误码 ${businessCode}: ${data.returnMsg || data.message || ''}`.trim(), {
@@ -1087,7 +1118,7 @@ class ApiService {
           { ...context, attemptIndex: attempt }
         ))
 
-        const response = await fetch(url, {
+        const response = await this.#gatedFetch(url, {
           method: 'POST',
           headers,
           body,
@@ -1119,7 +1150,8 @@ class ApiService {
       } catch (error) {
         clearTimeout(timer)
 
-        if (attempt === retries) {
+        // 同 #requestWithAuth：频控重试只会加重频控，鉴权配置错误重试也没用
+        if (attempt === retries || error instanceof AuthConfigError || error instanceof RateLimitError) {
           throw error
         }
 
@@ -1130,12 +1162,10 @@ class ApiService {
 
   async #requestGameForm(endpoint, extraFields = {}, targetUserId = '', requesterBotUserId = '', retries = 2) {
     this.#assertNotRateLimited()
-    return this.#enqueue(() => this.#requestGameFormWithCandidates(endpoint, extraFields, targetUserId, requesterBotUserId, retries))
+    return this.#requestGameFormWithCandidates(endpoint, extraFields, targetUserId, requesterBotUserId, retries)
   }
 
   async #requestGameFormWithCandidates(endpoint, extraFields = {}, targetUserId = '', requesterBotUserId = '', retries = 2) {
-    this.#assertNotRateLimited()
-
     const url = `${this.baseUrls.game}${endpoint}`
     const candidates = this.#getAuthCandidates(targetUserId, requesterBotUserId)
 
@@ -1162,7 +1192,7 @@ class ApiService {
         if (Number.isFinite(returnCode) && returnCode !== 0) {
           if (returnCode === CODE_RATE_LIMITED) {
             const cooldown = this.#markRateLimited()
-            throw new Error(`营地接口操作频繁(-30107)，冷却 ${Math.round(cooldown / 1000)}s 后自动恢复，请稍后再试`)
+            throw new RateLimitError(`营地接口操作频繁(-30107)，冷却 ${Math.round(cooldown / 1000)}s 后自动恢复，请稍后再试`)
           }
 
           lastError = new AuthConfigError(`${candidate.label} 返回错误码 ${returnCode}: ${data.returnMsg || data.message || ''}`.trim())
