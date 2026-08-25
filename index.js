@@ -121,4 +121,14 @@ logger.info(`加载失败：${chalk.red(failureCount)} 个`)
 logger.info(`总耗时：${chalk.yellow(elapsedTime)} 毫秒`)
 logger.info('----------------------')
 
+// 图片缓存清理。放在启动后而不是下载路径里：缓存铺满之后就不再有新下载，
+// 挂在那条路径上等于永不执行（实测 58MB 里躺着超期两天的文件从没被清过）。
+// 延后 30 秒且不 await —— 这是同步 IO 扫目录，不该挤在 Bot 启动的关键路径上；
+// 整个调用包在 catch 里，清缓存失败绝不能影响插件可用性
+setTimeout(() => {
+  import('./utils/fileUtils.js')
+    .then(({ cleanImageCache }) => cleanImageCache())
+    .catch(error => logger.debug(`[${PluginName}] 图片缓存清理跳过：${error.message}`))
+}, 30 * 1000).unref?.()
+
 export { apps }

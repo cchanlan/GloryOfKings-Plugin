@@ -7,7 +7,6 @@ import { PluginPath } from './Path.js'
 class Config {
   constructor () {
     this.config = {}
-    this.oldConfig = {}
     /** 监听文件 */
     this.watcher = { config: {}, defSet: {} }
 
@@ -106,56 +105,17 @@ class Config {
   /** 监听配置文件 */
   watch (file, name, type = 'default_config') {
     let key = `${type}.${name}`
-    if (!this.oldConfig[key]) { this.oldConfig[key] = _.cloneDeep(this.config[key]) }
     if (this.watcher[key]) return
 
+    // 监听到变更只需清掉内存缓存，下次 getYaml 会重新读盘。
+    // 这里原本还有一大段从 memz-plugin 抄来的逻辑：diff 出新旧配置的差异，
+    // 挑出 `servers.*` 的增删开关算成 target。但本插件的配置里从来没有 servers 这个字段，
+    // 那段 for 循环永远走不到 continue 之后，算出来的 target 也没有任何人使用 —— 纯死代码，已删。
     const watcher = chokidar.watch(file)
-    watcher.on('change', async (path) => {
+    watcher.on('change', () => {
       delete this.config[key]
       if (typeof Bot == 'undefined') return
-      logger.mark(`[memz-plugin][修改配置文件][${type}][${name}]`)
-
-      if (name == 'config') {
-        const oldConfig = this.oldConfig[key]
-        delete this.oldConfig[key]
-        const newConfig = this.getYaml(type, name)
-        const object = this.findDifference(oldConfig, newConfig)
-        for (const key in object) {
-          if (Object.hasOwnProperty.call(object, key)) {
-            const value = object[key]
-            const arr = key.split('.')
-            if (arr[0] !== 'servers') continue
-            let data = newConfig.servers[arr[1]]
-            if (typeof data === 'undefined') data = oldConfig.servers[arr[1]]
-            const target = {
-              type: null,
-              data
-            }
-            if (
-              typeof value.newValue === 'object' &&
-              typeof value.oldValue === 'undefined'
-            ) {
-              target.type = 'add'
-            } else if (
-              typeof value.newValue === 'undefined' &&
-              typeof value.oldValue === 'object'
-            ) {
-              target.type = 'del'
-            } else if (
-              value.newValue === true &&
-              (value.oldValue === false ||
-                typeof value.oldValue === 'undefined')
-            ) {
-              target.type = 'close'
-            } else if (
-              value.newValue === false &&
-              (value.oldValue === true || typeof value.oldValue === 'undefined')
-            ) {
-              target.type = 'open'
-            }
-          }
-        }
-      }
+      logger.mark(`[GloryOfKings-Plugin][修改配置文件][${type}][${name}]`)
     })
 
     this.watcher[key] = watcher
@@ -178,9 +138,7 @@ class Config {
   modify (name, key, value, type = 'config') {
     let path = `${PluginPath}/config/${type}/${name}.yaml`
     new YamlReader(path).set(key, value)
-    const configKey = `${type}.${name}`
-    this.oldConfig[configKey] = _.cloneDeep(this.config[configKey])
-    delete this.config[configKey]
+    delete this.config[`${type}.${name}`]
   }
 
   /**
@@ -210,35 +168,6 @@ class Config {
     yaml.set(key, arr)
   }
 
-  /**
-   * @description 对比两个对象不同的值
-   * @param {*} oldObj
-   * @param {*} newObj
-   * @param {*} parentKey
-   * @returns
-   */
-  findDifference (obj1, obj2, parentKey = '') {
-    const result = {}
-    for (const key in obj1) {
-      const fullKey = parentKey ? `${parentKey}.${key}` : key
-      if (_.isObject(obj1[key]) && _.isObject(obj2[key])) {
-        const diff = this.findDifference(obj1[key], obj2[key], fullKey)
-        if (!_.isEmpty(diff)) {
-          Object.assign(result, diff)
-        }
-      } else if (!_.isEqual(obj1[key], obj2[key])) {
-        result[fullKey] = { oldValue: obj1[key], newValue: obj2[key] }
-      }
-    }
-    for (const key in obj2) {
-      if (!Object.prototype.hasOwnProperty.call(obj1, key)) {
-        const fullKey = parentKey ? `${parentKey}.${key}` : key
-        result[fullKey] = { oldValue: undefined, newValue: obj2[key] }
-      }
-    }
-    return result
-  }
-
   mergeObjectsWithPriority (objA, objB) {
     let differences = false
 
@@ -266,7 +195,12 @@ class Config {
 
   validateConfig (config, file = '') {
     const requiredFieldsByFile = {
-      'config.yaml': ['onlineReminder', 'onlineReminderCron']
+      // 只列真正必须存在的字段。校验失败会让 loadConfigFile 的 catch
+      // 把默认配置整份盖回用户配置（用户所有设置被静默重置），代价极大，
+      // 所以这里宁少勿多：能靠 getDefOrConfig 的默认值兜住的字段就不该进这张表。
+      // 早先还列了已废弃的 onlineReminderCron，逼得那个字段只能一直留在
+      // config.yaml 里当摆设，删不掉，现在一并摘掉了。
+      'config.yaml': ['onlineReminder']
     }
     const requiredFields = requiredFieldsByFile[file] || []
     const missingFields = requiredFields.filter(field => !Object.prototype.hasOwnProperty.call(config, field))

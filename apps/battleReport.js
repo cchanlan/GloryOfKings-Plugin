@@ -306,12 +306,14 @@ export class BattleReport extends plugin {
       // 这里 @ 本人，和战绩/上下线播报的「不 @」是故意不一致的：那几条是打完那一刻的即时播报，
       // 本人最清楚，@ 只是多刷个红点；日报周报是定时发的总结，本人未必在看群，得叫一下。
       // 名字仍然留在文案和图上，群里其他人不点 @ 也认得出是谁
+      // 图在前、文案在后：报告本身是主体，一行说明放图下面当图注读着更顺，
+      // 文案在上会把图挤到第二屏，群里滑过去先看到一行字反而抓不住重点
       await group.sendMsg([
+        image,
         // 直接给字符串：各适配器内部都会 String(qq)（如 OneBotv11.js 的 makeMsg），
         // 而官bot 的 user_id 是 `appid:openid` 形态，Number() 出来是 NaN，转数字反而会坏
         segment.at(qq),
-        ` 📊 ${view.roleName} 的${label}（${view.rangeText}）`,
-        image
+        ` 📊 ${view.roleName} 的${label}（${view.rangeText}）`
       ])
       logger.mark(`[王者${label}] 已推送给 ${qq}@群${sub.group}`)
     } catch (error) {

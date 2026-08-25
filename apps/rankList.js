@@ -1,7 +1,8 @@
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { readYamlFile, Button, getUserAvatar, shouldQuote } from '#utils'
-import { collectRankData, buildRankList, getAllBindings, readSnapshot, SNAPSHOT_TTL } from '../utils/rankStore.js'
+import { collectRankData, buildRankList, getAllBindings, dedupeTargets, readSnapshot, SNAPSHOT_TTL } from '../utils/rankStore.js'
+import { MIN_REQUEST_GAP_MS } from '../utils/api.js'
 import { PluginData } from '#components'
 
 /** 榜单最多展示多少人，太长图片会非常高 */
@@ -88,11 +89,14 @@ export class RankList extends plugin {
   }
 
   async render(e, { type, force, bindings, scope, title, isGlobal = false }) {
-    // 采集要逐个拉接口（营地有频控，只能串行），命中缓存时很快，需要刷新时先给个提示
+    // 采集要逐个拉接口（营地有频控，只能串行），命中缓存时很快，需要刷新时先给个提示。
+    // 预估耗时按「去重后的账号数 × 全局队列间隔」算：同一个营地ID 被多人绑定时只拉一次，
+    // 拿 bindings.length 会高估；节奏由 api.js 的 MIN_REQUEST_GAP_MS 决定，不能在这写死
     const needFetch = force || Date.now() - readSnapshot().updatedAt >= SNAPSHOT_TTL
     if (needFetch) {
-      const seconds = Math.ceil(bindings.length * 0.8)
-      await e.reply(`正在更新 ${bindings.length} 个账号的数据，约需 ${seconds} 秒，请稍候...`)
+      const targetCount = dedupeTargets(bindings).size
+      const seconds = Math.ceil(targetCount * MIN_REQUEST_GAP_MS / 1000)
+      await e.reply(`正在更新 ${targetCount} 个账号的数据，约需 ${seconds} 秒，请稍候...`)
     }
 
     let snapshot

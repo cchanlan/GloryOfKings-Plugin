@@ -26,12 +26,14 @@ const USER_DATA_FILE = path.join(PluginData, 'UserData.yaml')
 export const SNAPSHOT_TTL = 12 * 60 * 60 * 1000
 
 /**
- * 营地对 profile 接口有频控：并发拉取时大量返回 -30107「操作频繁」，
- * 实测串行 + 每次间隔 600ms 可以稳定跑完 20+ 个账号，所以这里不做并发。
+ * 命中 -30107 时的退避重试次数与基础等待。
+ *
+ * 这里不再自己 sleep 错峰：营地对 profile 接口有频控（并发拉取时大量返回 -30107），
+ * 但错峰现在由 api.js 的全局队列统一做，相邻两次真实请求间隔 MIN_REQUEST_GAP_MS(1200ms)。
+ * 早先这里每个账号还额外 sleep 600ms，那 600ms 完全被 1200ms 的队列间隔吃掉
+ * （队列本来就要等到 1200ms 才放行），纯粹是白等——22 个账号一轮要多花 13 秒。
+ * 想调整刷榜节奏改 api.js 的 MIN_REQUEST_GAP_MS，别在这里加 sleep。
  */
-const REQUEST_INTERVAL = 600
-
-/** 命中 -30107 时的退避重试次数与基础等待 */
 const RATE_LIMIT_RETRY = 2
 const RATE_LIMIT_BACKOFF = 3000
 
@@ -144,6 +146,21 @@ export function getAllBindings() {
   return list
 }
 
+/**
+ * 把绑定关系按营地ID 去重，得到实际要发几次请求。
+ * 同一个营地ID 常被多人绑定（实测 25 条绑定里只有 22 个不同ID），拉一次就够，
+ * 值取第一个绑定者作为属主QQ —— authStore 按属主取鉴权候选，不能传空。
+ * @param {Array<{botUserId:string, campId:string}>} [bindings]
+ * @returns {Map<string, string>} campId -> botUserId
+ */
+export function dedupeTargets (bindings = getAllBindings()) {
+  const targets = new Map()
+  for (const item of bindings) {
+    if (!targets.has(item.campId)) targets.set(item.campId, item.botUserId)
+  }
+  return targets
+}
+
 /** 从 profile 响应里抽出排名需要的字段，失败返回 null */
 export function extractRankInfo(profileData) {
   const data = profileData?.data
@@ -227,12 +244,8 @@ export async function collectRankData({ force = false, ttl = SNAPSHOT_TTL } = {}
     return { ...snapshot, fromCache: true, failed: 0 }
   }
 
-  const bindings = getAllBindings()
   // 同一个营地ID可能被多人绑定，去重后只拉一次
-  const targets = new Map()
-  for (const item of bindings) {
-    if (!targets.has(item.campId)) targets.set(item.campId, item.botUserId)
-  }
+  const targets = dedupeTargets()
 
   const entries = {}
   let failed = 0
@@ -251,8 +264,6 @@ export async function collectRankData({ force = false, ttl = SNAPSHOT_TTL } = {}
       failed += 1
       keepOld(entries, snapshot, campId)
     }
-
-    await sleep(REQUEST_INTERVAL)
   }
 
   const result = { updatedAt: Date.now(), entries }

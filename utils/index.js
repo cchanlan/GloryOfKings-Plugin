@@ -10,7 +10,6 @@ import {
   readYamlFile,
   writeYamlFile
 } from './yamlUtils.js'
-import monitor from './monitor.js'
 import cache from './cache.js'
 import authStore from './authStore.js'
 import { getUserAvatar, qlogoUrl, isQQNumber } from './avatar.js'
@@ -35,7 +34,6 @@ export {
   cleanImageCache,
   readYamlFile,
   writeYamlFile,
-  monitor,
   cache,
   authStore,
   getUserAvatar,

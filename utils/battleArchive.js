@@ -48,19 +48,44 @@ const toInt = value => {
   return Number.isFinite(num) ? Math.trunc(num) : 0
 }
 
+/**
+ * 整库的内存缓存。null 表示还没读过盘。
+ *
+ * 为什么要缓存：这个模块的每个导出函数原来都自己 `loadAll()` 一次，而
+ * `collectBattles` 翻一页就要走 `archiveBattles`（读+写）+ `getWatermark`（读），
+ * 周报翻 12 页 = 几十次整库 readFileSync/writeFileSync。现在 6 个账号 64KB 还无感，
+ * 但保留 35 天、订阅涨到 20 个号就是 MB 级，而这些同步 IO 全发生在
+ * 2 分钟一次的轮询里，会卡住整个 Bot 的事件循环。
+ *
+ * 缓存安全的前提：这个文件**只有本模块写**（全仓库检索确认过没有别处写 ARCHIVE_FILE），
+ * 且 Yunzai 是单进程，所以内存里的就是权威副本，不存在别人改了盘而我们不知道的情况。
+ * 用户手动改了盘上的文件不会被感知——那是可接受的，重启即生效。
+ */
+let cacheAll = null
+
 /** 整库读。文件不存在或坏了都返回空表，绝不让定时任务因为归档挂掉 */
 function loadAll () {
+  if (cacheAll) return cacheAll
+
   try {
     const data = readJsonFile(ARCHIVE_FILE)
-    return data && typeof data === 'object' ? data : {}
+    cacheAll = data && typeof data === 'object' ? data : {}
   } catch {
-    return {}
+    cacheAll = {}
   }
+
+  return cacheAll
 }
 
+/**
+ * 整库写。先更新内存再落盘：盘写失败时内存仍是最新的，
+ * 后续读到的是正确数据，下一次写有机会把它持久化。
+ */
 function saveAll (data) {
+  cacheAll = data || {}
+
   try {
-    writeJsonFile(ARCHIVE_FILE, data || {})
+    writeJsonFile(ARCHIVE_FILE, cacheAll)
     return true
   } catch (error) {
     logger.warn(`[战绩归档] 写入失败: ${error.message}`)
