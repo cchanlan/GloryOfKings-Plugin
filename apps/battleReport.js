@@ -302,8 +302,16 @@ export class BattleReport extends plugin {
     if (!image) return
 
     try {
-      // 和其它播报一致：不 @ 本人，名字写在图上
-      await group.sendMsg([`📊 ${view.roleName} 的${label}（${view.rangeText}）`, image])
+      // 这里 @ 本人，和战绩/上下线播报的「不 @」是故意不一致的：那几条是打完那一刻的即时播报，
+      // 本人最清楚，@ 只是多刷个红点；日报周报是定时发的总结，本人未必在看群，得叫一下。
+      // 名字仍然留在文案和图上，群里其他人不点 @ 也认得出是谁
+      await group.sendMsg([
+        // 直接给字符串：各适配器内部都会 String(qq)（如 OneBotv11.js 的 makeMsg），
+        // 而官bot 的 user_id 是 `appid:openid` 形态，Number() 出来是 NaN，转数字反而会坏
+        segment.at(qq),
+        ` 📊 ${view.roleName} 的${label}（${view.rangeText}）`,
+        image
+      ])
       logger.mark(`[王者${label}] 已推送给 ${qq}@群${sub.group}`)
     } catch (error) {
       logger.error(`[王者${label}] 发送失败 ${qq}@群${sub.group}: ${error.message}`)
