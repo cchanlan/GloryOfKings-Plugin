@@ -279,6 +279,37 @@ export { getHeroNameMap }
 /* ------------------------------------------------------------------ 群汇总 */
 
 /**
+ * 一个成员这段时间的「涨跌」，供群榜的进步榜/掉分榜排序。
+ *
+ * 只拿**巅峰分**做可比的数值：巅峰分是一条全服连续刻度，谁涨 30 谁掉 20 直接可比。
+ * 段位星数不行——星耀的 1 星和最强王者的 1 星难度差着量级，跨人相减没有意义，
+ * 所以段位那边只产出「升没升段」这个布尔性质的结论（rankUpText），不参与数值排序。
+ *
+ * @param {object} report summarizeReport 的结果
+ * @returns {{scoreDelta:number|null, scoreText:string, rankUpText:string}}
+ *   scoreDelta 为 null 表示这段时间没打巅峰赛（或分数没动），不该进这两个榜
+ */
+function pickProgress (report) {
+  const delta = formatScoreDelta(report?.score)
+  const from = toInt(report?.score?.scoreFrom)
+  const to = toInt(report?.score?.scoreTo)
+
+  // 段位：只报「升段」这一种结论。formatStarChange 的 tone 已经把
+  // 「同名段跨小段」「赛季重置导致编号下降」这些坑判过了，别在这里重写判据
+  const star = formatStarChange(report?.stars)
+  const jobFrom = String(report?.stars?.jobFrom || '')
+  const jobTo = String(report?.stars?.jobTo || '')
+
+  return {
+    scoreDelta: delta ? to - from : null,
+    scoreText: delta ? delta.text : '',
+    rankUpText: star?.tone === 'up' && jobFrom && jobTo && jobFrom !== jobTo
+      ? `${jobFrom} → ${jobTo}`
+      : ''
+  }
+}
+
+/**
  * 把多个成员的 summarizeReport 结果聚成一份群榜。
  *
  * 不做成「把战绩混一起再 summarizeReport」：段位星数那套（summarizeSession）
@@ -305,7 +336,9 @@ export function summarizeGroup (members = []) {
       topHero: m.report.topHero
         ? { heroId: m.report.topHero.heroId, name: m.report.topHero.name, count: m.report.topHero.count }
         : null,
-      streak: m.report.streak || { type: '', count: 0 }
+      streak: m.report.streak || { type: '', count: 0 },
+      // 进步榜/掉分榜要用的两个量，口径见 pickProgress
+      ...pickProgress(m.report)
     }))
     .sort((a, b) => b.count - a.count || b.winRate - a.winRate)
 
@@ -363,7 +396,15 @@ export function summarizeGroup (members = []) {
     topLoseMvp: rows.filter(r => r.loseMvp > 0).sort((a, b) => b.loseMvp - a.loseMvp)[0] || null, // 尽力局长
     // 最长连败也值一个称号，群里就爱看这个
     topStreak: rows.filter(r => r.streak?.type === 'win' && r.streak.count >= 3)
-      .sort((a, b) => b.streak.count - a.streak.count)[0] || null
+      .sort((a, b) => b.streak.count - a.streak.count)[0] || null,
+    // 巅峰分涨得最多 / 掉得最多。只认巅峰分（口径见 pickProgress），
+    // 没人打巅峰赛时两个都是 null，称号栏自动不占位
+    topRise: rows.filter(r => Number(r.scoreDelta) > 0)
+      .sort((a, b) => b.scoreDelta - a.scoreDelta)[0] || null,
+    topDrop: rows.filter(r => Number(r.scoreDelta) < 0)
+      .sort((a, b) => a.scoreDelta - b.scoreDelta)[0] || null,
+    // 升段的人。段位跨段没法和别人比数值，所以不排序，谁先升到就先列谁
+    topRankUp: rows.filter(r => r.rankUpText)[0] || null
   }
 }
 
@@ -584,6 +625,9 @@ export function buildGroupView (group, {
   award('MVP 收割机', group.topMvp, r => `${r.name} · ${r.mvp} 次`)
   award('尽力局长', group.topLoseMvp, r => `${r.name} · 败方 MVP ${r.loseMvp} 次`)
   award('连胜之星', group.topStreak, r => `${r.name} · ${r.streak.count} 连胜`)
+  award('上分之王', group.topRise, r => `${r.name} · 巅峰分 +${r.scoreDelta}`)
+  award('血亏之王', group.topDrop, r => `${r.name} · 巅峰分 ${r.scoreDelta}`)
+  award('升段之星', group.topRankUp, r => `${r.name} · ${r.rankUpText}`)
 
   const heroTop = group.heroes?.[0]?.count || 1
   const heroes = (group.heroes || []).slice(0, heroLimit).map((h, idx) => ({

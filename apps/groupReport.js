@@ -27,7 +27,7 @@ import {
 } from '../utils/groupReportStore.js'
 import { loadPushList, sleep, REQUEST_INTERVAL } from '../utils/pushStore.js'
 import { MIN_REQUEST_GAP_MS } from '../utils/api.js'
-import { shouldQuote, Button, getGroupAvatar } from '#utils'
+import { shouldQuote, Button, getGroupAvatar, pickGroupSafe } from '#utils'
 import { Config } from '#components'
 
 /** 三路的中文名 */
@@ -310,7 +310,7 @@ export class GroupReport extends plugin {
   async pushOne (groupId, sub, kind) {
     const label = LABEL[kind]
 
-    const group = Bot.pickGroup(Number(groupId))
+    const group = pickGroupSafe(groupId)
     if (!group?.sendMsg) {
       logger.warn(`[王者群${label}] 取不到群 ${groupId}，跳过`)
       return

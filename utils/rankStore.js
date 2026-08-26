@@ -11,7 +11,8 @@
  *   （有分时就是分数字符串，无分时是「未继承」「定级中」「王者开启」等）。
  *
  * 逐个账号拉接口很慢（营地有频控只能串行），所以结果写快照到 data/RankSnapshot.json，
- * 默认 30 分钟内直接复用，避免每次 #排位排名 都把全部绑定用户刷一遍。
+ * 有效期内直接复用，避免每次 #排位排名 都把全部绑定用户刷一遍。
+ * 具体时长看 SNAPSHOT_TTL（当前 12 小时），想立刻更新用「#排位排名刷新」。
  */
 import path from 'path'
 import { readJsonFile, writeJsonFile } from './fileUtils.js'

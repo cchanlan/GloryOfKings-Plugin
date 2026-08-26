@@ -32,10 +32,10 @@ import {
   monthStart,
   isMonthlyPushDay
 } from '../utils/reportStore.js'
-import { loadPushList, savePushList, mergeSubState, disableSubFlag, sleep, REQUEST_INTERVAL } from '../utils/pushStore.js'
+import { loadPushList, savePushList, mergeSubState, disableSubFlag, subGroups, withSubGroup, withoutSubGroup, sleep, REQUEST_INTERVAL } from '../utils/pushStore.js'
 import {
   getCurrentId, getUserAvatar, Button, shouldQuote, readYamlFile, parsePerfArgs,
-  AT_HEAD, stripAtText, resolveTargetUserId
+  AT_HEAD, stripAtText, resolveTargetUserId, pickGroupSafe
 } from '#utils'
 import { Config, PluginData } from '#components'
 
@@ -231,10 +231,29 @@ export class BattleReport extends plugin {
     const qq = String(e.user_id)
 
     if (!enable) {
+      const list = loadPushList()
+      const sub = list[qq]
+      if (!sub || sub[kind] !== true) {
+        return e.reply(`你还没有开启战绩${label}推送`, shouldQuote())
+      }
+
+      // 多群订阅下「在哪个群关」是有意义的：只摘掉当前这个群，别的群照推
+      const groups = subGroups(sub)
+      const here = String(e.group_id || '')
+      if (e.isGroup && groups.length > 1 && groups.includes(here)) {
+        const { groups: rest, group } = withoutSubGroup(sub, here)
+        list[qq] = { ...sub, groups: rest, group }
+        savePushList(list)
+        return e.reply(
+          `已停止在本群推送${label}，其余 ${rest.length} 个群不变`,
+          shouldQuote()
+        )
+      }
+
       // 走 disableSubFlag 而不是 mergeSubState：所有开关全关了要把整条订阅删掉，
       // 否则留个空壳一直占着 pushList 的名额
-      const { wasOn } = disableSubFlag(qq, kind)
-      return e.reply(wasOn ? `已关闭战绩${label}推送` : `你还没有开启战绩${label}推送`, shouldQuote())
+      disableSubFlag(qq, kind)
+      return e.reply(`已关闭战绩${label}推送`, shouldQuote())
     }
 
     if (!e.isGroup) {
@@ -248,19 +267,32 @@ export class BattleReport extends plugin {
 
     // 订阅项可能还不存在（没开过战绩推送），mergeSubState 只改已有项，所以这里要兜底建一条
     const list = loadPushList()
+    const { groups, group, added } = withSubGroup(list[qq], e.group_id)
     if (!list[qq]) {
       list[qq] = {
         // 不能顺手把战绩推送/上下线提醒打开，那是两个独立的开关
         battle: false,
         online: false,
-        group: String(e.group_id),
+        groups,
+        group,
         campId: String(campId),
         enabledAt: Date.now()
       }
       savePushList(list)
     }
 
-    mergeSubState(qq, { [kind]: true, group: String(e.group_id), campId: String(campId) })
+    const alreadyOn = list[qq][kind] === true
+    mergeSubState(qq, { [kind]: true, groups, group, campId: String(campId) })
+
+    // 已经开着、只是换个群再开一次：说清楚现在推几个群就行，别再重复一遍完整说明
+    if (alreadyOn) {
+      return e.reply(
+        added
+          ? `✅ 本群已加入${label}推送，现在会推到 ${groups.length} 个群`
+          : `${label}推送本来就在本群开着，无需重复开启`,
+        shouldQuote()
+      )
+    }
 
     const cron = readConfig()[CRON_KEY[kind]] || ''
     const period = { daily: '每天', weekly: '每周', monthly: '每月' }[kind]
@@ -272,7 +304,8 @@ export class BattleReport extends plugin {
         `✅ 已开启战绩${label}推送（营地ID ${campId}）`,
         `${period}会在本群发一张${scope}战绩总结`,
         cron ? `推送时间：${cron}` : '（主人还没配推送时间，暂时不会自动发）',
-        `没有对局的${unit}不会推送。想立刻看发送 #王者${label}`
+        `没有对局的${unit}不会推送。想立刻看发送 #王者${label}`,
+        '想在别的群也收，去那个群再发一次这条指令'
       ].join('\n'),
       Button.push(true)
     ], shouldQuote())
@@ -293,7 +326,8 @@ export class BattleReport extends plugin {
       return
     }
 
-    const subs = Object.entries(loadPushList()).filter(([, sub]) => sub?.[kind] === true && sub?.group)
+    const subs = Object.entries(loadPushList())
+      .filter(([, sub]) => sub?.[kind] === true && subGroups(sub).length > 0)
     if (!subs.length) return
 
     if (pushing) {
@@ -324,10 +358,14 @@ export class BattleReport extends plugin {
     if (!campId) return
 
     // 群提前取：发消息要用，取头像也要用（getUserAvatar 靠 group.pickMember 认 openid）。
-    // 顺带把「群都取不到」挡在补页和出图之前，省掉注定发不出去的那几次请求
-    const group = Bot.pickGroup(Number(sub.group))
-    if (!group?.sendMsg) {
-      logger.warn(`[王者${label}] 取不到群 ${sub.group}，跳过 ${qq}`)
+    // 顺带把「群都取不到」挡在补页和出图之前，省掉注定发不出去的那几次请求。
+    // 多群订阅只出一张图，发到每个还在的群；一个群没了不影响其它群
+    const targets = subGroups(sub)
+      .map(id => ({ id, group: pickGroupSafe(id) }))
+      .filter(item => item.group?.sendMsg)
+
+    if (!targets.length) {
+      logger.warn(`[王者${label}] 取不到群 ${subGroups(sub).join('、') || '—'}，跳过 ${qq}`)
       return
     }
 
@@ -335,7 +373,7 @@ export class BattleReport extends plugin {
       roleName: sub.roleName || '',
       qq,
       // 推送没有真实消息事件，拿群拼个最小壳子够 getUserAvatar 用
-      e: { group }
+      e: { group: targets[0].group }
     })
 
     // 这段时间没打就不发。推一张「0 场」的图纯属刷屏
@@ -347,22 +385,24 @@ export class BattleReport extends plugin {
     const image = await this.shot(view)
     if (!image) return
 
-    try {
-      // 这里 @ 本人，和战绩/上下线播报的「不 @」是故意不一致的：那几条是打完那一刻的即时播报，
-      // 本人最清楚，@ 只是多刷个红点；日报周报是定时发的总结，本人未必在看群，得叫一下。
-      // 名字仍然留在文案和图上，群里其他人不点 @ 也认得出是谁
-      // 图在前、文案在后：报告本身是主体，一行说明放图下面当图注读着更顺，
-      // 文案在上会把图挤到第二屏，群里滑过去先看到一行字反而抓不住重点
-      await group.sendMsg([
-        image,
-        // 直接给字符串：各适配器内部都会 String(qq)（如 OneBotv11.js 的 makeMsg），
-        // 而官bot 的 user_id 是 `appid:openid` 形态，Number() 出来是 NaN，转数字反而会坏
-        segment.at(qq),
-        ` 📊 ${view.roleName} 的${label}（${view.rangeText}）`
-      ])
-      logger.mark(`[王者${label}] 已推送给 ${qq}@群${sub.group}`)
-    } catch (error) {
-      logger.error(`[王者${label}] 发送失败 ${qq}@群${sub.group}: ${error.message}`)
+    for (const { id, group } of targets) {
+      try {
+        // 这里 @ 本人，和战绩/上下线播报的「不 @」是故意不一致的：那几条是打完那一刻的即时播报，
+        // 本人最清楚，@ 只是多刷个红点；日报周报是定时发的总结，本人未必在看群，得叫一下。
+        // 名字仍然留在文案和图上，群里其他人不点 @ 也认得出是谁
+        // 图在前、文案在后：报告本身是主体，一行说明放图下面当图注读着更顺，
+        // 文案在上会把图挤到第二屏，群里滑过去先看到一行字反而抓不住重点
+        await group.sendMsg([
+          image,
+          // 直接给字符串：各适配器内部都会 String(qq)（如 OneBotv11.js 的 makeMsg），
+          // 而官bot 的 user_id 是 `appid:openid` 形态，Number() 出来是 NaN，转数字反而会坏
+          segment.at(qq),
+          ` 📊 ${view.roleName} 的${label}（${view.rangeText}）`
+        ])
+        logger.mark(`[王者${label}] 已推送给 ${qq}@群${id}`)
+      } catch (error) {
+        logger.error(`[王者${label}] 发送失败 ${qq}@群${id}: ${error.message}`)
+      }
     }
   }
 }

@@ -25,6 +25,10 @@ class Cache {
       this.timeouts.delete(key)
     }, ttl * 1000)
 
+    // 纯内存缓存的过期定时器不该让进程活着等它：不 unref 的话，
+    // 一个 TTL 很长的条目会把 node 的退出往后拖到它到期为止
+    timeout.unref?.()
+
     this.timeouts.set(key, timeout)
     return true
   }

@@ -198,15 +198,15 @@ if (trend && trend.length > 1) {
     }
   }
 
-  // 填充渐变
+  // 填充渐变。底边要走画布底边：先 moveTo 到底边再画曲线会把路径切成两段，
+  // closePath 就从右下角直接连回曲线起点，填充区里多出一条斜穿全图的线（星数有涨有跌时很明显）
   const grad = ctx.createLinearGradient(0, pad.t, 0, H - pad.b)
   grad.addColorStop(0, 'rgba(245,215,110,0.32)')
   grad.addColorStop(1, 'rgba(245,215,110,0.02)')
   ctx.beginPath()
-  ctx.moveTo(xs[0], H - pad.b)
-  ctx.lineTo(xs[0], ys[0])
   buildSmoothPath()
   ctx.lineTo(xs[xs.length - 1], H - pad.b)
+  ctx.lineTo(xs[0], H - pad.b)
   ctx.closePath()
   ctx.fillStyle = grad; ctx.fill()
 

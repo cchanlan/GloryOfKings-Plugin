@@ -2,7 +2,8 @@ import fs from 'node:fs'
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { PluginData, PluginPath } from '#components'
-import { ApiService, readYamlFile, getUserAvatar, isQQNumber, Button, AT_HEAD, stripAtText, resolveTargetUserId, shouldQuote } from '#utils'
+import { ApiService, readYamlFile, getUserAvatar, isQQNumber, Button, AT_HEAD, stripAtText, resolveTargetUserId, shouldQuote, resolveMemberName } from '#utils'
+import { MIN_REQUEST_GAP_MS } from '../utils/api.js'
 // 详情图与评价图标解析被战绩推送共用，抽到了 utils/battleDetailImage.js
 import { fetchBattleDetail, renderBattleDetail, resolveMvp, resolveEvaluate } from '../utils/battleDetailImage.js'
 
@@ -21,6 +22,13 @@ const findMode = key => MODE_MAP.find(m => m.key === key) || null
 const TARGET_COUNT = 30
 const HERO_TARGET = 100
 const MAX_PAGES = 10
+
+/**
+ * 模式筛选（排位/巅峰）的翻页上限。比 MAX_PAGES 小得多是故意的：
+ * 服务端 option 已经筛过，第一页通常就有 30 场，只有打得少的号才需要往前翻，
+ * 为这种号翻满 10 页不值得（每页一次营地请求、全局队列 1.2 秒一发）。
+ */
+const MODE_MAX_PAGES = 4
 
 export class QueryGameStats extends plugin {
   constructor() {
@@ -84,7 +92,7 @@ export class QueryGameStats extends plugin {
       ''
     ).trim()
     if (!heroName) {
-      await e.reply('请输入英雄名称，例如：#查英雄战绩 妲己')
+      await e.reply('请输入英雄名称，例如：#查战绩 妲己 或 #查妲己战绩', shouldQuote())
       return
     }
 
@@ -115,6 +123,10 @@ export class QueryGameStats extends plugin {
 
     let battleList
     try {
+      // 英雄战绩要在近 100 场里筛，最多翻 MAX_PAGES 页、全局队列 1.2 秒一发，
+      // 十几秒没动静用户会以为指令没生效，先给个回执（和群报的做法一致）
+      const seconds = Math.ceil((MAX_PAGES - 1) * MIN_REQUEST_GAP_MS / 1000)
+      await e.reply(`正在翻找 ${matchedName} 的近期战绩，最多约 ${seconds} 秒，请稍候...`, shouldQuote())
       battleList = await this.collectBattles(ID, String(userId), null, { forcePaginate: true })
     } catch (error) {
       logger.error(`[英雄战绩查询] 查询 ${ID} 失败: ${error.message}`)
@@ -142,14 +154,15 @@ export class QueryGameStats extends plugin {
     })
 
     const total = battleList?.list?.length || 0
-    logger.info(`[英雄战绩查询] ${matchedName}(heroId=${heroId})，总战绩 ${total} 场，命中 ${heroBattles.length} 场`)
+    logger.debug(`[英雄战绩查询] ${matchedName}(heroId=${heroId})，总战绩 ${total} 场，命中 ${heroBattles.length} 场`)
     if (total) {
+      // 这几条是当初排 heroId 字段格式时加的，字段规律已经写进上面的四路匹配，
+      // 平时不需要，留在 debug 档：每次查一个英雄要打三条、还把整条战绩的 key 全列出来
       const sample = battleList.list[0]
       const sampleIconId = sample.heroIcon?.match(/\/(\d+)00\.jpg/)?.[1] || 'N/A'
-      logger.info(`[英雄战绩查询] 首条: heroId=${sample.heroId} heroName=${sample.heroName} heroIconId=${sampleIconId} keys=[${Object.keys(sample).join(',')}]`)
-      // 列出所有不同的 heroIconId，方便排查
+      logger.debug(`[英雄战绩查询] 首条: heroId=${sample.heroId} heroName=${sample.heroName} heroIconId=${sampleIconId} keys=[${Object.keys(sample).join(',')}]`)
       const iconIds = [...new Set(battleList.list.map(i => i.heroIcon?.match(/\/(\d+)00\.jpg/)?.[1]).filter(Boolean))]
-      logger.info(`[英雄战绩查询] 本页 heroIconId 去重: ${iconIds.join(',')}`)
+      logger.debug(`[英雄战绩查询] 本页 heroIconId 去重: ${iconIds.join(',')}`)
     }
 
     if (!heroBattles.length) {
@@ -341,6 +354,12 @@ export class QueryGameStats extends plugin {
   /**
    * 拉取战绩列表。指定模式时用服务端 option 精确筛选，
    * 过滤后不足 30 场时用 lastTime 游标继续往前翻页补齐。
+   *
+   * 翻页条件早先写的是 `!mode?.filter` —— 而 MODE_MAP 的元素只有 { key, option }，
+   * 从来没有 filter 字段，于是这个判断恒真，排位/巅峰模式永远只取第一页，
+   * 注释承诺的「补齐」对打得少的号根本没生效。现在的判据换成「还没凑够 + 服务端说有更多」，
+   * 并给模式筛选单独一档页数上限（MODE_MAX_PAGES），别为了凑满 30 场把频控预算烧光。
+   *
    * @param {object} [mode] 模式筛选
    * @param {object} [opts]
    * @param {boolean} [opts.forcePaginate=false] 强制翻满 MAX_PAGES 页（英雄战绩查询用）
@@ -348,21 +367,22 @@ export class QueryGameStats extends plugin {
    */
   async collectBattles(ID, userId, mode, { forcePaginate = false } = {}) {
     const option = mode?.option ?? 0
+    const target = forcePaginate ? HERO_TARGET : TARGET_COUNT
+    const pageLimit = forcePaginate ? MAX_PAGES : (mode ? MODE_MAX_PAGES : 1)
     const collected = []
     const seen = new Set()
     let lastTime = 0
     let root = null
 
-    for (let page = 0; page < MAX_PAGES; page += 1) {
+    for (let page = 0; page < pageLimit; page += 1) {
       const { data } = await ApiService.getMoreBattleList(ID, userId, { option, lastTime })
       if (!data) break
       // 保留首页的 invisDes / options 等顶层字段，翻页只累加 list
       if (!root) root = data
 
       const raw = data.list || []
-      const picked = mode?.filter ? raw.filter(mode.filter) : raw
 
-      for (const item of picked) {
+      for (const item of raw) {
         // 翻页边界可能重复返回同一场，按 gameSeq 去重
         const key = String(item.gameSeq ?? `${item.dtEventTime}-${item.heroIcon}`)
         if (seen.has(key)) continue
@@ -370,11 +390,9 @@ export class QueryGameStats extends plugin {
         collected.push(item)
       }
 
-      logger.debug(`[战绩查询] 第 ${page + 1} 页 option=${option} 返回 ${raw.length} 场，命中 ${picked.length} 场，累计 ${collected.length} 场`)
+      logger.debug(`[战绩查询] 第 ${page + 1}/${pageLimit} 页 option=${option} 返回 ${raw.length} 场，累计 ${collected.length} 场`)
 
-      if (forcePaginate ? collected.length >= HERO_TARGET : collected.length >= TARGET_COUNT) break
-      // 服务端已给干净结果时不必翻页；只有宽筛模式或强制翻页才继续
-      if (!forcePaginate && !mode?.filter) break
+      if (collected.length >= target) break
       if (!data.hasMore || !data.lastTime || data.lastTime === lastTime) break
       lastTime = data.lastTime
     }
@@ -382,30 +400,22 @@ export class QueryGameStats extends plugin {
     if (!root) return null
 
     if (collected.length < TARGET_COUNT) {
-      logger.debug(`[战绩查询] ${mode ? mode.key : '全部'}模式最终只凑到 ${collected.length} 场（上限 ${MAX_PAGES} 页），该账号可能就是打得少`)
+      logger.debug(`[战绩查询] ${mode ? mode.key : '全部'}模式最终只凑到 ${collected.length} 场（上限 ${pageLimit} 页），该账号可能就是打得少`)
     }
 
-    return { ...root, list: forcePaginate ? collected.slice(0, HERO_TARGET) : collected.slice(0, TARGET_COUNT) }
+    return { ...root, list: collected.slice(0, target) }
   }
 
   async getTargetInfo(e, userId) {
     // 头像统一走 getUserAvatar：官方 QQ 机器人的 user_id 是 openid 而非 QQ 号，
     // 直接拼 q1.qlogo.cn 会回落到默认头像，导致所有人都渲染成同一张图
     const qqAvatar = await getUserAvatar(e, userId)
-    let nickname = ''
-    try {
-      if (String(userId) !== String(e.user_id)) {
-        const member = e.group?.pickMember ? e.group.pickMember(userId) : null
-        const info = member?.info || (await member?.getInfo?.())
-        nickname = info?.card || info?.nickname || member?.card || member?.nickname || ''
-      } else {
-        nickname = e.sender?.card || e.sender?.nickname || e.nickname || ''
-      }
-    } catch (err) {
-      logger.debug(`[战绩查询] 获取昵称失败: ${err.message}`)
-    }
-    // 兜底不用 openid（一长串十六进制展示出来很难看），非 QQ 号就显示「召唤师」
-    if (!nickname) nickname = isQQNumber(userId) ? String(userId) : '召唤师'
+
+    // 昵称兜底不用 openid（一长串十六进制展示出来很难看），非 QQ 号就显示「召唤师」
+    const nickname = String(userId) !== String(e.user_id)
+      ? await resolveMemberName(e.group, userId)
+      : (e.sender?.card || e.sender?.nickname || e.nickname || (isQQNumber(userId) ? String(userId) : '召唤师'))
+
     return { qqAvatar, nickname }
   }
 

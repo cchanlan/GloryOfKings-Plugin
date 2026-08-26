@@ -31,6 +31,10 @@ import {
   mergeSubState,
   disableSubFlag,
   isFlagOn,
+  subGroups,
+  withSubGroup,
+  withoutSubGroup,
+  streakMilestone,
   fetchLatest,
   fetchOnlineState,
   getHeroNameMap,
@@ -54,7 +58,7 @@ import {
   sleep
 } from '../utils/pushStore.js'
 import { fetchBattleDetail, renderBattleDetail } from '../utils/battleDetailImage.js'
-import { getCurrentId, getLocalImage, Button, shouldQuote } from '#utils'
+import { getCurrentId, getLocalImage, Button, shouldQuote, pickGroupSafe, resolveMemberName } from '#utils'
 import { Config } from '#components'
 
 /**
@@ -123,18 +127,32 @@ export class GameRecordPush extends plugin {
     const qq = String(e.user_id)
 
     if (!enable) {
-      const { wasOn } = disableSubFlag(qq, 'battle')
-      await e.reply(
-        wasOn
-          ? ['已关闭战绩推送', Button.push(false)]
-          : '你还没有开启战绩推送',
-        shouldQuote()
-      )
+      await this.disableIn(e, qq, 'battle', '战绩推送')
       return
     }
 
     const campId = await this.prepareToggle(e, '战绩推送')
     if (!campId) return
+
+    const list = loadPushList()
+    const existed = list[qq] || {}
+    // 已经订阅过、只是换个群再开一次：只往推送群列表里追加，游标一概不动。
+    // 重新拉一次把游标挪到当前最新，会把这期间打的局吞掉（原来只有单群时无所谓，
+    // 因为那就是「重新订阅」；多群下这是很常见的「再加一个群」）
+    const { groups, group, added } = withSubGroup(existed, e.group_id)
+    const wasOn = isFlagOn(existed, 'battle') && subGroups(existed).length > 0
+
+    if (wasOn) {
+      list[qq] = { ...existed, battle: true, groups, group, campId: String(campId) }
+      savePushList(list)
+      await e.reply([
+        added
+          ? `✅ 本群已加入战绩推送，现在会推到 ${groups.length} 个群`
+          : '战绩推送本来就在本群开着，无需重复开启',
+        Button.push(true)
+      ], shouldQuote())
+      return
+    }
 
     // 立刻拉一次把游标初始化到当前最新一场。
     // 不做这一步，第一轮轮询会把最近打的那局当成新战绩推出来。
@@ -151,16 +169,18 @@ export class GameRecordPush extends plugin {
     }
 
     const latest = (data.list || [])[0] || {}
-    const list = loadPushList()
     list[qq] = {
-      ...(list[qq] || {}),
+      ...existed,
       battle: true,
-      group: String(e.group_id),
+      groups,
+      group,
       campId: String(campId),
       lastGameSeq: String(latest.gameSeq || ''),
       lastGameTime: String(latest.dtEventTime || ''),
       // 订阅时正在打的那局不提醒，否则一开启就收到一条「开打了」
       lastGamingStart: String(data.gaming?.dtEventTime || ''),
+      // 连胜里程碑也从零开始，别拿上次订阅期间攒下的键把第一个里程碑吞掉
+      lastStreakKey: '',
       // 清掉可能残留的退避档位：这里是就地合并，上次关订阅前攒下的 skipTicks
       // 会被继承，刚开启就要干等十分钟才第一次检查
       skipTicks: 0,
@@ -175,10 +195,53 @@ export class GameRecordPush extends plugin {
         `✅ 已开启战绩推送（营地ID ${campId}）`,
         '打完一局会在本群播报战绩（带你的名字，不 @ 你），开局也会提醒一次',
         cron ? `检查间隔：最快 ${cron}，你离线时会自动拉长以免触发营地频控` : '',
+        '想在别的群也收，去那个群再发一次这条指令',
         '想连上下线一起提醒发送 #开启上下线提醒'
       ].filter(Boolean).join('\n'),
       Button.push(true)
     ], shouldQuote())
+  }
+
+  /**
+   * 关掉一路推送。
+   *
+   * 多群订阅下「在哪个群关」是有意义的：只摘掉当前这个群，别的群照推。
+   * 摘完一个群都不剩、或本来就不是在推送群里发的（私聊 / 别的群），才把开关整个关掉。
+   *
+   * @param {'battle'|'online'} key 开关名
+   * @param {string} label 展示名，用于文案
+   */
+  async disableIn (e, qq, key, label) {
+    const list = loadPushList()
+    const sub = list[qq]
+
+    if (!sub || !isFlagOn(sub, key)) {
+      await e.reply(`你还没有开启${label}`, shouldQuote())
+      return
+    }
+
+    const groups = subGroups(sub)
+    const here = String(e.group_id || '')
+
+    // 多群里关掉当前这一个：其它群的推送保持不动
+    if (e.isGroup && groups.length > 1 && groups.includes(here)) {
+      const { groups: rest, group } = withoutSubGroup(sub, here)
+      list[qq] = { ...sub, groups: rest, group }
+      savePushList(list)
+      await e.reply(
+        `已停止在本群推送${label}，其余 ${rest.length} 个群不变（想全关就在那些群里也发一次）`,
+        shouldQuote()
+      )
+      return
+    }
+
+    disableSubFlag(qq, key)
+    await e.reply(
+      key === 'battle'
+        ? [`已关闭${label}`, Button.push(false)]
+        : `已关闭${label}`,
+      shouldQuote()
+    )
   }
 
   /** #开启上下线提醒 / #关闭上下线提醒 */
@@ -187,13 +250,29 @@ export class GameRecordPush extends plugin {
     const qq = String(e.user_id)
 
     if (!enable) {
-      const { wasOn } = disableSubFlag(qq, 'online')
-      await e.reply(wasOn ? '已关闭上下线提醒' : '你还没有开启上下线提醒', shouldQuote())
+      await this.disableIn(e, qq, 'online', '上下线提醒')
       return
     }
 
     const campId = await this.prepareToggle(e, '上下线提醒')
     if (!campId) return
+
+    const list = loadPushList()
+    const existed = list[qq] || {}
+    const { groups, group, added } = withSubGroup(existed, e.group_id)
+
+    // 已经开着、只是再加个群：不重新拉基准（那会把状态机的 lastOnlineState 抹掉重来）
+    if (isFlagOn(existed, 'online') && subGroups(existed).length > 0) {
+      list[qq] = { ...existed, online: true, groups, group, campId: String(campId) }
+      savePushList(list)
+      await e.reply(
+        added
+          ? `✅ 本群已加入上下线提醒，现在会推到 ${groups.length} 个群`
+          : '上下线提醒本来就在本群开着，无需重复开启',
+        shouldQuote()
+      )
+      return
+    }
 
     // 立刻拉一次当前状态做基准。没有基准的话第一轮会把「当前在线」当成刚上线推一条
     const state = await fetchOnlineState(campId, qq)
@@ -209,14 +288,13 @@ export class GameRecordPush extends plugin {
     }
 
     const nowSec = Math.floor(Date.now() / 1000)
-    const list = loadPushList()
-    const existed = list[qq] || {}
     list[qq] = {
       ...existed,
       online: true,
       // 只开上下线提醒时也要有 group/campId，且不能顺手把战绩推送打开
       battle: existed.battle === true,
-      group: String(e.group_id),
+      groups,
+      group,
       campId: String(campId),
       lastOnlineState: String(state.gameOnline),
       // 主页接口是玩家名的来源之一，缓存给不 @ 的那几条文案用
@@ -261,6 +339,7 @@ export class GameRecordPush extends plugin {
 
     const battleOn = sub.battle !== false
     const onlineOn = sub.online === true
+    const groups = subGroups(sub)
     // 自适应节流的现状。不显示的话用户没法判断「怎么半天没动静」是退避还是坏了
     const cap = Math.max(1, Number(cfg.idleBackoffMax) || DEFAULT_IDLE_BACKOFF_MAX)
     const skip = Number(sub.skipTicks) || 0
@@ -271,7 +350,7 @@ export class GameRecordPush extends plugin {
         `战绩推送：${battleOn ? '已开启' : '未开启'}`,
         `上下线提醒：${onlineOn ? '已开启' : '未开启'}`,
         `营地ID：${sub.campId || '—'}`,
-        `推送群：${sub.group || '—'}`,
+        `推送群：${groups.length ? groups.join('、') : '—'}${groups.length > 1 ? `（共 ${groups.length} 个）` : ''}`,
         `检查间隔：最快 ${cfg.battleResultCron || '—'}`,
         `离线退避：${cap === 1 ? '已关闭（恒定按上面的间隔）' : `离线时最长拉到 ${cap} 倍间隔`}${skip > 0 ? `｜当前退避中，还要跳过 ${skip} 轮` : ''}`,
         cfg.onlineReminder === false ? '⚠️ 插件推送总开关已关闭，暂时不会推送' : '',
@@ -346,7 +425,7 @@ export class GameRecordPush extends plugin {
    * @param {Record<string,string>} heroMap heroId -> 英雄名
    */
   async checkOne (qq, sub, heroMap) {
-    if (!sub?.group) return
+    if (!subGroups(sub).length) return
 
     // 营地ID 动态取，不锁死在订阅时那个：用户 #切换营地 后应该跟着换。
     const campId = getCurrentId(qq)
@@ -384,13 +463,20 @@ export class GameRecordPush extends plugin {
       await this.checkOnline(qq, sub, data, state)
     }
 
-    // 收尾：按这一轮的活跃度定接下来跳过几轮
+    // 收尾：按这一轮的活跃度定接下来跳过几轮，顺带留一份本轮观测快照
     const nowMs = Date.now()
-    mergeSubState(qq, resolveNextCheck(sub, {
-      active: isSubActive(state, data, Math.floor(nowMs / 1000)),
-      nowMs,
-      maxMultiplier: readConfig().idleBackoffMax
-    }))
+    mergeSubState(qq, {
+      ...resolveNextCheck(sub, {
+        active: isSubActive(state, data, Math.floor(nowMs / 1000)),
+        nowMs,
+        maxMultiplier: readConfig().idleBackoffMax
+      }),
+      // 给 #谁在打游戏 用：那条指令一次营地请求都不发，只读这三个字段。
+      // lastSeenAt 是本轮的观测时刻（判数据够不够新），lastGaming 是「此刻在不在对局中」。
+      // 在对局的判据两路都收：battle 路的 data.isGaming、online 路的 gameOnline===2。
+      // 后者单独存在的场景是只开了上下线提醒（那轮不一定拉战绩列表）
+      ...observeSnapshot(state, data, nowMs)
+    })
   }
 
   /**
@@ -455,6 +541,13 @@ export class GameRecordPush extends plugin {
       blocks.push(`${fresh.length ? '—— 又开了一局 ——\n' : ''}${formatGamingText(data.gaming, heroMap, fresh.length ? '' : name)}`)
     }
 
+    // 连胜/连败里程碑。只有真出了新战绩才算——纯开局那轮的连胜数和上一轮完全一样，
+    // 在那里播一次就是同一件事说两遍。算出的 key 无论播不播都要写回订阅项（见下面的 patch）
+    const milestone = fresh.length
+      ? streakMilestone(calcStreak(data.list), sub.lastStreakKey, name)
+      : null
+    if (milestone?.text) blocks.push(milestone.text)
+
     // 有详情图时就不再附英雄头像了，两张图挤在一条消息里没必要。
     // 开局提醒（纯开局那轮没有 fresh，newest 为 undefined）也因此不带头像——
     // 群友反馈开局连头像图太多，只发文字；详情图没出来的战绩推送仍回退到头像。
@@ -462,7 +555,7 @@ export class GameRecordPush extends plugin {
       ? ''
       : (newest?.heroIcon || '')
 
-    const sent = await this.send(qq, sub.group, blocks.join('\n'), { iconUrl, image: detailImage })
+    const sent = await this.send(qq, sub, blocks.join('\n'), { iconUrl, image: detailImage })
     if (!sent) return
 
     // 发送失败时一个游标都不动，下一轮整条消息重试
@@ -472,6 +565,8 @@ export class GameRecordPush extends plugin {
       patch.lastGameSeq = String(newest.gameSeq || '')
       patch.lastGameTime = String(newest.dtEventTime || '')
     }
+    // 里程碑去重键：连胜断了会写空串，下次到同一档还能再播
+    if (milestone) patch.lastStreakKey = milestone.key
     mergeSubState(qq, patch)
   }
 
@@ -527,7 +622,7 @@ export class GameRecordPush extends plugin {
       })
     }
 
-    const sent = await this.send(qq, sub.group, text)
+    const sent = await this.send(qq, sub, text)
     if (!sent) return
 
     mergeSubState(qq, {
@@ -609,44 +704,61 @@ export class GameRecordPush extends plugin {
   }
 
   /**
-   * 往群里发一条推送。
+   * 往订阅的每个群发一条推送。
    *
    * 一条都不 @ 本人：打完、开局、上下线全是群里看的播报，而订阅者自己刚打完那局最清楚，
    * @ 只是给他多刷一条红点。要认人靠文案里的玩家名，每条都带。
    *
+   * 多群时**只要有一个群发成功就算成功**：游标由调用方按返回值推进，
+   * 一个群发失败（被踢、群解散）不该让整条消息在其它群反复重推。
+   * 图片只下载一次，多个群复用同一个消息段。
+   *
    * @param {string} qq 订阅者，只用于日志
-   * @param {string} groupId 群号
+   * @param {string|string[]|object} target 群号、群号数组，或订阅项本身
    * @param {string} text 文案
    * @param {object} [opts]
    * @param {string} [opts.iconUrl] 英雄头像 URL，没有详情图时才用
    * @param {object} [opts.image] 已渲染好的图片消息段（战绩详情图）
-   * @returns {Promise<boolean>} 是否发送成功。失败时不推进游标，下一轮会重试
+   * @returns {Promise<boolean>} 是否至少发成功一个群。全失败时不推进游标，下一轮会重试
    */
-  async send (qq, groupId, text, { iconUrl = '', image = null } = {}) {
-    try {
-      const group = Bot.pickGroup(Number(groupId))
-      if (!group?.sendMsg) {
-        logger.warn(`[王者推送] 取不到群 ${groupId}，跳过 ${qq}`)
-        return false
-      }
+  async send (qq, target, text, { iconUrl = '', image = null } = {}) {
+    const groups = Array.isArray(target)
+      ? target.map(String)
+      : (typeof target === 'object' && target !== null ? subGroups(target) : subGroups({ group: target }))
 
-      const message = [text]
-
-      if (image) {
-        message.push(image)
-      } else if (iconUrl) {
-        // getLocalImage 带 md5 缓存与占位图识别，同一个英雄头像只会真正下载一次
-        const icon = await getLocalImage(iconUrl)
-        if (icon) message.push(segment.image(icon))
-      }
-
-      await group.sendMsg(message)
-      logger.mark(`[王者推送] 已推送给 ${qq}@群${groupId}${image ? '（含详情图）' : ''}`)
-      return true
-    } catch (error) {
-      logger.error(`[王者推送] 发送失败 ${qq}@群${groupId}: ${error.message}`)
+    if (!groups.length) {
+      logger.debug(`[王者推送] ${qq} 没有推送群，跳过`)
       return false
     }
+
+    const message = [text]
+
+    if (image) {
+      message.push(image)
+    } else if (iconUrl) {
+      // getLocalImage 带 md5 缓存与占位图识别，同一个英雄头像只会真正下载一次
+      const icon = await getLocalImage(iconUrl)
+      if (icon) message.push(segment.image(icon))
+    }
+
+    let ok = 0
+    for (const groupId of groups) {
+      try {
+        const group = pickGroupSafe(groupId)
+        if (!group?.sendMsg) {
+          logger.warn(`[王者推送] 取不到群 ${groupId}，跳过 ${qq}`)
+          continue
+        }
+
+        await group.sendMsg(message)
+        ok += 1
+        logger.mark(`[王者推送] 已推送给 ${qq}@群${groupId}${image ? '（含详情图）' : ''}`)
+      } catch (error) {
+        logger.error(`[王者推送] 发送失败 ${qq}@群${groupId}: ${error.message}`)
+      }
+    }
+
+    return ok > 0
   }
 
   /**
@@ -659,16 +771,10 @@ export class GameRecordPush extends plugin {
   async resolveDisplayName (qq, sub) {
     if (sub?.roleName) return String(sub.roleName)
 
-    try {
-      const member = Bot.pickGroup(Number(sub.group))?.pickMember?.(Number(qq))
-      const info = await member?.getInfo?.()
-      const name = info?.card || info?.nickname
-      if (name) return String(name)
-    } catch {
-      // 群成员信息拿不到就算了，不值得为一句文案报错
-    }
-
-    return String(qq)
+    // pickGroupSafe / resolveMemberName 负责跨适配器的 ID 形态：
+    // 官bot 的群号是 openid、user_id 是 appid:openid，Number() 一律 NaN
+    // 多群订阅取第一个群问名字就够——群名片可能各群不同，但这只是拿不到营地昵称时的兜底
+    return resolveMemberName(pickGroupSafe(subGroups(sub)[0]), qq)
   }
 }
 
@@ -679,4 +785,31 @@ function readConfig () {
   } catch {
     return {}
   }
+}
+
+/**
+ * 本轮观测快照，写进订阅项供 #谁在打游戏 直接读，不额外发请求。
+ *
+ * 两个数据源都可能缺：只开战绩推送时没有 state，退避轮或 needBattleList 判否时没有 data。
+ * 缺的字段就不写（保留上一轮的值），只有真观测到才更新 lastSeenAt —— 否则「数据新鲜度」
+ * 会被一个什么都没拿到的轮次刷新成当前时间，指令那头就看不出数据其实是旧的了。
+ *
+ * @param {object|null} state fetchOnlineState 的返回
+ * @param {object|null} data fetchLatest 的返回
+ * @param {number} nowMs 观测时刻
+ */
+function observeSnapshot (state, data, nowMs) {
+  if (!state && !data) return {}
+
+  const patch = { lastSeenAt: String(nowMs) }
+
+  if (state) patch.lastOnlineState = String(state.gameOnline)
+
+  // 在对局中：战绩列表的 isGaming 最直接；只有 profile 时用 gameOnline===2
+  // （三态语义见 pushStore.fetchOnlineState，2 是「游戏中」，不等于一定在对局里）
+  const gaming = data ? Boolean(data.isGaming) : Number(state?.gameOnline) === 2
+  patch.lastGaming = gaming ? '1' : ''
+  patch.lastGamingHero = gaming ? String(data?.gaming?.heroId || '') : ''
+
+  return patch
 }

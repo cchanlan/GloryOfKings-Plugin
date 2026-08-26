@@ -23,6 +23,27 @@ export const MIN_REQUEST_GAP_MS = 1200
 const RATE_LIMIT_BASE_COOLDOWN_MS = 60 * 1000
 const RATE_LIMIT_MAX_COOLDOWN_MS = 10 * 60 * 1000
 
+/**
+ * 单次营地请求的超时。**只计「发车之后」**，不含排队等待——
+ * 这两件事早先是混在一起算的：计时器建在 `#gatedFetch` 之前，而 `#gatedFetch`
+ * 第一件事是排 MIN_REQUEST_GAP_MS 的全局队列，于是并发请求里排在后面的那些
+ * 一律被自己的排队时间耗光额度。#排位表现 一次并发 7 个请求（6 路 getFightData
+ * + seasonpage 串行两跳），队列放行时刻是 0/1.2/2.4/…/7.2 秒，最后几个必然
+ * 在还没发出去时就 abort，重试又排到队尾、再超时。计时改到领到名额之后才起。
+ */
+const REQUEST_TIMEOUT_MS = 10000
+
+/** 外站公开 JSON（官网资料库 / sapi.run）的超时。这些接口不进队列，但也不能不设表 */
+const EXTERNAL_TIMEOUT_MS = 12000
+
+/** 把 AbortError 翻译成人话，否则用户只看到 “The operation was aborted” */
+function describeAbort (error, timeoutMs) {
+  if (error?.name === 'AbortError' || error?.type === 'aborted') {
+    return new Error(`请求超时（${Math.round(timeoutMs / 1000)} 秒无响应）`)
+  }
+  return error
+}
+
 class AuthConfigError extends Error {
   constructor(message) {
     super(message)
@@ -130,11 +151,27 @@ class ApiService {
    *
    * 冷却检查放在拿到名额之后：排队期间冷却可能已被前面的请求触发，
    * 这时立刻快速失败，不再打到营地接口加重频控。
+   *
+   * 超时表也建在名额之后（见 REQUEST_TIMEOUT_MS 的注释）。返回的 `release`
+   * 必须由调用方在**读完 response body 之后**调用：body 是流式的，
+   * 提前 clearTimeout 会让「连上了但一直不给完整响应」这种情况失去保护。
+   *
+   * @returns {Promise<{response: Response, release: () => void}>}
    */
-  async #gatedFetch(url, options) {
+  async #gatedFetch(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
     await this.#acquireSlot()
     this.#assertNotRateLimited()
-    return fetch(url, options)
+
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal })
+      return { response, release: () => clearTimeout(timer) }
+    } catch (error) {
+      clearTimeout(timer)
+      throw describeAbort(error, timeoutMs)
+    }
   }
 
   #maskUserId(value, keepStart = 3, keepEnd = 3) {
@@ -753,15 +790,16 @@ class ApiService {
   }
 
   async #requestWithAuth(method, url, body, additionalHeaders, retries, auth, context = {}) {
-    const headers = {
-      ...this.#getAuthHeaders(auth, url),
-      ...additionalHeaders
-    }
     const requestBody = body ? JSON.stringify(body) : null
 
     for (let attempt = 0; attempt <= retries; attempt++) {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 10000)
+      // 每次尝试都重新签一次名：#getAuthHeaders 生成的 crand 是 Date.now()、
+      // encodeParam 的 payload 里也带 timestamp + nonce，退避 1~2 秒后拿旧签名重发
+      // 等于「注定失败的重试」。签名必须跟着这一次尝试现算。
+      const headers = {
+        ...this.#getAuthHeaders(auth, url),
+        ...additionalHeaders
+      }
 
       try {
         logger.debug('[王者接口] 请求参数调试', this.#buildRequestDebugInfo(
@@ -775,15 +813,18 @@ class ApiService {
           }
         ))
 
-        const response = await this.#gatedFetch(url, {
+        const { response, release } = await this.#gatedFetch(url, {
           method,
           headers,
-          body: requestBody,
-          signal: controller.signal
+          body: requestBody
         })
 
-        clearTimeout(timer)
-        const data = await this.#parseResponse(response, auth, context)
+        let data
+        try {
+          data = await this.#parseResponse(response, auth, context)
+        } finally {
+          release()
+        }
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${data.message || data.returnMsg || response.statusText}`)
@@ -791,8 +832,6 @@ class ApiService {
 
         return data
       } catch (error) {
-        clearTimeout(timer)
-
         // 频控和鉴权配置错误都不该重试：前者重试只会加重频控、把冷却翻倍，
         // 后者换多少次也还是缺字段
         if (attempt === retries || error instanceof AuthConfigError || error instanceof RateLimitError) {
@@ -1106,11 +1145,9 @@ class ApiService {
     }
   }
   async #fetchGameForm(url, auth, body, retries, context = {}) {
-    const headers = this.#getGameFormHeaders(auth)
-
     for (let attempt = 0; attempt <= retries; attempt++) {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 10000)
+      // 同 #requestWithAuth：表单头里的 x-log-uid 等字段也按次现算，别跨重试复用
+      const headers = this.#getGameFormHeaders(auth)
 
       try {
         logger.debug('[王者接口] 游戏侧表单请求调试', this.#buildRequestDebugInfo(
@@ -1121,15 +1158,18 @@ class ApiService {
           { ...context, attemptIndex: attempt }
         ))
 
-        const response = await this.#gatedFetch(url, {
+        const { response, release } = await this.#gatedFetch(url, {
           method: 'POST',
           headers,
-          body,
-          signal: controller.signal
+          body
         })
 
-        clearTimeout(timer)
-        const text = await response.text()
+        let text
+        try {
+          text = await response.text()
+        } finally {
+          release()
+        }
 
         logger.debug('[王者接口] 游戏侧表单原始响应', {
           endpoint: context.endpoint || '',
@@ -1151,8 +1191,6 @@ class ApiService {
 
         return data
       } catch (error) {
-        clearTimeout(timer)
-
         // 同 #requestWithAuth：频控重试只会加重频控，鉴权配置错误重试也没用
         if (attempt === retries || error instanceof AuthConfigError || error instanceof RateLimitError) {
           throw error
@@ -1306,7 +1344,9 @@ class ApiService {
           hero: heroName,
           type: hero
         })
-        const res = await fetch(`https://www.sapi.run/hero/select.php?${query.toString()}`)
+        const res = await fetch(`https://www.sapi.run/hero/select.php?${query.toString()}`, {
+          signal: AbortSignal.timeout(EXTERNAL_TIMEOUT_MS)
+        })
 
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}: ${res.statusText}`)
@@ -1338,14 +1378,10 @@ class ApiService {
 
   async getHeroList() {
     try {
-      const response = await fetch('https://pvp.qq.com/web201605/js/herolist.json')
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      return await response.json()
+      return await this.#fetchExternalJson('https://pvp.qq.com/web201605/js/herolist.json')
     } catch (error) {
       logger.error('[获取英雄列表] 接口请求失败', error)
-      throw new Error(`获取英雄列表失败。错误: ${error}`)
+      throw new Error(`获取英雄列表失败。错误: ${error.message || error}`)
     }
   }
 
@@ -1354,28 +1390,40 @@ class ApiService {
   // 体积不小，调用方需自行缓存，勿逐张皮肤调用。
   async getPvpSkinList() {
     try {
-      const response = await fetch('https://pvp.qq.com/zlkdatasys/heroskinlist.json')
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      return await response.json()
+      return await this.#fetchExternalJson('https://pvp.qq.com/zlkdatasys/heroskinlist.json')
     } catch (error) {
       logger.error('[获取官网皮肤总表] 接口请求失败', error)
-      throw new Error(`获取官网皮肤总表失败。错误: ${error}`)
+      throw new Error(`获取官网皮肤总表失败。错误: ${error.message || error}`)
     }
   }
 
   async getHeroXpflby() {
     try {
-      const response = await fetch('https://pvp.qq.com/zlkdatasys/data_zlk_xpflby.json')
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      return await response.json()
+      return await this.#fetchExternalJson('https://pvp.qq.com/zlkdatasys/data_zlk_xpflby.json')
     } catch (error) {
       logger.error('[获取爆料站-皮肤数据] 接口请求失败', error)
-      throw new Error(`获取爆料站-皮肤数据失败。错误: ${error}`)
+      throw new Error(`获取爆料站-皮肤数据失败。错误: ${error.message || error}`)
     }
+  }
+
+  /**
+   * 拉一个外站公开 JSON。这些地址不需要鉴权、也不该占营地的请求名额，
+   * 但同样必须设超时：herolist.json 在 #查战绩 的必经路径上，
+   * 对端一挂，指令就永久没有回复（Yunzai 那头也不会替你兜）。
+   */
+  async #fetchExternalJson(url, timeoutMs = EXTERNAL_TIMEOUT_MS) {
+    let response
+    try {
+      response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) })
+    } catch (error) {
+      throw describeAbort(error, timeoutMs)
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    return response.json()
   }
 }
 

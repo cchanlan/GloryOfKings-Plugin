@@ -196,6 +196,104 @@ export function disableSubFlag (qq, key) {
   return { wasOn: true, removed }
 }
 
+/* --------------------------------------------------------------- 推送群 */
+
+/**
+ * 这条订阅要推到哪些群。
+ *
+ * 历史上 `group` 是**单值**字符串（一个用户只能推一个群，换群开启就把旧群顶掉），
+ * 后来加了 `groups` 数组支持多群。两个字段同时读并去重，是为了兼容老订阅：
+ * 老记录只有 `group`，新记录两者都写（`group` 保留第一个群，给只认单值的旧代码兜底）。
+ *
+ * @param {object} sub 订阅项
+ * @returns {string[]} 群号数组，已去重去空
+ */
+export function subGroups (sub) {
+  const out = []
+  const push = value => {
+    const id = String(value ?? '').trim()
+    if (id && !out.includes(id)) out.push(id)
+  }
+
+  push(sub?.group)
+  if (Array.isArray(sub?.groups)) sub.groups.forEach(push)
+
+  return out
+}
+
+/**
+ * 把群号并进订阅的推送群列表，返回要写回的字段。
+ * `group` 恒等于列表第一项：只认单值 `group` 的旧代码路径至少还能推到一个群。
+ * @returns {{groups:string[], group:string, added:boolean}}
+ */
+export function withSubGroup (sub, groupId) {
+  const id = String(groupId ?? '').trim()
+  const groups = subGroups(sub)
+  const added = Boolean(id) && !groups.includes(id)
+  if (added) groups.push(id)
+
+  return { groups, group: groups[0] || '', added }
+}
+
+/**
+ * 从订阅的推送群列表里摘掉一个群。
+ * @returns {{groups:string[], group:string, removed:boolean, empty:boolean}}
+ *   empty 为真表示一个群都不剩了，调用方应该顺手把开关整个关掉
+ */
+export function withoutSubGroup (sub, groupId) {
+  const id = String(groupId ?? '').trim()
+  const groups = subGroups(sub)
+  const rest = id ? groups.filter(item => item !== id) : groups
+
+  return {
+    groups: rest,
+    group: rest[0] || '',
+    removed: rest.length !== groups.length,
+    empty: rest.length === 0
+  }
+}
+
+/* ------------------------------------------------------- 连胜/连败里程碑 */
+
+/**
+ * 触发额外播报的连胜/连败档位，从小到大。
+ * 只在**跨过**档位那一局播一次，不是每局都喊——2 连胜起就有一行 `🔥 当前 N 连胜`
+ * 写在战绩文案里（见 buildBattleMessage），里程碑是在此之上单独拎出来的一条。
+ */
+export const STREAK_MILESTONES = [3, 5, 7, 10, 15, 20]
+
+/**
+ * 算这一局有没有跨过连胜/连败里程碑。
+ *
+ * 去重键是「类型 + 档位」而不是具体连胜数：4 连胜和 3 连胜同属 3 档，只在到 3 时播一次，
+ * 到 5 才再播。连胜断了（type 变或 count 归零）时返回空 key，下次同档还能再播。
+ *
+ * @param {{type:'win'|'lose'|'', count:number}} streak calcStreak 的结果
+ * @param {string} [notifiedKey] 订阅项里存的上次播报键（lastStreakKey）
+ * @param {string} [name] 玩家名，写进文案
+ * @returns {{text:string, key:string}} text 为空表示这局不用额外播报；key 一律写回订阅项
+ */
+export function streakMilestone (streak, notifiedKey = '', name = '') {
+  const type = streak?.type
+  const count = toInt(streak?.count)
+
+  if ((type !== 'win' && type !== 'lose') || count < STREAK_MILESTONES[0]) {
+    return { text: '', key: '' }
+  }
+
+  // 找出不超过当前连胜数的最大档位
+  const hit = [...STREAK_MILESTONES].reverse().find(step => count >= step)
+  const key = `${type}:${hit}`
+  if (key === String(notifiedKey || '')) return { text: '', key }
+
+  const who = name ? normalizeName(name) : '这位召唤师'
+  const text = type === 'win'
+    ? `🎉🔥 ${count} 连胜达成！${who} 正在发光，谁来拦一下`
+    : `😮‍💨🧊 ${count} 连败了，${who} 先去喝口水吧，下一把稳住`
+
+  return { text, key }
+}
+
 /* ------------------------------------------------------------------ 拉取 */
 
 /**
