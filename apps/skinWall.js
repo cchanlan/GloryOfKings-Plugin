@@ -1,73 +1,17 @@
 // 皮肤墙功能：营地皮肤列表接口调用逻辑参考自 https://github.com/KimigaiiWuyi/WzryUID
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import common from '../../../lib/common/common.js'
-import { ApiService, readYamlFile, getLocalImage, getUserAvatar, getPvpSkinCover, Button, AT_HEAD, stripAtText, resolveTargetUserId, shouldQuote } from '#utils'
+import { ApiService, readYamlFile, getLocalImage, getUserAvatar, getPvpSkinCover, Button, AT_HEAD, stripAtText, resolveTargetUserId, shouldQuote, resolveMemberName, isQQNumber, SZ_ORDER, tierRank, pickTierText, QUALITY_STATS, countQuality } from '#utils'
 import path from 'path'
 import { PluginData } from '#components'
 
-const SZ_ORDER = ['SR', 'S++', 'S+', 'S', 'A', 'B', 'C', 'D']
 const PAGE_SIZE = 50
 // 皮肤墙截图 JPEG 质量：满页 50 张大图在 q90 下可达 8MB+，部分适配器发送失败。
 // 保持每页 50 张，仅靠降质压体积——q75 视觉几乎无损但体积约为 q90 的 1/3，满页可压到 ~3MB。
 const SCREENSHOT_QUALITY = 75
 
-// 高价值品质优先级(下标越小价值越高)，对齐营地“皮肤价值”口径。
-// 这些顶级品质(如荣耀典藏)的综合估值 skin_worth 常为 0，无法靠 worth 排序；
-// 且营地评级里 SR 会盖过 S++ 的荣耀典藏，故用显式品质优先级把它们稳定置顶。
-// 依据接口返回的 conf.classTypeName(品质名数组)精确匹配。
-const TIER_PRIORITY = ['荣耀典藏', '珍品无双', '无双至尊', '珍品传说', '传说限定']
-
-// 取皮肤命中的最高价值品质档位下标；未命中任何高价值品质返回末尾档，走原有评级/估值兜底。
-function tierRank(classTypeName) {
-  const names = Array.isArray(classTypeName) ? classTypeName : []
-  let best = TIER_PRIORITY.length
-  for (const name of names) {
-    const idx = TIER_PRIORITY.indexOf(String(name))
-    if (idx !== -1 && idx < best) best = idx
-  }
-  return best
-}
-
-// 品质名展示优先级：接口的 classTypeName 是数组，常混着主题名(如“墨染江湖”)与品质名(如“无双”)，
-// 顺序不固定。这里按“价值品质”优先挑一个用于文字角标兜底——角标图缺失(接口新皮肤图 404 或为空)
-// 时，用品质名渲染一个文字标，避免高价值皮肤看起来“没标”。列表外的名字作为最次兜底取数组首项。
-const QUALITY_LABELS = [
-  '荣耀典藏', '珍品无双', '无双至尊', '珍品传说', '传说限定',
-  '无双', '珍品限定', '传说品质', '史诗品质', '勇者品质', '限定'
-]
-
-function pickTierText(classTypeName) {
-  const names = (Array.isArray(classTypeName) ? classTypeName : [])
-    .map(n => String(n).trim())
-    .filter(Boolean)
-  if (!names.length) return ''
-  for (const label of QUALITY_LABELS) {
-    if (names.includes(label)) return label
-  }
-  return names[0]
-}
-
-// 顶部三个品质计数格。统计的是接口给的品质名(classTypeName)，不是营地评级(szClass)——
-// 两者口径不同，营地评级里 SR 会盖过 S++ 的荣耀典藏，用评级当品质名会贴错标签。
-// aliases 收拢同一品质的不同写法：营地对“无双”系列的返回并不统一，
-// 只认单一名字会让计数偏低。命中任一别名即计入该格。
-const QUALITY_STATS = [
-  { key: 'gloryNum', label: '荣耀典藏', aliases: ['荣耀典藏'] },
-  { key: 'wushuangNum', label: '无双', aliases: ['珍品无双', '无双至尊', '无双'] },
-  { key: 'legendNum', label: '传说', aliases: ['珍品传说', '传说限定', '传说品质'] }
-]
-
-// 一张皮肤只计入最先命中的那一格，避免 classTypeName 同时含“无双”和“传说”时被重复统计。
-function countQuality(classTypeName, counters) {
-  const names = (Array.isArray(classTypeName) ? classTypeName : []).map(n => String(n).trim())
-  if (!names.length) return
-  for (const stat of QUALITY_STATS) {
-    if (stat.aliases.some(alias => names.includes(alias))) {
-      counters[stat.key]++
-      return
-    }
-  }
-}
+// SZ_ORDER / TIER_PRIORITY / tierRank / pickTierText / QUALITY_STATS / countQuality 都搬到了
+// utils/skinCatalog.js —— #缺皮肤 要用同一套品质口径，两边各存一份迟早会走偏。
 // #皮肤墙 未指定数量时的默认渲染数
 const DEFAULT_TOP_COUNT = 50
 // 皮肤墙网格列数，需与 SkinWall.html 的 grid-template-columns 保持一致
@@ -175,17 +119,12 @@ export class SkinWall extends plugin {
     // 查的不是自己（艾特了别人）
     const isAt = String(userId) !== String(e.user_id)
 
-    // 昵称：查自己用触发者信息；@别人时从群成员信息取被@人的昵称
-    let nickname = e.sender?.card || e.sender?.nickname || String(userId)
+    // 昵称：查自己用触发者信息；@别人时从群成员信息取被@人的昵称。
+    // 走 resolveMemberName 而不是自己 pickMember(Number(userId))：官bot 的 user_id
+    // 是 appid:openid，Number() 是 NaN；兜底也不能回落成原始 ID（画到图上是一长串十六进制）
+    let nickname = e.sender?.card || e.sender?.nickname || (isQQNumber(userId) ? String(userId) : '召唤师')
     if (isAt) {
-      nickname = String(userId)
-      try {
-        const member = e.group?.pickMember?.(Number(userId))
-        const info = member?.getInfo ? await member.getInfo() : member?.info
-        nickname = info?.card || info?.nickname || String(userId)
-      } catch (err) {
-        logger.debug(`[皮肤墙] 获取被@成员昵称失败: ${err.message}`)
-      }
+      nickname = await resolveMemberName(e.group, userId)
     }
 
     const userFilePath = path.join(PluginData, 'UserData.yaml')

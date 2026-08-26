@@ -5,7 +5,8 @@
 // 真正的近 30 天战力峰值在 /gametoolbox/hero/record/pagedetails 的 powerData 里，但要逐英雄请求，成本高没用。
 // 荣耀称号也不在这个接口里（同样要逐英雄拉 pagedetails），所以这里改用熟练度等级做副标。
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { ApiService, readYamlFile, getLocalImage, cache, Button, AT_HEAD, stripAtText, resolveTargetUserId, shouldQuote } from '#utils'
+import { ApiService, readYamlFile, getLocalImage, Button, AT_HEAD, stripAtText, resolveTargetUserId, shouldQuote } from '#utils'
+import { fetchHeroMedals, primaryMedal } from '../utils/heroMedals.js'
 import path from 'path'
 import { PluginData, PluginPath } from '#components'
 
@@ -14,9 +15,6 @@ const HERO_IMG_BASE = 'https://game-1255653016.file.myqcloud.com/battle_skin_125
 // 默认展示数量，指令后可跟数字改
 const SHOW_COUNT = 10
 const MAX_COUNT = 30
-// 荣耀称号要逐英雄请求，串行间隔和缓存时长；营地有频控，别改小
-const MEDAL_GAP_MS = 250
-const MEDAL_TTL = 1800
 
 // 熟练度等级 → 营地里的叫法。实测 8=神话 7=传说 6=巅峰 5=超凡（对着 pagedetails 的 skilledTitle 核过），
 // 4 及以下没实测到，直接显示 Lv.N，不猜。
@@ -132,10 +130,10 @@ export class MyHeroList extends plugin {
   /**
    * 逐英雄拉荣耀称号（「天河区第25虞姬」这种）。
    * 营地把称号放在单英雄战绩详情里，列表接口没有，所以只能一个一个拉；
-   * 串行 + 间隔是为了不触发营地频控，结果按角色+英雄缓存 30 分钟。
+   * 具体的请求、串行间隔与 30 分钟缓存都在 utils/heroMedals.js，#称号墙 共用同一份缓存。
    * 注意这里拿到的是**当前**称号，营地 App「历史赛季」页显示的是历史最高时的称号，
    * 高战英雄可能差一个级别（实测同一英雄：这里「天河区第17孙权」、营地页「中国澳门第58孙权」）。
-   * @returns {Promise<Map<string, string>>} heroId → 称号文本，拿不到的英雄不进 Map
+   * @returns {Promise<Map<string, string>>} heroId → 称号文本，没上榜或拿不到的英雄不进 Map
    */
   async fetchMedals(ID, heroes, userId) {
     const result = new Map()
@@ -153,28 +151,17 @@ export class MyHeroList extends plugin {
 
     if (!roleId) return result
 
-    for (const hero of heroes) {
-      const cacheKey = `gok:medal:${roleId}:${hero.heroId}`
-      const cached = cache.get(cacheKey)
-      if (typeof cached !== 'undefined') {
-        if (cached) result.set(String(hero.heroId), cached)
-        continue
-      }
+    const medals = await fetchHeroMedals(roleId, heroes, {
+      roleName: role.roleName,
+      serverId: role.serverId,
+      campId: ID,
+      botUserId: String(userId)
+    })
 
-      try {
-        const res = await ApiService.getHeroRecordDetails(roleId, hero.heroId, {
-          roleName: role.roleName,
-          serverId: role.serverId
-        }, ID, String(userId))
-        // medalList 可能有多条（区/市榜各一条），营地按返回顺序展示，这里取第一条
-        const medal = res?.data?.medalList?.[0]?.UserMedalInfo || ''
-        cache.set(cacheKey, medal, MEDAL_TTL)
-        if (medal) result.set(String(hero.heroId), medal)
-      } catch (error) {
-        logger.debug(`[我的英雄] ${hero.name} 称号获取失败: ${error.message}`)
-      }
-
-      await new Promise(resolve => setTimeout(resolve, MEDAL_GAP_MS))
+    // medalList 可能有多条（市级榜 / 小范围榜各一条），营地按返回顺序展示，这里取第一条
+    for (const [heroId, list] of medals) {
+      const medal = primaryMedal(list)
+      if (medal) result.set(heroId, medal)
     }
 
     return result

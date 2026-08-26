@@ -110,3 +110,74 @@ export async function getCampHeroSkins (heroName, opts = {}) {
     .filter(item => normalizeHeroName(item.szHeroTitle) === target)
     .sort((a, b) => Number(a.iSkinId) - Number(b.iSkinId))
 }
+
+/* -------------------------------------------------- 品质口径（皮肤墙与缺失反查共用） */
+
+// 营地评级 szClass 的价值序（下标越小越高）。注意它和「品质名」是两套口径，
+// 评级里 SR 会盖过 S++ 的荣耀典藏，所以排序主键得用下面的 tierRank，评级只当次级键。
+export const SZ_ORDER = ['SR', 'S++', 'S+', 'S', 'A', 'B', 'C', 'D']
+
+// 高价值品质优先级(下标越小价值越高)，对齐营地“皮肤价值”口径。
+// 这些顶级品质(如荣耀典藏)的综合估值 skin_worth 常为 0，无法靠 worth 排序，故用显式优先级置顶。
+// 依据接口返回的 conf.classTypeName(品质名数组)精确匹配。
+export const TIER_PRIORITY = ['荣耀典藏', '珍品无双', '无双至尊', '珍品传说', '传说限定']
+
+/** 取皮肤命中的最高价值品质档位下标；未命中返回末尾档，走评级/估值兜底 */
+export function tierRank (classTypeName) {
+  const names = Array.isArray(classTypeName) ? classTypeName : []
+  let best = TIER_PRIORITY.length
+  for (const name of names) {
+    const idx = TIER_PRIORITY.indexOf(String(name))
+    if (idx !== -1 && idx < best) best = idx
+  }
+  return best
+}
+
+// 品质名展示优先级：classTypeName 是数组，常混着主题名(如“墨染江湖”)与品质名(如“无双”)，
+// 顺序不固定。按“价值品质”优先挑一个用于展示，列表外的名字作为最次兜底取数组首项。
+const QUALITY_LABELS = [
+  '荣耀典藏', '珍品无双', '无双至尊', '珍品传说', '传说限定',
+  '无双', '珍品限定', '传说品质', '史诗品质', '勇者品质', '限定'
+]
+
+/** 挑一个用于展示的品质名 */
+export function pickTierText (classTypeName) {
+  const names = (Array.isArray(classTypeName) ? classTypeName : [])
+    .map(n => String(n).trim())
+    .filter(Boolean)
+  if (!names.length) return ''
+  for (const label of QUALITY_LABELS) {
+    if (names.includes(label)) return label
+  }
+  return names[0]
+}
+
+// 品质计数格。统计的是品质名(classTypeName)而不是营地评级(szClass)——两者口径不同。
+// aliases 收拢同一品质的不同写法：营地对“无双”系列的返回并不统一，只认单一名字会让计数偏低。
+export const QUALITY_STATS = [
+  { key: 'gloryNum', label: '荣耀典藏', aliases: ['荣耀典藏'] },
+  { key: 'wushuangNum', label: '无双', aliases: ['珍品无双', '无双至尊', '无双'] },
+  { key: 'legendNum', label: '传说', aliases: ['珍品传说', '传说限定', '传说品质'] }
+]
+
+/** 一张皮肤只计入最先命中的那一格，避免同时含“无双”和“传说”时被重复统计 */
+export function countQuality (classTypeName, counters) {
+  const names = (Array.isArray(classTypeName) ? classTypeName : []).map(n => String(n).trim())
+  if (!names.length) return
+  for (const stat of QUALITY_STATS) {
+    if (stat.aliases.some(alias => names.includes(alias))) {
+      counters[stat.key]++
+      return
+    }
+  }
+}
+
+/**
+ * 判断一条配置是不是「经典皮肤」（每个英雄的默认外观）。
+ * 实测判据是 isHidden === 1：134 条全是原皮，而账号的已拥有列表 heroSkinList 从不返回它们，
+ * 不排掉的话每个英雄都会凭空多出一条「缺失」。排掉后可见皮肤 822 条，
+ * 与营地自己的 skinCountInfo.totalSkinNum(823) 基本吻合。
+ */
+export function isClassicSkin (conf) {
+  return Number(conf?.isHidden) === 1
+}

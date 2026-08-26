@@ -4,7 +4,9 @@ import {
   writeJsonFile,
   getFilePath,
   getLocalImage,
-  cleanImageCache
+  cleanImageCache,
+  scanImageCache,
+  DEFAULT_CACHE_MAX_MB
 } from './fileUtils.js'
 import {
   readYamlFile,
@@ -13,9 +15,13 @@ import {
 import cache from './cache.js'
 import authStore from './authStore.js'
 import { getUserAvatar, getGroupAvatar, qlogoUrl, groupQlogoUrl, isQQNumber } from './avatar.js'
+import { normalizeId, pickGroupSafe, pickMemberSafe, resolveMemberName } from './adapter.js'
 import { AT_HEAD, AT_TAIL, pickAtText, stripAtText, resolveTargetUserId } from './atTarget.js'
 import { getPvpSkinCover, getPvpHeroSkins } from './pvpSkinImage.js'
-import { getCampSkinConf, getCampHeroSkins } from './skinCatalog.js'
+import {
+  getCampSkinConf, getCampHeroSkins, isClassicSkin,
+  SZ_ORDER, TIER_PRIORITY, tierRank, pickTierText, QUALITY_STATS, countQuality
+} from './skinCatalog.js'
 import {
   createWechatLoginSession,
   waitForWechatLogin,
@@ -32,6 +38,8 @@ export {
   getFilePath,
   getLocalImage,
   cleanImageCache,
+  scanImageCache,
+  DEFAULT_CACHE_MAX_MB,
   readYamlFile,
   writeYamlFile,
   cache,
@@ -41,6 +49,10 @@ export {
   qlogoUrl,
   groupQlogoUrl,
   isQQNumber,
+  normalizeId,
+  pickGroupSafe,
+  pickMemberSafe,
+  resolveMemberName,
   AT_HEAD,
   AT_TAIL,
   pickAtText,
@@ -50,6 +62,13 @@ export {
   getPvpHeroSkins,
   getCampSkinConf,
   getCampHeroSkins,
+  isClassicSkin,
+  SZ_ORDER,
+  TIER_PRIORITY,
+  tierRank,
+  pickTierText,
+  QUALITY_STATS,
+  countQuality,
   createWechatLoginSession,
   waitForWechatLogin,
   decodeEncodeResUserKey,

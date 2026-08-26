@@ -19,20 +19,24 @@ export default class Button {
       ],
       [
         { text: '王者主页', callback: '#王者主页' },
-        { text: '查询战绩', callback: '#查询战绩' }
+        { text: '查询战绩', callback: '#查询战绩' },
+        { text: '王者对比', input: '#王者对比 ' }
       ],
       [
         { text: '查英雄战绩', input: '#查战绩' },
-        { text: '常用英雄', callback: '#常用英雄' }
+        { text: '常用英雄', callback: '#常用英雄' },
+        { text: '称号墙', callback: '#称号墙' }
       ],
       [
         { text: '英雄梯度', callback: '#英雄梯度' },
         { text: '查战力', input: '#查战力' },
-        { text: '皮肤墙', callback: '#皮肤墙' }
+        { text: '皮肤墙', callback: '#皮肤墙' },
+        { text: '缺皮肤', callback: '#缺皮肤' }
       ],
       [
         { text: '排位排名', callback: '#排位排名' },
-        { text: '巅峰排名', callback: '#巅峰排名' }
+        { text: '巅峰排名', callback: '#巅峰排名' },
+        { text: '巅峰趋势', callback: '#巅峰趋势' }
       ]
     )
   }
@@ -204,6 +208,44 @@ export default class Button {
     )
   }
 
+  /**
+   * 双人对比
+   * @param {string|number} left 左边的营地ID
+   * @param {string|number} right 右边的营地ID
+   */
+  static compare(left = '', right = '') {
+    const rows = []
+    if (left && right) {
+      rows.push([
+        { text: '看左边主页', callback: `#王者主页${left}` },
+        { text: '看右边主页', callback: `#王者主页${right}` }
+      ])
+    }
+    rows.push([
+      { text: '换个人比', input: '#王者对比 ' },
+      { text: '排位排名', callback: '#排位排名' }
+    ])
+    return segment.button(...rows)
+  }
+
+  /**
+   * 荣耀称号墙
+   * @param {string|number} id 营地ID
+   */
+  static medalWall(id = '') {
+    const s = id ? String(id) : ''
+    return segment.button(
+      [
+        { text: '多扫几个', input: '#称号墙 25' },
+        { text: '我的英雄', callback: `#我的英雄${s}` }
+      ],
+      [
+        { text: '查战力', input: '#查战力' },
+        { text: '王者主页', callback: `#王者主页${s}` }
+      ]
+    )
+  }
+
   /** 英雄梯度榜 */
   static heroTier() {
     return segment.button(
@@ -232,7 +274,57 @@ export default class Button {
         { text: '查皮肤', input: '#查皮肤' }
       ],
       [
+        { text: '缺哪些皮肤', callback: `#缺皮肤${s}` },
         { text: '王者主页', callback: `#王者主页${s}` }
+      ]
+    )
+  }
+
+  /**
+   * 皮肤缺失反查
+   * @param {string} heroName 当前查的英雄名，有则给个「看该英雄皮肤图鉴」的直达
+   * @param {string|number} id 营地ID
+   */
+  static skinMissing(heroName = '', id = '') {
+    const s = id ? String(id) : ''
+    const rows = []
+    if (heroName) {
+      rows.push([
+        { text: `${heroName}皮肤图`, callback: `#查皮肤${heroName}` },
+        { text: '换个英雄', input: '#缺皮肤' }
+      ])
+    } else {
+      rows.push([
+        { text: '看某个英雄', input: '#缺皮肤' },
+        { text: '皮肤墙', callback: `#皮肤墙${s}` }
+      ])
+    }
+    rows.push([
+      { text: '全部皮肤', callback: `#全部皮肤${s}` },
+      { text: '王者主页', callback: `#王者主页${s}` }
+    ])
+    return segment.button(...rows)
+  }
+
+  /**
+   * 巅峰分趋势
+   * @param {string|number} id 营地ID
+   */
+  static trend (id = '') {
+    const s = id ? String(id) : ''
+    return segment.button(
+      [
+        // 指令后跟天数，最多 35 天（归档保留上限）
+        { text: '看近 7 天', callback: `#巅峰趋势7${s ? ` ${s}` : ''}` },
+        { text: '看近 30 天', callback: `#巅峰趋势30${s ? ` ${s}` : ''}` }
+      ],
+      [
+        { text: '巅峰表现', callback: `#巅峰表现${s}` },
+        { text: '巅峰战绩', callback: s ? `#查询${s}巅峰战绩` : '#巅峰战绩' }
+      ],
+      [
+        { text: '王者主页', callback: `#王者主页${s}` },
+        { text: '巅峰排名', callback: '#巅峰排名' }
       ]
     )
   }
@@ -282,6 +374,24 @@ export default class Button {
   }
 
   /**
+   * 在线状态（#谁在打游戏）。
+   * 不复用 push()：那个按当前订阅状态给「开启/关闭推送」，而这条指令是给全群看的，
+   * 谁点都可能，不该给一个「关闭推送」的按钮在那儿等着误触
+   */
+  static online() {
+    return segment.button(
+      [
+        { text: '刷新', callback: '#谁在打游戏' },
+        { text: '上下线提醒', callback: '#开启上下线提醒' }
+      ],
+      [
+        { text: '推送状态', callback: '#战绩推送状态' },
+        { text: '排位排名', callback: '#排位排名' }
+      ]
+    )
+  }
+
+  /**
    * 赛季/巅峰表现
    * @param {string|number} id 营地ID，带上后按钮直接查该ID
    * @param {string} type 当前看的是排位还是巅峰
@@ -305,6 +415,10 @@ export default class Button {
         { text: `全部${type}表现`, callback: `#全部${type}表现${s}` }
       ]
     ]
+    // 巅峰分有本地存档可以画趋势，排位没有（星数趋势已经画在排位表现图里了）
+    if (type === '巅峰') {
+      rows[2].push({ text: '巅峰趋势', callback: `#巅峰趋势${s ? ` ${s}` : ''}` })
+    }
     // 指令支持 #排位表现s40 指定赛季，这里给个直达上一赛季的入口
     if (prevSeason) {
       rows.push([

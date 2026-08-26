@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>{{title}}</title>
+  <!-- 卡片 / 四格 / 区块 / 英雄行的基础样式都在 BattleReport.css，
+       这里只补趋势图特有的增量，视觉和战报保持一致 -->
+  <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
+  <style>
+    .stat-grid.second .stat-cell { padding: 14px 10px; }
+    .stat-grid.second .stat-val { font-size: 26px; }
+    .stat-val.up { color: #f5d76e; }
+    .stat-val.down { color: #e96e6e; }
+    .stat-val.flat { color: rgba(255,255,255,0.7); }
+
+    /* 逐日战况：一天一行，日期 / 场次 / 胜负 / 当日收盘分 / 净涨跌 */
+    .day-list { display: flex; flex-direction: column; gap: 7px; }
+    .day-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 14px;
+    }
+    .day-date { font-family: Number, sans-serif; font-size: 16px; width: 62px; flex-shrink: 0; }
+    .day-cnt { color: rgba(255,255,255,0.5); width: 58px; flex-shrink: 0; }
+    .day-wl { flex: 1; min-width: 0; }
+    .day-wl .win { color: #6fd39b; }
+    .day-wl .lose { color: #e96e6e; }
+    .day-score { font-family: Number, sans-serif; font-size: 16px; color: rgba(255,255,255,0.75); width: 74px; text-align: right; flex-shrink: 0; }
+    .day-delta { font-family: Number, sans-serif; font-size: 17px; width: 66px; text-align: right; flex-shrink: 0; }
+    .day-delta.up { color: #f5d76e; }
+    .day-delta.down { color: #e96e6e; }
+    .day-delta.flat { color: rgba(255,255,255,0.35); }
+
+    /* 最近战况：英雄头像 + 胜负 + KDA + 这一场的分差 */
+    .match-list { display: flex; flex-direction: column; gap: 8px; }
+    .match-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 8px 14px;
+    }
+    .match-icon {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      border: 2px solid rgba(245,215,110,0.35);
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    /* 英雄名可能很长（「沈梦溪」到「大司命」都有），别把右边的分差挤出卡片 */
+    .match-main { flex: 1; min-width: 0; }
+    .match-hero { font-size: 15px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .match-meta { font-size: 12px; color: rgba(255,255,255,0.38); }
+    .match-res { font-size: 15px; width: 26px; text-align: center; flex-shrink: 0; }
+    .match-res.win { color: #6fd39b; }
+    .match-res.lose { color: #e96e6e; }
+    .match-res.flat { color: rgba(255,255,255,0.3); }
+    .match-score { font-family: Number, sans-serif; font-size: 16px; color: rgba(255,255,255,0.7); width: 70px; text-align: right; flex-shrink: 0; }
+    .match-delta { font-family: Number, sans-serif; font-size: 17px; width: 60px; text-align: right; flex-shrink: 0; }
+    .match-delta.up { color: #f5d76e; }
+    .match-delta.down { color: #e96e6e; }
+    .match-delta.flat { color: rgba(255,255,255,0.35); }
+
+    .footer {
+      padding: 14px 26px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.3);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <!-- 头部 -->
+  <div class="card-header">
+    <img class="avatar" src="{{avatar}}" alt="" onerror="this.style.display='none'">
+    <div class="user-info">
+      <h2 class="username">{{username}}</h2>
+      <span class="badge">{{rangeText}}</span>
+      <span class="badge">{{coverText}}</span>
+      <span class="badge">{{count}} 场巅峰</span>
+    </div>
+    <div class="report-label">
+      {{title}}
+      <span class="sub">{{subText}}</span>
+    </div>
+  </div>
+
+  <!-- 四格总览 -->
+  <div class="stat-grid">
+    <div class="stat-cell gold">
+      <div class="stat-val">{{current}}</div>
+      <div class="stat-key">当前巅峰分</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val {{deltaClass}}">{{deltaText}}</div>
+      <div class="stat-key">区间涨跌</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val">{{peak}}</div>
+      <div class="stat-key">区间最高</div>
+    </div>
+    <div class="stat-cell {{winRateClass}}">
+      <div class="stat-val">{{winRate}}%</div>
+      <div class="stat-key">巅峰胜率</div>
+    </div>
+  </div>
+
+  <div class="stat-grid second">
+    <div class="stat-cell">
+      <div class="stat-val"><span class="win">{{win}}</span><span class="slash">/</span><span class="lose">{{lose}}</span></div>
+      <div class="stat-key">胜 / 负</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val">{{low}}</div>
+      <div class="stat-key">区间最低</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val">{{maxWinStreak}}</div>
+      <div class="stat-key">最长连胜</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val">{{maxLoseStreak}}</div>
+      <div class="stat-key">最长连败</div>
+    </div>
+  </div>
+
+  <!-- 趋势折线 -->
+  <div class="section">
+    <div class="section-title">
+      巅峰分走势
+      <span class="tip">{{startScore}} → {{current}}，共 {{count}} 场，跨 {{spanDays}} 天</span>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="trendCanvas" width="2754" height="720"></canvas>
+    </div>
+  </div>
+
+  <!-- 逐日战况 -->
+  {{if dayRows && dayRows.length}}
+  <div class="section">
+    <div class="section-title">
+      逐日战况
+      <span class="tip">净涨跌 = 当天最后一场分数 − 当天第一场之前的分数</span>
+    </div>
+    <div class="day-list">
+      {{each dayRows d}}
+      <div class="day-row">
+        <span class="day-date">{{d.date}}</span>
+        <span class="day-cnt">{{d.count}} 场</span>
+        <span class="day-wl"><span class="win">{{d.win}} 胜</span> / <span class="lose">{{d.lose}} 负</span></span>
+        <span class="day-score">{{d.score}}</span>
+        <span class="day-delta {{d.deltaClass}}">{{d.deltaText}}</span>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- 英雄贡献 -->
+  {{if heroRows && heroRows.length}}
+  <div class="section">
+    <div class="section-title">
+      带分英雄
+      <span class="tip">按净得分排序</span>
+    </div>
+    <div class="match-list">
+      {{each heroRows h}}
+      <div class="match-row">
+        <img class="match-icon" src="{{h.heroIcon}}" alt="" onerror="this.style.visibility='hidden'">
+        <div class="match-main">
+          <div class="match-hero">{{h.heroName}}</div>
+          <div class="match-meta">{{h.count}} 场 · 胜率 {{h.winRate}}%</div>
+        </div>
+        <span class="match-delta {{h.netClass}}">{{h.netText}}</span>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- 最近战况 -->
+  {{if recentRows && recentRows.length}}
+  <div class="section">
+    <div class="section-title">
+      最近 {{recentRows.length}} 场巅峰
+      <span class="tip">分差是这一场自己的涨跌</span>
+    </div>
+    <div class="match-list">
+      {{each recentRows m}}
+      <div class="match-row">
+        <img class="match-icon" src="{{m.heroIcon}}" alt="" onerror="this.style.visibility='hidden'">
+        <div class="match-main">
+          <div class="match-hero">{{m.heroName}}</div>
+          <div class="match-meta">{{m.timeText}} · {{m.kda}}</div>
+        </div>
+        <span class="match-res {{m.resultClass}}">{{m.resultText}}</span>
+        <span class="match-score">{{m.score}}</span>
+        <span class="match-delta {{m.deltaClass}}">{{m.deltaText}}</span>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  <div class="footer">{{footText}}</div>
+</div>
+
+<script>
+// 折线画法与 SeasonPage.html 的 trendCanvas 同源：Catmull-Rom 平滑 + 渐变填充，
+// 只把 Y 轴标签从段位星数换成巅峰分
+const trend = {{@ trendJson}}
+
+if (trend && trend.length > 1) {
+  const c = document.getElementById('trendCanvas')
+  const ctx = c.getContext('2d')
+  const W = c.width, H = c.height
+  const pad = { t: 60, b: 86, l: 150, r: 60 }
+  const plotH = H - pad.t - pad.b
+  const scores = trend.map(t => t.score)
+  const dataMin = Math.min(...scores), dataMax = Math.max(...scores)
+  // 紧贴数据取值域，上下各留 12% 余量，让折线铺满绘图区（巅峰分区间通常只有几十分）
+  const spanRaw = dataMax - dataMin
+  const paddingScore = spanRaw > 0 ? spanRaw * 0.12 : 10
+  const axisMin = dataMin - paddingScore
+  const axisMax = dataMax + paddingScore
+  const range = axisMax - axisMin || 1
+  const xs = trend.map((_, i) => pad.l + i * (W - pad.l - pad.r) / (trend.length - 1))
+  const ys = scores.map(s => pad.t + (1 - (s - axisMin) / range) * plotH)
+
+  // 背景网格
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+  ctx.lineWidth = 2
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + i * plotH / 4
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke()
+  }
+
+  const buildSmoothPath = () => {
+    ctx.moveTo(xs[0], ys[0])
+    for (let i = 0; i < xs.length - 1; i++) {
+      const x0 = xs[i - 1] ?? xs[i], y0 = ys[i - 1] ?? ys[i]
+      const x1 = xs[i], y1 = ys[i]
+      const x2 = xs[i + 1], y2 = ys[i + 1]
+      const x3 = xs[i + 2] ?? x2, y3 = ys[i + 2] ?? y2
+      const cp1x = x1 + (x2 - x0) / 6, cp1y = y1 + (y2 - y0) / 6
+      const cp2x = x2 - (x3 - x1) / 6, cp2y = y2 - (y3 - y1) / 6
+      ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x2, y2)
+    }
+  }
+
+  // 填充渐变。底边必须是画布底边：路径要「曲线 → 落到底边 → 沿底边回到起点」再 closePath，
+  // 先 moveTo 到底边再画曲线会把这一笔切成两个子路径，closePath 直接从右下角连回曲线起点，
+  // 填充区就多出一条穿过图中间的斜线（数据一路上升时看不出来，有涨有跌时特别明显）
+  const grad = ctx.createLinearGradient(0, pad.t, 0, H - pad.b)
+  grad.addColorStop(0, 'rgba(245,215,110,0.32)')
+  grad.addColorStop(1, 'rgba(245,215,110,0.02)')
+  ctx.beginPath()
+  buildSmoothPath()
+  ctx.lineTo(xs[xs.length - 1], H - pad.b)
+  ctx.lineTo(xs[0], H - pad.b)
+  ctx.closePath()
+  ctx.fillStyle = grad; ctx.fill()
+
+  // 折线
+  ctx.beginPath()
+  buildSmoothPath()
+  ctx.strokeStyle = '#f5d76e'; ctx.lineWidth = 5
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke()
+
+  // 点：场次多的时候画小一点，否则连成一串珠子
+  const dotR = trend.length > 30 ? 5 : 7
+  xs.forEach((x, i) => {
+    ctx.beginPath(); ctx.arc(x, ys[i], dotR, 0, Math.PI * 2)
+    ctx.fillStyle = '#f5d76e'; ctx.fill()
+  })
+
+  ctx.font = '30px YS,sans-serif'
+  ctx.textAlign = 'right'
+
+  // 中间参考线：取值域中位，画一条淡横线 + 分数标签
+  if (dataMax !== dataMin) {
+    const mid = Math.round((dataMin + dataMax) / 2)
+    const midY = pad.t + (1 - (mid - axisMin) / range) * plotH
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 2
+    ctx.setLineDash([8, 8])
+    ctx.beginPath(); ctx.moveTo(pad.l, midY); ctx.lineTo(W - pad.r, midY); ctx.stroke()
+    ctx.setLineDash([])
+    ctx.fillStyle = 'rgba(255,255,255,0.4)'
+    ctx.fillText(String(mid), pad.l - 14, midY + 10)
+  }
+
+  // 最高 / 最低分标签
+  const minIdx = scores.indexOf(dataMin), maxIdx = scores.indexOf(dataMax)
+  ctx.fillStyle = 'rgba(255,255,255,0.6)'
+  ctx.fillText(String(dataMin), pad.l - 14, ys[minIdx] + 10)
+  if (minIdx !== maxIdx) ctx.fillText(String(dataMax), pad.l - 14, ys[maxIdx] + 10)
+
+  // X 轴日期：首点左对齐、尾点右对齐，避免文字被画布边缘截断
+  const fmtDate = i => {
+    const d = new Date(Number(trend[i].time) * 1000)
+    return `${d.getMonth() + 1}-${d.getDate()}`
+  }
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'
+  ctx.textAlign = 'left'
+  ctx.fillText(fmtDate(0), xs[0], H - 18)
+  ctx.textAlign = 'right'
+  ctx.fillText(fmtDate(trend.length - 1), xs[xs.length - 1], H - 18)
+  // 点多的时候中间补一个日期，否则整条 X 轴只有首尾两个标签、看不出哪天在哪
+  if (trend.length >= 8) {
+    const mi = Math.floor((trend.length - 1) / 2)
+    ctx.textAlign = 'center'
+    ctx.fillText(fmtDate(mi), xs[mi], H - 18)
+  }
+}
+</script>
+</body>
+</html>
