@@ -142,6 +142,31 @@ export function supportGuoba () {
           }
         },
         {
+          component: 'Divider',
+          label: '图片缓存'
+        },
+        {
+          field: 'config.imgCacheMaxMB',
+          label: '图片缓存上限',
+          bottomHelpMessage: '插件下载的远程图片（英雄头像、皮肤图）缓存在 data/imgCache，单张平均 490KB。#皮肤墙 / #全部皮肤 一次会拉几百张，几个人轮着查就能堆到几百 MB —— 7 天过期只管时间管不住量，所以这里再加一道按体积削的兜底：超出上限时按下载时间从旧到新删。填 0 = 不限量。用 #王者缓存状态 看当前占用。',
+          component: 'InputNumber',
+          componentProps: {
+            min: 0,
+            max: 10240,
+            placeholder: '默认 200（MB）'
+          }
+        },
+        {
+          field: 'config.imgCacheCleanCron',
+          label: '缓存清理时间',
+          bottomHelpMessage: '每天按上面的上限清一次图片缓存。默认凌晨 4 点，避开白天出图高峰。插件启动 30 秒后也会清一次（pm2 下 Yunzai 可以连着跑几个月不重启，只靠启动清理等于永不清理）。',
+          helpMessage: '修改后重启生效',
+          component: 'EasyCron',
+          componentProps: {
+            placeholder: '默认每天 04:12'
+          }
+        },
+        {
           component: 'SOFT_GROUP_BEGIN',
           label: '账号鉴权管理'
         },

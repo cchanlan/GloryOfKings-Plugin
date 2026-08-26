@@ -24,3 +24,9 @@ groupWeeklyReportCron: '0 34 21 * * 0'
 groupMonthlyReportCron: '0 18 23 28-31 * *'
 #*回复时是否引用触发指令那条消息
 quoteReply: true
+#*图片缓存目录（data/imgCache）的容量上限，单位 MB。填 0 = 不限量。
+#*单张图平均 490KB，#皮肤墙 / #全部皮肤 一次会拉几百张，几个人轮着查就是几百 MB；
+#*7 天过期只管时间管不住量，超出上限时按下载时间从旧到新削减
+imgCacheMaxMB: 200
+#*图片缓存的定时清理时间（6 位 cron）。默认凌晨 4 点，避开白天出图高峰
+imgCacheCleanCron: '0 12 4 * * *'

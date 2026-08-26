@@ -15,16 +15,20 @@ const paths = {
 
 async function checkAndCreatePaths() {
   for (const [key, filePath] of Object.entries(paths)) {
+    // 已存在就什么都不做。早先是无论存在与否都打一句「文件已创建」，
+    // 于是每次启动都刷 5 行假的「已创建」日志
     try {
-      await fs.access(filePath).catch(() => {
-        if (key.includes('Dir')) {
-          return fs.mkdir(filePath, { recursive: true })
-        } else {
-          const content = key === 'gameRecordPushFile' ? { pushList: {} } : {}
-          return writeYamlFile(filePath, content)
-        }
-      })
-      logger.info(`${key} 文件已创建`)
+      await fs.access(filePath)
+      continue
+    } catch {}
+
+    try {
+      if (key.includes('Dir')) {
+        await fs.mkdir(filePath, { recursive: true })
+      } else {
+        await writeYamlFile(filePath, key === 'gameRecordPushFile' ? { pushList: {} } : {})
+      }
+      logger.info(`[${PluginName}] 初始化数据文件：${key}`)
     } catch (error) {
       logger.error(`处理路径 ${filePath} 时发生错误: ${error.message}`)
     }
@@ -121,14 +125,7 @@ logger.info(`加载失败：${chalk.red(failureCount)} 个`)
 logger.info(`总耗时：${chalk.yellow(elapsedTime)} 毫秒`)
 logger.info('----------------------')
 
-// 图片缓存清理。放在启动后而不是下载路径里：缓存铺满之后就不再有新下载，
-// 挂在那条路径上等于永不执行（实测 58MB 里躺着超期两天的文件从没被清过）。
-// 延后 30 秒且不 await —— 这是同步 IO 扫目录，不该挤在 Bot 启动的关键路径上；
-// 整个调用包在 catch 里，清缓存失败绝不能影响插件可用性
-setTimeout(() => {
-  import('./utils/fileUtils.js')
-    .then(({ cleanImageCache }) => cleanImageCache())
-    .catch(error => logger.debug(`[${PluginName}] 图片缓存清理跳过：${error.message}`))
-}, 30 * 1000).unref?.()
+// 图片缓存清理已经挪到 apps/cacheManager.js：那里既有启动后的一次性清理，
+// 也有每天一次的定时任务和 #清理王者缓存 指令，不必在这里再排一个定时器
 
 export { apps }
