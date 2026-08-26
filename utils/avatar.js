@@ -25,6 +25,35 @@ export function qlogoUrl(userId, size = 100) {
     : ''
 }
 
+/** 群头像的公开地址，仅在群号确为数字群号时才有意义（官方机器人的群是 openid，拼不出来） */
+export function groupQlogoUrl (groupId, size = 100) {
+  const gid = String(groupId ?? '').trim()
+  return isQQNumber(gid) ? `https://p.qlogo.cn/gh/${gid}/${gid}/${size}` : ''
+}
+
+/**
+ * 解析群头像地址，取不到返回空串（模板里 onerror 会把 img 隐藏，露出底下的「群」字占位）
+ * @param {string|number} groupId 群号
+ * @param {object} [group]        已有的群对象（e.group / Bot.pickGroup 的结果），有就不用再 pick
+ * @param {number} [size]         头像尺寸
+ */
+export async function getGroupAvatar (groupId, group = null, size = 100) {
+  const gid = String(groupId ?? '').trim()
+
+  // 1. 问适配器要 —— 和用户头像同一个思路，各平台自己知道该拼什么地址
+  try {
+    const target = group ?? (isQQNumber(gid) ? Bot?.pickGroup?.(Number(gid)) : Bot?.pickGroup?.(gid))
+    const url = await target?.getAvatarUrl?.(size)
+    if (url) return url
+    if (target?.avatar) return target.avatar
+  } catch (err) {
+    logger?.debug?.(`[头像] 适配器获取群 ${gid} 头像失败: ${err.message}`)
+  }
+
+  // 2. 回落到 p.qlogo.cn 的公开群头像
+  return groupQlogoUrl(gid, size)
+}
+
 /**
  * 解析目标用户头像地址，取不到返回空串（模板里有 onerror 兜底，会把 img 隐藏）
  * @param {object} e      消息事件

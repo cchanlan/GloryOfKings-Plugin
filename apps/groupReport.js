@@ -27,7 +27,7 @@ import {
 } from '../utils/groupReportStore.js'
 import { loadPushList, sleep, REQUEST_INTERVAL } from '../utils/pushStore.js'
 import { MIN_REQUEST_GAP_MS } from '../utils/api.js'
-import { shouldQuote, Button } from '#utils'
+import { shouldQuote, Button, getGroupAvatar } from '#utils'
 import { Config } from '#components'
 
 /** 三路的中文名 */
@@ -111,6 +111,7 @@ export class GroupReport extends plugin {
     const view = await this.buildView(kind, {
       memberIds,
       groupName: e.group_name || String(e.group_id),
+      groupAvatar: await getGroupAvatar(e.group_id, e.group, 640),
       degraded,
       bound
     })
@@ -155,7 +156,7 @@ export class GroupReport extends plugin {
    * 组装群报的模板数据。
    * @returns {Promise<object|null>} 区间内全群零对局时返回 null（不出空图）
    */
-  async buildView (kind, { memberIds = [], groupName = '', degraded = false, bound = 0 } = {}) {
+  async buildView (kind, { memberIds = [], groupName = '', groupAvatar = '', degraded = false, bound = 0 } = {}) {
     const nowMs = Date.now()
     const fromSec = (RANGE_START[kind] || todayStart)(nowMs)
 
@@ -187,7 +188,7 @@ export class GroupReport extends plugin {
     }
     if (degraded) notes.push('取不到群成员列表，只统计了开过推送的成员')
 
-    return { ...view, noteText: notes.join(' · ') }
+    return { ...view, groupAvatar, noteText: notes.join(' · ') }
   }
 
   async shot (view) {
@@ -325,6 +326,7 @@ export class GroupReport extends plugin {
     const view = await this.buildView(kind, {
       memberIds,
       groupName: sub.groupName || String(groupId),
+      groupAvatar: await getGroupAvatar(groupId, group, 640),
       degraded,
       bound
     })

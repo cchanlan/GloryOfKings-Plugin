@@ -12,7 +12,11 @@
 <div class="card">
   <!-- 头部 -->
   <div class="card-header">
-    <div class="group-mark">群</div>
+    <div class="group-mark">
+      <!-- 群头像取不到（官方机器人的群是 openid）时 img 会被 onerror 隐藏，露出底下的「群」字 -->
+      <span class="group-mark-text">群</span>
+      {{if groupAvatar}}<img class="group-avatar" src="{{groupAvatar}}" alt="" onerror="this.style.display='none'">{{/if}}
+    </div>
     <div class="user-info">
       <h2 class="username">{{groupName}}</h2>
       <span class="badge">{{rangeText}}</span>

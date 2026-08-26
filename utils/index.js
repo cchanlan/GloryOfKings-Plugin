@@ -12,7 +12,7 @@ import {
 } from './yamlUtils.js'
 import cache from './cache.js'
 import authStore from './authStore.js'
-import { getUserAvatar, qlogoUrl, isQQNumber } from './avatar.js'
+import { getUserAvatar, getGroupAvatar, qlogoUrl, groupQlogoUrl, isQQNumber } from './avatar.js'
 import { AT_HEAD, AT_TAIL, pickAtText, stripAtText, resolveTargetUserId } from './atTarget.js'
 import { getPvpSkinCover, getPvpHeroSkins } from './pvpSkinImage.js'
 import { getCampSkinConf, getCampHeroSkins } from './skinCatalog.js'
@@ -37,7 +37,9 @@ export {
   cache,
   authStore,
   getUserAvatar,
+  getGroupAvatar,
   qlogoUrl,
+  groupQlogoUrl,
   isQQNumber,
   AT_HEAD,
   AT_TAIL,

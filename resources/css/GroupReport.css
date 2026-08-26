@@ -9,8 +9,10 @@
  * 所以这条链上每一级都放开 min-width:0，断一级省略号就永远不触发。
  */
 
-/* 头部：群报没有头像，用一个「群」字的圆标占位 */
+/* 头部：能取到群头像就铺满圆标，取不到时露出底下的「群」字占位 */
 .group-mark {
+  position: relative;
+  overflow: hidden;
   width: 62px; height: 62px;
   border-radius: 50%;
   border: 2px solid rgba(245, 215, 110, 0.5);
@@ -22,6 +24,13 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+.group-mark .group-avatar {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
 /* 两个 badge 并排（区间 + 上榜人数），别贴在一起 */
 .user-info .badge + .badge { margin-left: 6px; }
