@@ -400,6 +400,10 @@ export async function getHeroNameMap () {
  * 要用推送自己记下的上线时刻（订阅项的 onlineSince）。
  * 只有在 gameOnline 非 0 时 onlineTime 是可信的「本次上线时刻」，可作 onlineSince 的初值。
  *
+ * 还有第四种情况：**营地压根不给这个号的在线状态**，三个字段全 0（判据见 hasOnlineSignal）。
+ * 营地里「在线状态」和「战绩」是两个独立的隐私开关，只关前者的号战绩照旧能读，
+ * 所以不能因为在线状态是空的就顺带把战绩那一路也停掉。
+ *
  * @returns {Promise<{gameOnline:number, onlineTime:number, offlineTime:number, roleName:string}|null|symbol>}
  */
 export async function fetchOnlineState (campId, qq) {
@@ -882,6 +886,29 @@ export function formatOnlineText (kind, { name = '', gameOnline = 0, durationSec
 /* ------------------------------------------------------------------ 轮询节流 */
 
 /**
+ * 这份 profile 到底给了在线信号没有。
+ *
+ * 实测（2026-08-27，营地 499601913 / 角色 130084415「槿笙a」）：营地对某些账号的 roleList
+ * **三个字段全给 0**——gameOnline=0、onlineTime=0、offlineTime=0，该号名下 3 个角色都一样；
+ * 而同一批采样的其他账号哪怕此刻离线也带着上次的时间戳（主人的号 onlineTime 19:29 上线、
+ * offlineTime 20:13 下线，字段都在）。该号在营地里打开「在线状态」的授权后，同一个接口
+ * 立刻给出 gameOnline=1 / onlineTime 20:26 / offlineTime 20:25，确认就是这个开关。
+ *
+ * 关键：营地的「在线状态」和「战绩」是**两个独立的隐私开关**，只关在线状态的号
+ * 战绩列表照旧 returnCode=0、invisible=false、30 场全给。所以「三个全 0」是
+ * 「营地没给这个号的在线状态」，不是「确定离线」，两者必须分开：当成离线的话
+ * needBattleList 会一轮都不拉战绩列表，战绩推送和开局提醒跟着一起静默失效
+ * （实测后果：该号开了两路推送，一整天打了十几局，一条都没推）。
+ *
+ * @param {object|null} state fetchOnlineState 的返回（已排除 FETCH_HIDDEN）
+ * @returns {boolean} false = 这一轮没有可用的在线信号，按「没拉到 profile」处理
+ */
+export function hasOnlineSignal (state) {
+  if (!state) return false
+  return toInt(state.gameOnline) !== 0 || toInt(state.onlineTime) > 0 || toInt(state.offlineTime) > 0
+}
+
+/**
  * 这一轮要不要花一次战绩列表请求（morebattlelist，返回体比 profile 大一个量级）。
  *
  * 玩家离线时既不会开局也不会出新战绩，那一次请求是纯浪费，跳过它不影响任何提醒：
@@ -891,7 +918,9 @@ export function formatOnlineText (kind, { name = '', gameOnline = 0, durationSec
  * - 只开战绩推送：没有 profile 信号，战绩列表是唯一信息源，只能每轮拉
  *
  * profile 这轮拉失败（state 为 null）时一律按「要拉」处理——宁可多一次请求，
- * 也不能因为拿不到在线状态就把战绩推送停掉。
+ * 也不能因为拿不到在线状态就把战绩推送停掉。**营地没给在线信号的号同理**
+ * （三个字段全 0，判据见 hasOnlineSignal）：那种号的 gameOnline 恒为 0，
+ * 按「确定离线」处理会让战绩推送和开局提醒一起永久失效。
  *
  * @param {object} opts
  * @param {boolean} opts.battleOn 订阅开了战绩推送
@@ -902,7 +931,7 @@ export function formatOnlineText (kind, { name = '', gameOnline = 0, durationSec
  */
 export function needBattleList ({ battleOn, onlineOn, state, sub = {} } = {}) {
   // 没有 profile 信号可用：只能靠战绩列表本身
-  if (!onlineOn || !state) return battleOn
+  if (!onlineOn || !hasOnlineSignal(state)) return battleOn
 
   const online = toInt(state.gameOnline) !== 0
   const wasOnline = sub.lastOnlineState !== undefined &&
@@ -918,9 +947,9 @@ export function needBattleList ({ battleOn, onlineOn, state, sub = {} } = {}) {
  * 这个订阅现在算不算「活跃」，决定下一轮是保持高频还是开始退避。
  *
  * 判据按信号可靠性排序：
- * 1. 有 profile → `gameOnline !== 0` 最可靠（三态语义见 fetchOnlineState 的注释）
- * 2. 没有 profile（只开战绩推送、或 profile 这轮拉失败）→ 退回战绩列表本身：
- *    正在打（isGaming）算活跃，最新一场在 RECENT_BATTLE_WINDOW 内也算
+ * 1. profile 给了在线信号 → `gameOnline !== 0` 最可靠（三态语义见 fetchOnlineState 的注释）
+ * 2. 没有 profile 信号（只开战绩推送、profile 这轮拉失败、或营地不给这个号的在线状态）
+ *    → 退回战绩列表本身：正在打（isGaming）算活跃，最新一场在 RECENT_BATTLE_WINDOW 内也算
  * 3. 两个都没拿到 → **算不活跃**。接口一直失败就该退避，别按高频硬刚，
  *    正好和 api.js 的频控冷却一个方向
  *
@@ -930,7 +959,8 @@ export function needBattleList ({ battleOn, onlineOn, state, sub = {} } = {}) {
  * @returns {boolean}
  */
 export function isSubActive (state, data, nowSec) {
-  if (state) return toInt(state.gameOnline) !== 0
+  // 三个字段全 0 的号不能当「确定离线」，否则它会一路退避到封顶，越查越少
+  if (hasOnlineSignal(state)) return toInt(state.gameOnline) !== 0
 
   if (!data) return false
   if (data.isGaming) return true

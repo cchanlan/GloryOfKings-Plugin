@@ -37,6 +37,7 @@ import {
   streakMilestone,
   fetchLatest,
   fetchOnlineState,
+  hasOnlineSignal,
   getHeroNameMap,
   calcStreak,
   pickNewBattles,
@@ -287,6 +288,19 @@ export class GameRecordPush extends plugin {
       return
     }
 
+    // 营地把在线状态和战绩做成两个独立的隐私开关：只关前者的号，profile 里
+    // gameOnline / onlineTime / offlineTime 三个字段全给 0（不是「离线」，是「不告诉你」），
+    // 这时开上下线提醒等于永远推不出东西，直接拦下来说清楚要去开哪个开关。
+    if (!hasOnlineSignal(state)) {
+      await e.reply(
+        '❌ 营地没有返回你的在线状态，开了也推不出来\n' +
+        '请到王者营地 →「我的」→ 设置 → 隐私设置，打开在线状态（对外展示）相关授权，再重新开启\n' +
+        '（这个开关和战绩隐私是分开的两个，战绩推送不受它影响，可以照常用 #开启战绩推送）',
+        shouldQuote()
+      )
+      return
+    }
+
     const nowSec = Math.floor(Date.now() / 1000)
     list[qq] = {
       ...existed,
@@ -439,9 +453,18 @@ export class GameRecordPush extends plugin {
     const onlineOn = sub.online === true
 
     let state = null
+    let onlineSignalMissing = false
     if (onlineOn) {
       state = await fetchOnlineState(campId, qq)
       if (state === FETCH_HIDDEN) state = null
+      // 营地只关了「在线状态」授权的号，三个字段全给 0（判据见 pushStore.hasOnlineSignal）。
+      // 这不是离线而是「没告诉你」，当成没拿到，后面 checkOnline 就不会拿它报上下线、
+      // observeSnapshot 也不会把 lastOnlineState 记成 0；战绩那一路照旧走（两个隐私开关是独立的）。
+      if (state && !hasOnlineSignal(state)) {
+        logger.debug(`[王者推送] ${qq} 营地未返回在线状态（三字段全 0），本轮只按战绩列表处理`)
+        state = null
+        onlineSignalMissing = true
+      }
     }
 
     // 战绩列表这一轮拉不拉，判据见 pushStore.needBattleList
@@ -475,7 +498,10 @@ export class GameRecordPush extends plugin {
       // lastSeenAt 是本轮的观测时刻（判数据够不够新），lastGaming 是「此刻在不在对局中」。
       // 在对局的判据两路都收：battle 路的 data.isGaming、online 路的 gameOnline===2。
       // 后者单独存在的场景是只开了上下线提醒（那轮不一定拉战绩列表）
-      ...observeSnapshot(state, data, nowMs)
+      ...observeSnapshot(state, data, nowMs),
+      // 营地这轮没给在线状态：把可能留着的旧值清成空串，让 #谁在打游戏 归到
+      // 「还没采集到状态」而不是谎报离线（空串和真的 '0' 语义不同）
+      ...(onlineSignalMissing ? { lastOnlineState: '' } : {})
     })
   }
 

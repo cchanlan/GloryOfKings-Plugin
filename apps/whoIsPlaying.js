@@ -80,6 +80,9 @@ export class WhoIsPlaying extends plugin {
       if (!row.seenAt) unknown.push(row)
       else if (row.gaming) playing.push(row)
       else if (row.state !== 0) online.push(row)
+      // 营地不给这个号的在线状态（快照里 lastOnlineState 是空串，不是 '0'）：
+      // 报「离线」是假的，归到「还没采集到状态」里
+      else if (!row.hasState) unknown.push(row)
       else offline.push(row)
     }
 
@@ -138,6 +141,8 @@ function buildRow (qq, sub, heroMap, now) {
   const seenAt = Number(sub?.lastSeenAt) || 0
   const heroId = String(sub?.lastGamingHero || '')
   const state = Number(sub?.lastOnlineState) || 0
+  // 空串 = 这轮没有在线信号（只开战绩推送，或营地关了在线状态授权），跟真的 '0' 要分开
+  const hasState = String(sub?.lastOnlineState ?? '') !== ''
 
   return {
     qq: String(qq),
@@ -150,6 +155,7 @@ function buildRow (qq, sub, heroMap, now) {
     heroIcon: heroIconUrl(heroId),
     stateText: ONLINE_LABEL[state] || '在线',
     state,
+    hasState,
     seenAt,
     agoText: seenAt ? agoText(seenAt, now) : '',
     stale: seenAt > 0 && now - seenAt > STALE_MS
