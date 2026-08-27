@@ -34,6 +34,8 @@ import { archiveBattles } from './battleArchive.js'
 // 让它只依赖 pushStore 这一个数据层，不用再单独引 rankStore
 import { normalizeName } from './rankStore.js'
 export { normalizeName }
+// 段位高低的判据（大段位层级）与「跳变」的判据都在段位趋势那边，同一套口径只留一份实现
+import { rankBand, isRankJump } from './rankTrend.js'
 import { PluginData } from '#components'
 
 const PUSH_FILE = path.join(PluginData, 'GameRecordPush.yaml')
@@ -591,9 +593,13 @@ export function pickNewBattles (list = [], sub = {}) {
  * 段位星数：列表项自带 roleJobName + stars，但 stars 的语义随段位变化（见文件头注释），
  *   所以要和上一场比，且只在段位名相同时才算差值。
  *
+ * 返回值带 `tone`，**调用方必须用它来选涨跌图标，不能用胜负代替**：娱乐局不影响段位、
+ * 王者段输了还有保星，这两种情况都是「输了但一格没动」，拿胜负配图标会推出
+ * 「📉 至圣王者 41星」——读起来像掉星，其实什么都没变（实测无限乱斗两连败推了两条这样的）。
+ *
  * @param {object} item 当前场次
  * @param {object} [prev] 时间上更早的一场（list 里紧邻的下一项），用于比段位星数
- * @returns {string} 展示文案，如「巅峰分 1833 → 1845 (+12)」
+ * @returns {{text:string, tone:'up'|'down'|'flat'}|null} 连当前段位都取不到时返回 null
  */
 export function formatScoreChange (item, prev) {
   const oldScore = toInt(item?.oldMasterMatchScore)
@@ -602,47 +608,71 @@ export function formatScoreChange (item, prev) {
   if ((oldScore > 0 || newScore > 0) && oldScore !== newScore) {
     const diff = newScore - oldScore
     const sign = diff > 0 ? '+' : ''
-    return `巅峰分 ${oldScore} → ${newScore} (${sign}${diff})`
+    return {
+      text: `巅峰分 ${oldScore} → ${newScore} (${sign}${diff})`,
+      tone: diff > 0 ? 'up' : 'down'
+    }
   }
 
   const job = String(item?.roleJobName || '').trim()
-  if (!job) return ''
+  if (!job) return null
 
   const stars = toInt(item?.stars)
+  // 比不出变化时的兜底：只报当前段位，不带方向
+  const current = { text: `${job} ${stars}星`, tone: 'flat' }
+
   const prevJob = String(prev?.roleJobName || '').trim()
+  if (!prevJob) return current
+
   const prevStars = toInt(prev?.stars)
+  const jobNum = toInt(item?.roleJob)
+  const prevJobNum = toInt(prev?.roleJob)
 
-  // 段位名变了：stars 两边不同口径，减出来的差没意义，只报段位变化
-  if (prevJob && prevJob !== job) {
-    return `段位 ${prevJob} → ${job}（${stars}星）`
+  // 一个营地号名下可能有多个游戏角色，而战绩列表里没有任何角色标识（详见 rankTrend.js
+  // 文件头第 4 点），切了角色的两场混在一起硬减会报出「掉了 9 星」这种假结论。
+  // 判据与段位趋势的断线口径共用一份 isRankJump
+  if (isRankJump(
+    { band: rankBand(prevJob), jobNum: prevJobNum },
+    { band: rankBand(job), jobNum }
+  )) return current
+
+  // 段位名变了：stars 两边不同口径，减出来的差没意义，只报段位变化。
+  // 方向按大段层级判（星耀 → 王者是升），认不出段位名就不带方向
+  if (prevJob !== job) {
+    const gap = rankBand(job) - rankBand(prevJob)
+    return {
+      text: `段位 ${prevJob} → ${job}（${stars}星）`,
+      tone: gap > 0 ? 'up' : gap < 0 ? 'down' : 'flat'
+    }
   }
 
-  if (prevJob === job) {
-    const jobNum = toInt(item?.roleJob)
-    const prevJobNum = toInt(prev?.roleJob)
-
-    // 同名段下营地还有个小编号 roleJob：旧体系把王者按 5 星编成连续小段
-    // （段内星 0~5 循环，跨小段时 stars 前后不可比），新体系（荣耀王者）恒为 16、
-    // stars 直接是累计星数。编号变了说明跨了小段，按编号判升降，不算星数差
-    if (jobNum && prevJobNum && jobNum !== prevJobNum) {
-      if (jobNum > prevJobNum) return `${job} ${prevStars} → ${stars}星（升段）`
-      // 赢了编号却降只可能是赛季切换/段位重置（实测 2026-07-26 26→16），不是掉段，
-      // 前后星数不可比，只报当前
-      if (item?.gameresult === 1) return `${job} ${stars}星`
-      return `${job} ${prevStars} → ${stars}星（掉段）`
+  // 同名段下营地还有个小编号 roleJob：旧体系把王者按 5 星编成连续小段
+  // （段内星 0~5 循环，跨小段时 stars 前后不可比），新体系（荣耀王者）恒为 16、
+  // stars 直接是累计星数。编号变了说明跨了小段，按编号判升降，不算星数差
+  if (jobNum && prevJobNum && jobNum !== prevJobNum) {
+    if (jobNum > prevJobNum) {
+      return { text: `${job} ${prevStars} → ${stars}星（升段）`, tone: 'up' }
     }
-
-    const diff = stars - prevStars
-    if (diff > 0) return `${job} ${prevStars} → ${stars}星（上了${diff}星）`
-    if (diff < 0) {
-      // roleJob 缺失时的兜底：赢了星数却下降，只可能是旧体系的段内循环重置
-      if (item?.gameresult === 1) return `${job} ${prevStars} → ${stars}星（升段）`
-      return `${job} ${prevStars} → ${stars}星（掉了${-diff}星）`
-    }
-    // 差值为 0：王者段输了有保星机制，星数不动是真实结果，如实只报当前星数
+    // 赢了编号却降只可能是赛季切换/段位重置（实测 2026-07-26 26→16），不是掉段，
+    // 前后星数不可比，只报当前
+    if (item?.gameresult === 1) return current
+    return { text: `${job} ${prevStars} → ${stars}星（掉段）`, tone: 'down' }
   }
 
-  return `${job} ${stars}星`
+  const diff = stars - prevStars
+  if (diff > 0) {
+    return { text: `${job} ${prevStars} → ${stars}星（上了${diff}星）`, tone: 'up' }
+  }
+  if (diff < 0) {
+    // roleJob 缺失时的兜底：赢了星数却下降，只可能是旧体系的段内循环重置
+    if (item?.gameresult === 1) {
+      return { text: `${job} ${prevStars} → ${stars}星（升段）`, tone: 'up' }
+    }
+    return { text: `${job} ${prevStars} → ${stars}星（掉了${-diff}星）`, tone: 'down' }
+  }
+
+  // 差值为 0：王者段输了有保星机制，星数不动是真实结果，如实只报当前星数
+  return current
 }
 
 /** 秒 → 「15分16秒」 */
@@ -678,8 +708,13 @@ export function formatBattleText (item, prev, heroMap = {}, { brief = false } = 
     lines.push(`${win ? '🏆 胜利' : '💧 失败'} · ${heroName} · ${kda}${grade}`)
   }
 
-  const score = formatScoreChange(item, prev)
-  if (score) lines.push(`${win ? '📈' : '📉'} ${score}`)
+  // 图标看 tone 不看胜负：娱乐局不动段位、王者段输了还有保星，
+  // 这两种「输了但一格没动」拿胜负配图标会推出「📉 至圣王者 41星」这种假掉星
+  const change = formatScoreChange(item, prev)
+  if (change) {
+    const icon = change.tone === 'up' ? '📈' : change.tone === 'down' ? '📉' : '⭐'
+    lines.push(`${icon} ${change.text}`)
+  }
 
   if (!brief) {
     const parts = []

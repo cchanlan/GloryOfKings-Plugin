@@ -221,18 +221,27 @@ export function rankPoint (item) {
 }
 
 /**
- * 相邻两点之间要不要断开折线。
+ * 相邻两点之间是不是「不可比」的跳变（切了游戏角色 / 赛季重置）。
  *
  * - 大段跨 2 级以上：一晚上从钻石打到王者不可能，是切角色或赛季重置
  * - 同一大段内编号跳 JUMP_TOLERANCE 以上：实测 1630945798 的 12 ↔ 20（文件头第 4 点）
  *
  * 「星耀 → 王者」是 band 6→7、差 1，不断开——那正是最该连起来报喜的一段。
+ * 编号只在两边都有值时才比：一边取不到编号（0）时硬减会把 0 ↔ 20 当成跳 20 段。
+ *
+ * 折线在这里断开，单场推送的段位文案也在这里放弃比较
+ * （pushStore.formatScoreChange）——同一个判据只该有一份。
+ *
+ * @param {{band:number, jobNum:number}} prev 更早的一点
+ * @param {{band:number, jobNum:number}} next 更晚的一点
  */
-function shouldSplit (prev, next) {
+export function isRankJump (prev, next) {
   if (!prev || !next) return false
   const bandGap = Math.abs(next.band - prev.band)
   if (bandGap >= 2) return true
-  return bandGap === 0 && Math.abs(next.jobNum - prev.jobNum) >= JUMP_TOLERANCE
+  if (bandGap !== 0) return false
+  if (!prev.jobNum || !next.jobNum) return false
+  return Math.abs(next.jobNum - prev.jobNum) >= JUMP_TOLERANCE
 }
 
 /**
@@ -278,7 +287,7 @@ function countSteps (points) {
     const prev = points[i - 1]
     const cur = points[i]
     // 跳变处不算：那是切角色或赛季重置，不是打上去的
-    if (shouldSplit(prev, cur)) continue
+    if (isRankJump(prev, cur)) continue
 
     if (cur.value > prev.value) starUp++
     else if (cur.value < prev.value) starDown++
@@ -358,7 +367,7 @@ export function buildRankTrendView (picked = [], {
    */
   let segIdx = 0
   all.forEach((p, i) => {
-    if (i > 0 && shouldSplit(all[i - 1], p)) segIdx += 1
+    if (i > 0 && isRankJump(all[i - 1], p)) segIdx += 1
     p.seg = segIdx
   })
   const segCount = segIdx + 1
@@ -413,7 +422,7 @@ export function buildRankTrendView (picked = [], {
     // 前一天的收盘快照。第一天没有前一天可比，就用当天第一场的快照当起点
     const base = index > 0 ? dayList[index - 1][1].slice(-1)[0] : list[0]
     // 跨了角色切换就别给数字了，「钻石 +8 段」这种结论比不给更糟
-    const diff = shouldSplit(base, dayEnd) ? { text: '—', cls: 'flat' } : describeDelta(base, dayEnd)
+    const diff = isRankJump(base, dayEnd) ? { text: '—', cls: 'flat' } : describeDelta(base, dayEnd)
     const ranked = list.filter(p => p.ranked)
     return {
       date: key.slice(5).replace('-', '/'),
@@ -433,7 +442,7 @@ export function buildRankTrendView (picked = [], {
   const recentRows = all.slice(-recent).map((p, i, arr) => {
     const idx = all.length - arr.length + i
     const prev = idx > 0 ? all[idx - 1] : null
-    const diff = prev && !shouldSplit(prev, p) ? describeDelta(prev, p) : { text: '—', cls: 'flat' }
+    const diff = prev && !isRankJump(prev, p) ? describeDelta(prev, p) : { text: '—', cls: 'flat' }
     return {
       heroName: heroMap[p.heroId] || `英雄${p.heroId}`,
       heroIcon: iconOf(p.heroId),
