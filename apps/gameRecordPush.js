@@ -591,7 +591,8 @@ export class GameRecordPush extends plugin {
       patch.lastGameSeq = String(newest.gameSeq || '')
       patch.lastGameTime = String(newest.dtEventTime || '')
     }
-    // 里程碑去重键：连胜断了会写空串，下次到同一档还能再播
+    // 里程碑去重键：3 连起每场都是新键（win:4、win:5……），连胜断了会写空串，
+    // 下次重新从 3 连开始播
     if (milestone) patch.lastStreakKey = milestone.key
     mergeSubState(qq, patch)
   }

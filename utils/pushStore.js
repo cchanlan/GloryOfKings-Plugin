@@ -256,17 +256,96 @@ export function withoutSubGroup (sub, groupId) {
 /* ------------------------------------------------------- 连胜/连败里程碑 */
 
 /**
- * 触发额外播报的连胜/连败档位，从小到大。
- * 只在**跨过**档位那一局播一次，不是每局都喊——2 连胜起就有一行 `🔥 当前 N 连胜`
- * 写在战绩文案里（见 buildBattleMessage），里程碑是在此之上单独拎出来的一条。
+ * 开始额外播报的连胜/连败场次。到这个数之后**每一场**都播，且每场文案不同。
+ * 之下不播：2 连胜起战绩文案里本来就有一行 `🔥 当前 N 连胜`（见 buildBattleMessage），
+ * 里程碑是在那之上单独拎出来的一条，太早喊就成了每局都在刷。
  */
-export const STREAK_MILESTONES = [3, 5, 7, 10, 15, 20]
+export const STREAK_MIN = 3
 
 /**
- * 算这一局有没有跨过连胜/连败里程碑。
+ * 连胜逐场文案，键就是连胜数。`{who}` 换玩家名、`{count}` 换连胜数。
+ * 超过表里最大的键走 WIN_STREAK_OVERFLOW 循环，那几条也带 {count}，所以仍然每场不重样。
+ */
+const WIN_STREAK_TEXTS = {
+  3: '🎉🔥 {count} 连胜！{who} 手感彻底热起来了，趁热再来一把',
+  4: '🔥🔥 {count} 连胜！{who} 已经开始挑对手了',
+  5: '⚡ {count} 连胜！对面要开始查 {who} 的战绩了',
+  6: '⚡🔥 {count} 连胜！{who} 一个人把全队胜率抬起来了',
+  7: '🚀 {count} 连胜！{who} 这是要打穿一整个段位',
+  8: '🚀✨ {count} 连胜！跟 {who} 排到一队的都在偷偷道谢',
+  9: '👑 {count} 连胜！再赢一把 {who} 就上两位数了',
+  10: '👑🎉 {count} 连胜达成！{who} 建议直接开个直播',
+  11: '🏆 {count} 连胜！{who} 已经开始不讲道理了',
+  12: '🏆🔥 {count} 连胜！对面选人阶段看到 {who} 就想投',
+  13: '💫 {count} 连胜！{who} 这把要是输了都算大新闻',
+  14: '💫👑 {count} 连胜！峡谷公告栏在等 {who}',
+  15: '🌟 {count} 连胜！{who} 已经是本群传说了',
+  16: '🌟🔥 {count} 连胜！{who} 的胜率曲线开始垂直向上',
+  17: '🐉 {count} 连胜！{who} 这已经不是上分，是搬家',
+  18: '🐉✨ {count} 连胜！{who} 再来两把该被写进史书了',
+  19: '🎖️ {count} 连胜！{who} 距离二十连只差一口气',
+  20: '🎖️👑 {count} 连胜！{who} 不是在打游戏，是在巡视领地'
+}
+
+/** 连败逐场文案，规则同上。语气要泄气但不能真扎人，群里被推的是本人 */
+const LOSE_STREAK_TEXTS = {
+  3: '😮‍💨🧊 {count} 连败，{who} 先去喝口水，下一把稳住',
+  4: '🧊🧊 {count} 连败，{who} 换个英雄试试运气',
+  5: '☕ {count} 连败，认真的，{who} 歇一把再打',
+  6: '☕😵 {count} 连败，今天大概不是 {who} 打排位的日子',
+  7: '🌧️ {count} 连败，峡谷欠 {who} 一个正式道歉',
+  8: '🌧️😮‍💨 {count} 连败，系统怕是把 {who} 当扶贫大使了',
+  9: '🛌 {count} 连败，{who} 下线睡觉才是最优解',
+  10: '🛌💤 {count} 连败达成，{who} 明天再战一点都不丢人',
+  11: '🕳️ {count} 连败，{who} 的段位正在自由落体',
+  12: '🕳️😭 {count} 连败，{who} 这是在挖隧道吗',
+  13: '🆘 {count} 连败，群里有人愿意来救救 {who} 吗',
+  14: '🆘🧊 {count} 连败，强烈建议 {who} 今天到此为止',
+  15: '⚰️ {count} 连败，峡谷已经为 {who} 降半旗了',
+  16: '⚰️😵 {count} 连败，{who} 还在坚持，这份毅力值得敬礼',
+  17: '🌑 {count} 连败，{who} 的运气应该已经见底了',
+  18: '🌑😔 {count} 连败，{who} 真的不用再证明什么了',
+  19: '🧯 {count} 连败，谁去把 {who} 的手机没收一下',
+  20: '🧯🪦 {count} 连败，{who} 今天的排位就当没发生过'
+}
+
+/** 超出文案表最大档位后循环用的兜底，按 count 轮换，靠 {count} 保证每场仍不一样 */
+const WIN_STREAK_OVERFLOW = [
+  '🔱 {count} 连胜！{who} 还在赢，已经没人拦得住了',
+  '🔱🔥 {count} 连胜！{who} 的对局记录看着像假的',
+  '🌌 {count} 连胜！{who} 给对面留一条活路吧',
+  '🌌👑 {count} 连胜！{who} 这一串到底什么时候能到头'
+]
+
+const LOSE_STREAK_OVERFLOW = [
+  '🥀 {count} 连败，{who} 已经打出了一种境界',
+  '🥀😵‍💫 {count} 连败，{who} 的胜率需要考古修复了',
+  '🫠 {count} 连败，{who} 明天一定会赢的（大概）',
+  '🫠🧊 {count} 连败，{who} 这一串再长下去要立碑了'
+]
+
+/** 文案表里最大的那一档，之后交给 overflow */
+const STREAK_TEXT_MAX = Math.max(...Object.keys(WIN_STREAK_TEXTS).map(Number))
+
+/** 挑出这一档的文案并填好名字与场次 */
+function streakText (type, count, who) {
+  const win = type === 'win'
+  const table = win ? WIN_STREAK_TEXTS : LOSE_STREAK_TEXTS
+  const overflow = win ? WIN_STREAK_OVERFLOW : LOSE_STREAK_OVERFLOW
+  const tpl = table[count] || overflow[(count - STREAK_TEXT_MAX - 1) % overflow.length]
+  return tpl.replace(/\{who\}/g, who).replace(/\{count\}/g, String(count))
+}
+
+/**
+ * 算这一局要不要播连胜/连败，以及播什么。
  *
- * 去重键是「类型 + 档位」而不是具体连胜数：4 连胜和 3 连胜同属 3 档，只在到 3 时播一次，
- * 到 5 才再播。连胜断了（type 变或 count 归零）时返回空 key，下次同档还能再播。
+ * 3 连起**每一场都播**，文案逐场不同（见 WIN_STREAK_TEXTS / LOSE_STREAK_TEXTS）。
+ * 去重键是「类型 + 具体场次」（`win:4`），所以 3 连之后每多赢一场就是新键、会再播一条；
+ * 同一场被重复轮询到时键没变，不会重播。连胜断了（type 变或归零）返回空 key，
+ * 下次从 3 连重新开始播。
+ *
+ * 注意一轮补推多场时只按**最新一场**的连胜数播一条（calcStreak 从最新往前数），
+ * 中间跨过的档位不会逐条补喊 —— 补推本身已经是异常情况，不该把消息量放大到 N 倍。
  *
  * @param {{type:'win'|'lose'|'', count:number}} streak calcStreak 的结果
  * @param {string} [notifiedKey] 订阅项里存的上次播报键（lastStreakKey）
@@ -277,21 +356,14 @@ export function streakMilestone (streak, notifiedKey = '', name = '') {
   const type = streak?.type
   const count = toInt(streak?.count)
 
-  if ((type !== 'win' && type !== 'lose') || count < STREAK_MILESTONES[0]) {
+  if ((type !== 'win' && type !== 'lose') || count < STREAK_MIN) {
     return { text: '', key: '' }
   }
 
-  // 找出不超过当前连胜数的最大档位
-  const hit = [...STREAK_MILESTONES].reverse().find(step => count >= step)
-  const key = `${type}:${hit}`
+  const key = `${type}:${count}`
   if (key === String(notifiedKey || '')) return { text: '', key }
 
-  const who = name ? normalizeName(name) : '这位召唤师'
-  const text = type === 'win'
-    ? `🎉🔥 ${count} 连胜达成！${who} 正在发光，谁来拦一下`
-    : `😮‍💨🧊 ${count} 连败了，${who} 先去喝口水吧，下一把稳住`
-
-  return { text, key }
+  return { text: streakText(type, count, name ? normalizeName(name) : '这位召唤师'), key }
 }
 
 /* ------------------------------------------------------------------ 拉取 */
