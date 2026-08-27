@@ -6,6 +6,7 @@ import {
   getLocalImage,
   cleanImageCache,
   scanImageCache,
+  resolveCacheMaxBytes,
   DEFAULT_CACHE_MAX_MB
 } from './fileUtils.js'
 import {
@@ -39,6 +40,7 @@ export {
   getLocalImage,
   cleanImageCache,
   scanImageCache,
+  resolveCacheMaxBytes,
   DEFAULT_CACHE_MAX_MB,
   readYamlFile,
   writeYamlFile,

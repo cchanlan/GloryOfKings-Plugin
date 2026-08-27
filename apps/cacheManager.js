@@ -12,7 +12,7 @@
  *
  * 指令限主人：这是运维动作，不该让群友随手触发一次全目录同步 IO 扫描。
  */
-import { cleanImageCache, scanImageCache, DEFAULT_CACHE_MAX_MB } from '../utils/fileUtils.js'
+import { cleanImageCache, scanImageCache, resolveCacheMaxBytes } from '../utils/fileUtils.js'
 import { shouldQuote } from '#utils'
 import { Config, PluginName } from '#components'
 
@@ -25,12 +25,11 @@ function readConfig () {
   }
 }
 
-/** 配置里的容量上限（MB）→ 字节。填 0 或负数表示不限量 */
-function resolveMaxBytes () {
-  const mb = Number(readConfig().imgCacheMaxMB)
-  const value = Number.isFinite(mb) ? mb : DEFAULT_CACHE_MAX_MB
-  return value > 0 ? value * 1024 * 1024 : 0
-}
+/**
+ * 配置里的容量上限（MB）→ 字节。实现挪到 utils/fileUtils.js，
+ * 因为皮肤墙批量下载完也要按同一个上限即时削一次（一次 700+ 张图能冲到上限的两三倍）。
+ */
+const resolveMaxBytes = resolveCacheMaxBytes
 
 const fmtMB = bytes => `${(bytes / 1024 / 1024).toFixed(1)} MB`
 

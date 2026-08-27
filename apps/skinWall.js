@@ -1,7 +1,7 @@
 // 皮肤墙功能：营地皮肤列表接口调用逻辑参考自 https://github.com/KimigaiiWuyi/WzryUID
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import common from '../../../lib/common/common.js'
-import { ApiService, readYamlFile, getLocalImage, getUserAvatar, getPvpSkinCover, Button, AT_HEAD, stripAtText, resolveTargetUserId, shouldQuote, resolveMemberName, isQQNumber, SZ_ORDER, tierRank, pickTierText, QUALITY_STATS, countQuality } from '#utils'
+import { ApiService, readYamlFile, getLocalImage, getUserAvatar, getPvpSkinCover, Button, AT_HEAD, stripAtText, resolveTargetUserId, shouldQuote, resolveMemberName, isQQNumber, SZ_ORDER, tierRank, pickTierText, QUALITY_STATS, countQuality, cleanImageCache, resolveCacheMaxBytes } from '#utils'
 import path from 'path'
 import { PluginData } from '#components'
 
@@ -9,6 +9,17 @@ const PAGE_SIZE = 50
 // 皮肤墙截图 JPEG 质量：满页 50 张大图在 q90 下可达 8MB+，部分适配器发送失败。
 // 保持每页 50 张，仅靠降质压体积——q75 视觉几乎无损但体积约为 q90 的 1/3，满页可压到 ~3MB。
 const SCREENSHOT_QUALITY = 75
+
+/**
+ * 一条合并转发最多塞多少张图 / 多少字节。
+ *
+ * 实测 709 皮肤的号分成 15 页，**每页只有约 1MB**（分页本身是好的），
+ * 但 15 张一次塞进同一条合并转发就是 14.32MB —— 单页没超限，整条转发超了，
+ * 适配器（NapCat）会把整条转发一起拒收，用户什么都收不到。
+ * 所以分页之外还得给「一条转发」设闸，超了就再发一条。
+ */
+const FORWARD_MAX_IMAGES = 8
+const FORWARD_MAX_BYTES = 8 * 1024 * 1024
 
 // SZ_ORDER / TIER_PRIORITY / tierRank / pickTierText / QUALITY_STATS / countQuality 都搬到了
 // utils/skinCatalog.js —— #缺皮肤 要用同一套品质口径，两边各存一份迟早会走偏。
@@ -281,6 +292,13 @@ export class SkinWall extends plugin {
     })
     await batch(skinTasks, 8)
 
+    // 下完立刻按上限削一次。实测查一个 709 皮肤的号，imgCache 从 1MB 冲到 570MB
+    // ——是默认上限(200MB)的 2.8 倍，而定时清理每天只跑一次，中间这段时间完全失控。
+    // 图已经转成 base64 进了 HTML，这里删掉磁盘副本不影响本次出图。
+    try {
+      cleanImageCache({ maxBytes: resolveCacheMaxBytes(), quiet: true })
+    } catch {}
+
     result.sort((a, b) =>
       (a.tier - b.tier) ||
       (a.iClass - b.iClass) ||
@@ -310,7 +328,10 @@ export class SkinWall extends plugin {
 
     if (totalPages > 1) {
       const scope = isLimited ? `按价值 TOP ${limited.length}` : `共 ${limited.length} 个皮肤`
-      await e.reply(`${scope}，将分 ${totalPages} 张图以合并转发发送，请稍候...`)
+      // 页数多时会拆成几条转发发（见 FORWARD_MAX_IMAGES），先按张数预告，别让人以为只有一条
+      const batches = Math.ceil(totalPages / FORWARD_MAX_IMAGES)
+      const how = batches > 1 ? `分 ${totalPages} 张图、${batches} 条合并转发` : `分 ${totalPages} 张图以合并转发`
+      await e.reply(`${scope}，将${how}发送，请稍候...`)
     }
 
     const buildParams = (pageSkins, pageIndex) => ({
@@ -356,9 +377,49 @@ export class SkinWall extends plugin {
     }
 
     const forwardTitle = isLimited ? `皮肤墙 TOP${limited.length} · ${ID}` : `皮肤墙 · ${ID}`
-    const forwardMsg = await common.makeForwardMsg(e, imgList, forwardTitle)
-    // 合并转发里塞不进按钮，按钮单独跟一条
-    await e.reply(forwardMsg)
+    // 按体积切批：单条转发塞太多会被适配器整条拒收（见 FORWARD_MAX_* 的注释）
+    const chunks = chunkByBytes(imgList)
+    for (let i = 0; i < chunks.length; i++) {
+      const title = chunks.length > 1 ? `${forwardTitle}（${i + 1}/${chunks.length}）` : forwardTitle
+      const forwardMsg = await common.makeForwardMsg(e, chunks[i], title)
+      // 合并转发里塞不进按钮，按钮单独跟一条
+      await e.reply(forwardMsg)
+    }
     await e.reply(Button.skinWall(ID))
   }
+}
+
+/** 截图消息段的字节数。拿不到就返回 0，让调用方退回按张数切 */
+function imageBytes (img) {
+  const file = img?.file ?? img?.data?.file ?? img
+  if (Buffer.isBuffer(file)) return file.length
+  // 少数适配器把图转成了 base64:// 字符串，按 4/3 反推原始体积
+  if (typeof file === 'string' && file.startsWith('base64://')) {
+    return Math.floor((file.length - 9) * 3 / 4)
+  }
+  return 0
+}
+
+/**
+ * 把图片列表切成若干条转发的量：张数和累计体积哪个先到就切。
+ * 单张自己就超 FORWARD_MAX_BYTES 时不再和别人合批，独占一条。
+ */
+function chunkByBytes (imgList, maxImages = FORWARD_MAX_IMAGES, maxBytes = FORWARD_MAX_BYTES) {
+  const chunks = []
+  let cur = []
+  let curBytes = 0
+
+  for (const img of imgList) {
+    const bytes = imageBytes(img)
+    if (cur.length && (cur.length >= maxImages || (bytes && curBytes + bytes > maxBytes))) {
+      chunks.push(cur)
+      cur = []
+      curBytes = 0
+    }
+    cur.push(img)
+    curBytes += bytes
+  }
+
+  if (cur.length) chunks.push(cur)
+  return chunks
 }

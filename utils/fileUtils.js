@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import crypto from 'node:crypto'
 import fetch from 'node-fetch'
-import { PluginData } from '#components'
+import { PluginData, Config } from '#components'
 import { writeFileAtomic } from './safeStore.js'
 
 const IMG_CACHE_DIR = path.join(PluginData, 'imgCache')
@@ -28,6 +28,21 @@ const DOWNLOAD_TIMEOUT_MS = 15000
 
 /** 缓存目录默认容量上限（MB）。超出后按 mtime 从旧到新删，直到降回上限之下 */
 export const DEFAULT_CACHE_MAX_MB = 200
+
+/**
+ * 配置里的容量上限（MB）→ 字节，填 0 或负数表示不限量。
+ *
+ * 定时清理（apps/cacheManager.js）和批量下载后的即时削减（apps/skinWall.js）共用这一份：
+ * 两处各读一遍配置很容易对「上限」理解不一致，而超限判据只该有一个来源。
+ */
+export function resolveCacheMaxBytes () {
+  let mb = NaN
+  try {
+    mb = Number(Config.getDefOrConfig('config')?.imgCacheMaxMB)
+  } catch {}
+  const value = Number.isFinite(mb) ? mb : DEFAULT_CACHE_MAX_MB
+  return value > 0 ? value * 1024 * 1024 : 0
+}
 
 function isPlaceholder (buffer) {
   if (!PLACEHOLDER_SIZES.has(buffer.length)) return false
