@@ -20,6 +20,7 @@
  * 渲染失败回落到纯文字：缺失动辄七八百条，文字版给「概况 + 高价值 TOP + 逐英雄」三层。
  * 品质口径（tierRank / pickTierText / QUALITY_STATS）与皮肤墙共用一份。
  */
+import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import path from 'path'
 import {
   ApiService, getCurrentId, readYamlFile, Button, shouldQuote,

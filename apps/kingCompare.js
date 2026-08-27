@@ -14,6 +14,7 @@
  * 胜负判定见 ITEMS，段位不按星数硬比（星耀 1 星和王者 1 星不是一个量级），走 compareRank
  * 的两级判据。渲染失败时回落到逐行文字（renderCompare），判定口径两边完全一致。
  */
+import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import path from 'path'
 import {
   ApiService, getCurrentId, readYamlFile, Button, shouldQuote,
@@ -250,6 +251,15 @@ export class KingCompare extends plugin {
 
 /* ---------------------------------------------------------- 出图 */
 
+/**
+ * 一侧的显示名。营地允许把昵称设成全空白（实测有人用全角空格/零宽字符），
+ * 直接拿来渲染就是一片空白——「🎉 　赢了」这种，看着像 bug。剔掉不可见字符后为空就退回营地ID。
+ */
+const VISIBLE = /[^\s​-‏⁠﻿]/
+function sideName (s) {
+  return VISIBLE.test(String(s.roleName || '')) ? s.roleName : s.campId
+}
+
 /** 一侧的副标题：大区 + 等级，都可能缺 */
 function sideSub (s) {
   return [s.areaName, s.gameLevel ? `Lv.${s.gameLevel}` : '', `营地 ${s.campId}`]
@@ -298,8 +308,8 @@ function buildCompareView (a, b) {
     })
   }
 
-  const nameA = a.roleName || a.campId
-  const nameB = b.roleName || b.campId
+  const nameA = sideName(a)
+  const nameB = sideName(b)
   const compared = winA + winB
   const gap = Math.abs(winA - winB)
 
@@ -336,8 +346,8 @@ function buildCompareView (a, b) {
 /* ---------------------------------------------------------- 文案（出图失败时的兜底） */
 
 function renderCompare (a, b) {
-  const nameA = a.roleName || a.campId
-  const nameB = b.roleName || b.campId
+  const nameA = sideName(a)
+  const nameB = sideName(b)
 
   const lines = [
     '⚔️ 王者对比',

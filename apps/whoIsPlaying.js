@@ -16,6 +16,7 @@
  *
  * 出图走 WhoIsPlaying.html（视觉与战报同源），渲染失败时回落到纯文字名单。
  */
+import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { loadPushList, subGroups, getHeroNameMap, normalizeName, ONLINE_LABEL } from '../utils/pushStore.js'
 import { Button, shouldQuote, getUserAvatar, getGroupAvatar } from '#utils'
 import { heroIconUrl } from '../utils/reportStore.js'
