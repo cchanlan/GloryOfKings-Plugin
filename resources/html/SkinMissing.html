@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>{{title}}</title>
+  <!-- 卡片 / 四格 / 区块的基础样式在 BattleReport.css，这里只补皮肤缺失特有的增量 -->
+  <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
+  <style>
+    /* 整体进度条：一眼看出收集了多少 */
+    .prog-wrap { padding: 4px 26px 18px; }
+    .prog-bar {
+      position: relative;
+      height: 12px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.07);
+      overflow: hidden;
+    }
+    .prog-bar span {
+      display: block;
+      height: 100%;
+      border-radius: 8px;
+      background: linear-gradient(90deg, rgba(245,215,110,0.45), #f5d76e);
+    }
+    .prog-note { display: flex; justify-content: space-between; margin-top: 7px; font-size: 12px; color: rgba(255,255,255,0.38); }
+
+    /* 按品质分档：一行一档，右边跟一条细进度条 */
+    .qua-list { display: flex; flex-direction: column; gap: 11px; }
+    .qua-row { display: flex; align-items: center; gap: 13px; }
+    .qua-name { width: 96px; flex-shrink: 0; font-size: 14px; color: rgba(255,255,255,0.72); }
+    .qua-track { flex: 1; min-width: 0; height: 9px; border-radius: 6px; background: rgba(255,255,255,0.07); overflow: hidden; }
+    .qua-track span { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, rgba(245,215,110,0.4), #f5d76e); }
+    .qua-num { width: 128px; flex-shrink: 0; text-align: right; font-size: 13px; color: rgba(255,255,255,0.45); font-family: Number, sans-serif; }
+    .qua-num b { color: #f5d76e; font-weight: 400; }
+    .qua-num i { font-style: normal; color: #e96e6e; }
+
+    /* 皮肤卡：营地卡面图 bigCover 是 180x280 的竖图，卡片按同比例给 */
+    .skin-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+    .skin-card {
+      border-radius: 12px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .skin-card .pic { position: relative; width: 100%; height: 214px; background: rgba(255,255,255,0.05); overflow: hidden; }
+    .skin-card .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    /* 已拥有的正常显示，缺失的压暗——一眼扫出哪些还没有 */
+    .skin-card.miss .pic img { filter: grayscale(0.85) brightness(0.62); }
+    .skin-card .flag {
+      position: absolute;
+      top: 6px; left: 6px;
+      padding: 1px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: rgba(0,0,0,0.55);
+    }
+    .skin-card.own .flag { color: #6fd39b; }
+    .skin-card.miss .flag { color: #e96e6e; }
+    .skin-card .txt { padding: 8px 9px 10px; }
+    /* 皮肤名和英雄名都可能很长（「元流之子(射手)」「时之祈愿·星辰之愿」），一律截断 */
+    .skin-card .nm {
+      font-size: 13px;
+      color: #eef2f8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .skin-card.miss .nm { color: rgba(255,255,255,0.6); }
+    .skin-card .sub {
+      margin-top: 3px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.35);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .skin-card .sub b { color: #f5d76e; font-weight: 400; }
+
+    /* 缺得最多的英雄：标签流，个数用金色 */
+    .name-flow { display: flex; flex-wrap: wrap; gap: 8px; }
+    .name-chip {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 999px;
+      padding: 5px 13px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.55);
+    }
+    .name-chip b { color: #f5d76e; font-weight: 400; font-family: Number, sans-serif; margin-left: 4px; }
+
+    .empty-tip {
+      padding: 24px 0 6px;
+      text-align: center;
+      font-size: 15px;
+      color: rgba(255,255,255,0.45);
+      line-height: 1.9;
+    }
+    .empty-tip span { display: block; font-size: 12px; color: rgba(255,255,255,0.3); }
+    /* footText 带 \n 分两句，默认会折成一行，要 pre-line 才认换行 */
+    .footer { padding: 14px 26px; font-size: 12px; color: rgba(255,255,255,0.3); text-align: center; line-height: 1.7; white-space: pre-line; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="card-header">
+    <img class="avatar" src="{{avatar}}" alt="" onerror="this.style.display='none'">
+    <div class="user-info">
+      <h2 class="username">{{username}}</h2>
+      <span class="badge">{{scopeText}}</span>
+      {{if worthText}}<span class="badge">{{worthText}}</span>{{/if}}
+    </div>
+    <div class="report-label">
+      {{title}}
+      <span class="sub">{{subText}}</span>
+    </div>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-cell good">
+      <div class="stat-val">{{has}}</div>
+      <div class="stat-key">已拥有</div>
+    </div>
+    <div class="stat-cell {{if missing}}bad{{/if}}">
+      <div class="stat-val">{{missing}}</div>
+      <div class="stat-key">还缺</div>
+    </div>
+    <div class="stat-cell gold">
+      <div class="stat-val">{{pct}}<span style="font-size:18px">%</span></div>
+      <div class="stat-key">完成度</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val">{{total}}</div>
+      <div class="stat-key">{{totalKey}}</div>
+    </div>
+  </div>
+
+  <div class="prog-wrap">
+    <div class="prog-bar"><span style="width:{{pct}}%"></span></div>
+    <div class="prog-note"><span>已有 {{has}}</span><span>缺 {{missing}}</span></div>
+  </div>
+  {{if tiers.length}}
+  <div class="section">
+    <div class="section-title">
+      按品质
+      <span class="tip">统计品质名，与营地评级口径不同</span>
+    </div>
+    <div class="qua-list">
+      {{each tiers q}}
+      <div class="qua-row">
+        <div class="qua-name">{{q.label}}</div>
+        <div class="qua-track"><span style="width:{{q.pct}}%"></span></div>
+        <div class="qua-num">有 <b>{{q.has}}</b> · 缺 <i>{{q.lack}}</i></div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  {{if skins.length}}
+  <div class="section">
+    <div class="section-title">
+      {{skinTitle}}
+      <span class="tip">{{skinTip}}</span>
+    </div>
+    <div class="skin-grid">
+      {{each skins s}}
+      <div class="skin-card {{if s.owned}}own{{else}}miss{{/if}}">
+        <div class="pic">
+          <img src="{{s.cover}}" alt="" onerror="this.style.visibility='hidden'">
+          <span class="flag">{{if s.owned}}已有{{else}}未拥有{{/if}}</span>
+        </div>
+        <div class="txt">
+          <div class="nm">{{s.name}}</div>
+          <!-- 品质名可能取不到（部分老皮肤 classTypeName 是空的），分隔符要跟着一起省，别留个孤立的「·」 -->
+          <div class="sub">{{s.sub}}{{if s.price}}{{if s.sub}} · {{/if}}<b>{{s.price}}</b>{{/if}}</div>
+        </div>
+      </div>
+      {{/each}}
+    </div>
+    {{if more}}<div class="prog-note" style="justify-content:center;margin-top:12px">…… 还有 {{more}} 款没画出来</div>{{/if}}
+  </div>
+  {{/if}}
+
+  {{if heroTop.length}}
+  <div class="section">
+    <div class="section-title">
+      缺得最多的英雄
+      <span class="tip">发送 #缺皮肤 妲己 看单个英雄缺哪几款</span>
+    </div>
+    <div class="name-flow">
+      {{each heroTop h}}
+      <span class="name-chip">{{h.hero}}<b>{{h.num}}</b></span>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  {{if !missing}}
+  <div class="section">
+    <div class="empty-tip">
+      {{fullText}}
+      <span>一款都不缺，这是真的氪</span>
+    </div>
+  </div>
+  {{/if}}
+
+  <div class="footer">{{footText}}</div>
+</div>
+</body>
+</html>

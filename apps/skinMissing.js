@@ -15,13 +15,15 @@
  *     不排掉的话每个英雄都会凭空多出一条「缺失」。排掉后 822 条，
  *     与营地自己的 skinCountInfo.totalSkinNum(823) 只差 1。
  *
- * 输出是纯文字：缺失动辄七八百条，出图既慢又没人逐张看，文字给「概况 + 高价值 TOP + 逐英雄」
- * 三层最实用。品质口径（tierRank / pickTierText / QUALITY_STATS）与皮肤墙共用一份。
+ * 出图走 SkinMissing.html（视觉与战报同源），概况与单英雄两套视图共用一个模板，
+ * 皮肤卡面直接用配置表自带的 bigCover（180x280，同一响应里白送，不额外请求图源）。
+ * 渲染失败回落到纯文字：缺失动辄七八百条，文字版给「概况 + 高价值 TOP + 逐英雄」三层。
+ * 品质口径（tierRank / pickTierText / QUALITY_STATS）与皮肤墙共用一份。
  */
 import path from 'path'
 import {
   ApiService, getCurrentId, readYamlFile, Button, shouldQuote,
-  AT_HEAD, stripAtText, resolveTargetUserId, resolveMemberName,
+  AT_HEAD, stripAtText, resolveTargetUserId, resolveMemberName, getUserAvatar,
   isClassicSkin, SZ_ORDER, tierRank, pickTierText, QUALITY_STATS
 } from '#utils'
 import { PluginData } from '#components'
@@ -99,15 +101,33 @@ export class SkinMissing extends plugin {
         ], shouldQuote())
       }
       return e.reply([
-        renderHero(matched.hero, matched.list, owned, name),
+        await this.shot(e, userId, buildHeroView(matched.hero, matched.list, owned, name)) ||
+          renderHero(matched.hero, matched.list, owned, name),
         Button.skinMissing(matched.hero, campId)
       ], shouldQuote())
     }
 
     return e.reply([
-      renderOverview(conf, owned, data?.skinCountInfo, name, campId),
+      await this.shot(e, userId, buildOverviewView(conf, owned, data?.skinCountInfo, name)) ||
+        renderOverview(conf, owned, data?.skinCountInfo, name, campId),
       Button.skinMissing('', campId)
     ], shouldQuote())
+  }
+
+  /** 出图。失败返回 null，由调用方回落到文字版 */
+  async shot (e, userId, view) {
+    try {
+      return await puppeteer.screenshot('SkinMissing', {
+        tplFile: 'plugins/GloryOfKings-Plugin/resources/html/SkinMissing.html',
+        // 模板的 CSS / 字体都靠 {{_res_path}} 拼相对路径，漏了这项样式表 404，出的是纯文字图
+        _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
+        avatar: await getUserAvatar(e, userId, 100).catch(() => ''),
+        ...view
+      })
+    } catch (error) {
+      logger.error(`[王者缺皮肤] 渲染失败: ${error.message}`)
+      return null
+    }
   }
 }
 
@@ -198,7 +218,99 @@ async function displayName (e, userId) {
   }
 }
 
-/* ---------------------------------------------------------- 文案 */
+/* ---------------------------------------------------------- 出图 */
+
+/** 一款皮肤的卡片。卡面用配置表自带的 bigCover(180x280)，缺了退 szSmallIcon，都没有就靠 onerror 隐藏 */
+function skinCard (conf, owned, sub) {
+  return {
+    name: String(conf.szTitle || `皮肤${conf.iSkinId}`),
+    sub: sub || pickTierText(conf.classTypeName) || '',
+    // 限定皮肤大多不标价（iPrice 为 0），标价只在有值时给，别写成「0 点券」误导人
+    price: Number(conf.iPrice || 0) > 0 ? `${Number(conf.iPrice)}点券` : '',
+    cover: conf.bigCover || conf.szSmallIcon || '',
+    owned
+  }
+}
+
+function buildOverviewView (conf, owned, countInfo, name) {
+  const miss = conf.filter(item => !owned.has(String(item.iSkinId)))
+  const total = conf.length
+  const has = total - miss.length
+
+  // 品质分档：统计品质名而不是营地评级，两者口径不同（评级里 SR 会盖过荣耀典藏）
+  const tiers = []
+  for (const stat of QUALITY_STATS) {
+    const hit = item => (Array.isArray(item.classTypeName) ? item.classTypeName : [])
+      .some(n => stat.aliases.includes(String(n).trim()))
+    const all = conf.filter(hit).length
+    if (!all) continue
+    const lack = miss.filter(hit).length
+    tiers.push({ label: stat.label, has: all - lack, lack, pct: Math.round(((all - lack) / all) * 100) })
+  }
+
+  const byHero = new Map()
+  for (const item of miss) {
+    const hero = String(item.szHeroTitle || '未知')
+    byHero.set(hero, (byHero.get(hero) || 0) + 1)
+  }
+
+  // 官方口径的估值和绝版数，自己算不出来，直接引用
+  const worth = Number(countInfo?.totalValue || 0)
+  const notForSell = Number(countInfo?.notForSell || 0)
+
+  return {
+    title: '皮肤缺失',
+    subText: '不含经典皮肤',
+    username: name,
+    scopeText: `已有 ${has} / ${total} 款`,
+    worthText: worth > 0 ? `估值 ${worth} 点券${notForSell > 0 ? ` · 绝版 ${notForSell}` : ''}` : '',
+    has,
+    missing: miss.length,
+    total,
+    totalKey: '全部皮肤',
+    pct: total ? Number(((has / total) * 100).toFixed(1)) : 0,
+    tiers,
+    // 概况只画最值钱的那一批：七八百条全画出来图会长到没人看
+    skinTitle: `最值钱的缺失（前 ${Math.min(miss.length, TOP_MISSING)}）`,
+    skinTip: '先按品质档，再按营地评级和标价',
+    skins: [...miss].sort(valueRank).slice(0, TOP_MISSING)
+      .map(item => skinCard(item, false, String(item.szHeroTitle || ''))),
+    more: 0,
+    heroTop: [...byHero.entries()].sort((a, b) => b[1] - a[1]).slice(0, TOP_HERO)
+      .map(([hero, num]) => ({ hero, num })),
+    fullText: '全部皮肤都到手了',
+    footText: '总数按营地全量配置表算，不含经典皮肤（原皮人人都有）\n发送 #缺皮肤 妲己 看单个英雄缺哪几款'
+  }
+}
+
+function buildHeroView (hero, list, owned, name) {
+  const has = list.filter(item => owned.has(String(item.iSkinId))).length
+  const shown = list.slice(0, MAX_HERO_SKINS)
+
+  return {
+    title: '皮肤缺失',
+    subText: hero,
+    username: name,
+    scopeText: `「${hero}」已有 ${has} / ${list.length} 款`,
+    worthText: '',
+    has,
+    missing: list.length - has,
+    total: list.length,
+    totalKey: '该英雄皮肤',
+    pct: list.length ? Number(((has / list.length) * 100).toFixed(1)) : 0,
+    tiers: [],
+    skinTitle: `${hero} 的皮肤（${list.length}）`,
+    // 皮肤ID升序和游戏里的顺序一致，别按价值重排，用户是照着游戏里的列表看的
+    skinTip: '按皮肤序号排，压暗的是还没有的',
+    skins: shown.map(item => skinCard(item, owned.has(String(item.iSkinId)))),
+    more: Math.max(0, list.length - shown.length),
+    heroTop: [],
+    fullText: `「${hero}」的皮肤全齐了`,
+    footText: '不含经典皮肤（原皮人人都有，列出来没意义）'
+  }
+}
+
+/* ---------------------------------------------------------- 文案（出图失败时的兜底） */
 
 /** 一条皮肤的展示片段：`魅力维加斯[史诗品质] 888点券` */
 function skinLine (conf) {

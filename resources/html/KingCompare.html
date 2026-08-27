@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>{{title}}</title>
+  <!-- 卡片 / 区块的基础样式在 BattleReport.css，这里只补对阵表特有的增量 -->
+  <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
+  <style>
+    /* 对阵头：左右两个人 + 中间比分 */
+    .vs-box {
+      display: flex;
+      align-items: stretch;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .vs-side {
+      flex: 1;
+      min-width: 0;
+      padding: 20px 18px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      text-align: center;
+    }
+    .vs-side.winner { background: linear-gradient(180deg, rgba(245,215,110,0.13), rgba(245,215,110,0.02)); }
+    .vs-face {
+      width: 78px; height: 78px;
+      border-radius: 50%;
+      border: 3px solid rgba(255,255,255,0.18);
+      object-fit: cover;
+      background: rgba(255,255,255,0.06);
+    }
+    .vs-side.winner .vs-face { border-color: #f5d76e; }
+    /* 昵称可能很长，限宽 + 省略号，别把中间的比分挤歪 */
+    .vs-name {
+      font-size: 19px;
+      font-weight: 600;
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .vs-sub { font-size: 12px; color: rgba(255,255,255,0.4); }
+    .vs-crown { font-size: 13px; color: #f5d76e; min-height: 18px; }
+
+    .vs-mid {
+      width: 210px;
+      flex-shrink: 0;
+      padding: 20px 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border-left: 1px solid rgba(255,255,255,0.07);
+      border-right: 1px solid rgba(255,255,255,0.07);
+    }
+    .vs-score { font-family: Number, sans-serif; font-size: 40px; line-height: 1; }
+    .vs-score .a { color: #f5d76e; }
+    .vs-score .b { color: #7fb3ff; }
+    .vs-score .sep { color: rgba(255,255,255,0.25); margin: 0 6px; font-size: 30px; }
+    .vs-verdict { font-size: 13px; color: rgba(255,255,255,0.55); text-align: center; line-height: 1.5; }
+
+    /* 逐项对比：左值 | 项目 | 右值 */
+    .cmp-list { display: flex; flex-direction: column; }
+    .cmp-row {
+      display: flex;
+      align-items: center;
+      padding: 11px 0;
+      border-bottom: 1px dashed rgba(255,255,255,0.06);
+    }
+    .cmp-row:last-child { border-bottom: none; }
+    .cmp-val {
+      flex: 1;
+      min-width: 0;
+      font-size: 16px;
+      color: rgba(255,255,255,0.62);
+      /* 「荣耀王者 68 星」这类长值要能折行，不能把中间的标签顶走 */
+      word-break: break-all;
+    }
+    .cmp-val.left { text-align: right; padding-right: 16px; }
+    .cmp-val.right { text-align: left; padding-left: 16px; }
+    .cmp-val.win { color: #f5d76e; font-weight: 600; }
+    .cmp-val .mark { font-size: 12px; color: #f5d76e; margin: 0 4px; }
+    .cmp-key {
+      width: 210px;
+      flex-shrink: 0;
+      text-align: center;
+      font-size: 13px;
+      color: rgba(255,255,255,0.42);
+    }
+    /* 进度条：两边按比例对撞，一眼看出差距有多大 */
+    .cmp-bars { display: flex; align-items: center; width: 100%; height: 5px; gap: 3px; margin-top: 6px; }
+    .cmp-bars .bar { height: 100%; border-radius: 3px; background: rgba(255,255,255,0.1); }
+    .cmp-bars .bar.a { margin-left: auto; background: linear-gradient(90deg, rgba(245,215,110,0.3), #f5d76e); }
+    .cmp-bars .bar.b { margin-right: auto; background: linear-gradient(270deg, rgba(127,179,255,0.3), #7fb3ff); }
+
+    .skip-tip {
+      padding: 12px 26px 16px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.32);
+      text-align: center;
+    }
+    .footer { padding: 14px 26px; font-size: 12px; color: rgba(255,255,255,0.3); text-align: center; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="card-header">
+    <div class="user-info">
+      <h2 class="username">{{leftName}} <span style="color:rgba(255,255,255,0.3)">VS</span> {{rightName}}</h2>
+      <span class="badge">{{compared}} 项可比</span>
+      {{if skipped}}<span class="badge">{{skipped}} 项缺数据跳过</span>{{/if}}
+    </div>
+    <div class="report-label">
+      {{title}}
+      <span class="sub">{{subText}}</span>
+    </div>
+  </div>
+
+  <div class="vs-box">
+    <div class="vs-side {{if winSide === 'a'}}winner{{/if}}">
+      <img class="vs-face" src="{{leftIcon}}" alt="" onerror="this.style.visibility='hidden'">
+      <div class="vs-name">{{leftName}}</div>
+      <div class="vs-sub">{{leftSub}}</div>
+      <div class="vs-crown">{{if winSide === 'a'}}👑 胜出{{/if}}</div>
+    </div>
+    <div class="vs-mid">
+      <div class="vs-score"><span class="a">{{winA}}</span><span class="sep">:</span><span class="b">{{winB}}</span></div>
+      <div class="vs-verdict">{{verdict}}</div>
+    </div>
+    <div class="vs-side {{if winSide === 'b'}}winner{{/if}}">
+      <img class="vs-face" src="{{rightIcon}}" alt="" onerror="this.style.visibility='hidden'">
+      <div class="vs-name">{{rightName}}</div>
+      <div class="vs-sub">{{rightSub}}</div>
+      <div class="vs-crown">{{if winSide === 'b'}}👑 胜出{{/if}}</div>
+    </div>
+  </div>
+
+  {{if items.length}}
+  <div class="section">
+    <div class="section-title">
+      逐项对比
+      <span class="tip">数值项各算一分，一边缺数据的项整项不计</span>
+    </div>
+    <div class="cmp-list">
+      {{each items it}}
+      <div class="cmp-row">
+        <div class="cmp-val left {{if it.side === 'a'}}win{{/if}}">
+          {{it.leftText}}{{if it.side === 'a'}}<span class="mark">▲</span>{{/if}}
+          {{if it.barA}}<div class="cmp-bars"><span class="bar a" style="width:{{it.barA}}%"></span></div>{{/if}}
+        </div>
+        <div class="cmp-key">{{it.icon}} {{it.label}}</div>
+        <div class="cmp-val right {{if it.side === 'b'}}win{{/if}}">
+          {{if it.side === 'b'}}<span class="mark">▲</span>{{/if}}{{it.rightText}}
+          {{if it.barB}}<div class="cmp-bars"><span class="bar b" style="width:{{it.barB}}%"></span></div>{{/if}}
+        </div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  {{if skipList}}
+  <div class="skip-tip">缺数据没参与比分的项：{{skipList}}</div>
+  {{/if}}
+
+  <div class="footer">{{footText}}</div>
+</div>
+</body>
+</html>

@@ -10,8 +10,9 @@
  *   #王者对比 2 3        两个都是绑定序号时，比自己名下的两个号
  * 单独发 #王者对比 会提示要给个对手 —— 自己跟自己比没有意义。
  *
- * 输出是纯文字：九项逐行列比一图更好读，也省一次出图；胜负判定见 ITEMS，
- * 段位不按星数硬比（星耀 1 星和王者 1 星不是一个量级），走 compareRank 的两级判据。
+ * 出图走 KingCompare.html：左右对阵 + 九项对撞条，赢的一边标金色。
+ * 胜负判定见 ITEMS，段位不按星数硬比（星耀 1 星和王者 1 星不是一个量级），走 compareRank
+ * 的两级判据。渲染失败时回落到逐行文字（renderCompare），判定口径两边完全一致。
  */
 import path from 'path'
 import {
@@ -25,6 +26,7 @@ import { PluginData } from '#components'
 /**
  * 对比项。cmp 返回 >0 表示左边赢；text 负责把值渲染成人话。
  * has 为假的项整条跳过（比如没打巅峰赛的号），不参与比分 —— 缺数据不算输。
+ * num 给出图时画对撞条用；段位没有 num：星耀 68 星和王者 1 星的星数不可线性比。
  */
 const ITEMS = [
   {
@@ -39,6 +41,7 @@ const ITEMS = [
     label: '巅峰分',
     has: s => s.peak > 0,
     text: s => String(s.peak),
+    num: s => s.peak,
     cmp: (a, b) => a.peak - b.peak
   },
   {
@@ -46,6 +49,7 @@ const ITEMS = [
     label: '战斗力',
     has: s => s.power > 0,
     text: s => String(s.power),
+    num: s => s.power,
     cmp: (a, b) => a.power - b.power
   },
   {
@@ -53,6 +57,7 @@ const ITEMS = [
     label: '总场次',
     has: s => s.plays > 0,
     text: s => `${s.plays} 场`,
+    num: s => s.plays,
     cmp: (a, b) => a.plays - b.plays
   },
   {
@@ -60,6 +65,7 @@ const ITEMS = [
     label: '胜率',
     has: s => s.winRate > 0,
     text: s => `${s.winRate}%`,
+    num: s => s.winRate,
     cmp: (a, b) => a.winRate - b.winRate
   },
   {
@@ -67,6 +73,7 @@ const ITEMS = [
     label: 'MVP',
     has: s => s.mvp > 0,
     text: s => `${s.mvp} 次`,
+    num: s => s.mvp,
     cmp: (a, b) => a.mvp - b.mvp
   },
   {
@@ -74,6 +81,7 @@ const ITEMS = [
     label: '英雄',
     has: s => s.heroOwn > 0,
     text: s => `${s.heroOwn}${s.heroTotal ? `/${s.heroTotal}` : ''}`,
+    num: s => s.heroOwn,
     cmp: (a, b) => a.heroOwn - b.heroOwn
   },
   {
@@ -81,6 +89,7 @@ const ITEMS = [
     label: '皮肤',
     has: s => s.skinOwn > 0,
     text: s => `${s.skinOwn}${s.skinTotal ? `/${s.skinTotal}` : ''}`,
+    num: s => s.skinOwn,
     cmp: (a, b) => a.skinOwn - b.skinOwn
   },
   {
@@ -88,6 +97,7 @@ const ITEMS = [
     label: '最高战力',
     has: s => Number(s.topHero?.power) > 0,
     text: s => `${s.topHero.heroName || '英雄'} ${s.topHero.power}`,
+    num: s => Number(s.topHero?.power) || 0,
     cmp: (a, b) => a.topHero.power - b.topHero.power
   }
 ]
@@ -171,7 +181,25 @@ export class KingCompare extends plugin {
       if (side.topHero?.heroId) side.topHero.heroName = heroMap[side.topHero.heroId] || ''
     }
 
-    return e.reply([renderCompare(a, b), Button.compare(left, right)], shouldQuote())
+    return e.reply([
+      await this.shot(a, b) || renderCompare(a, b),
+      Button.compare(left, right)
+    ], shouldQuote())
+  }
+
+  /** 出图。失败返回 null，由调用方回落到逐行文字 */
+  async shot (a, b) {
+    try {
+      return await puppeteer.screenshot('KingCompare', {
+        tplFile: 'plugins/GloryOfKings-Plugin/resources/html/KingCompare.html',
+        // 模板的 CSS / 字体都靠 {{_res_path}} 拼相对路径，漏了这项样式表 404，出的是纯文字图
+        _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
+        ...buildCompareView(a, b)
+      })
+    } catch (error) {
+      logger.error(`[王者对比] 渲染失败: ${error.message}`)
+      return null
+    }
   }
 
   /** 解析被 @ 的人。这里不用 resolveTargetUserId：那个会在没 @ 时退回自己，而对比需要区分「没给对手」 */
@@ -220,7 +248,92 @@ export class KingCompare extends plugin {
   }
 }
 
-/* ---------------------------------------------------------- 文案 */
+/* ---------------------------------------------------------- 出图 */
+
+/** 一侧的副标题：大区 + 等级，都可能缺 */
+function sideSub (s) {
+  return [s.areaName, s.gameLevel ? `Lv.${s.gameLevel}` : '', `营地 ${s.campId}`]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+/** 把两份摘要整成模板要的视图。判定口径与 renderCompare 完全一致，只是多了对撞条 */
+function buildCompareView (a, b) {
+  const items = []
+  const skip = []
+  let winA = 0
+  let winB = 0
+
+  for (const item of ITEMS) {
+    // 一边缺数据这项就不比：算「输」会冤枉没打巅峰赛的号
+    if (!item.has(a) || !item.has(b)) {
+      skip.push(item.label)
+      continue
+    }
+    const diff = item.cmp(a, b)
+    if (diff > 0) winA += 1
+    else if (diff < 0) winB += 1
+
+    // 对撞条按两边的比值给宽度；段位没有 num（星数跨段不可比），那行就不画条
+    let barA = 0
+    let barB = 0
+    if (item.num) {
+      const va = item.num(a)
+      const vb = item.num(b)
+      const max = Math.max(va, vb)
+      if (max > 0) {
+        barA = Math.max(4, Math.round((va / max) * 100))
+        barB = Math.max(4, Math.round((vb / max) * 100))
+      }
+    }
+
+    items.push({
+      icon: item.icon,
+      label: item.label,
+      leftText: item.text(a),
+      rightText: item.text(b),
+      side: diff > 0 ? 'a' : (diff < 0 ? 'b' : ''),
+      barA,
+      barB
+    })
+  }
+
+  const nameA = a.roleName || a.campId
+  const nameB = b.roleName || b.campId
+  const compared = winA + winB
+  const gap = Math.abs(winA - winB)
+
+  let verdict = '🤝 打平，谁也别嘴谁'
+  let winSide = ''
+  if (!compared) {
+    verdict = '两边都没什么可比的数据\n可能都没开「陌生人可见」'
+  } else if (winA !== winB) {
+    winSide = winA > winB ? 'a' : 'b'
+    verdict = `${winA > winB ? nameA : nameB} 赢了${gap >= 4 ? '，而且是碾压' : ''}`
+  }
+
+  return {
+    title: '王者对比',
+    subText: `${compared} 项分出胜负`,
+    leftName: nameA,
+    rightName: nameB,
+    leftIcon: a.roleIcon || '',
+    rightIcon: b.roleIcon || '',
+    leftSub: sideSub(a),
+    rightSub: sideSub(b),
+    items,
+    winA,
+    winB,
+    winSide,
+    verdict,
+    compared,
+    skipped: skip.length,
+    skipList: skip.join('、'),
+    footText: '数据取自营地主页 · 段位先比段再比星 · 缺数据的项不计分'
+  }
+}
+
+/* ---------------------------------------------------------- 文案（出图失败时的兜底） */
 
 function renderCompare (a, b) {
   const nameA = a.roleName || a.campId

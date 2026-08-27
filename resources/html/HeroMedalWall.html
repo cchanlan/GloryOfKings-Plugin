@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>{{title}}</title>
+  <!-- 卡片 / 四格 / 区块的基础样式在 BattleReport.css，这里只补称号墙特有的增量 -->
+  <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
+  <style>
+    /* 称号一行一条：名次 + 英雄头像 + 称号全文 + 战力 */
+    .medal-list { display: flex; flex-direction: column; gap: 9px; }
+    .medal-row {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 10px 15px;
+    }
+    /* 前三名给金边，一眼能挑出来 */
+    .medal-row.top {
+      border-color: rgba(245,215,110,0.34);
+      background: linear-gradient(100deg, rgba(245,215,110,0.11), rgba(255,255,255,0.03));
+    }
+    .medal-rank {
+      width: 58px;
+      flex-shrink: 0;
+      text-align: center;
+      font-family: Number, sans-serif;
+    }
+    .medal-rank b { display: block; font-size: 24px; font-weight: 400; color: #eef2f8; }
+    .medal-rank i { font-style: normal; font-size: 11px; color: rgba(255,255,255,0.32); }
+    .medal-row.top .medal-rank b { color: #f5d76e; }
+    .medal-icon {
+      width: 46px; height: 46px;
+      border-radius: 50%;
+      border: 2px solid rgba(245,215,110,0.35);
+      object-fit: cover;
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.06);
+    }
+    /* 称号本身可能很长（「台北第37孙权」到「呼和浩特第128大司命」），别把战力挤出卡片 */
+    .medal-main { flex: 1; min-width: 0; }
+    .medal-text {
+      font-size: 17px;
+      color: #f5d76e;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .medal-meta { font-size: 12px; color: rgba(255,255,255,0.38); }
+    .medal-power { flex-shrink: 0; text-align: right; }
+    .medal-power b { display: block; font-family: Number, sans-serif; font-size: 19px; font-weight: 400; color: #eef2f8; }
+    .medal-power i { font-style: normal; font-size: 11px; color: rgba(255,255,255,0.32); }
+
+    /* 未上榜：只列名字，铺成标签流 */
+    .name-flow { display: flex; flex-wrap: wrap; gap: 8px; }
+    .name-chip {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 999px;
+      padding: 4px 12px 4px 5px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.5);
+      max-width: 240px;
+    }
+    .name-chip img {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.06);
+      filter: grayscale(1);
+      opacity: 0.75;
+    }
+    .name-chip b { font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .empty-tip {
+      padding: 24px 0 6px;
+      text-align: center;
+      font-size: 15px;
+      color: rgba(255,255,255,0.45);
+      line-height: 1.9;
+    }
+    .empty-tip span { display: block; font-size: 12px; color: rgba(255,255,255,0.3); }
+    /* footText 里带 \n（两句话分行），默认会被折成一行，要 pre-line 才认换行 */
+    .footer { padding: 14px 26px; font-size: 12px; color: rgba(255,255,255,0.3); text-align: center; line-height: 1.7; white-space: pre-line; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="card-header">
+    <img class="avatar" src="{{avatar}}" alt="" onerror="this.style.display='none'">
+    <div class="user-info">
+      <h2 class="username">{{username}}</h2>
+      <span class="badge">扫了战力最高的 {{scanned}} / {{total}} 个英雄</span>
+      {{if bestText}}<span class="badge">最好 {{bestText}}</span>{{/if}}
+    </div>
+    <div class="report-label">
+      {{title}}
+      <span class="sub">{{subText}}</span>
+    </div>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-cell gold">
+      <div class="stat-val">{{medalCount}}</div>
+      <div class="stat-key">上榜称号</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val">{{heroCount}}</div>
+      <div class="stat-key">上榜英雄</div>
+    </div>
+    <div class="stat-cell {{if bestRank}}good{{/if}}">
+      <div class="stat-val">{{if bestRank}}{{bestRank}}{{else}}—{{/if}}</div>
+      <div class="stat-key">最高名次</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val">{{noneCount}}</div>
+      <div class="stat-key">未上榜</div>
+    </div>
+  </div>
+
+  {{each groups g}}
+  <div class="section">
+    <div class="section-title">
+      {{g.title}}（{{g.rows.length}}）
+      <span class="tip">{{g.tip}}</span>
+    </div>
+    <div class="medal-list">
+      {{each g.rows row}}
+      <div class="medal-row {{if row.rank <= 3}}top{{/if}}">
+        <div class="medal-rank"><b>{{row.rank}}</b><i>名</i></div>
+        <img class="medal-icon" src="{{row.heroIcon}}" alt="" onerror="this.style.visibility='hidden'">
+        <div class="medal-main">
+          <div class="medal-text">{{row.text}}</div>
+          <div class="medal-meta">{{row.hero}}{{if row.playNum}} · {{row.playNum}} 场{{/if}}</div>
+        </div>
+        {{if row.power}}
+        <div class="medal-power"><b>{{row.power}}</b><i>战力</i></div>
+        {{/if}}
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/each}}
+
+  {{if !groups.length}}
+  <div class="section">
+    <div class="empty-tip">
+      战力最高的 {{scanned}} 个英雄都还没上榜
+      <span>称号是英雄战力排行榜的名次，把某个英雄的战力练上去就有了</span>
+    </div>
+  </div>
+  {{/if}}
+
+  {{if noneList.length}}
+  <div class="section">
+    <div class="section-title">
+      未上榜（{{noneList.length}}）
+      <span class="tip">这些英雄的战力还没进榜</span>
+    </div>
+    <div class="name-flow">
+      {{each noneList row}}
+      <span class="name-chip">
+        <img src="{{row.heroIcon}}" alt="" onerror="this.style.visibility='hidden'"><b>{{row.name}}</b>
+      </span>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  <div class="footer">{{footText}}</div>
+</div>
+</body>
+</html>

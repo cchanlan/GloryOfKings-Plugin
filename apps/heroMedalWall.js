@@ -10,15 +10,16 @@
  * 15 个英雄约 20 秒，所以先回执再干活。结果缓存 30 分钟，和 #我的英雄 共用，
  * 刚查过 #我的英雄 的话前 10 个英雄是缓存命中，这条几乎瞬间出。
  *
- * 输出是纯文字：称号本来就是一行文本，逐条列出来比塞进图里更好读，也省一次出图。
+ * 出图走 HeroMedalWall.html（视觉与战报同源），渲染失败时回落到纯文字清单。
  */
 import path from 'path'
 import {
-  ApiService, getCurrentId, readYamlFile, Button, shouldQuote,
+  ApiService, getCurrentId, readYamlFile, Button, shouldQuote, getUserAvatar,
   AT_HEAD, stripAtText, resolveTargetUserId, resolveMemberName
 } from '#utils'
 import { fetchHeroMedals, parseMedal, pendingMedalCount } from '../utils/heroMedals.js'
 import { loadPushList } from '../utils/pushStore.js'
+import { heroIconUrl } from '../utils/reportStore.js'
 import { PluginData } from '#components'
 
 /** 默认扫多少个英雄。20 秒左右，再多用户就该以为指令死了 */
@@ -106,10 +107,28 @@ export class HeroMedalWall extends plugin {
     })
 
     const name = String(role.roleName || '').trim() || await displayName(e, userId)
+    const stat = { name, picked, medals, scanned: picked.length, total: played.length }
+
     return e.reply([
-      renderWall({ name, picked, medals, scanned: picked.length, total: played.length }),
+      await this.shot(e, userId, stat) || renderWall(stat),
       Button.medalWall(campId)
     ], shouldQuote())
+  }
+
+  /** 出图。失败返回 null，由调用方回落到文字清单 */
+  async shot (e, userId, stat) {
+    try {
+      return await puppeteer.screenshot('HeroMedalWall', {
+        tplFile: 'plugins/GloryOfKings-Plugin/resources/html/HeroMedalWall.html',
+        // 模板的 CSS / 字体都靠 {{_res_path}} 拼相对路径，漏了这项样式表 404，出的是纯文字图
+        _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
+        avatar: await getUserAvatar(e, userId, 100).catch(() => ''),
+        ...buildWallView(stat)
+      })
+    } catch (error) {
+      logger.error(`[王者称号墙] 渲染失败: ${error.message}`)
+      return null
+    }
   }
 }
 
@@ -136,11 +155,14 @@ async function displayName (e, userId) {
   }
 }
 
-/* ---------------------------------------------------------- 文案 */
+/* ---------------------------------------------------------- 分组（出图与文案共用一份口径） */
 
-function renderWall ({ name, picked, medals, scanned, total }) {
-  // 两条 medalList 分别是带地名的市级榜(TitleType 2)和不带地名的小范围榜(TitleType 1)，
-  // 按 TitleType 分组展示：混在一起会出现「第9孙权」「台北第37孙权」挨着，看着像重复
+/**
+ * 把逐英雄的 medalList 整成分组结果。
+ * 两条 medalList 分别是带地名的市级榜(TitleType 2)和不带地名的小范围榜(TitleType 1)，
+ * 按 TitleType 分组：混在一起会出现「第9孙权」「台北第37孙权」挨着，看着像重复。
+ */
+function groupMedals (picked, medals) {
   const groups = new Map()
   const none = []
 
@@ -148,7 +170,7 @@ function renderWall ({ name, picked, medals, scanned, total }) {
     const list = medals.get(String(hero.heroId))
     // 没进 Map 的是请求失败（不是「没上榜」），两者都归到未上榜里但不细分——用户不关心
     if (!list?.length) {
-      none.push(hero.name || `英雄${hero.heroId}`)
+      none.push({ name: hero.name || `英雄${hero.heroId}`, heroIcon: heroIconUrl(hero.heroId) })
       continue
     }
     for (const item of list) {
@@ -161,32 +183,79 @@ function renderWall ({ name, picked, medals, scanned, total }) {
       group.rows.push({
         rank: parsed.rank,
         hero: parsed.hero || hero.name || '',
+        heroIcon: heroIconUrl(hero.heroId),
         power: Number(hero.heroFightPower) || 0,
+        playNum: Number(hero.playNum) || 0,
         text: parsed.text
       })
     }
   }
 
+  // 地名榜（TitleType 2）排在前：数字更大但范围更广，是营地默认显示的那条
+  const ordered = [...groups.entries()]
+    .sort((a, b) => Number(b[0]) - Number(a[0]))
+    .map(([type, group]) => ({
+      type,
+      area: group.area,
+      rows: group.rows.sort((x, y) => x.rank - y.rank || y.power - x.power)
+    }))
+
+  return { groups: ordered, none }
+}
+
+/* ---------------------------------------------------------- 出图 */
+
+function buildWallView ({ name, picked, medals, scanned, total }) {
+  const { groups, none } = groupMedals(picked, medals)
+  const rows = groups.flatMap(group => group.rows)
+  const best = rows.length ? Math.min(...rows.map(row => row.rank)) : 0
+  const bestRow = rows.find(row => row.rank === best)
+
+  return {
+    title: '荣耀称号墙',
+    subText: `${groups.length ? '当前排名' : '暂无称号'}`,
+    username: name,
+    scanned,
+    total,
+    medalCount: rows.length,
+    // 同一个英雄的市级榜/小范围榜算一个英雄，别把 2 条称号说成 2 个英雄
+    heroCount: new Set(rows.map(row => row.hero)).size,
+    bestRank: best || 0,
+    bestText: bestRow ? bestRow.text : '',
+    noneCount: none.length,
+    noneList: none,
+    groups: groups.map(group => ({
+      // 小范围榜（TitleType 1）不带地名，标成「小范围榜」而不是「本区榜」，免得和市级榜混
+      title: group.area ? `${group.area}榜` : '小范围榜',
+      tip: group.area ? '营地默认展示的就是这条' : '范围更小，名次数字也更小',
+      rows: group.rows
+    })),
+    footText: `扫了战力最高的 ${scanned} / ${total} 个英雄，指令后跟数字可以多扫（最多 ${MAX_SCAN}，每个英雄要单独请求）\n` +
+      '这里是当前排名；营地「历史赛季」页显示的是历史最高时的称号，可能不一样'
+  }
+}
+
+/* ---------------------------------------------------------- 文案（出图失败时的兜底） */
+
+function renderWall ({ name, picked, medals, scanned, total }) {
+  const { groups, none } = groupMedals(picked, medals)
   const lines = [`🏅 ${name} 的荣耀称号`]
 
-  if (!groups.size) {
+  if (!groups.length) {
     lines.push('', `战力最高的 ${scanned} 个英雄都还没上榜`)
     lines.push('称号是英雄战力排行榜的名次，把某个英雄的战力练上去就有了')
     return lines.join('\n')
   }
 
-  // 地名榜（TitleType 2）先展示：数字更大但范围更广，是营地默认显示的那条
-  const ordered = [...groups.entries()].sort((a, b) => Number(b[0]) - Number(a[0]))
-  for (const [, group] of ordered) {
-    const rows = group.rows.sort((a, b) => a.rank - b.rank || b.power - a.power)
-    lines.push('', `📍 ${group.area || '本区'}榜（${rows.length}）`)
-    for (const row of rows) {
+  for (const group of groups) {
+    lines.push('', `📍 ${group.area || '本区'}榜（${group.rows.length}）`)
+    for (const row of group.rows) {
       lines.push(`· 第 ${row.rank} ${row.hero}${row.power ? `　战力 ${row.power}` : ''}`)
     }
   }
 
   if (none.length) {
-    lines.push('', `未上榜（${none.length}）：${none.join('、')}`)
+    lines.push('', `未上榜（${none.length}）：${none.map(item => item.name).join('、')}`)
   }
 
   lines.push('', `扫了战力最高的 ${scanned} / ${total} 个英雄，指令后跟数字可以多扫（最多 ${MAX_SCAN}，每个英雄要单独请求）`)

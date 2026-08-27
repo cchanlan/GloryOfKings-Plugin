@@ -13,9 +13,12 @@
  * 长时间离线的号会退到十分钟一轮，所以离线那组的时间戳可能偏旧，文案里标出来。
  *
  * 英雄名走官网 herolist.json（getHeroNameMap，6 小时内存缓存），也不碰营地接口。
+ *
+ * 出图走 WhoIsPlaying.html（视觉与战报同源），渲染失败时回落到纯文字名单。
  */
 import { loadPushList, subGroups, getHeroNameMap, normalizeName, ONLINE_LABEL } from '../utils/pushStore.js'
-import { Button, shouldQuote } from '#utils'
+import { Button, shouldQuote, getUserAvatar, getGroupAvatar } from '#utils'
+import { heroIconUrl } from '../utils/reportStore.js'
 
 /** 快照超过这个时长就在文案里标「数据较旧」，单位毫秒 */
 const STALE_MS = 15 * 60 * 1000
@@ -65,18 +68,67 @@ export class WhoIsPlaying extends plugin {
     // 只开了战绩推送、还没攒到过快照的订阅：既不算在线也不算离线，单独说一句
     const unknown = []
 
-    for (const [qq, sub] of subs) {
+    // 头像是各适配器本地拼地址（官方机器人才会真去问 pickMember），并发取不会卡
+    const rows = await Promise.all(subs.map(async ([qq, sub]) => {
       const row = buildRow(qq, sub, heroMap, now)
+      row.avatar = await this.avatarOf(e, qq)
+      return row
+    }))
+
+    for (const row of rows) {
       if (!row.seenAt) unknown.push(row)
       else if (row.gaming) playing.push(row)
       else if (row.state !== 0) online.push(row)
       else offline.push(row)
     }
 
+    // 最近观测到的排前面：同一组里时间戳越新越可信
+    for (const list of [playing, online, offline, unknown]) list.sort((a, b) => b.seenAt - a.seenAt)
+
+    const groups = { playing, online, offline, unknown }
+    const img = await this.shot(e, groups, here, now)
+
     await e.reply([
-      renderText({ playing, online, offline, unknown, now }),
+      img || renderText({ ...groups, now }),
       Button.online()
     ], shouldQuote())
+  }
+
+  /** 出图。失败返回 null，由调用方回落到文字名单 */
+  async shot (e, { playing, online, offline, unknown }, here, now) {
+    const total = playing.length + online.length + offline.length + unknown.length
+    // 最新一份快照的时刻 —— 整张图的新鲜度就看它
+    const newest = Math.max(0, ...[...playing, ...online, ...offline].map(row => row.seenAt))
+
+    try {
+      return await puppeteer.screenshot('WhoIsPlaying', {
+        tplFile: 'plugins/GloryOfKings-Plugin/resources/html/WhoIsPlaying.html',
+        // 模板的 CSS / 字体都靠 {{_res_path}} 拼相对路径，漏了这项样式表 404，出的是纯文字图
+        _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
+        title: '谁在打游戏',
+        subText: here ? '本群在线名单' : '仅你自己',
+        scopeName: here ? (e.group_name || e.group?.name || `群 ${here}`) : '我的在线状态',
+        avatar: here ? await getGroupAvatar(here, e.group, 100) : await this.avatarOf(e, e.user_id),
+        total,
+        updateText: newest ? `${agoText(newest, now)}更新` : '',
+        playing,
+        online,
+        offline,
+        unknown,
+        footText: '数据来自战绩推送的轮询快照，不额外请求营地 · 离线时检查间隔会自动拉长'
+      })
+    } catch (error) {
+      logger.error(`[王者谁在打游戏] 渲染失败: ${error.message}`)
+      return null
+    }
+  }
+
+  async avatarOf (e, userId) {
+    try {
+      return await getUserAvatar(e, String(userId), 100)
+    } catch {
+      return ''
+    }
   }
 }
 
@@ -84,6 +136,7 @@ export class WhoIsPlaying extends plugin {
 function buildRow (qq, sub, heroMap, now) {
   const seenAt = Number(sub?.lastSeenAt) || 0
   const heroId = String(sub?.lastGamingHero || '')
+  const state = Number(sub?.lastOnlineState) || 0
 
   return {
     qq: String(qq),
@@ -91,8 +144,13 @@ function buildRow (qq, sub, heroMap, now) {
     name: sub?.roleName ? normalizeName(sub.roleName) : String(qq),
     gaming: String(sub?.lastGaming || '') === '1',
     hero: heroId ? (heroMap[heroId] || `英雄${heroId}`) : '',
-    state: Number(sub?.lastOnlineState) || 0,
+    // 模板用的三个字段：英雄头像 / 状态文字 / 相对时间
+    heroName: heroId ? (heroMap[heroId] || `英雄${heroId}`) : '',
+    heroIcon: heroIconUrl(heroId),
+    stateText: ONLINE_LABEL[state] || '在线',
+    state,
     seenAt,
+    agoText: seenAt ? agoText(seenAt, now) : '',
     stale: seenAt > 0 && now - seenAt > STALE_MS
   }
 }
