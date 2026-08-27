@@ -43,6 +43,9 @@
     .vs-sub { font-size: 12px; color: rgba(255,255,255,0.4); }
     .vs-crown { font-size: 13px; color: #f5d76e; min-height: 18px; }
 
+    /* 中间列(比分 + 项目名)统一的高亮底：和下方 .cmp-key 同宽同色，
+       两段虽然分属不同区块，但宽度一致且左右两侧都是 flex:1 均分，
+       所以水平中心对齐，看上去是贯通整张图的一条竖带 */
     .vs-mid {
       width: 210px;
       flex-shrink: 0;
@@ -52,43 +55,62 @@
       align-items: center;
       justify-content: center;
       gap: 6px;
-      border-left: 1px solid rgba(255,255,255,0.07);
-      border-right: 1px solid rgba(255,255,255,0.07);
+      border-left: 1px solid rgba(255,255,255,0.09);
+      border-right: 1px solid rgba(255,255,255,0.09);
+      background: linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0.035));
     }
     .vs-score { font-family: Number, sans-serif; font-size: 40px; line-height: 1; }
-    .vs-score .a { color: #f5d76e; }
-    .vs-score .b { color: #7fb3ff; }
-    .vs-score .sep { color: rgba(255,255,255,0.25); margin: 0 6px; font-size: 30px; }
-    .vs-verdict { font-size: 13px; color: rgba(255,255,255,0.55); text-align: center; line-height: 1.5; }
+    /* 比分本来就是两种主色，加同色微光让它从底色里浮起来 */
+    .vs-score .a { color: #f5d76e; text-shadow: 0 0 16px rgba(245,215,110,0.45); }
+    .vs-score .b { color: #7fb3ff; text-shadow: 0 0 16px rgba(127,179,255,0.45); }
+    .vs-score .sep { color: rgba(255,255,255,0.4); margin: 0 6px; font-size: 30px; }
+    .vs-verdict { font-size: 13.5px; color: rgba(255,255,255,0.82); text-align: center; line-height: 1.5; }
 
     /* 逐项对比：左值 | 项目 | 右值 */
     .cmp-list { display: flex; flex-direction: column; }
     .cmp-row {
       display: flex;
-      align-items: center;
-      padding: 11px 0;
-      border-bottom: 1px dashed rgba(255,255,255,0.06);
+      align-items: stretch;
+      /* 行内边距挪到左右两个数值格上：中间列要 stretch 满整行高度，
+         才能让相邻各行的高亮底连成一条不断开的竖带 */
     }
-    .cmp-row:last-child { border-bottom: none; }
+    /* 分隔虚线同样只画在左右两格，避免把中间那条竖带横切成一段一段 */
     .cmp-val {
       flex: 1;
       min-width: 0;
       font-size: 16px;
       color: rgba(255,255,255,0.62);
+      border-bottom: 1px dashed rgba(255,255,255,0.06);
       /* 「荣耀王者 68 星」这类长值要能折行，不能把中间的标签顶走 */
       word-break: break-all;
     }
-    .cmp-val.left { text-align: right; padding-right: 16px; }
-    .cmp-val.right { text-align: left; padding-left: 16px; }
+    .cmp-row:last-child .cmp-val { border-bottom: none; }
+    .cmp-val.left { text-align: right; padding: 11px 16px 11px 0; }
+    .cmp-val.right { text-align: left; padding: 11px 0 11px 16px; }
     .cmp-val.win { color: #f5d76e; font-weight: 600; }
     .cmp-val .mark { font-size: 12px; color: #f5d76e; margin: 0 4px; }
+    /* 项目名原本是 0.42 的灰，夹在两侧亮数值中间几乎看不见。
+       提亮到近白 + 加浅底，让它成为一条明确的中轴 */
     .cmp-key {
       width: 210px;
       flex-shrink: 0;
-      text-align: center;
-      font-size: 13px;
-      color: rgba(255,255,255,0.42);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      font-size: 14.5px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      color: rgba(255,255,255,0.92);
+      background: rgba(255,255,255,0.055);
+      border-left: 1px solid rgba(255,255,255,0.07);
+      border-right: 1px solid rgba(255,255,255,0.07);
     }
+    /* 竖带首尾收个圆角，别切成生硬的直角块 */
+    .cmp-row:first-child .cmp-key { border-radius: 8px 8px 0 0; }
+    .cmp-row:last-child .cmp-key { border-radius: 0 0 8px 8px; }
+    /* 只有一项可比时两条规则会同时命中，后者的简写会吃掉上圆角，单独兜一条 */
+    .cmp-row:first-child:last-child .cmp-key { border-radius: 8px; }
     /* 进度条：两边按比例对撞，一眼看出差距有多大 */
     .cmp-bars { display: flex; align-items: center; width: 100%; height: 5px; gap: 3px; margin-top: 6px; }
     .cmp-bars .bar { height: 100%; border-radius: 3px; background: rgba(255,255,255,0.1); }
