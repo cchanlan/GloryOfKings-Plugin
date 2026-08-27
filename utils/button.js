@@ -394,12 +394,15 @@ export default class Button {
   /**
    * 赛季/巅峰表现
    * @param {string|number} id 营地ID，带上后按钮直接查该ID
-   * @param {string} type 当前看的是排位还是巅峰
+   * @param {string} type 当前看的是排位、巅峰，还是两者合并的赛季表现
    * @param {number|string} [prevSeason] 上一个赛季号，用于给出「S43表现」这类历史赛季入口
    */
   static performance(id = '', type = '排位', prevSeason = '') {
     const s = id ? String(id) : ''
-    const other = type === '排位' ? '巅峰' : '排位'
+    // #赛季表现 是排位+巅峰的合并图，没有对应的榜单和「全部赛季表现」以外的入口，
+    // 排名/对侧入口都沿用排位那套，只有历史赛季直达要回到 #赛季表现
+    const listType = type === '赛季' ? '排位' : type
+    const other = listType === '排位' ? '巅峰' : '排位'
     const rows = [
       [
         { text: `${other}表现`, callback: `#${other}表现${s}` },
@@ -411,8 +414,8 @@ export default class Button {
       ],
       [
         // 当前看的是哪种表现，就给哪种榜单的入口
-        { text: `${type}排名`, callback: `#${type}排名` },
-        { text: `全部${type}表现`, callback: `#全部${type}表现${s}` }
+        { text: `${listType}排名`, callback: `#${listType}排名` },
+        { text: `全部${listType}表现`, callback: `#全部${listType}表现${s}` }
       ]
     ]
     // 巅峰分有本地存档可以画趋势，排位没有（星数趋势已经画在排位表现图里了）

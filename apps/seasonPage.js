@@ -11,8 +11,8 @@ const BRANCH_NAME = { 1: '对抗路', 2: '中路', 3: '发育路', 4: '打野', 
 const LANE_COLORS = { 1: '#f0932b', 2: '#6ab0f5', 3: '#57c98a', 4: '#c97bdb', 5: '#e0708a' }
 // 五维雷达满分（万分制，与整体对战资料保持一致）
 const RADAR_MAX = 12000
-// 触发词：#排位表现 是现名，#赛季表现 是 4132d11 改名前的旧名，一直有人在用，保留为别名
-const CMD_RE = '#(?:排位|赛季)表现'
+// 巅峰赛分路配色（与排位那套分路错开，一眼能分出是哪一半数据）
+const MASTER_BRANCH_COLORS = { 0: '#f5d76e', 1: '#f0932b', 2: '#6ab0f5', 3: '#57c98a', 4: '#c97bdb', 5: '#e0708a' }
 
 export class SeasonPage extends plugin {
   constructor() {
@@ -21,15 +21,33 @@ export class SeasonPage extends plugin {
       dsc: '赛季表现',
       event: 'message',
       priority: 1,
-      rule: [{ reg: `${AT_HEAD}${CMD_RE}\\s*(.*)$`, fnc: 'seasonPage' }]
+      rule: [
+        { reg: `${AT_HEAD}#排位表现\\s*(.*)$`, fnc: 'rankPage' },
+        // #赛季表现 是同一个赛季的完整表现：排位 + 巅峰一起出，不是两个赛季
+        { reg: `${AT_HEAD}#赛季表现\\s*(.*)$`, fnc: 'seasonAll' }
+      ]
     })
   }
 
-  async seasonPage(e) {
+  rankPage(e) {
+    return this.seasonPage(e, '排位')
+  }
+
+  seasonAll(e) {
+    return this.seasonPage(e, '赛季')
+  }
+
+  /**
+   * @param {object} e
+   * @param {'排位'|'赛季'} mode 排位=只出排位那半；赛季=同一赛季的排位 + 巅峰都出
+   */
+  async seasonPage(e, mode = '排位') {
+    // 赛季模式在排位数据下面再挂一段巅峰赛，数据同在这次 seasonpage 响应里，不额外请求
+    const withMaster = mode === '赛季'
     const { userId, hint } = await resolveTargetUserId(e)
     if (hint) return e.reply(hint)
     const userData = readYamlFile(path.join(PluginData, 'UserData.yaml')) || {}
-    const input = stripAtText(e.msg).replace(new RegExp(`^${CMD_RE}\\s*`), '').trim()
+    const input = stripAtText(e.msg).replace(new RegExp(`^#${mode}表现\\s*`), '').trim()
     const userInfo = userData[userId]
     const args = parsePerfArgs(input)
     // 不带 s 的小数字也当赛季号，#排位表现40 与 #排位表现s40 等价
@@ -78,10 +96,11 @@ export class SeasonPage extends plugin {
         const img = await puppeteer.screenshot('SeasonPage', {
           tplFile: 'plugins/GloryOfKings-Plugin/resources/html/SeasonPage.html',
           _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
-          ...fallback
+          ...fallback,
+          titleLabel: `${mode}表现`
         })
         // 降级时拿不到赛季列表，历史赛季按钮没有可跳的赛季号
-        await e.reply([img, Button.performance(campId, '排位', '')], shouldQuote())
+        await e.reply([img, Button.performance(campId, mode, '')], shouldQuote())
         return
       }
       await e.reply(scope ? `对方隐藏了${scope}，赛季表现查不到` : '暂无赛季数据')
@@ -136,7 +155,8 @@ export class SeasonPage extends plugin {
     // historyList 里该赛季的排位汇总（胜场/连胜/金银牌），历史赛季拿不到 battleStats 时用它兜底
     const ti = target.rankInfo || {}
     const BRANCH_COLORS = ['#f5d76e', '#f0932b', '#6ab0f5', '#57c98a', '#c97bdb']
-    const branches = (ri.branches || []).map((b, i) => ({
+    // 没打过的分路营地也会给一条 0 场，列出来只是「0场（0胜0负）胜率0%」的噪音，直接滤掉
+    const branches = (ri.branches || []).filter(b => Number(b.gameCnt) > 0).map((b, i) => ({
       name: b.branchName || BRANCH_NAME[b.branchType] || b.branchType,
       winNum: b.winNum,
       loseNum: b.loseNum,
@@ -199,10 +219,21 @@ export class SeasonPage extends plugin {
         ]
     const hasHonor = honor.some(h => h.val > 0)
     const hasBattleStats = radar.some(r => r.value > 0)
+    // 巅峰赛那半：#赛季表现 才拼，数据同在这份响应里（behavior.masterInfo + historyList 的 masterInfo）
+    const master = withMaster ? this.buildMaster(data, target) : null
 
     const img = await puppeteer.screenshot('SeasonPage', {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/SeasonPage.html',
       _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
+      titleLabel: `${mode}表现`,
+      // 同一张图里排位和巅峰两段并存时，排位那几段的标题要带前缀，免得看不出是哪一半
+      rankTag: withMaster ? '排位 · ' : '',
+      hasMaster: !!master,
+      masterStats: master?.stats || [],
+      masterHeros: master?.heros || [],
+      masterBranches: master?.branches || [],
+      masterBranchesJson: JSON.stringify(master?.branches || []),
+      masterTotalGames: master?.games || 0,
       roleName: hc.roleName,
       roleIcon: hc.roleIcon,
       serverName: hc.serverName,
@@ -236,7 +267,64 @@ export class SeasonPage extends plugin {
 
     // 上一个赛季（history 是从新到旧），给按钮做历史赛季入口
     const prevSeason = seasonNo(history[history.indexOf(target) + 1]?.seasonName) || ''
-    await e.reply([img, Button.performance(campId, '排位', prevSeason)], shouldQuote())
+    await e.reply([img, Button.performance(campId, mode, prevSeason)], shouldQuote())
+  }
+
+  /**
+   * 同一赛季的巅峰赛那半数据。
+   *
+   * 两处来源要一起用：`behavior.masterInfo` 给这个赛季的巅峰常用英雄和分路场次（按 seasonId 请求就是该赛季的），
+   * `historyList[i].masterInfo` 给巅峰分、总场次、胜场、连胜、金银牌、平均分。
+   * 没打过巅峰赛的赛季（实测 S7）两边都是空，返回 null 让模板整段不渲染。
+   */
+  buildMaster(data, target) {
+    const mi = data?.behavior?.masterInfo || {}
+    const tmi = target?.masterInfo || {}
+    const games = Number(tmi.totalCnt) || Number(mi.totalGameCnt) || 0
+    if (!games) return null
+
+    const wins = Number(tmi.totalWinCnt) || 0
+    const loses = Math.max(games - wins, 0)
+    const winRate = tmi.winRate
+      ? `${Math.round(tmi.winRate * 100)}%`
+      : (games ? `${Math.round((wins / games) * 100)}%` : '0%')
+
+    const branches = (mi.branches || [])
+      .filter(b => Number(b.gameCnt) > 0)
+      .map(b => ({
+        name: BRANCH_NAME[b.branchType] || String(b.branchType),
+        color: MASTER_BRANCH_COLORS[b.branchType] || '#f5d76e',
+        gameCnt: Number(b.gameCnt) || 0,
+        winNum: Number(b.winNum) || 0,
+        loseNum: Number(b.loseNum) || 0,
+        winRate: b.winRate || '0%'
+      }))
+      .sort((a, b) => b.gameCnt - a.gameCnt)
+
+    // S44 起对局评分改百分制，之前是 10 分制，跨赛季不可比，旧赛季的标一下口径
+    const avgScore = Number(tmi.averageScore) || 0
+    const scoreKey = avgScore > 0 && avgScore <= 20 ? '平均得分 · 旧10分制' : '平均得分'
+
+    return {
+      games,
+      branches,
+      stats: [
+        // headCard.masterScore 才是该赛季展示用的巅峰分（historyList 里那个实测会更高，语义不明，只当兜底），
+        // 与 #巅峰表现 同一口径，也避免同一张图里头部和这里两个数字打架
+        { val: Number(data?.headCard?.masterScore) || Number(tmi.masterScore) || '—', key: '巅峰赛积分' },
+        { val: games, key: '巅峰赛场次' },
+        { val: winRate, key: `胜率（${wins}胜${loses}负）` },
+        { val: avgScore || '—', key: scoreKey },
+        { val: Number(tmi.maxContinuousWinCnt) || 0, key: '最高连胜' },
+        { val: `${Number(tmi.goldCnt) || 0} / ${Number(tmi.silverCnt) || 0}`, key: '金牌 / 银牌' }
+      ],
+      heros: (mi.heros || []).slice(0, 3).map(h => ({
+        heroName: h.heroName,
+        heroIcon: h.heroIcon,
+        winRate: `${Math.round((h.winRate || 0) * 100)}%`,
+        gameCnt: h.gameCnt
+      }))
+    }
   }
 
   /**

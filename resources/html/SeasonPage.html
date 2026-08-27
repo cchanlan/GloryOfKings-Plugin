@@ -15,7 +15,7 @@
       <span class="badge role">{{serverName}}</span>
     </div>
     <div class="season-label">
-      {{seasonName}} 排位表现
+      {{seasonName}} {{titleLabel || '排位表现'}}
       {{if subLabel}}<span class="sub">{{subLabel}}</span>{{/if}}
     </div>
   </div>
@@ -23,7 +23,8 @@
   <!-- 核心数据格子 -->
   <div class="stat-grid">
     <div class="stat-cell gold">
-      <div class="stat-val">{{jobName}} {{rankingStar}}星</div>
+      <!-- 老赛季（实测 S7）营地会给 rankingStar=-1，那就只显示段位名，别写成「-1星」 -->
+      <div class="stat-val">{{jobName}}{{if rankingStar > 0}} {{rankingStar}}星{{/if}}</div>
       <div class="stat-key">{{jobLabel || '当前段位'}}</div>
     </div>
     <div class="stat-cell gold">
@@ -51,7 +52,7 @@
   <!-- 上分趋势 -->
   {{if trend && trend.length > 1}}
   <div class="section">
-    <div class="section-title">上分趋势</div>
+    <div class="section-title">{{rankTag}}上分趋势</div>
     <div class="trend-wrap">
       <canvas id="trendCanvas" width="2910" height="780"></canvas>
     </div>
@@ -61,7 +62,7 @@
   <!-- 常用英雄 -->
   {{if heros && heros.length}}
   <div class="section">
-    <div class="section-title">常用英雄</div>
+    <div class="section-title">{{rankTag}}常用英雄</div>
     <div class="hero-row">
       {{each heros h}}
       <div class="hero-card">
@@ -77,7 +78,7 @@
   <!-- 场次统计 -->
   {{if branches && branches.length}}
   <div class="section">
-    <div class="section-title">场次统计</div>
+    <div class="section-title">{{rankTag}}场次统计</div>
     <div class="branch-wrap">
       <div class="donut-wrap">
         <canvas id="donutCanvas" width="360" height="360" style="width:120px;height:120px"></canvas>
@@ -138,7 +139,7 @@
   <!-- 荣誉数据 -->
   {{if hasHonor}}
   <div class="section">
-    <div class="section-title">荣誉数据</div>
+    <div class="section-title">{{rankTag}}荣誉数据</div>
     <div class="honor-grid">
       {{each honor h}}
       <div class="honor-item"><div class="honor-val">{{h.val}}</div><div class="honor-key">{{h.key}}</div></div>
@@ -147,12 +148,63 @@
   </div>
   {{/if}}
 
-  <div class="footer">GloryOfKings-Plugin · 排位表现</div>
+  <!-- 巅峰赛（#赛季表现 才有：同一个赛季里排位之外的另一半数据） -->
+  {{if hasMaster}}
+  <div class="section">
+    <div class="section-title">巅峰赛</div>
+    <div class="honor-grid">
+      {{each masterStats s}}
+      <div class="honor-item"><div class="honor-val">{{s.val}}</div><div class="honor-key">{{s.key}}</div></div>
+      {{/each}}
+    </div>
+  </div>
+  {{if masterHeros && masterHeros.length}}
+  <div class="section">
+    <div class="section-title">巅峰常用英雄</div>
+    <div class="hero-row">
+      {{each masterHeros h}}
+      <div class="hero-card">
+        <img src="{{h.heroIcon}}" class="hero-icon" alt="">
+        <div class="hero-name">{{h.heroName}}</div>
+        <div class="hero-stats"><span class="hl">{{h.winRate}}</span> 胜率 &nbsp; <span class="hl">{{h.gameCnt}}</span> 场</div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+  {{if masterBranches && masterBranches.length}}
+  <div class="section">
+    <div class="section-title">巅峰场次统计</div>
+    <div class="branch-wrap">
+      <div class="donut-wrap">
+        <canvas id="masterDonutCanvas" width="360" height="360" style="width:120px;height:120px"></canvas>
+        <div class="donut-center">
+          <span class="hl">{{masterTotalGames}}</span>
+          <span class="donut-sub">场<br>巅峰赛</span>
+        </div>
+      </div>
+      <div class="branch-list">
+        {{each masterBranches b}}
+        <div class="branch-item">
+          <span class="branch-dot" style="background:{{b.color}}"></span>
+          <span class="branch-name">{{b.name}}</span>
+          <span class="branch-cnt">{{b.gameCnt}}场（{{b.winNum}}胜{{b.loseNum}}负）</span>
+          <span class="branch-rate">胜率{{b.winRate}}</span>
+        </div>
+        {{/each}}
+      </div>
+    </div>
+  </div>
+  {{/if}}
+  {{/if}}
+
+  <div class="footer">GloryOfKings-Plugin · {{titleLabel || '排位表现'}}</div>
 </div>
 
 <script>
 const BRANCH_COLORS = ['#f5d76e','#f0932b','#6ab0f5','#57c98a','#c97bdb']
 const branches = {{@ branchesJson}}
+const masterBranches = {{@ masterBranchesJson || '[]'}}
 const radar = {{@ radarJson}}
 const trend = {{@ trendJson}}
 const lanes = {{@ lanesJson}}
@@ -258,25 +310,29 @@ if (trend && trend.length > 1) {
   ctx.fillText(fmtDate(trend.length - 1), xs[xs.length - 1], H - 20)
 }
 
-// 环形图
-if (branches.length) {
-  const c = document.getElementById('donutCanvas')
+// 环形图。排位和巅峰各画一份（同一个赛季的两半数据），所以抽成函数
+function drawDonut (canvasId, list) {
+  const c = document.getElementById(canvasId)
+  if (!c || !list || !list.length) return
   const ctx = c.getContext('2d')
   const cx = 180, cy = 180, r = 153, inner = 99
-  const total = branches.reduce((s, b) => s + b.gameCnt, 0) || 1
+  const total = list.reduce((s, b) => s + b.gameCnt, 0) || 1
   let angle = -Math.PI / 2
-  branches.forEach((b, i) => {
+  list.forEach((b, i) => {
     if (!b.gameCnt) return
     const slice = (b.gameCnt / total) * Math.PI * 2
     ctx.beginPath(); ctx.moveTo(cx, cy)
     ctx.arc(cx, cy, r, angle, angle + slice)
     ctx.closePath()
-    ctx.fillStyle = BRANCH_COLORS[i % BRANCH_COLORS.length]; ctx.fill()
+    ctx.fillStyle = b.color || BRANCH_COLORS[i % BRANCH_COLORS.length]; ctx.fill()
     angle += slice
   })
   ctx.beginPath(); ctx.arc(cx, cy, inner, 0, Math.PI * 2)
   ctx.fillStyle = '#141929'; ctx.fill()
 }
+
+drawDonut('donutCanvas', branches)
+drawDonut('masterDonutCanvas', masterBranches)
 
 // 雷达图
 if (radar.length && document.getElementById('radarCanvas')) {
