@@ -27,7 +27,8 @@ export class AllSeasonPerformance extends plugin {
       event: 'message',
       priority: 1,
       rule: [
-        { reg: `${AT_HEAD}#全部排位表现\\s*(.*)$`, fnc: 'allRank' },
+        // #全部赛季表现 是改名前的旧触发词，与 #排位表现/#赛季表现 一起保留别名
+        { reg: `${AT_HEAD}#全部(?:排位|赛季)表现\\s*(.*)$`, fnc: 'allRank' },
         { reg: `${AT_HEAD}#全部巅峰表现\\s*(.*)$`, fnc: 'allPeak' }
       ]
     })
@@ -45,7 +46,7 @@ export class AllSeasonPerformance extends plugin {
     const { userId, hint } = await resolveTargetUserId(e)
     if (hint) return e.reply(hint)
     const userData = readYamlFile(path.join(PluginData, 'UserData.yaml')) || {}
-    const input = stripAtText(e.msg).replace(new RegExp(`^#全部${mode}表现\\s*`), '').trim()
+    const input = stripAtText(e.msg).replace(new RegExp(`^#全部${mode === '排位' ? '(?:排位|赛季)' : mode}表现\\s*`), '').trim()
     const userInfo = userData[userId]
     const args = parsePerfArgs(input)
 

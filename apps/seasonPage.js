@@ -2,12 +2,17 @@ import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { ApiService, readYamlFile, Button, parsePerfArgs, seasonNo, AT_HEAD, stripAtText, resolveTargetUserId, shouldQuote } from '#utils'
 import { PluginData, PluginPath } from '#components'
+import { summarizeProfile } from '../utils/profileSummary.js'
+import { getHeroNameMap } from '../utils/pushStore.js'
+import { buildSeasonFallback, privacyScope } from '../utils/seasonFallback.js'
 
 const BRANCH_NAME = { 1: '对抗路', 2: '中路', 3: '发育路', 4: '打野', 5: '游走' }
 // 分路五维雷达颜色（与场次统计的分路配色对应）
 const LANE_COLORS = { 1: '#f0932b', 2: '#6ab0f5', 3: '#57c98a', 4: '#c97bdb', 5: '#e0708a' }
 // 五维雷达满分（万分制，与整体对战资料保持一致）
 const RADAR_MAX = 12000
+// 触发词：#排位表现 是现名，#赛季表现 是 4132d11 改名前的旧名，一直有人在用，保留为别名
+const CMD_RE = '#(?:排位|赛季)表现'
 
 export class SeasonPage extends plugin {
   constructor() {
@@ -16,7 +21,7 @@ export class SeasonPage extends plugin {
       dsc: '赛季表现',
       event: 'message',
       priority: 1,
-      rule: [{ reg: `${AT_HEAD}#排位表现\\s*(.*)$`, fnc: 'seasonPage' }]
+      rule: [{ reg: `${AT_HEAD}${CMD_RE}\\s*(.*)$`, fnc: 'seasonPage' }]
     })
   }
 
@@ -24,7 +29,7 @@ export class SeasonPage extends plugin {
     const { userId, hint } = await resolveTargetUserId(e)
     if (hint) return e.reply(hint)
     const userData = readYamlFile(path.join(PluginData, 'UserData.yaml')) || {}
-    const input = stripAtText(e.msg).replace(/^#排位表现\s*/, '').trim()
+    const input = stripAtText(e.msg).replace(new RegExp(`^${CMD_RE}\\s*`), '').trim()
     const userInfo = userData[userId]
     const args = parsePerfArgs(input)
     // 不带 s 的小数字也当赛季号，#排位表现40 与 #排位表现s40 等价
@@ -65,7 +70,21 @@ export class SeasonPage extends plugin {
 
     const history = firstRes?.data?.historyList || []
     if (!history.length) {
-      await e.reply('暂无赛季数据')
+      // 对方可能只是关了赛季表现的隐私开关（-30408/-10110），主页和战绩照旧能读，
+      // 这时别回「暂无赛季数据」误导人，先用主页 + 最近一页排位战绩降级出图
+      const scope = privacyScope(firstRes?.returnCode)
+      const fallback = await this.buildFallbackView(campId, userId, profileData, scope)
+      if (fallback) {
+        const img = await puppeteer.screenshot('SeasonPage', {
+          tplFile: 'plugins/GloryOfKings-Plugin/resources/html/SeasonPage.html',
+          _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
+          ...fallback
+        })
+        // 降级时拿不到赛季列表，历史赛季按钮没有可跳的赛季号
+        await e.reply([img, Button.performance(campId, '排位', '')], shouldQuote())
+        return
+      }
+      await e.reply(scope ? `对方隐藏了${scope}，赛季表现查不到` : '暂无赛季数据')
       return
     }
 
@@ -218,6 +237,27 @@ export class SeasonPage extends plugin {
     // 上一个赛季（history 是从新到旧），给按钮做历史赛季入口
     const prevSeason = seasonNo(history[history.indexOf(target) + 1]?.seasonName) || ''
     await e.reply([img, Button.performance(campId, '排位', prevSeason)], shouldQuote())
+  }
+
+  /**
+   * 赛季数据取不到时的降级视图：主页摘要 + 最近一页排位战绩。
+   * 战绩列表也读不到（或一场排位都没有）时返回 null，交给调用方回文案。
+   */
+  async buildFallbackView(campId, userId, profileData, scope) {
+    const summary = summarizeProfile(profileData?.data)
+    if (!summary) return null
+
+    let battles = []
+    try {
+      const res = await ApiService.getMoreBattleList(campId, String(userId), { option: 0, lastTime: 0 })
+      battles = res?.data?.list || []
+    } catch (err) {
+      logger.debug(`[王者赛季表现] 降级读战绩失败：${err.message}`)
+      return null
+    }
+    // 英雄名要靠官网总表翻译，拉不到只是显示成「英雄151」，不该拦住出图
+    const heroMap = await getHeroNameMap()
+    return buildSeasonFallback({ summary, battles, heroMap, scope })
   }
 
   /** 把单条分路的 battleDataSelf 整理成模板需要的五维结构 */
