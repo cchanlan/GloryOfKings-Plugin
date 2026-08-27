@@ -6,11 +6,15 @@
  *
  * ## 实测口径，别再猜（2026-08-27 在 413 场归档上核对）
  *
- * ### 1. 每一场都带段位快照，娱乐局也带
+ * ### 1. 每一场都带段位快照，娱乐局也带，但**只取排位局**
  * `roleJobName` / `roleJob` / `stars` 三个字段在**所有模式**里都有值——排位赛、巅峰赛、
  * 无限乱斗、火焰山大战、10v10 一场不漏（413/413）。它是「打这局时你的段位」的快照，
- * 不是这局的产物。所以画点可以用全部场次（娱乐局自然画成水平段），
- * 但「升了几星」只能算排位局，别的模式不改变段位。
+ * 不是这局的产物。
+ *
+ * 早先版本图上画全部场次（想把「这几天在摸鱼」画成水平段），实测出来的问题是：
+ * 巅峰赛和娱乐局一晚上能打十几把，段位一格不动，折线被这些水平点拖长，
+ * 真正的升降星挤成图右边的几格。所以口径改成**只认 mapName 含「排位」的场次**，
+ * 和 scoreTrend 只认「巅峰」是同一个道理——影响这条曲线的场次才画进这条曲线。
  *
  * ### 2. 段位高低不能直接比 `roleJob` 编号
  * 编号在同一大段内是单调的（实测 52334903：星耀 22 → 23 → 24，每次升段星数重置为 1），
@@ -47,8 +51,14 @@
 
 /** 默认看多少天 */
 export const RANK_TREND_DEFAULT_DAYS = 14
-/** 少于这么多场就没什么可看，调用方据此决定要不要补拉战绩 */
-export const RANK_TREND_MIN_POINTS = 3
+/**
+ * 想凑够多少场排位局。
+ *
+ * 只取排位局之后，「近 14 天」对不常打排位的号可能只有三五场，图上没什么可看。
+ * 所以天数只是首选窗口：窗口内不足这个数就放宽到全库最近这么多场（见 pickRankWindow），
+ * 调用方也据此决定要不要现拉几页补上。
+ */
+export const RANK_TREND_TARGET_POINTS = 10
 /** 折线最多画多少个点，超了等距抽稀（首尾必留） */
 const MAX_POINTS = 60
 /**
@@ -101,11 +111,10 @@ export function isRankedBattle (item) {
 }
 
 /**
- * 从归档里挑出区间内的场次，正序（旧 → 新）。
+ * 从归档里挑出区间内的**排位局**，正序（旧 → 新）。
  *
- * 不过滤模式：每一场都带段位快照（文件头第 1 点），娱乐局能把「这几天在摸鱼、段位没动」
- * 如实画成水平段，比只挑排位局更贴近「我这段时间段位怎么走的」这个问题。
- * 没有段位名的场次要扔掉——那种记录连大段都定不了。
+ * 只认排位赛：巅峰赛和娱乐局虽然也带段位快照，但一格都不会动，画进来只是把真实的
+ * 升降星挤扁（文件头第 1 点）。没有段位名的场次同样扔掉——那种记录连大段都定不了。
  *
  * @param {Array<object>} battles loadArchive 的返回（倒序）
  * @param {number} fromSec 区间起点（秒）
@@ -115,12 +124,31 @@ export function pickRankBattles (battles = [], fromSec = 0) {
   const from = toInt(fromSec)
   return (Array.isArray(battles) ? battles : [])
     .filter(item => (
+      isRankedBattle(item) &&
       toInt(item?.dtEventTime) >= from &&
       String(item?.roleJobName || '').trim() &&
       toInt(item?.roleJob) > 0
     ))
     .slice()
     .sort((a, b) => toInt(a.dtEventTime) - toInt(b.dtEventTime))
+}
+
+/**
+ * 取「要画的那一窗排位局」：先按天数窗口取，窗口内不足 target 场就放宽成全库最近 target 场。
+ *
+ * 为什么要放宽：排位局本来就是少数（实测 48 场里只有 15 场排位），按 14 天取常常只剩
+ * 三五场，画出来的阶梯图看不出走势。用户要的是「最近这些排位打成什么样」，
+ * 窗口是手段不是目的；放宽了就在图上如实标出来，别让人以为真是近 N 天的数据。
+ *
+ * @returns {{list: Array<object>, relaxed: boolean}} relaxed=true 表示突破了天数窗口
+ */
+export function pickRankWindow (battles = [], fromSec = 0, target = RANK_TREND_TARGET_POINTS) {
+  const inRange = pickRankBattles(battles, fromSec)
+  if (inRange.length >= target) return { list: inRange, relaxed: false }
+
+  const all = pickRankBattles(battles, 0)
+  if (all.length <= inRange.length) return { list: inRange, relaxed: false }
+  return { list: all.slice(-target), relaxed: true }
 }
 
 /** 等距抽稀，首尾必留 */
@@ -302,6 +330,7 @@ function streaks (points) {
  * @param {Function} [ctx.iconOf] heroId → 头像 URL，由调用方注入（同 scoreTrend，
  *   这个模块不碰网络和图源，脱机测时不用打桩）
  * @param {number} [ctx.days] 用户要看的天数，只用于文案
+ * @param {boolean} [ctx.relaxed] 是否突破了天数窗口（pickRankWindow 的返回），只用于文案
  * @param {number} [ctx.recent] 「最近战况」列几场
  * @returns {object|null} 少于 2 场时返回 null（一个点画不出趋势）
  */
@@ -309,6 +338,7 @@ export function buildRankTrendView (picked = [], {
   heroMap = {},
   iconOf = () => '',
   days = RANK_TREND_DEFAULT_DAYS,
+  relaxed = false,
   recent = 10
 } = {}) {
   if (picked.length < 2) return null
@@ -318,6 +348,8 @@ export function buildRankTrendView (picked = [], {
     result: toInt(item.gameresult),
     kda: `${toInt(item.killcnt)}/${toInt(item.deadcnt)}/${toInt(item.assistcnt)}`
   }))
+  // 进来的已经全是排位局（pickRankBattles 过滤过），留一道过滤是为了让「只有排位改变段位」
+  // 这个前提在数据层写明：万一以后有人把别的模式喂进来，升降段统计不会跟着错
   const rankedOnly = all.filter(p => p.ranked)
 
   /**
@@ -417,7 +449,8 @@ export function buildRankTrendView (picked = [], {
     }
   }).reverse()
 
-  // 模式分布：让用户一眼看出这段时间里真正影响段位的排位局占多少
+  // 模式分布：只取排位局之后这里剩的是「排位赛 单排 / 双排 / 五排」这类开黑形态，
+  // 能看出是单排硬打上去的还是被人带的
   const byMode = new Map()
   for (const p of all) {
     const key = p.mode || '其它'
@@ -468,8 +501,10 @@ export function buildRankTrendView (picked = [], {
     maxLoseStreak: streak.lose,
     spanDays,
     rangeText: `${mdText(first.time)} ~ ${mdText(last.time)}`,
-    // 用户要 days 天，库里只有 spanDays 天，两个都说清楚（口径同 scoreTrend）
-    coverText: spanDays >= days ? `近 ${days} 天` : `实际覆盖 ${spanDays} 天`,
+    // 用户要 days 天，库里只有 spanDays 天，两个都说清楚（口径同 scoreTrend）。
+    // 放宽过窗口时一律说实际覆盖：#段位趋势 2 拿到的 10 场可能横跨 4.8 天，
+    // 这时写「近 2 天」会和旁边的日期区间自相矛盾
+    coverText: !relaxed && spanDays >= days ? `近 ${days} 天` : `实际覆盖 ${spanDays} 天`,
     trend,
     levels,
     // 断点如实交代：这多半是同一个营地账号下切了游戏角色（文件头第 4 点），

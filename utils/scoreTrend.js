@@ -15,7 +15,15 @@
 
 /** 默认看多少天 */
 export const TREND_DEFAULT_DAYS = 14
-/** 少于这么多场就没什么趋势可看，调用方据此决定要不要补拉 */
+/**
+ * 想凑够多少场巅峰局。
+ *
+ * 天数只是首选窗口：巅峰赛在归档里只占一部分（实测 48 场里 33 场巅峰、另一个号一场都没有），
+ * 窗口内不足这个数就放宽到全库最近这么多场（见 pickPeakWindow），
+ * 调用方也据此决定要不要现拉几页补上。
+ */
+export const TREND_TARGET_POINTS = 10
+/** 少于这么多场就没什么趋势可看 */
 export const TREND_MIN_POINTS = 4
 /** 折线最多画多少个点：再多点会挤成一团，超了按等距抽稀（首尾必留） */
 const MAX_POINTS = 60
@@ -42,6 +50,24 @@ export function pickPeakBattles (battles = [], fromSec = 0) {
     .filter(item => isPeakBattle(item) && toInt(item?.dtEventTime) >= from && toInt(item?.newMasterMatchScore) > 0)
     .slice()
     .sort((a, b) => toInt(a.dtEventTime) - toInt(b.dtEventTime))
+}
+
+/**
+ * 取「要画的那一窗巅峰局」：先按天数窗口取，窗口内不足 target 场就放宽成全库最近 target 场。
+ *
+ * 为什么要放宽：巅峰赛不是每天都打，按 14 天取常常只有三五场，涨跌看不出形状。
+ * 用户要的是「最近这些巅峰赛打成什么样」，窗口是手段不是目的；
+ * 放宽了就在图上如实标出来（图头本来就有「实际覆盖 X 天」）。
+ *
+ * @returns {{list: Array<object>, relaxed: boolean}} relaxed=true 表示突破了天数窗口
+ */
+export function pickPeakWindow (battles = [], fromSec = 0, target = TREND_TARGET_POINTS) {
+  const inRange = pickPeakBattles(battles, fromSec)
+  if (inRange.length >= target) return { list: inRange, relaxed: false }
+
+  const all = pickPeakBattles(battles, 0)
+  if (all.length <= inRange.length) return { list: inRange, relaxed: false }
+  return { list: all.slice(-target), relaxed: true }
 }
 
 /** 等距抽稀，首尾必留 */
@@ -97,10 +123,11 @@ function streaks (list) {
  * @param {Function} [ctx.iconOf] heroId → 头像 URL。由调用方注入，这个模块不碰网络/图源，
  *   免得为了一条 URL 把 reportStore → pushStore → api 整条链拖进来（脱机测时要打一堆桩）
  * @param {number} [ctx.days] 用户要看的天数，只用于文案
+ * @param {boolean} [ctx.relaxed] 是否突破了天数窗口（pickPeakWindow 的返回），只用于文案
  * @param {number} [ctx.recent] 「最近战况」列几场
  * @returns {object|null} 少于 2 场时返回 null（一个点画不出趋势）
  */
-export function buildTrendView (picked = [], { heroMap = {}, iconOf = () => '', days = TREND_DEFAULT_DAYS, recent = 8 } = {}) {
+export function buildTrendView (picked = [], { heroMap = {}, iconOf = () => '', days = TREND_DEFAULT_DAYS, relaxed = false, recent = 8 } = {}) {
   if (picked.length < 2) return null
 
   const scores = picked.map(item => toInt(item.newMasterMatchScore))
@@ -208,8 +235,9 @@ export function buildTrendView (picked = [], { heroMap = {}, iconOf = () => '', 
     maxLoseStreak: streak.lose,
     spanDays,
     rangeText: `${mdText(toInt(first.dtEventTime))} ~ ${mdText(toInt(last.dtEventTime))}`,
-    // 用户要 days 天，库里只有 spanDays 天，两个都说清楚
-    coverText: spanDays >= days ? `近 ${days} 天` : `实际覆盖 ${spanDays} 天`,
+    // 用户要 days 天，库里只有 spanDays 天，两个都说清楚。
+    // 放宽过窗口时一律说实际覆盖，否则「近 2 天」会和旁边的日期区间自相矛盾
+    coverText: !relaxed && spanDays >= days ? `近 ${days} 天` : `实际覆盖 ${spanDays} 天`,
     trend,
     dayRows,
     recentRows,

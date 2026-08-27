@@ -8,12 +8,14 @@
  * 数据同样来自本地归档库（BattleArchive.json，推送轮询顺手落的，保留 35 天），
  * 库里够点时一次营地请求都不发；不够才补拉几页。
  *
- * 段位快照每一场都有，娱乐局也有（实测 413/413），所以这里**不按模式过滤**：
- * 娱乐局能把「这几天在摸鱼、段位没动」如实画成水平段。但胜率、升降段只算排位局，
- * 因为只有排位赛改变段位。口径细节全写在 utils/rankTrend.js 的文件头。
+ * **只取排位赛的场次**：段位快照每一场都有（娱乐局也有，实测 413/413），但只有排位赛
+ * 会让它动。巅峰赛和娱乐局画进来就是一串水平点，把真正的升降星挤到图角落里。
+ *
+ * 天数只是首选窗口：窗口里凑不够 10 场排位就放宽到全库最近 10 场，并在图上标明。
+ * 口径细节全写在 utils/rankTrend.js 的文件头。
  *
  * 用法：
- *   #段位趋势            近 14 天
+ *   #段位趋势            近 14 天（不足 10 场排位则取最近 10 场）
  *   #段位趋势 7          近 7 天
  *   #段位趋势 1580886057 指定营地ID
  *   #段位趋势 2          第 2 个绑定账号（1-2 位数字优先当天数，3-4 位当序号）
@@ -26,7 +28,7 @@ import {
 } from '#utils'
 import { loadArchive, collectBattles, ARCHIVE_KEEP_DAYS } from '../utils/battleArchive.js'
 import {
-  pickRankBattles, buildRankTrendView, RANK_TREND_DEFAULT_DAYS, RANK_TREND_MIN_POINTS
+  pickRankWindow, buildRankTrendView, RANK_TREND_DEFAULT_DAYS, RANK_TREND_TARGET_POINTS
 } from '../utils/rankTrend.js'
 import { getHeroNameMap, loadPushList } from '../utils/pushStore.js'
 import { heroIconUrl } from '../utils/reportStore.js'
@@ -69,13 +71,16 @@ export class RankTrend extends plugin {
     const days = Math.min(Math.max(args.days || RANK_TREND_DEFAULT_DAYS, 1), ARCHIVE_KEEP_DAYS)
     const fromSec = Math.floor(Date.now() / 1000) - days * 86400
 
-    let picked = pickRankBattles(loadArchive(campId), fromSec)
+    let { list: picked, relaxed } = pickRankWindow(loadArchive(campId), fromSec)
 
-    // 库里不够画：现拉几页补上。归档是推送轮询的副产品，没开推送的号库里可能是空的
-    if (picked.length < RANK_TREND_MIN_POINTS) {
+    // 库里凑不够 10 场排位：现拉几页补上。归档是推送轮询的副产品，没开推送的号库里可能是空的。
+    // 补拉的下限用整个归档保留期而不是 days —— 要凑的是场次，天数窗口不够就往更早翻；
+    // 排位局在战绩里本来就只占一部分（实测 48 场里 15 场），页数给到 8 才有把握凑够
+    if (picked.length < RANK_TREND_TARGET_POINTS) {
       try {
-        await collectBattles(String(campId), String(userId), fromSec, { maxPages: 6 })
-        picked = pickRankBattles(loadArchive(campId), fromSec)
+        const archiveFrom = Math.floor(Date.now() / 1000) - ARCHIVE_KEEP_DAYS * 86400
+        await collectBattles(String(campId), String(userId), archiveFrom, { maxPages: 8 })
+        ;({ list: picked, relaxed } = pickRankWindow(loadArchive(campId), fromSec))
       } catch (error) {
         logger.debug(`[王者段位趋势] ${campId} 补拉战绩失败: ${error.message}`)
       }
@@ -83,7 +88,8 @@ export class RankTrend extends plugin {
 
     if (picked.length < 2) {
       return e.reply([
-        `近 ${days} 天只找到 ${picked.length} 场带段位记录的对局，画不出趋势。\n` +
+        `近 ${days} 天只找到 ${picked.length} 场排位赛，画不出趋势。\n` +
+        '· 巅峰赛和娱乐局不算：只有排位赛会改变段位\n' +
         `· 试试更长的区间，比如 #段位趋势 ${Math.min(days * 2, ARCHIVE_KEEP_DAYS)}\n` +
         '· 开了 #开启战绩推送 之后每天的对局会自动存档，往后趋势会越来越全',
         Button.push()
@@ -91,20 +97,21 @@ export class RankTrend extends plugin {
     }
 
     const heroMap = await getHeroNameMap()
-    const view = buildRankTrendView(picked, { heroMap, iconOf: heroIconUrl, days })
-    if (!view) return e.reply('带段位记录的场次太少，攒几天再看吧', shouldQuote())
+    const view = buildRankTrendView(picked, { heroMap, iconOf: heroIconUrl, days, relaxed })
+    if (!view) return e.reply('排位赛场次太少，攒几天再看吧', shouldQuote())
 
     const name = await displayName(e, userId)
     const img = await this.shot({
       ...view,
       title: '段位趋势',
-      subText: `近 ${days} 天`,
+      // 放宽过窗口就别再写「近 N 天」了，那是假的
+      subText: relaxed ? `最近 ${picked.length} 场排位` : `近 ${days} 天`,
       username: name,
       avatar: await getUserAvatar(e, userId, 100),
       trendJson: JSON.stringify(view.trend),
       levelJson: JSON.stringify(view.levels),
       // 归档只留 35 天，且只覆盖轮询跑过的那段，别让人以为是全赛季
-      footText: `数据取自本地战绩存档（最多 ${ARCHIVE_KEEP_DAYS} 天）· 段位快照每场都有，升降段只算排位赛`
+      footText: `数据取自本地战绩存档（最多 ${ARCHIVE_KEEP_DAYS} 天）· 只统计排位赛，巅峰赛与娱乐局不计入`
     })
 
     if (!img) return e.reply('趋势图渲染失败了，稍后再试', shouldQuote())

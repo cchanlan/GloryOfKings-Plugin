@@ -2,15 +2,16 @@
  * #巅峰趋势 —— 把巅峰分的涨跌画成折线。
  *
  * 数据来自本地归档库（推送轮询顺手落的 BattleArchive.json，保留 35 天），
- * 所以库里够点的时候**一次营地请求都不发**；不够 4 场才去补拉战绩（最多 6 页 ≈ 80 场）。
+ * 所以库里够点的时候**一次营地请求都不发**；凑不够 10 场巅峰赛才去补拉战绩（最多 8 页）。
  *
  * 只统计巅峰赛的场次：排位局也带 old/newMasterMatchScore，但两者恒等，
  * 混进来会把折线压成水平噪声（口径细节见 utils/scoreTrend.js）。
  *
+ * 天数只是首选窗口：窗口里凑不够 10 场巅峰赛就放宽到全库最近 10 场，并在图上标明。
  * 覆盖天数看轮询跑了多久，不是用户要的天数 —— 图头的徽标如实标「实际覆盖 X 天」。
  *
  * 用法：
- *   #巅峰趋势            近 14 天
+ *   #巅峰趋势            近 14 天（不足 10 场则取最近 10 场）
  *   #巅峰趋势 7          近 7 天
  *   #巅峰趋势 1580886057 指定营地ID
  *   #巅峰趋势 2          第 2 个绑定账号（1-2 位数字优先当天数，3-4 位当序号）
@@ -23,7 +24,7 @@ import {
 } from '#utils'
 import { loadArchive, collectBattles, ARCHIVE_KEEP_DAYS } from '../utils/battleArchive.js'
 import {
-  pickPeakBattles, buildTrendView, TREND_DEFAULT_DAYS, TREND_MIN_POINTS
+  pickPeakWindow, buildTrendView, TREND_DEFAULT_DAYS, TREND_TARGET_POINTS
 } from '../utils/scoreTrend.js'
 import { getHeroNameMap, loadPushList } from '../utils/pushStore.js'
 import { heroIconUrl } from '../utils/reportStore.js'
@@ -64,13 +65,15 @@ export class ScoreTrend extends plugin {
     const days = Math.min(Math.max(args.days || TREND_DEFAULT_DAYS, 1), ARCHIVE_KEEP_DAYS)
     const fromSec = Math.floor(Date.now() / 1000) - days * 86400
 
-    let picked = pickPeakBattles(loadArchive(campId), fromSec)
+    let { list: picked, relaxed } = pickPeakWindow(loadArchive(campId), fromSec)
 
-    // 库里不够画：现拉几页补上。归档是推送轮询的副产品，没开推送的号库里可能是空的
-    if (picked.length < TREND_MIN_POINTS) {
+    // 库里凑不够 10 场巅峰：现拉几页补上。归档是推送轮询的副产品，没开推送的号库里可能是空的。
+    // 补拉下限用整个归档保留期而不是 days —— 要凑的是场次，天数窗口不够就往更早翻
+    if (picked.length < TREND_TARGET_POINTS) {
       try {
-        await collectBattles(String(campId), String(userId), fromSec, { maxPages: 6 })
-        picked = pickPeakBattles(loadArchive(campId), fromSec)
+        const archiveFrom = Math.floor(Date.now() / 1000) - ARCHIVE_KEEP_DAYS * 86400
+        await collectBattles(String(campId), String(userId), archiveFrom, { maxPages: 8 })
+        ;({ list: picked, relaxed } = pickPeakWindow(loadArchive(campId), fromSec))
       } catch (error) {
         logger.debug(`[王者巅峰趋势] ${campId} 补拉战绩失败: ${error.message}`)
       }
@@ -87,14 +90,15 @@ export class ScoreTrend extends plugin {
     }
 
     const heroMap = await getHeroNameMap()
-    const view = buildTrendView(picked, { heroMap, iconOf: heroIconUrl, days })
+    const view = buildTrendView(picked, { heroMap, iconOf: heroIconUrl, days, relaxed })
     if (!view) return e.reply('巅峰赛场次太少，攒几天再看吧', shouldQuote())
 
     const name = await displayName(e, userId)
     const img = await this.shot({
       ...view,
       title: '巅峰趋势',
-      subText: `近 ${days} 天`,
+      // 放宽过窗口就别再写「近 N 天」了，那是假的
+      subText: relaxed ? `最近 ${picked.length} 场巅峰` : `近 ${days} 天`,
       username: name,
       avatar: await getUserAvatar(e, userId, 100),
       trendJson: JSON.stringify(view.trend),

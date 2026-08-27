@@ -118,7 +118,7 @@
       <h2 class="username">{{username}}</h2>
       <span class="badge">{{rangeText}}</span>
       <span class="badge">{{coverText}}</span>
-      <span class="badge">{{count}} 场（排位 {{rankedCount}}）</span>
+      <span class="badge">{{count}} 场排位</span>
     </div>
     <div class="report-label">
       {{title}}
@@ -185,7 +185,7 @@
   <div class="section">
     <div class="section-title">
       模式分布
-      <span class="tip">只有排位赛（高亮）会改变段位，其余模式只是携带了当时的段位快照</span>
+      <span class="tip">只统计排位赛，这里是单排 / 双排 / 五排这些开黑形态的分布</span>
     </div>
     <div class="mode-list">
       {{each modeRows m}}
@@ -208,7 +208,7 @@
       {{each dayRows d}}
       <div class="day-row">
         <span class="day-date">{{d.date}}</span>
-        <span class="day-cnt">{{d.count}} 场 / 排 {{d.rankedCount}}</span>
+        <span class="day-cnt">{{d.count}} 场</span>
         <span class="day-wl"><span class="win">{{d.win}} 胜</span> / <span class="lose">{{d.lose}} 负</span></span>
         <span class="day-rank">{{d.label}}</span>
         <span class="day-delta {{d.deltaClass}}">{{d.deltaText}}</span>
