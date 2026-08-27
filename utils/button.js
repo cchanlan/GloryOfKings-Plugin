@@ -330,6 +330,28 @@ export default class Button {
   }
 
   /**
+   * 段位趋势。和 trend()（巅峰）互为入口：打排位的看这个，打巅峰的看那个
+   * @param {string|number} id 营地ID
+   */
+  static rankTrend (id = '') {
+    const s = id ? String(id) : ''
+    return segment.button(
+      [
+        { text: '看近 7 天', callback: `#段位趋势7${s ? ` ${s}` : ''}` },
+        { text: '看近 30 天', callback: `#段位趋势30${s ? ` ${s}` : ''}` }
+      ],
+      [
+        { text: '排位表现', callback: `#排位表现${s}` },
+        { text: '巅峰趋势', callback: `#巅峰趋势${s ? ` ${s}` : ''}` }
+      ],
+      [
+        { text: '王者主页', callback: `#王者主页${s}` },
+        { text: '排位排名', callback: '#排位排名' }
+      ]
+    )
+  }
+
+  /**
    * 排行榜
    * @param {'rank'|'peak'} type 当前榜单类型
    * @param {boolean} isGlobal 当前是否为总排名，用于给出反向的范围切换入口

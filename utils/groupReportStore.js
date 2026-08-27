@@ -17,6 +17,7 @@
  */
 import path from 'path'
 import { readYamlFile, writeYamlFile } from './yamlUtils.js'
+import { quarantineCorrupt } from './safeStore.js'
 import { collectBattles, getArchiveRange } from './battleArchive.js'
 import { getAllBindings, readSnapshot } from './rankStore.js'
 import { loadPushList } from './pushStore.js'
@@ -45,13 +46,17 @@ export const GROUP_MAX_PAGES = { daily: 2, weekly: 3, monthly: 3 }
 
 /* ---------------------------------------------------------------- 订阅存取 */
 
-/** 读群订阅表，坏了返回空表——绝不让定时任务因为这个文件挂掉 */
+/**
+ * 读群订阅表，坏了返回空表——绝不让定时任务因为这个文件挂掉。
+ * 解析失败时先隔离坏文件：否则空表会被下一次 saveGroupSubs 固化，群报订阅静默消失。
+ */
 export function loadGroupSubs () {
   try {
     const data = readYamlFile(GROUP_PUSH_FILE)
     const list = data?.pushList
     return list && typeof list === 'object' ? list : {}
-  } catch {
+  } catch (error) {
+    quarantineCorrupt(GROUP_PUSH_FILE, error, '[王者群报]')
     return {}
   }
 }

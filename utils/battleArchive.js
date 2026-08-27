@@ -14,6 +14,7 @@
  */
 import path from 'path'
 import { readJsonFile, writeJsonFile } from './fileUtils.js'
+import { quarantineCorrupt } from './safeStore.js'
 import ApiService from './api.js'
 import { PluginData } from '#components'
 
@@ -70,7 +71,10 @@ function loadAll () {
   try {
     const data = readJsonFile(ARCHIVE_FILE)
     cacheAll = data && typeof data === 'object' ? data : {}
-  } catch {
+  } catch (error) {
+    // 归档是 35 天攒出来的，翻页补回来要几十次营地请求（还受频控）。
+    // 坏了必须留证再按空库继续，否则下一次 saveAll 就把空库写回盘，攒的全没了
+    quarantineCorrupt(ARCHIVE_FILE, error, '[战绩归档]')
     cacheAll = {}
   }
 

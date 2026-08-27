@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>{{title}}</title>
+  <!-- 基础样式复用 BattleReport.css，和战报/巅峰趋势保持一致，这里只补段位图特有的增量 -->
+  <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
+  <style>
+    /* 段位名比分数长得多（「荣耀王者 67星」），字号要压下来才不换行 */
+    .stat-grid .stat-val.rank { font-size: 24px; }
+    .stat-grid.second .stat-cell { padding: 14px 10px; }
+    .stat-grid.second .stat-val { font-size: 26px; }
+    .stat-val.up { color: #f5d76e; }
+    .stat-val.down { color: #e96e6e; }
+    .stat-val.flat { color: rgba(255,255,255,0.7); }
+
+    /* 跳变提示条：同一营地号切了游戏角色时才出现，必须显眼但不抢主图 */
+    .note-bar {
+      margin: 0 26px 16px;
+      padding: 10px 16px;
+      background: rgba(233,110,110,0.1);
+      border: 1px solid rgba(233,110,110,0.3);
+      border-radius: 10px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.62);
+    }
+
+    /* 模式分布：横排小药丸，排位局高亮（只有它改变段位） */
+    .mode-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .mode-pill {
+      display: flex;
+      align-items: baseline;
+      gap: 7px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 999px;
+      padding: 7px 15px;
+      font-size: 13px;
+    }
+    .mode-pill.ranked {
+      background: rgba(245,215,110,0.1);
+      border-color: rgba(245,215,110,0.32);
+    }
+    .mode-pill .cnt { font-family: Number, sans-serif; font-size: 15px; color: #f5d76e; }
+    .mode-pill .wr { color: rgba(255,255,255,0.4); font-size: 12px; }
+
+    /* 逐日战况：日期 / 场次 / 排位胜负 / 当日段位 / 变化 */
+    .day-list { display: flex; flex-direction: column; gap: 7px; }
+    .day-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 14px;
+    }
+    .day-date { font-family: Number, sans-serif; font-size: 16px; width: 62px; flex-shrink: 0; }
+    .day-cnt { color: rgba(255,255,255,0.5); width: 92px; flex-shrink: 0; }
+    .day-wl { flex: 1; min-width: 0; }
+    .day-wl .win { color: #6fd39b; }
+    .day-wl .lose { color: #e96e6e; }
+    .day-rank { font-size: 14px; color: rgba(255,255,255,0.75); width: 108px; text-align: right; flex-shrink: 0; }
+    .day-delta { font-family: Number, sans-serif; font-size: 15px; width: 92px; text-align: right; flex-shrink: 0; }
+    .day-delta.up { color: #f5d76e; }
+    .day-delta.down { color: #e96e6e; }
+    .day-delta.flat { color: rgba(255,255,255,0.35); }
+  </style>
+  <style>
+    /* 最近战况：英雄头像 + 模式 + 胜负 + 当时段位 + 这一场的变化 */
+    .match-list { display: flex; flex-direction: column; gap: 8px; }
+    .match-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 8px 14px;
+    }
+    .match-row.casual { opacity: 0.62; }
+    .match-icon {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      border: 2px solid rgba(245,215,110,0.35);
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    /* 英雄名 + 模式名可能很长，别把右边的段位挤出卡片 */
+    .match-main { flex: 1; min-width: 0; }
+    .match-hero { font-size: 15px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .match-meta { font-size: 12px; color: rgba(255,255,255,0.38); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .match-res { font-size: 15px; width: 26px; text-align: center; flex-shrink: 0; }
+    .match-res.win { color: #6fd39b; }
+    .match-res.lose { color: #e96e6e; }
+    .match-res.flat { color: rgba(255,255,255,0.3); }
+    .match-rank { font-size: 14px; color: rgba(255,255,255,0.7); width: 104px; text-align: right; flex-shrink: 0; }
+    .match-delta { font-family: Number, sans-serif; font-size: 15px; width: 84px; text-align: right; flex-shrink: 0; }
+    .match-delta.up { color: #f5d76e; }
+    .match-delta.down { color: #e96e6e; }
+    .match-delta.flat { color: rgba(255,255,255,0.3); }
+
+    .footer {
+      padding: 14px 26px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.3);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <!-- 头部 -->
+  <div class="card-header">
+    <img class="avatar" src="{{avatar}}" alt="" onerror="this.style.display='none'">
+    <div class="user-info">
+      <h2 class="username">{{username}}</h2>
+      <span class="badge">{{rangeText}}</span>
+      <span class="badge">{{coverText}}</span>
+      <span class="badge">{{count}} 场（排位 {{rankedCount}}）</span>
+    </div>
+    <div class="report-label">
+      {{title}}
+      <span class="sub">{{subText}}</span>
+    </div>
+  </div>
+
+  <!-- 四格总览 -->
+  <div class="stat-grid">
+    <div class="stat-cell gold">
+      <div class="stat-val rank">{{currentLabel}}</div>
+      <div class="stat-key">当前段位</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val rank {{deltaClass}}">{{deltaText}}</div>
+      <div class="stat-key">区间变化</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val rank">{{peakLabel}}</div>
+      <div class="stat-key">区间最高</div>
+    </div>
+    <div class="stat-cell {{winRateClass}}">
+      <div class="stat-val">{{winRate}}%</div>
+      <div class="stat-key">排位胜率</div>
+    </div>
+  </div>
+
+  <div class="stat-grid second">
+    <div class="stat-cell">
+      <div class="stat-val"><span class="win">{{win}}</span><span class="slash">/</span><span class="lose">{{lose}}</span></div>
+      <div class="stat-key">排位 胜 / 负</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val">{{starStepText}}</div>
+      <div class="stat-key">涨星 / 掉星次数</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val">{{maxWinStreak}}</div>
+      <div class="stat-key">最长连胜</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val">{{maxLoseStreak}}</div>
+      <div class="stat-key">最长连败</div>
+    </div>
+  </div>
+
+  {{if segNote}}
+  <div class="note-bar">⚠ {{segNote}}</div>
+  {{/if}}
+
+  <!-- 段位阶梯图 -->
+  <div class="section">
+    <div class="section-title">
+      段位走势
+      <span class="tip">{{startLabel}} → {{currentLabel}}，{{stepText}}，跨 {{spanDays}} 天</span>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="trendCanvas" width="2754" height="760"></canvas>
+    </div>
+  </div>
+
+  <!-- 模式分布 -->
+  {{if modeRows && modeRows.length}}
+  <div class="section">
+    <div class="section-title">
+      模式分布
+      <span class="tip">只有排位赛（高亮）会改变段位，其余模式只是携带了当时的段位快照</span>
+    </div>
+    <div class="mode-list">
+      {{each modeRows m}}
+      <span class="mode-pill {{m.ranked ? 'ranked' : ''}}">
+        {{m.mode}}<span class="cnt">{{m.count}}</span><span class="wr">胜率 {{m.winRate}}%</span>
+      </span>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- 逐日战况 -->
+  {{if dayRows && dayRows.length}}
+  <div class="section">
+    <div class="section-title">
+      逐日战况
+      <span class="tip">变化 = 当天最后一场的段位 − 前一天最后一场的段位</span>
+    </div>
+    <div class="day-list">
+      {{each dayRows d}}
+      <div class="day-row">
+        <span class="day-date">{{d.date}}</span>
+        <span class="day-cnt">{{d.count}} 场 / 排 {{d.rankedCount}}</span>
+        <span class="day-wl"><span class="win">{{d.win}} 胜</span> / <span class="lose">{{d.lose}} 负</span></span>
+        <span class="day-rank">{{d.label}}</span>
+        <span class="day-delta {{d.deltaClass}}">{{d.deltaText}}</span>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- 最近战况 -->
+  {{if recentRows && recentRows.length}}
+  <div class="section">
+    <div class="section-title">
+      最近 {{recentRows.length}} 场
+      <span class="tip">段位是打这一场时的快照，变化是与上一场之间的差</span>
+    </div>
+    <div class="match-list">
+      {{each recentRows m}}
+      <div class="match-row {{m.ranked ? '' : 'casual'}}">
+        <img class="match-icon" src="{{m.heroIcon}}" alt="" onerror="this.style.visibility='hidden'">
+        <div class="match-main">
+          <div class="match-hero">{{m.heroName}}</div>
+          <div class="match-meta">{{m.timeText}} · {{m.mode}} · {{m.kda}}</div>
+        </div>
+        <span class="match-res {{m.resultClass}}">{{m.resultText}}</span>
+        <span class="match-rank">{{m.label}}</span>
+        <span class="match-delta {{m.deltaClass}}">{{m.deltaText}}</span>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  <div class="footer">{{footText}}</div>
+</div>
+
+<script>
+// 段位是离散阶梯量，所以这里画的是**阶梯线**（step-after）而不是 ScoreTrend 那种
+// Catmull-Rom 平滑曲线：段位在两场之间是瞬间跳变的，画成平滑上坡等于凭空编出中间状态。
+// y 值是 utils/rankTrend.js 算好的离散刻度 level（一格一档），不是段位标量本身。
+const trend = {{@ trendJson}}
+const levels = {{@ levelJson}}
+
+if (trend && trend.length > 1) {
+  const c = document.getElementById('trendCanvas')
+  const ctx = c.getContext('2d')
+  const W = c.width, H = c.height
+  const pad = { t: 60, b: 92, l: 250, r: 90 }
+  const plotH = H - pad.t - pad.b
+  const maxLevel = Math.max(...trend.map(t => t.level))
+  // 只有一档（这段时间段位一动没动）时把线画在正中间，否则 0/0 会除爆
+  const yOf = level => (maxLevel > 0
+    ? pad.t + (1 - level / maxLevel) * plotH
+    : pad.t + plotH / 2)
+  const xs = trend.map((_, i) => pad.l + i * (W - pad.l - pad.r) / (trend.length - 1))
+  const ys = trend.map(t => yOf(t.level))
+
+  // 背景网格 + 左侧段位刻度。刻度已在数据层抽到最多 5 档，这里直接一档一线
+  ctx.font = '30px YS,sans-serif'
+  ctx.textAlign = 'right'
+  for (const item of (levels && levels.length ? levels : [])) {
+    const y = yOf(item.level)
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+    ctx.lineWidth = 2
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke()
+    ctx.fillStyle = 'rgba(255,255,255,0.45)'
+    ctx.fillText(item.label, pad.l - 20, y + 10)
+  }
+
+  // 按 seg 切段：跳变处（切游戏角色 / 赛季重置）必须断开，连起来就是一条从天上掉下来的直线
+  const segs = []
+  let cur = [0]
+  for (let i = 1; i < trend.length; i++) {
+    if (trend[i].seg !== trend[i - 1].seg) { segs.push(cur); cur = [] }
+    cur.push(i)
+  }
+  segs.push(cur)
+
+  // 阶梯路径：先横着走到下一场的 x，再竖着跳到新段位
+  const stepPath = idxs => {
+    ctx.moveTo(xs[idxs[0]], ys[idxs[0]])
+    for (let k = 1; k < idxs.length; k++) {
+      ctx.lineTo(xs[idxs[k]], ys[idxs[k - 1]])
+      ctx.lineTo(xs[idxs[k]], ys[idxs[k]])
+    }
+  }
+
+  for (const idxs of segs) {
+    if (idxs.length < 2) {
+      // 孤点段（跳变刚好只留一场）：画个点就够，画不出线
+      ctx.beginPath(); ctx.arc(xs[idxs[0]], ys[idxs[0]], 8, 0, Math.PI * 2)
+      ctx.fillStyle = '#f5d76e'; ctx.fill()
+      continue
+    }
+
+    // 填充渐变。底边必须是画布底边，且路径要「阶梯 → 落到底边 → 沿底边回到起点」再 closePath，
+    // 否则 closePath 会从右下角直接连回起点，填充区多出一条穿过全图的斜线（和 ScoreTrend 同一个坑）
+    const grad = ctx.createLinearGradient(0, pad.t, 0, H - pad.b)
+    grad.addColorStop(0, 'rgba(245,215,110,0.3)')
+    grad.addColorStop(1, 'rgba(245,215,110,0.02)')
+    ctx.beginPath()
+    stepPath(idxs)
+    ctx.lineTo(xs[idxs[idxs.length - 1]], H - pad.b)
+    ctx.lineTo(xs[idxs[0]], H - pad.b)
+    ctx.closePath()
+    ctx.fillStyle = grad; ctx.fill()
+
+    ctx.beginPath()
+    stepPath(idxs)
+    ctx.strokeStyle = '#f5d76e'; ctx.lineWidth = 5
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke()
+  }
+
+  // 点：排位局画实心（是它把段位打上去的），其它模式画空心小点，一眼分得清
+  const dotR = trend.length > 30 ? 5 : 7
+  trend.forEach((t, i) => {
+    ctx.beginPath(); ctx.arc(xs[i], ys[i], t.ranked ? dotR : dotR - 2, 0, Math.PI * 2)
+    if (t.ranked) {
+      ctx.fillStyle = '#f5d76e'; ctx.fill()
+    } else {
+      ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 3; ctx.stroke()
+    }
+  })
+
+  // 末点标注当前段位全称：图上刻度是简称，这里给一次完整的
+  const lastI = trend.length - 1
+  ctx.font = '32px YS,sans-serif'
+  ctx.textAlign = 'right'
+  ctx.fillStyle = '#f5d76e'
+  ctx.fillText(trend[lastI].full, W - pad.r, ys[lastI] - 22)
+
+  // X 轴日期：首点左对齐、尾点右对齐，避免被画布边缘截断；点多了中间再补一个
+  const fmtDate = i => {
+    const d = new Date(Number(trend[i].time) * 1000)
+    return `${d.getMonth() + 1}-${d.getDate()}`
+  }
+  ctx.font = '30px YS,sans-serif'
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'
+  ctx.textAlign = 'left'
+  ctx.fillText(fmtDate(0), xs[0], H - 20)
+  ctx.textAlign = 'right'
+  ctx.fillText(fmtDate(lastI), xs[lastI], H - 20)
+  if (trend.length >= 8) {
+    const mi = Math.floor(lastI / 2)
+    const midText = fmtDate(mi)
+    // 中点和首尾同一天就别画了：补拉战绩时常出现一天灌进几十场，中点会落在起点那天，
+    // 画出来就是同一个日期在轴上出现两次，看着像画错了
+    if (midText !== fmtDate(0) && midText !== fmtDate(lastI)) {
+      ctx.textAlign = 'center'
+      ctx.fillText(midText, xs[mi], H - 20)
+    }
+  }
+}
+</script>
+</body>
+</html>

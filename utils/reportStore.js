@@ -5,7 +5,7 @@
  * 但刻意保留了 summarizeSession 需要的那几个，所以段位星数直接复用 pushStore 那套——
  * 小编号回绕、赛季切换、0 星是真实值这些坑已经在那边踩平了，不重写一遍。
  */
-import { summarizeSession, getHeroNameMap, formatOnlineDuration, formatStarChange, formatScoreDelta } from './pushStore.js'
+import { summarizeSession, getHeroNameMap, formatOnlineDuration, formatDuration, formatStarChange, formatScoreDelta } from './pushStore.js'
 
 const toInt = value => {
   const num = Number(value)
@@ -153,6 +153,96 @@ export function groupByHour (battles = []) {
 }
 
 /**
+ * 每小时的胜负，配合 groupByHour 用来找「哪个点位打得最准」。
+ *
+ * 单独出一个函数而不是把 byHour 换成对象数组：BattleReport.html / GroupReport.html
+ * 的时段柱状图直接把 byHour 当数字数组用（`Math.max(...report.byHour)`），
+ * 换结构那两张图会一起坏掉。
+ *
+ * @returns {Array<{count:number, win:number, lose:number}>} 定长 24
+ */
+export function groupByHourStats (battles = []) {
+  const hours = Array.from({ length: 24 }, () => ({ count: 0, win: 0, lose: 0 }))
+
+  for (const item of battles) {
+    const ts = toInt(item?.dtEventTime)
+    if (ts <= 0) continue
+    const entry = hours[new Date(ts * 1000).getHours()]
+    entry.count += 1
+    if (toInt(item.gameresult) === 1) entry.win += 1
+    else if (toInt(item.gameresult) === 2) entry.lose += 1
+  }
+
+  return hours
+}
+
+/** 胜率高于这个才配叫「手感最好」，低于那个才配叫「最容易翻车」；中间是正常波动，不下结论 */
+const GOOD_HOUR_RATE = 55
+const BAD_HOUR_RATE = 45
+
+/**
+ * 时段结论：打得最多的点位、以及打得最准的点位。
+ *
+ * 「最准」要设样本下限，否则 1 场 1 胜的凌晨 4 点会永远霸占「胜率最高」——
+ * 实测有账号 4 点只打了 4 场（25%）、17 点 11 场（82%），下限取
+ * max(3, 总场次的 8%) 能把偶发点位挡掉又不至于把真实高光点位也挡掉。
+ *
+ * @param {Array<{count:number,win:number,lose:number}>} hours groupByHourStats 的返回
+ * @param {number} total 区间总场次
+ * @returns {{busyHour:number, busyCount:number, bestHour:number, bestRate:number,
+ *   bestCount:number, worstHour:number, worstRate:number, worstCount:number, text:string}}
+ */
+export function summarizeHours (hours = [], total = 0) {
+  const list = Array.isArray(hours) ? hours : []
+  const minSample = Math.max(3, Math.round(total * 0.08))
+  let busyHour = -1
+  let busyCount = 0
+  let best = null
+  let worst = null
+
+  list.forEach((entry, hour) => {
+    if (entry.count > busyCount) {
+      busyCount = entry.count
+      busyHour = hour
+    }
+
+    const decided = entry.win + entry.lose
+    if (decided < minSample) return
+    const rate = Math.round((entry.win / decided) * 100)
+    if (!best || rate > best.rate) best = { hour, rate, count: entry.count }
+    if (!worst || rate < worst.rate) worst = { hour, rate, count: entry.count }
+  })
+
+  const hh = h => `${String(h).padStart(2, '0')}:00`
+  const parts = []
+  if (busyHour >= 0) parts.push(`${hh(busyHour)} 打得最多（${busyCount} 场）`)
+  // 最高和最低是同一个点位就只说一次：样本够的点位只剩一个时会这样
+  if (best && best.hour !== busyHour) {
+    // 五五开就别叫「手感最好」了。样本够的点位少的时候，最高的那个可能才 50%，
+    // 说出来像是在夸他，实际什么信息都没给
+    if (best.rate >= GOOD_HOUR_RATE) parts.push(`${hh(best.hour)} 手感最好（胜率 ${best.rate}%）`)
+  } else if (best) {
+    parts.push(`这个点位胜率 ${best.rate}%`)
+  }
+  if (worst && best && worst.hour !== best.hour && worst.rate <= BAD_HOUR_RATE) {
+    parts.push(`${hh(worst.hour)} 最容易翻车（胜率 ${worst.rate}%）`)
+  }
+
+  return {
+    busyHour,
+    busyCount,
+    bestHour: best?.hour ?? -1,
+    bestRate: best?.rate ?? 0,
+    bestCount: best?.count ?? 0,
+    worstHour: worst?.hour ?? -1,
+    worstRate: worst?.rate ?? 0,
+    worstCount: worst?.count ?? 0,
+    // 样本不足时只有「打得最多」一句，别硬凑结论
+    text: parts.join('，')
+  }
+}
+
+/**
  * 英雄使用榜，按场次降序、同场次按胜率降序。
  * @param {Array<object>} battles
  * @param {Record<string,string>} heroMap heroId -> 英雄名
@@ -213,6 +303,10 @@ export function summarizeReport (battles = [], { fromSec = 0, heroMap = {} } = {
   let mvp = 0
   let loseMvp = 0
   let best = null
+  // 最长 / 最短的一局。只认 usedTime > 0：归档里偶有 0（未结算或字段缺失），
+  // 拿它当「最短」会报出一场 0 秒的对局
+  let longest = null
+  let shortest = null
 
   for (const item of list) {
     const mode = resolveMode(item?.mapName)
@@ -221,15 +315,33 @@ export function summarizeReport (battles = [], { fromSec = 0, heroMap = {} } = {
     entry.count += 1
     if (toInt(item.gameresult) === 1) entry.win += 1
 
-    totalSec += toInt(item.usedTime)
+    const used = toInt(item.usedTime)
+    totalSec += used
     mvp += toInt(item.mvpcnt)
     loseMvp += toInt(item.losemvp)
+
+    if (used > 0) {
+      if (!longest || used > toInt(longest.usedTime)) longest = item
+      if (!shortest || used < toInt(shortest.usedTime)) shortest = item
+    }
 
     const grade = Number(item.gradeGame)
     if (Number.isFinite(grade) && grade > 0 && (!best || grade > Number(best.gradeGame))) best = item
   }
 
   const heroes = rankHeroes(list, heroMap)
+  const byHourStats = groupByHourStats(list)
+  /** 单局摘要，「最长鏖战 / 最快结束」两格共用 */
+  const oneBattle = item => (item
+    ? {
+        timeText: formatDuration(toInt(item.usedTime)),
+        sec: toInt(item.usedTime),
+        heroName: heroMap[String(item.heroId)] || `英雄${item.heroId}`,
+        win: toInt(item.gameresult) === 1,
+        resultText: toInt(item.gameresult) === 1 ? '胜' : (toInt(item.gameresult) === 2 ? '负' : '—'),
+        mapName: item.mapName || ''
+      }
+    : null)
 
   return {
     count: list.length,
@@ -254,7 +366,14 @@ export function summarizeReport (battles = [], { fromSec = 0, heroMap = {} } = {
     streak: maxStreak(list),
     byDay: groupByDay(list),
     byHour: groupByHour(list),
+    byHourStats,
+    // 时段结论：光有 24 格柱状图看不出「几点手感最好」，这里直接给一句话
+    hours: summarizeHours(byHourStats, list.length),
     totalSec,
+    avgSec: list.length ? Math.round(totalSec / list.length) : 0,
+    avgTimeText: list.length ? formatDuration(Math.round(totalSec / list.length)) : '',
+    longest: oneBattle(longest),
+    shortest: oneBattle(shortest),
     // 用 formatOnlineDuration 而不是 formatDuration：后者是给单局用的「15分16秒」，
     // 汇总动辄好几百分钟，得进到小时（实测真实数据 415 分钟）
     totalTimeText: formatOnlineDuration(totalSec),
@@ -388,6 +507,8 @@ export function summarizeGroup (members = []) {
     heroes,
     byDay: groupByDay(allBattles),
     byHour: groupByHour(allBattles),
+    // 全群的时段结论。分母是全群场次，样本下限自然比单人宽松，结论更可信
+    hours: summarizeHours(groupByHourStats(allBattles), allBattles.length),
     // 各榜的头名，没有就是 null，模板自己兜底
     topGrinder: rows[0] || null, // 肝帝：场次最多
     topWinner: rows.length ? [...rows].sort((a, b) => b.win - a.win)[0] : null, // 胜场王
@@ -512,7 +633,16 @@ export function buildReportView (report, {
     })
   }
   if (report.count > 0) {
-    facts.push({ key: '场均时长', val: formatOnlineDuration(Math.round(report.totalSec / report.count)) || '—', tone: '' })
+    facts.push({ key: '场均时长', val: report.avgTimeText || '—', tone: '' })
+  }
+  // 最长鏖战：场均时长看不出「有没有打过那种拖到 30 分钟的拉锯局」，
+  // 而这种局往往是当天最有记忆点的一场
+  if (report.longest && report.longest.sec > 0) {
+    facts.push({
+      key: '最长鏖战',
+      val: `${report.longest.timeText} · ${report.longest.heroName} · ${report.longest.resultText}`,
+      tone: report.longest.win ? 'gold' : ''
+    })
   }
   if ((isWeekly || isMonthly) && report.byDay.length) {
     const busiest = report.byDay.reduce((a, b) => (b.count > a.count ? b : a))
@@ -566,6 +696,8 @@ export function buildReportView (report, {
     facts,
     hourBars,
     peakHourText: report.count ? `${peakHour} 点最活跃` : '',
+    // 时段结论文案：柱状图只画出「几点打得多」，这句话补上「几点打得准」
+    hourNote: report.hours?.text || '',
     footText: covered || `王者插件 · ${isMonthly ? '月报' : isWeekly ? '周报' : '日报'}生成于 ${new Date(nowMs).toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
   }
 }
@@ -685,6 +817,7 @@ export function buildGroupView (group, {
     byDayJson: JSON.stringify(group.byDay),
     hourBars,
     peakHourText: group.count ? `${peakHour} 点最活跃` : '',
+    hourNote: group.hours?.text || '',
     footText: covered || `王者插件 · 群${label}生成于 ${new Date(nowMs).toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
   }
 }

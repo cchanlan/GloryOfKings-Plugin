@@ -16,6 +16,7 @@
  */
 import path from 'path'
 import { readJsonFile, writeJsonFile } from './fileUtils.js'
+import { quarantineCorrupt } from './safeStore.js'
 import { readYamlFile } from './yamlUtils.js'
 import ApiService from './api.js'
 import { PluginData } from '#components'
@@ -216,7 +217,10 @@ export function readSnapshot() {
   let snapshot = {}
   try {
     snapshot = readJsonFile(SNAPSHOT_FILE) || {}
-  } catch {
+  } catch (error) {
+    // 快照是可再生的（发 #排位排名 刷新就重建），但坏文件留在原地会让每次读都失败，
+    // 挪走它下次就能干净地重建
+    quarantineCorrupt(SNAPSHOT_FILE, error, '[王者排名]')
     snapshot = {}
   }
 

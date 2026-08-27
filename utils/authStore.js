@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { PluginData } from '#components'
 import { readYamlFile, writeYamlFile } from './yamlUtils.js'
+import { writeFileAtomic, quarantineCorrupt } from './safeStore.js'
 
 const AUTH_POOL_FILE = path.join(PluginData, 'AuthPool.json')
 const LEGACY_AUTH_POOL_FILE = path.join(PluginData, 'AuthPool.yaml')
@@ -37,14 +38,17 @@ function readJsonSafe(filePath, fallback = {}) {
     }
 
     return JSON.parse(fs.readFileSync(filePath, 'utf8'))
-  } catch {
+  } catch (error) {
+    // AuthPool.json 存的是所有人的登录态，坏了就是全员重新扫码。
+    // 静默按默认值继续会让下一次写把默认值固化下来，所以先把坏文件挪走留证。
+    quarantineCorrupt(filePath, error, '[王者账号]')
     return structuredClone(fallback)
   }
 }
 
+/** JSON 带缩进落盘（人可读，方便手工救数据），走原子写 */
 function writeJsonPretty(filePath, data) {
-  ensureDirectory(filePath)
-  fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, 'utf8')
+  writeFileAtomic(filePath, `${JSON.stringify(data, null, 2)}\n`)
 }
 
 function readYamlSafe(filePath, fallback = {}) {
@@ -54,7 +58,9 @@ function readYamlSafe(filePath, fallback = {}) {
     }
 
     return readYamlFile(filePath) ?? structuredClone(fallback)
-  } catch {
+  } catch (error) {
+    // UserData.yaml 是绑定关系，同上：坏了要留证，不能静默清空
+    quarantineCorrupt(filePath, error, '[王者账号]')
     return structuredClone(fallback)
   }
 }

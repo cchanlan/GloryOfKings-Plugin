@@ -269,6 +269,18 @@ body::before {
   flex-shrink: 0;
 }
 
+/* 时段结论：柱状图下面那句「几点打得多、几点手感好」，日报和群报共用 */
+.hour-note {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: rgba(245,215,110,0.07);
+  border-left: 3px solid rgba(245,215,110,0.45);
+  border-radius: 0 8px 8px 0;
+  font-size: 13px;
+  color: rgba(255,255,255,0.62);
+  line-height: 1.5;
+}
+
 .footer {
   text-align: center;
   padding: 14px;

@@ -3,6 +3,7 @@ import path from 'path'
 import crypto from 'node:crypto'
 import fetch from 'node-fetch'
 import { PluginData } from '#components'
+import { writeFileAtomic } from './safeStore.js'
 
 const IMG_CACHE_DIR = path.join(PluginData, 'imgCache')
 // 成功缓存过期时间（7天）
@@ -215,30 +216,11 @@ export function readJsonFile (filePath) {
 }
 
 /**
- * 原子写 JSON：先写同目录的 .tmp 再 rename 覆盖。
- *
- * 裸 writeFileSync 是「先截断再写」，进程正好在这中间被 kill（pm2 restart、OOM）
- * 就留下一个半截文件，下次 JSON.parse 直接抛错——归档库和排行榜快照都是整库一个文件，
- * 坏一次就是整份数据没了。rename 在同一文件系统上是原子的，读方要么看到旧的完整文件、
- * 要么看到新的完整文件，不存在中间态。
- *
- * .tmp 带 pid 后缀：同一份数据被两个进程同时写时不会互相踩掉临时文件。
+ * 原子写 JSON。实现（.tmp + rename）与「为什么必须原子写」都在 utils/safeStore.js，
+ * 全仓库的落盘走同一份，别再各自写一遍 tmp 逻辑。
  */
 export function writeJsonFile (filePath, data) {
-  const dir = path.dirname(filePath)
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true })
-  }
-
-  const tmpFile = `${filePath}.${process.pid}.tmp`
-  try {
-    fs.writeFileSync(tmpFile, JSON.stringify(data))
-    fs.renameSync(tmpFile, filePath)
-  } catch (error) {
-    // 失败要把临时文件清掉，否则 data/ 下会攒一堆 .tmp
-    try { fs.unlinkSync(tmpFile) } catch {}
-    throw error
-  }
+  writeFileAtomic(filePath, JSON.stringify(data))
 }
 
 export function getFilePath (userId, folder = 'ScanCodeLoginData') {

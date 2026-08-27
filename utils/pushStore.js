@@ -24,6 +24,7 @@
  */
 import path from 'path'
 import { readYamlFile, writeYamlFile } from './yamlUtils.js'
+import { quarantineCorrupt } from './safeStore.js'
 import ApiService from './api.js'
 import cache from './cache.js'
 import { archiveBattles } from './battleArchive.js'
@@ -99,6 +100,12 @@ const toInt = value => {
 /**
  * 读取订阅表。文件缺失或内容损坏时返回空表，不抛错——
  * 这个文件由 index.js 启动时创建成 { pushList: {} }，但用户手动编辑坏了也不该让定时任务挂掉。
+ *
+ * 「坏了返回空表」有个隐蔽的副作用必须堵住：轮询和指令都会在读完之后写回，
+ * 空表会被 savePushList 固化下来，于是「文件坏了」变成「所有人的订阅都没了」，
+ * 而且一行日志都没有。所以解析失败时把坏文件隔离出去（留证 + 打日志），
+ * 详见 utils/safeStore.js。
+ *
  * @returns {Record<string, object>} qq -> 订阅项
  */
 export function loadPushList () {
@@ -106,7 +113,8 @@ export function loadPushList () {
     const data = readYamlFile(PUSH_FILE)
     const list = data?.pushList
     return list && typeof list === 'object' ? list : {}
-  } catch {
+  } catch (error) {
+    quarantineCorrupt(PUSH_FILE, error, '[王者推送]')
     return {}
   }
 }
