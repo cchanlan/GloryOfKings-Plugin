@@ -1407,6 +1407,55 @@ class ApiService {
   }
 
   /**
+   * 官网装备总表（121 条，`{item_id, item_name, item_type, price, total_price, des1}`）。
+   * 出装建议只给装备 ID，装备名要靠这张表翻。
+   * 这个文件是 **UTF-8**，别跟着英雄详情页一起按 GB18030 解（会解成「閾佸墤」这种乱码）。
+   */
+  async getPvpItemList() {
+    try {
+      return await this.#fetchExternalJson('https://pvp.qq.com/web201605/js/item.json')
+    } catch (error) {
+      logger.error('[获取官网装备表] 接口请求失败', error)
+      throw new Error(`获取官网装备表失败。错误: ${error.message || error}`)
+    }
+  }
+
+  /**
+   * 官网英雄资料页原始 HTML（出装建议 / 英雄关系 / 技能）。
+   *
+   * 两个坑：
+   *   1. **路径是英雄拼音，不是英雄ID**。`herodetail/547.shtml` 是 404，
+   *      `herodetail/luyana.shtml` 才是 200（官网改版过）。拼音取自
+   *      `heroskinlist.json` 英雄表的 `yxpymc_4614` 字段，别自己音译。
+   *   2. **页面编码是 GB18030**，`response.text()` 按 UTF-8 解会整页乱码，
+   *      必须走 arrayBuffer + TextDecoder('gb18030')。
+   *
+   * @param {string} pinyin 英雄拼音，如 'luyana'
+   * @returns {Promise<string>} 解码后的 HTML
+   */
+  async getHeroDetailPage(pinyin) {
+    const name = this.#toString(pinyin).trim()
+    if (!name) {
+      throw new Error('缺少英雄拼音')
+    }
+
+    const url = `https://pvp.qq.com/web201605/herodetail/${encodeURIComponent(name)}.shtml`
+
+    let response
+    try {
+      response = await fetch(url, { signal: AbortSignal.timeout(EXTERNAL_TIMEOUT_MS) })
+    } catch (error) {
+      throw describeAbort(error, EXTERNAL_TIMEOUT_MS)
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    return new TextDecoder('gb18030').decode(await response.arrayBuffer())
+  }
+
+  /**
    * 拉一个外站公开 JSON。这些地址不需要鉴权、也不该占营地的请求名额，
    * 但同样必须设超时：herolist.json 在 #查战绩 的必经路径上，
    * 对端一挂，指令就永久没有回复（Yunzai 那头也不会替你兜）。

@@ -225,6 +225,7 @@ export async function renderBattleDetail ({ head, battle, redTeam, blueTeam, red
       // 存成数字（不带 %），模板才好按它分级配色，跟 gradeGame 的写法保持一致
       const hurt = Number(bs.totalHeroHurtCnt) || 0
       bs.heroHurtRate = teamHurt > 0 && hurt > 0 ? Math.round((hurt / teamHurt) * 100) : 0
+      decorateExtraStats(bs)
     }
   }
 
@@ -234,7 +235,8 @@ export async function renderBattleDetail ({ head, battle, redTeam, blueTeam, red
     gameResultEn: head.gameResult ? 'VICTORY' : 'DEFEAT',
     myTeamColor: isBlue ? '蓝' : '红',
     enemyTeamColor: isBlue ? '红' : '蓝',
-    ...getTeamData(myTeam, enemyTeam, myRoles, enemyRoles, head, battle)
+    ...getTeamData(myTeam, enemyTeam, myRoles, enemyRoles, head, battle),
+    ...getMeData(myRoles, head)
   })
 }
 
@@ -280,6 +282,98 @@ const getBanData = (myTeam, enemyTeam) => {
 }
 
 const formatMoney = money => money > 1000 ? `${(money / 1000).toFixed(1)}k` : money
+
+/**
+ * 每个玩家卡片上多出来的那一行细项。
+ *
+ * 这些字段 battledetail 一次就全给了（10 个玩家逐一核过，除 buildingDamage 是 6/10
+ * ——没推过塔的人本来就是 0——其余 10/10 有值），以前白拿着不用：
+ *   joinGamePercent  参团率，接口给的是 0~1 的小数（"0.706"），不是百分数
+ *   totalBeheroHurtCnt 承受的英雄伤害，配合输出看「谁在抗」
+ *   ctrlTime         控制时长，单位秒（整数字符串）
+ *   killSoldier      补刀数
+ *
+ * maxXXX 那一族是营地算好的**全场最高**标记（1/0），实测每项恰好落在 1~2 个人身上，
+ * 直接在模板里判就行，不必自己比大小：maxHeroHurt 输出王、maxMoney 富哥、
+ * maxJoinGamePercent 参团王、maxBeheroHurt 肉盾、maxCtrlTime 控制王、maxKillSoldier 补刀王。
+ */
+function decorateExtraStats (bs) {
+  const join = Number(bs.joinGamePercent)
+  bs.joinRate = Number.isFinite(join) && join > 0 ? Math.round(join * 100) : 0
+  bs.behurtText = formatDamage(bs.totalBeheroHurtCnt)
+  const ctrl = Number(bs.ctrlTime)
+  bs.ctrlText = Number.isFinite(ctrl) && ctrl > 0 ? `${ctrl}s` : ''
+  const soldier = Number(bs.killSoldier)
+  bs.soldierText = Number.isFinite(soldier) && soldier > 0 ? String(soldier) : ''
+}
+
+/** 五维评级的档位配色：接口给小写 s/a/b/c，图上显示大写 */
+const RATING_TIERS = { s: 'S', a: 'A', b: 'B', c: 'C' }
+
+/** battleStats 里的五个 sabc* 字段 -> 图上的中文项名（顺序即展示顺序） */
+const RATING_ITEMS = [
+  ['sabchurthero', '输出'],
+  ['sabcbattle', '战斗'],
+  ['sabcgrow', '发育'],
+  ['sabcsurvive', '生存'],
+  ['sabcKDA', 'KDA']
+]
+
+/**
+ * 「我的本场表现」区块。只给查询者本人出，别人的卡片上不铺这些——
+ * 一局 10 个人全铺一遍图会高到 QQ 折叠。
+ *
+ * 两块数据都在 battledetail 里，不用额外请求：
+ *   battleStats.sabc*      营地的五维评级（s/a/b/c 四档，10/10 有值）
+ *   dataBehaviorV2         营地自己算好的三大类百分位（分路表现 / 战斗操作 / 团队贡献），
+ *                          每类 3 项，`data` 是数值、`dataNote` 是**排名百分位**（"1%" = 前 1%，
+ *                          越小越强），`dataHighlight` / `dataNoteHighlight` 是营地标亮的项。
+ *                          注意这三类不固定：换个玩家可能是「分路表现 + 团队贡献」两类，
+ *                          项名也随分路变（对抗路给「对线期对位经济差」，辅助给「控制时长」），
+ *                          所以原样透传，别写死表头。
+ *   battleStats.addFightPower 本局英雄战力变化，实测**只有本人有值**（其余 9 人恒 0），
+ *                          正好只用在这个区块里。
+ *
+ * 找「我」用 basicInfo.isMe；接口偶尔缺人（隐私设置）时找不到就整块隐藏。
+ */
+function getMeData (myRoles, head) {
+  const me = (myRoles || []).find(r => r?.basicInfo?.isMe) ||
+    (myRoles || []).find(r => String(r?.basicInfo?.roleId || '') === String(head?.roleId || ''))
+  const bs = me?.battleStats
+  if (!bs) return { hasMeDetail: false }
+
+  const meRatings = RATING_ITEMS
+    .map(([key, name]) => ({ name, tier: RATING_TIERS[String(bs[key] || '').toLowerCase()] || '' }))
+    .filter(item => item.tier)
+
+  const meGroups = (me.dataBehaviorV2 || [])
+    .map(group => ({
+      title: group?.title || '',
+      icon: group?.icon || '',
+      items: (group?.dataCounts || [])
+        .filter(item => item?.name && item?.data)
+        .map(item => ({
+          name: item.name,
+          value: item.data,
+          note: item.dataNote || '',
+          highlight: !!item.dataHighlight,
+          noteHighlight: !!item.dataNoteHighlight
+        }))
+    }))
+    .filter(group => group.items.length)
+
+  const delta = Number(bs.addFightPower) || 0
+
+  return {
+    hasMeDetail: meRatings.length > 0 || meGroups.length > 0,
+    meRatings,
+    meGroups,
+    meHeroName: me?.battleRecords?.usedHero?.heroName || head?.heroName || '',
+    meFightPower: Number(bs.fightPower) || 0,
+    meFightPowerDelta: delta,
+    meFightPowerDeltaText: delta > 0 ? `+${delta}` : String(delta)
+  }
+}
 
 /**
  * 伤害数值 -> 紧凑文案。这些字段接口给的是字符串（"92687"），先转数字再算。

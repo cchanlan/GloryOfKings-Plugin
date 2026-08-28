@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>英雄攻略</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+            width: 1000px;
+            background: linear-gradient(160deg, #0f1420 0%, #1a2133 100%);
+            color: #fff;
+            padding: 36px;
+            position: relative;
+            z-index: 0;
+        }
+
+        /* 背景：英雄封面模糊铺底，跟战绩详情图同一套做法（图挂了就退回上面的渐变） */
+        body::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: var(--hero-bg);
+            background-size: cover;
+            background-position: center 20%;
+            filter: blur(26px) brightness(0.34) saturate(1.1);
+            z-index: -1;
+        }
+
+        .hero-head {
+            display: flex;
+            align-items: center;
+            gap: 22px;
+            padding: 22px 26px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            margin-bottom: 20px;
+        }
+
+        .hero-head img {
+            width: 96px;
+            height: 96px;
+            border-radius: 14px;
+            object-fit: cover;
+            background: rgba(0, 0, 0, 0.3);
+            flex-shrink: 0;
+        }
+
+        .hero-title {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .hero-name {
+            font-size: 32px;
+            font-weight: bold;
+            color: #eef2f8;
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+        }
+
+        .hero-role {
+            font-size: 17px;
+            font-weight: normal;
+            color: #f5d76e;
+        }
+
+        .hero-intro {
+            font-size: 16px;
+            color: #9aa7bd;
+            margin-top: 8px;
+            line-height: 1.5;
+        }
+
+        .stats-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 22px 24px;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #eef2f8;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 18px;
+            background: #f5d76e;
+            border-radius: 2px;
+        }
+
+        /* 一套出装：6 件装备横排 + 官方 Tips。装备名放图下方，
+           两套之间用一条淡分割线隔开，比再套一层卡片省高度 */
+        .build {
+            padding-bottom: 16px;
+            margin-bottom: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .build:last-child {
+            padding-bottom: 0;
+            margin-bottom: 0;
+            border-bottom: none;
+        }
+
+        .build-head {
+            font-size: 16px;
+            color: #7ee0a8;
+            margin-bottom: 10px;
+        }
+
+        .item-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .item {
+            width: 92px;
+            text-align: center;
+        }
+
+        .item img {
+            width: 62px;
+            height: 62px;
+            border-radius: 10px;
+            object-fit: cover;
+            background: rgba(0, 0, 0, 0.35);
+        }
+
+        .item span {
+            display: block;
+            font-size: 13px;
+            color: #c8d0dd;
+            margin-top: 5px;
+            line-height: 1.3;
+        }
+
+        .build-tips {
+            font-size: 15px;
+            color: #9aa7bd;
+            margin-top: 12px;
+            line-height: 1.55;
+        }
+
+        /* 英雄关系：三块并排（最佳搭档 / 压制 / 被压制），
+           块数是官网给的，不写死三列，用 flex:1 均分 */
+        .relation-row {
+            display: flex;
+            gap: 16px;
+            align-items: stretch;
+        }
+
+        .relation-card {
+            flex: 1;
+            min-width: 0;
+            padding: 16px;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+        }
+
+        .relation-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        /* 三块各用一个语义色：搭档绿 / 压制金 / 被压制红 */
+        .relation-card.good .relation-title { color: #7ee0a8; }
+        .relation-card.strong .relation-title { color: #f5d76e; }
+        .relation-card.weak .relation-title { color: #ff8fa8; }
+
+        .relation-hero {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .relation-hero:last-child {
+            margin-bottom: 0;
+        }
+
+        .relation-hero img {
+            width: 46px;
+            height: 46px;
+            border-radius: 10px;
+            object-fit: cover;
+            background: rgba(0, 0, 0, 0.35);
+            flex-shrink: 0;
+        }
+
+        .relation-hero .rh-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .relation-hero .rh-name {
+            font-size: 15px;
+            font-weight: bold;
+            color: #eef2f8;
+        }
+
+        .relation-hero .rh-desc {
+            font-size: 13px;
+            color: #8b97ab;
+            line-height: 1.45;
+            margin-top: 3px;
+        }
+
+        /* 技能：图标 + 名字 + 冷却/消耗标签 + 描述，一行一个 */
+        .skill {
+            display: flex;
+            gap: 14px;
+            padding-bottom: 14px;
+            margin-bottom: 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .skill:last-child {
+            padding-bottom: 0;
+            margin-bottom: 0;
+            border-bottom: none;
+        }
+
+        .skill img {
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: rgba(0, 0, 0, 0.35);
+            flex-shrink: 0;
+        }
+
+        .skill-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .skill-head {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .skill-name {
+            font-size: 17px;
+            font-weight: bold;
+            color: #eef2f8;
+        }
+
+        .skill-tag {
+            font-size: 13px;
+            color: #9aa7bd;
+            background: rgba(255, 255, 255, 0.07);
+            border-radius: 6px;
+            padding: 1px 8px;
+        }
+
+        .skill-desc {
+            font-size: 14px;
+            color: #b6c0d0;
+            line-height: 1.55;
+            margin-top: 5px;
+        }
+
+        .footer {
+            margin-top: 22px;
+            text-align: center;
+            font-size: 14px;
+            color: #6b7688;
+        }
+    </style>
+
+</head>
+
+<body style="--hero-bg: url('{{heroCover}}');">
+    <div class="hero-head">
+        <img src="{{heroAvatar}}" alt="{{heroName}}" onerror="this.style.visibility='hidden'">
+        <div class="hero-title">
+            <div class="hero-name">{{heroName}}{{if heroRole}}<span class="hero-role">{{heroRole}}</span>{{/if}}</div>
+            {{if heroIntro}}<div class="hero-intro">{{heroIntro}}</div>{{/if}}
+        </div>
+    </div>
+
+    {{if builds.length}}
+    <div class="stats-card">
+        <div class="section-title">出装建议</div>
+        {{each builds b i}}
+        <div class="build">
+            <div class="build-head">推荐出装{{i === 0 ? '一' : i === 1 ? '二' : i + 1}}</div>
+            <div class="item-row">
+                {{each b.items it}}
+                <div class="item">
+                    <img src="{{it.icon}}" alt="{{it.name}}" onerror="this.style.visibility='hidden'">
+                    <span>{{it.name || it.id}}</span>
+                </div>
+                {{/each}}
+            </div>
+            {{if b.tips}}<div class="build-tips">{{b.tips}}</div>{{/if}}
+        </div>
+        {{/each}}
+    </div>
+    {{/if}}
+
+    {{if relations.length}}
+    <div class="stats-card">
+        <div class="section-title">英雄关系</div>
+        <div class="relation-row">
+            {{each relations r i}}
+            <div class="relation-card {{i === 0 ? 'good' : i === 1 ? 'strong' : 'weak'}}">
+                <div class="relation-title">{{r.title}}</div>
+                {{each r.heroes h}}
+                <div class="relation-hero">
+                    <img src="{{h.avatar}}" alt="{{h.name}}" onerror="this.style.visibility='hidden'">
+                    <div class="rh-body">
+                        <div class="rh-name">{{h.name}}</div>
+                        {{if h.desc}}<div class="rh-desc">{{h.desc}}</div>{{/if}}
+                    </div>
+                </div>
+                {{/each}}
+            </div>
+            {{/each}}
+        </div>
+    </div>
+    {{/if}}
+
+    {{if skills.length}}
+    <div class="stats-card">
+        <div class="section-title">技能</div>
+        {{each skills s}}
+        <div class="skill">
+            <img src="{{s.icon}}" alt="{{s.name}}" onerror="this.style.visibility='hidden'">
+            <div class="skill-body">
+                <div class="skill-head">
+                    <span class="skill-name">{{s.name}}</span>
+                    {{each s.tags t}}<span class="skill-tag">{{t}}</span>{{/each}}
+                </div>
+                <div class="skill-desc">{{s.desc}}</div>
+            </div>
+        </div>
+        {{/each}}
+    </div>
+    {{/if}}
+
+    <div class="footer">GloryOfKings-Plugin · 数据来自王者荣耀官网英雄资料库</div>
+</body>
+
+</html>

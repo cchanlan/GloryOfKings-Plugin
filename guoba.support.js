@@ -167,6 +167,20 @@ export function supportGuoba () {
           }
         },
         {
+          component: 'Divider',
+          label: '皮肤上新'
+        },
+        {
+          field: 'config.skinNewsCron',
+          label: '皮肤上新检查时间',
+          bottomHelpMessage: '每天按这个时间查一次官网资料库，把「今天上线」和「新进清单（还没上线）」的皮肤推给已 #开启皮肤上新推送 的群。数据是官网公开 JSON，不占营地请求配额。留空 = 不自动推送，只保留 #皮肤上新 指令。',
+          helpMessage: '修改后重启生效',
+          component: 'EasyCron',
+          componentProps: {
+            placeholder: '默认每天 12:26'
+          }
+        },
+        {
           component: 'SOFT_GROUP_BEGIN',
           label: '账号鉴权管理'
         },

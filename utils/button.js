@@ -478,4 +478,40 @@ export default class Button {
       ]
     )
   }
+
+  /**
+   * 皮肤上新日历
+   * @param {boolean} subscribed 本群是否已开上新推送，决定给「开启」还是「关闭」
+   */
+  static skinNews(subscribed = false) {
+    return segment.button(
+      [
+        { text: subscribed ? '关闭上新推送' : '开启上新推送', callback: `#${subscribed ? '关闭' : '开启'}皮肤上新推送` },
+        { text: '查皮肤', input: '#查皮肤' }
+      ],
+      [
+        { text: '皮肤墙', callback: '#皮肤墙' },
+        { text: '英雄攻略', input: '#英雄攻略 ' }
+      ]
+    )
+  }
+
+  /**
+   * 英雄攻略（出装 / 克制 / 技能）
+   * @param {string} heroName 当前查的英雄名
+   */
+  static heroGuide(heroName = '') {
+    const rows = []
+    if (heroName) {
+      rows.push([
+        { text: `${heroName}皮肤`, callback: `#查皮肤${heroName}` },
+        { text: `${heroName}战力`, callback: `#查战力${heroName}` }
+      ])
+    }
+    rows.push([
+      { text: '换个英雄', input: '#英雄攻略 ' },
+      { text: '英雄梯度', callback: '#英雄梯度' }
+    ])
+    return segment.button(...rows)
+  }
 }

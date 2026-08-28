@@ -536,6 +536,145 @@
         .rate.share-mid { color: #6f8ef5; }
         .rate.share-low { color: #9aa7bd; }
 
+        /* 卡片细项行（参团 / 承伤 / 控制 / 补刀）。
+           位置选在英雄名下方、装备上方：名字行（名字 + 徽章 + 经济）和 KDA 行（KDA + 输出）
+           都已经排满，而装备行原本就跟上面留了 8px，插一行 14px 小字只把卡片抬高 20px。
+           四项都是 nowrap，实测 600px 列宽下不换行 */
+        .player-extra {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            font-size: 14px;
+            color: #8b97ab;
+            margin-bottom: 8px;
+            white-space: nowrap;
+        }
+
+        .player-extra .item {
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+        }
+
+        .player-extra .val {
+            color: #c8d0dd;
+            font-weight: bold;
+        }
+
+        /* 「全场最高」标记（maxXXX 字段）。用 ★ 而不是文字标签：
+           一行要挂四五个标记，「最高」两个字乘四就把细项行顶到换行 */
+        .top-star {
+            color: #f5d76e;
+            font-size: 13px;
+        }
+
+        /* ===== 我的本场表现（只给查询者本人出，见 getMeData 的注释） ===== */
+        .me-power {
+            font-size: 16px;
+            font-weight: normal;
+            color: #9aa7bd;
+        }
+
+        .me-power .delta {
+            font-weight: bold;
+        }
+
+        .me-power .delta.up { color: #57c98a; }
+        .me-power .delta.down { color: #ff5b7c; }
+
+        /* 五维评级：五个等宽格子，档位大字 + 项名小字 */
+        .rating-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .rating-item {
+            flex: 1;
+            text-align: center;
+            padding: 10px 0;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+        }
+
+        .rating-tier {
+            font-size: 26px;
+            font-weight: bold;
+            line-height: 1.1;
+        }
+
+        /* 档位配色沿用整张图的强弱语言（同 .score 的 grade-*）：S 红 / A 金 / B 蓝 / C 灰 */
+        .rating-tier.tier-S { color: #ff5b7c; }
+        .rating-tier.tier-A { color: #f5d76e; }
+        .rating-tier.tier-B { color: #6f8ef5; }
+        .rating-tier.tier-C { color: #9aa7bd; }
+
+        .rating-name {
+            font-size: 14px;
+            color: #9aa7bd;
+            margin-top: 2px;
+        }
+
+        /* dataBehaviorV2 三大类。类目数不固定（有人只有两类），所以用 flex:1 均分而不是写死三列 */
+        .behavior-row {
+            display: flex;
+            gap: 14px;
+            align-items: stretch;
+        }
+
+        .behavior-card {
+            flex: 1;
+            min-width: 0;
+            padding: 14px 16px;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+        }
+
+        .behavior-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #eef2f8;
+            margin-bottom: 10px;
+        }
+
+        .behavior-item {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            font-size: 15px;
+            margin-bottom: 6px;
+        }
+
+        /* 项名可能很长（「对线期对位经济差」「对本分路塔伤害占比」），
+           让它独占剩余宽度并省略，数值和百分位靠右不动 */
+        .behavior-item .bi-name {
+            flex: 1;
+            min-width: 0;
+            color: #9aa7bd;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .behavior-item .bi-value {
+            font-weight: bold;
+            color: #c8d0dd;
+            flex-shrink: 0;
+        }
+
+        .behavior-item .bi-value.hl { color: #f5d76e; }
+
+        /* 百分位是「排名前 N%」，越小越强，所以营地标亮的那些用金色 */
+        .behavior-item .bi-note {
+            font-size: 13px;
+            color: #8b97ab;
+            flex-shrink: 0;
+        }
+
+        .behavior-item .bi-note.hl { color: #57c98a; }
+
         .hero-name {
             font-size: 15px;
             color: #9aa7bd;
@@ -628,6 +767,38 @@
         </div>
     </div>
 
+    {{if hasMeDetail}}
+    <div class="stats-card">
+        <div class="section-title">我的本场表现{{if meHeroName}} · {{meHeroName}}{{/if}}{{if meFightPower}}<span class="me-power">战力 {{meFightPower}}{{if meFightPowerDelta}} <span class="delta {{meFightPowerDelta > 0 ? 'up' : 'down'}}">{{meFightPowerDeltaText}}</span>{{/if}}</span>{{/if}}</div>
+        {{if meRatings.length}}
+        <div class="rating-row">
+            {{each meRatings r}}
+            <div class="rating-item">
+                <div class="rating-tier tier-{{r.tier}}">{{r.tier}}</div>
+                <div class="rating-name">{{r.name}}</div>
+            </div>
+            {{/each}}
+        </div>
+        {{/if}}
+        {{if meGroups.length}}
+        <div class="behavior-row">
+            {{each meGroups g}}
+            <div class="behavior-card">
+                <div class="behavior-title">{{g.title}}</div>
+                {{each g.items it}}
+                <div class="behavior-item">
+                    <span class="bi-name">{{it.name}}</span>
+                    <span class="bi-value{{it.highlight ? ' hl' : ''}}">{{it.value}}</span>
+                    {{if it.note}}<span class="bi-note{{it.noteHighlight ? ' hl' : ''}}">前 {{it.note}}</span>{{/if}}
+                </div>
+                {{/each}}
+            </div>
+            {{/each}}
+        </div>
+        {{/if}}
+    </div>
+    {{/if}}
+
     {{if hasBan}}
     <div class="ban-container">
         <div class="stats-card ban-card">
@@ -678,13 +849,19 @@
                                 {{if item.battleStats.mvpIcon}}<img class="eval-icon" src="{{item.battleStats.mvpIcon}}" alt="{{item.battleStats.mvpTag}}" onerror="this.style.display='none'">
                                 {{else if item.battleStats.mvp}}<span class="mvp-badge">{{item.battleStats.mvpTag || 'MVP'}}</span>{{/if}}
                                 {{if item.battleStats.evalIcon}}<img class="eval-icon" src="{{item.battleStats.evalIcon}}" alt="{{item.battleStats.evalTag}}" onerror="this.style.display='none'">{{/if}}
-                                <span class="economy-display"><span class="label">经济</span>{{item.battleStats.money}}</span>
+                                <span class="economy-display"><span class="label">经济</span>{{item.battleStats.money}}{{if item.battleStats.maxMoney}}<span class="top-star">★</span>{{/if}}</span>
                             </div>
                             <div class="player-stats">
                                 <span>{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</span>
-                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate {{item.battleStats.heroHurtRate >= 25 ? 'share-top' : item.battleStats.heroHurtRate >= 18 ? 'share-high' : item.battleStats.heroHurtRate >= 12 ? 'share-mid' : 'share-low'}}">{{item.battleStats.heroHurtRate}}%</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate {{item.battleStats.heroHurtRate >= 25 ? 'share-top' : item.battleStats.heroHurtRate >= 18 ? 'share-high' : item.battleStats.heroHurtRate >= 12 ? 'share-mid' : 'share-low'}}">{{item.battleStats.heroHurtRate}}%</span>{{/if}}{{if item.battleStats.maxHeroHurt}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
                             </div>
                             <div class="hero-name">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
+                            <div class="player-extra">
+                                {{if item.battleStats.joinRate}}<span class="item">参团<span class="val">{{item.battleStats.joinRate}}%</span>{{if item.battleStats.maxJoinGamePercent}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.behurtText}}<span class="item">承伤<span class="val">{{item.battleStats.behurtText}}</span>{{if item.battleStats.maxBeheroHurt}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.ctrlText}}<span class="item">控制<span class="val">{{item.battleStats.ctrlText}}</span>{{if item.battleStats.maxCtrlTime}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.soldierText}}<span class="item">补刀<span class="val">{{item.battleStats.soldierText}}</span>{{if item.battleStats.maxKillSoldier}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
+                            </div>
                             <div class="equipment-list">
                                 <div class="equipment-item"><img src="{{item.battleRecords.skill.skillIcon}}" alt="技能"></div>
                                 {{each item.battleRecords.finalEquips equip}}
@@ -712,13 +889,19 @@
                                 {{if item.battleStats.mvpIcon}}<img class="eval-icon" src="{{item.battleStats.mvpIcon}}" alt="{{item.battleStats.mvpTag}}" onerror="this.style.display='none'">
                                 {{else if item.battleStats.mvp}}<span class="mvp-badge">{{item.battleStats.mvpTag || 'MVP'}}</span>{{/if}}
                                 {{if item.battleStats.evalIcon}}<img class="eval-icon" src="{{item.battleStats.evalIcon}}" alt="{{item.battleStats.evalTag}}" onerror="this.style.display='none'">{{/if}}
-                                <span class="economy-display"><span class="label">经济</span>{{item.battleStats.money}}</span>
+                                <span class="economy-display"><span class="label">经济</span>{{item.battleStats.money}}{{if item.battleStats.maxMoney}}<span class="top-star">★</span>{{/if}}</span>
                             </div>
                             <div class="player-stats">
                                 <span>{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</span>
-                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate {{item.battleStats.heroHurtRate >= 25 ? 'share-top' : item.battleStats.heroHurtRate >= 18 ? 'share-high' : item.battleStats.heroHurtRate >= 12 ? 'share-mid' : 'share-low'}}">{{item.battleStats.heroHurtRate}}%</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate {{item.battleStats.heroHurtRate >= 25 ? 'share-top' : item.battleStats.heroHurtRate >= 18 ? 'share-high' : item.battleStats.heroHurtRate >= 12 ? 'share-mid' : 'share-low'}}">{{item.battleStats.heroHurtRate}}%</span>{{/if}}{{if item.battleStats.maxHeroHurt}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
                             </div>
                             <div class="hero-name">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
+                            <div class="player-extra">
+                                {{if item.battleStats.joinRate}}<span class="item">参团<span class="val">{{item.battleStats.joinRate}}%</span>{{if item.battleStats.maxJoinGamePercent}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.behurtText}}<span class="item">承伤<span class="val">{{item.battleStats.behurtText}}</span>{{if item.battleStats.maxBeheroHurt}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.ctrlText}}<span class="item">控制<span class="val">{{item.battleStats.ctrlText}}</span>{{if item.battleStats.maxCtrlTime}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.soldierText}}<span class="item">补刀<span class="val">{{item.battleStats.soldierText}}</span>{{if item.battleStats.maxKillSoldier}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
+                            </div>
                             <div class="equipment-list">
                                 <div class="equipment-item"><img src="{{item.battleRecords.skill.skillIcon}}" alt="技能"></div>
                                 {{each item.battleRecords.finalEquips equip}}
@@ -756,13 +939,19 @@
                                 {{if item.battleStats.mvpIcon}}<img class="eval-icon" src="{{item.battleStats.mvpIcon}}" alt="{{item.battleStats.mvpTag}}" onerror="this.style.display='none'">
                                 {{else if item.battleStats.mvp}}<span class="mvp-badge">{{item.battleStats.mvpTag || 'MVP'}}</span>{{/if}}
                                 {{if item.battleStats.evalIcon}}<img class="eval-icon" src="{{item.battleStats.evalIcon}}" alt="{{item.battleStats.evalTag}}" onerror="this.style.display='none'">{{/if}}
-                                <span class="economy-display"><span class="label">经济</span>{{item.battleStats.money}}</span>
+                                <span class="economy-display"><span class="label">经济</span>{{item.battleStats.money}}{{if item.battleStats.maxMoney}}<span class="top-star">★</span>{{/if}}</span>
                             </div>
                             <div class="player-stats">
                                 <span>{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</span>
-                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate {{item.battleStats.heroHurtRate >= 25 ? 'share-top' : item.battleStats.heroHurtRate >= 18 ? 'share-high' : item.battleStats.heroHurtRate >= 12 ? 'share-mid' : 'share-low'}}">{{item.battleStats.heroHurtRate}}%</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate {{item.battleStats.heroHurtRate >= 25 ? 'share-top' : item.battleStats.heroHurtRate >= 18 ? 'share-high' : item.battleStats.heroHurtRate >= 12 ? 'share-mid' : 'share-low'}}">{{item.battleStats.heroHurtRate}}%</span>{{/if}}{{if item.battleStats.maxHeroHurt}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
                             </div>
                             <div class="hero-name">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
+                            <div class="player-extra">
+                                {{if item.battleStats.joinRate}}<span class="item">参团<span class="val">{{item.battleStats.joinRate}}%</span>{{if item.battleStats.maxJoinGamePercent}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.behurtText}}<span class="item">承伤<span class="val">{{item.battleStats.behurtText}}</span>{{if item.battleStats.maxBeheroHurt}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.ctrlText}}<span class="item">控制<span class="val">{{item.battleStats.ctrlText}}</span>{{if item.battleStats.maxCtrlTime}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.soldierText}}<span class="item">补刀<span class="val">{{item.battleStats.soldierText}}</span>{{if item.battleStats.maxKillSoldier}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
+                            </div>
                             <div class="equipment-list">
                                 <div class="equipment-item"><img src="{{item.battleRecords.skill.skillIcon}}" alt="技能"></div>
                                 {{each item.battleRecords.finalEquips equip}}
@@ -790,13 +979,19 @@
                                 {{if item.battleStats.mvpIcon}}<img class="eval-icon" src="{{item.battleStats.mvpIcon}}" alt="{{item.battleStats.mvpTag}}" onerror="this.style.display='none'">
                                 {{else if item.battleStats.mvp}}<span class="mvp-badge">{{item.battleStats.mvpTag || 'MVP'}}</span>{{/if}}
                                 {{if item.battleStats.evalIcon}}<img class="eval-icon" src="{{item.battleStats.evalIcon}}" alt="{{item.battleStats.evalTag}}" onerror="this.style.display='none'">{{/if}}
-                                <span class="economy-display"><span class="label">经济</span>{{item.battleStats.money}}</span>
+                                <span class="economy-display"><span class="label">经济</span>{{item.battleStats.money}}{{if item.battleStats.maxMoney}}<span class="top-star">★</span>{{/if}}</span>
                             </div>
                             <div class="player-stats">
                                 <span>{{item.battleStats.killCnt}} / {{item.battleStats.deadCnt}} / {{item.battleStats.assistCnt}}</span>
-                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate {{item.battleStats.heroHurtRate >= 25 ? 'share-top' : item.battleStats.heroHurtRate >= 18 ? 'share-high' : item.battleStats.heroHurtRate >= 12 ? 'share-mid' : 'share-low'}}">{{item.battleStats.heroHurtRate}}%</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.heroHurtText}}<span class="damage-display"><span class="label">输出</span>{{item.battleStats.heroHurtText}}{{if item.battleStats.heroHurtRate}}<span class="rate {{item.battleStats.heroHurtRate >= 25 ? 'share-top' : item.battleStats.heroHurtRate >= 18 ? 'share-high' : item.battleStats.heroHurtRate >= 12 ? 'share-mid' : 'share-low'}}">{{item.battleStats.heroHurtRate}}%</span>{{/if}}{{if item.battleStats.maxHeroHurt}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
                             </div>
                             <div class="hero-name">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
+                            <div class="player-extra">
+                                {{if item.battleStats.joinRate}}<span class="item">参团<span class="val">{{item.battleStats.joinRate}}%</span>{{if item.battleStats.maxJoinGamePercent}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.behurtText}}<span class="item">承伤<span class="val">{{item.battleStats.behurtText}}</span>{{if item.battleStats.maxBeheroHurt}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.ctrlText}}<span class="item">控制<span class="val">{{item.battleStats.ctrlText}}</span>{{if item.battleStats.maxCtrlTime}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
+                                {{if item.battleStats.soldierText}}<span class="item">补刀<span class="val">{{item.battleStats.soldierText}}</span>{{if item.battleStats.maxKillSoldier}}<span class="top-star">★</span>{{/if}}</span>{{/if}}
+                            </div>
                             <div class="equipment-list">
                                 <div class="equipment-item"><img src="{{item.battleRecords.skill.skillIcon}}" alt="技能"></div>
                                 {{each item.battleRecords.finalEquips equip}}
