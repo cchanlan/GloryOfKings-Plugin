@@ -228,6 +228,86 @@ function parseSkills (html) {
   return skills
 }
 
+/** 铭文颜色 -> 图上的配色。营地给的是「绿色铭文」这种中文串 */
+export const RUNE_COLOR = {
+  红色铭文: '#ff5b7c',
+  绿色铭文: '#7ee0a8',
+  蓝色铭文: '#6f8ef5'
+}
+
+/** 0.5998 -> '60.0%'；拿不到就空串（别印 NaN%） */
+const toPercent = value => {
+  const num = Number(value)
+  return Number.isFinite(num) && num > 0 ? `${(num * 100).toFixed(1)}%` : ''
+}
+
+/**
+ * 营地官方的**核心装备 + 铭文**（英雄详情页那两块）。
+ *
+ * 和官网资料库互补，所以是「增强」而不是替换：
+ *   官网 → 两套成套出装 + 人写的 Tips 文案
+ *   营地 → 3 件核心装备、3 套铭文，**每项都带真实胜率与出场率**
+ *
+ * **这两个接口要营地登录态**，所以整块是尽力而为：任何一步失败都返回 null，
+ * 上层照旧只用官网数据出图 —— `#英雄攻略` 「没绑营地ID也能用」这个特性不能因为加了铭文就丢掉。
+ *
+ * @param {string|number} heroId 英雄 ename
+ * @param {string} campId 营地ID（可空，空则由 authStore 挑全局/共享账号）
+ * @param {string} qq 属主QQ，authStore 按它取鉴权候选，不能省（见记忆 gok-camp-api-owner-qq）
+ * @returns {Promise<{coreEquips: object[], runeSets: object[]}|null>}
+ */
+export async function getCampBuild (heroId, campId = '', qq = '') {
+  const key = `gok:campBuild:${heroId}`
+  const hit = cache.get(key)
+  if (hit !== undefined) return hit
+
+  let result = null
+  try {
+    const [equipRes, fringeRes] = await Promise.all([
+      ApiService.getHeroBestEquip(heroId, campId, qq).catch(() => null),
+      ApiService.getHeroFringeData(heroId, campId, qq).catch(() => null)
+    ])
+
+    const coreEquips = (equipRes?.data?.list || []).map(item => ({
+      id: String(item.equipId || ''),
+      name: String(item.szTitle || ''),
+      icon: String(item.szIcon || ''),
+      cate: String(item.szCate || ''),
+      money: Number(item.szMoney) || 0,
+      label: String(item.descLabel || ''),
+      winRate: toPercent(item.winRate),
+      showRate: toPercent(item.showRate)
+    })).filter(item => item.name)
+
+    // 这个接口顶层就是数据（没有 returnCode / data 包装），别按常规响应解
+    const runeSets = (fringeRes?.RuneSetList || []).map(set => ({
+      winRate: toPercent(set.winRate),
+      showRate: toPercent(set.showRate),
+      runes: (set.runeList || []).map(rune => ({
+        id: String(rune.runeId || ''),
+        // 「5级铭文:无双」→「无双」，等级单独拎出来，卡片上省地方
+        name: String(rune.szTitle || '').replace(/^\d+级铭文[:：]\s*/, ''),
+        level: Number(rune.iLevel) || 0,
+        num: Number(rune.num) || 0,
+        color: String(rune.szColor || ''),
+        colorCode: RUNE_COLOR[String(rune.szColor || '')] || '#c8d0dd',
+        attr: String(rune.szCommAttr || '').replace(/\|/g, ' · '),
+        icon: String(rune.szIcon || '')
+      })).filter(rune => rune.name)
+    })).filter(set => set.runes.length)
+
+    if (coreEquips.length || runeSets.length) {
+      result = { coreEquips, runeSets }
+    }
+  } catch (error) {
+    logger.debug(`[英雄攻略] 营地出装/铭文获取失败（不影响出图）: ${error.message}`)
+  }
+
+  // 失败也缓存（缓存 null 走短 TTL），避免没登录态时每次查都白打两次营地请求
+  cache.set(key, result, result ? GUIDE_TTL : 300)
+  return result
+}
+
 /**
  * 整合一个英雄的攻略数据。整份结果按英雄缓存 6 小时（官网是版本级更新，改得很慢）。
  * @param {string} input 英雄名 / 部分名 / 拼音

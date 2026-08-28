@@ -1,12 +1,14 @@
 /**
- * #英雄攻略 —— 出装建议 / 英雄关系（搭档·压制·被压制）/ 技能，一张图出完。
+ * #英雄攻略 —— 出装建议 / 铭文推荐 / 英雄关系（搭档·压制·被压制）/ 技能，一张图出完。
  *
- * 数据全部来自王者荣耀**官网**英雄资料库（见 utils/heroGuide.js），
- * 所以这条指令**一次营地请求都不发**，也不吃营地频控：没绑营地ID的人照样能用。
+ * 两个数据源互补（见 utils/heroGuide.js）：
+ *   **官网资料库** —— 两套成套出装 + 官方 Tips、英雄关系、技能。零营地请求，没绑营地ID也能用。
+ *   **营地官方接口** —— 3 件核心装备、3 套铭文，每项都带真实胜率与出场率。要登录态，
+ *     拿不到就自动跳过这两块，不影响出图。
  */
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { Button, shouldQuote } from '#utils'
-import { getHeroGuide } from '../utils/heroGuide.js'
+import { Button, shouldQuote, getCurrentId } from '#utils'
+import { getHeroGuide, getCampBuild } from '../utils/heroGuide.js'
 
 export class HeroGuide extends plugin {
   constructor () {
@@ -18,7 +20,7 @@ export class HeroGuide extends plugin {
       priority: 0,
       rule: [
         {
-          reg: '^#(王者)?(英雄攻略|攻略|出装|克制|铭文出装)\\s*(.*)$',
+          reg: '^#(王者)?(英雄攻略|攻略|出装|克制|铭文出装|铭文)\\s*(.*)$',
           fnc: 'guide'
         }
       ]
@@ -27,7 +29,7 @@ export class HeroGuide extends plugin {
 
   async guide (e) {
     const heroName = e.msg
-      .replace(/^#(王者)?(英雄攻略|攻略|出装|克制|铭文出装)\s*/, '')
+      .replace(/^#(王者)?(英雄攻略|攻略|出装|克制|铭文出装|铭文)\s*/, '')
       .replace(/的?(出装|攻略|克制关系)?$/, '')
       .trim()
 
@@ -60,6 +62,9 @@ export class HeroGuide extends plugin {
       return
     }
 
+    // 营地那两块是增强项：有登录态就带上核心装备与铭文，拿不到就照旧只用官网数据
+    const camp = await getCampBuild(hero.ename, getCurrentId(e.user_id) || '', String(e.user_id))
+
     const img = await puppeteer.screenshot('HeroGuide', {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/HeroGuide.html',
       heroName: hero.name,
@@ -71,7 +76,9 @@ export class HeroGuide extends plugin {
       heroCover: hero.cover || hero.avatar,
       builds,
       relations,
-      skills
+      skills,
+      coreEquips: camp?.coreEquips || [],
+      runeSets: camp?.runeSets || []
     })
 
     await e.reply([img, Button.heroGuide(hero.name)], shouldQuote())

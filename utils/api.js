@@ -1077,6 +1077,40 @@ class ApiService {
   }
 
   /**
+   * 英雄核心装备推荐（营地 App 英雄详情页「推荐出装」那块的数据源）。
+   *
+   * 和官网资料库那两套「成套出装」不是一回事：这里给的是**单件核心装备**（实测 3 件），
+   * 但每件都带**真实对局数据** —— `winRate`（0.5998）/ `showRate`（0.1658）小数，
+   * 还有 `szAttr` 属性文案、`descLabel` 推荐理由（「高额暴击伤害」）。两边互补，都值得展示。
+   *
+   * 参数只要 heroId（就是英雄 ename），和请求账号无关，属于公共数据。
+   * @returns {Promise<object>} `data.list[]`
+   */
+  async getHeroBestEquip(heroId, targetUserId = '', requesterBotUserId = '') {
+    return this.#request('POST', '/gametoolbox/equip/hero/getherobestequip', {
+      heroId: Number(heroId)
+    }, {}, 2, targetUserId, requesterBotUserId)
+  }
+
+  /**
+   * 英雄铭文 + 技能（营地 App 英雄详情页的 `getherofringedata`）。
+   *
+   * **这个接口的响应没有 returnCode 包装**，顶层直接是
+   * `{ skillList1, skillList2, skillList3, RuneSetList }`（skillList2/3 实测恒为空数组），
+   * 所以别去判 `returnCode === 0`，判 `RuneSetList` 在不在就行。
+   *
+   * `RuneSetList` 实测 3 套推荐，每套 `{ showRate, winRate, runeList[] }`，
+   * 单个铭文 `{ runeId, num（这套里带几个）, szTitle（"5级铭文:无双"）, szColor（"绿色铭文"）,
+   * szCate（"攻击|穿透"）, szCommAttr（属性）, szIcon }`。
+   * @returns {Promise<object>} 顶层就是数据本身
+   */
+  async getHeroFringeData(heroId, targetUserId = '', requesterBotUserId = '') {
+    return this.#request('POST', '/gametoolbox/hero/getherofringedata', {
+      heroId: Number(heroId)
+    }, {}, 2, targetUserId, requesterBotUserId)
+  }
+
+  /**
    * 获取账号全量英雄列表（营地 App「我的英雄」页，全部竞技模式的生涯累计）。
    * 和皮肤墙同属游戏侧 form 接口。实测返回该账号拥有的全部英雄（一个号 132 条），
    * 单条含 playNum/winRate/heroFightPower/skilledLevel/heroTypes 等，一次请求就够，不用逐英雄拉。

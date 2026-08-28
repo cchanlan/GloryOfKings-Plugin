@@ -159,6 +159,131 @@
             line-height: 1.55;
         }
 
+        /* 营地官方的核心装备：横排三件，每件带真实胜率/出场率。
+           和上面官网那两套「成套出装」是互补的两回事，所以单独一块 */
+        .core-row {
+            display: flex;
+            gap: 14px;
+        }
+
+        .core-item {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            gap: 12px;
+            padding: 12px 14px;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+        }
+
+        .core-item img {
+            width: 56px;
+            height: 56px;
+            border-radius: 10px;
+            object-fit: cover;
+            background: rgba(0, 0, 0, 0.35);
+            flex-shrink: 0;
+        }
+
+        .core-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .core-name {
+            font-size: 17px;
+            font-weight: bold;
+            color: #eef2f8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .core-rate {
+            font-size: 14px;
+            margin-top: 3px;
+        }
+
+        .core-rate .win { color: #7ee0a8; font-weight: bold; }
+        .core-rate .show { color: #9aa7bd; }
+
+        .core-label {
+            font-size: 13px;
+            color: #8b97ab;
+            margin-top: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* 铭文：一套一行，左边胜率/出场率，右边铭文条目 */
+        .rune-set {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 12px 14px;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            margin-bottom: 10px;
+        }
+
+        .rune-set:last-child {
+            margin-bottom: 0;
+        }
+
+        .rune-meta {
+            width: 116px;
+            flex-shrink: 0;
+        }
+
+        .rune-meta .win {
+            font-size: 17px;
+            font-weight: bold;
+            color: #7ee0a8;
+        }
+
+        .rune-meta .show {
+            font-size: 13px;
+            color: #8b97ab;
+            margin-top: 2px;
+        }
+
+        .rune-list {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .rune-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .rune-item img {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: rgba(0, 0, 0, 0.35);
+            flex-shrink: 0;
+        }
+
+        .rune-name {
+            font-size: 15px;
+            font-weight: bold;
+        }
+
+        .rune-attr {
+            font-size: 12px;
+            color: #8b97ab;
+            margin-top: 1px;
+        }
+
         /* 英雄关系：三块并排（最佳搭档 / 压制 / 被压制），
            块数是官网给的，不写死三列，用 flex:1 均分 */
         .relation-row {
@@ -320,6 +445,52 @@
     </div>
     {{/if}}
 
+    {{if coreEquips.length}}
+    <div class="stats-card">
+        <div class="section-title">核心装备 · 营地实战数据</div>
+        <div class="core-row">
+            {{each coreEquips it}}
+            <div class="core-item">
+                <img src="{{it.icon}}" alt="{{it.name}}" onerror="this.style.visibility='hidden'">
+                <div class="core-body">
+                    <div class="core-name">{{it.name}}</div>
+                    <div class="core-rate">
+                        {{if it.winRate}}<span class="win">胜率 {{it.winRate}}</span>{{/if}}
+                        {{if it.showRate}}<span class="show"> · 出场 {{it.showRate}}</span>{{/if}}
+                    </div>
+                    <div class="core-label">{{it.label}}{{if it.money}} · {{it.money}} 金{{/if}}</div>
+                </div>
+            </div>
+            {{/each}}
+        </div>
+    </div>
+    {{/if}}
+
+    {{if runeSets.length}}
+    <div class="stats-card">
+        <div class="section-title">铭文推荐 · 营地实战数据</div>
+        {{each runeSets rs}}
+        <div class="rune-set">
+            <div class="rune-meta">
+                {{if rs.winRate}}<div class="win">胜率 {{rs.winRate}}</div>{{/if}}
+                {{if rs.showRate}}<div class="show">出场 {{rs.showRate}}</div>{{/if}}
+            </div>
+            <div class="rune-list">
+                {{each rs.runes r}}
+                <div class="rune-item">
+                    <img src="{{r.icon}}" alt="{{r.name}}" onerror="this.style.visibility='hidden'">
+                    <div>
+                        <div class="rune-name" style="color: {{r.colorCode}}">{{r.name}} ×{{r.num}}</div>
+                        {{if r.attr}}<div class="rune-attr">{{r.attr}}</div>{{/if}}
+                    </div>
+                </div>
+                {{/each}}
+            </div>
+        </div>
+        {{/each}}
+    </div>
+    {{/if}}
+
     {{if relations.length}}
     <div class="stats-card">
         <div class="section-title">英雄关系</div>
@@ -360,7 +531,7 @@
     </div>
     {{/if}}
 
-    <div class="footer">GloryOfKings-Plugin · 数据来自王者荣耀官网英雄资料库</div>
+    <div class="footer">GloryOfKings-Plugin · 出装/关系/技能来自官网资料库{{if coreEquips.length || runeSets.length}} · 实战数据来自王者营地{{/if}}</div>
 </body>
 
 </html>
