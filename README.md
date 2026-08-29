@@ -65,7 +65,8 @@
 
 1. 在 Yunzai-Bot 根目录下执行:
 ```bash
-git clone https://gitcode.com/ccxhan/GloryOfKings-Plugin.git ./plugins/GloryOfKings-Plugin/
+git clone --depth=1 https://gitcode.com/ccxhan/GloryOfKings-Plugin.git ./plugins/GloryOfKings-Plugin/
+# GitHub 也行：https://github.com/cchanlan/GloryOfKings-Plugin.git
 ```
 
 2. 安装依赖:
