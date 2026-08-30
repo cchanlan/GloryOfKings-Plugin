@@ -115,6 +115,7 @@ export class AllSeasonPerformance extends plugin {
 
     const hc = data.headCard || {}
     const img = await puppeteer.screenshot('AllSeasonPerformance', {
+      imgType: 'webp',
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/AllSeasonPerformance.html',
       _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
       mode,

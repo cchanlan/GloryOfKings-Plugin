@@ -145,6 +145,7 @@ export class HeroTierList extends plugin {
     const cols = compact ? 4 : 3
 
     const img = await puppeteer.screenshot('HeroTierList', {
+      imgType: 'webp',
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/HeroTierList.html',
       segmentLabel: SEGMENT_LABEL[segment] || '巅峰赛1350+',
       positionLabel: POSITION_LABEL[position] || '全部分路',

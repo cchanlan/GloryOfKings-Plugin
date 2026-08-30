@@ -84,6 +84,7 @@ export class SkinNews extends plugin {
     const { upcoming, todayList, recent } = splitCalendar(list, 8)
 
     const img = await puppeteer.screenshot('SkinNews', {
+      imgType: 'webp',
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/SkinNews.html',
       dateText: formatDate(today()),
       pushMode: false,
@@ -151,6 +152,7 @@ export class SkinNews extends plugin {
     let img
     try {
       img = await puppeteer.screenshot('SkinNews', {
+   imgType: 'webp',
         tplFile: 'plugins/GloryOfKings-Plugin/resources/html/SkinNews.html',
         dateText: formatDate(today()),
         pushMode: true,

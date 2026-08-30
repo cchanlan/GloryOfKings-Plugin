@@ -152,6 +152,7 @@ export class PeakPerformance extends plugin {
       : '—'
 
     const img = await puppeteer.screenshot('PeakPerformance', {
+      imgType: 'webp',
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/PeakPerformance.html',
       _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
       roleName,
@@ -275,6 +276,7 @@ export class PeakPerformance extends plugin {
     ]
 
     const img = await puppeteer.screenshot('PeakPerformance', {
+      imgType: 'webp',
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/PeakPerformance.html',
       _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
       roleName,

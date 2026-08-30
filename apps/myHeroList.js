@@ -113,6 +113,7 @@ export class MyHeroList extends plugin {
     const totalWin = played.reduce((sum, hero) => sum + Number(hero.winNum || 0), 0)
 
     const img = await puppeteer.screenshot('MyHeroList', {
+      imgType: 'webp',
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/MyHeroList.html',
       _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
       ydId: String(ID),

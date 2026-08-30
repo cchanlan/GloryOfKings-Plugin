@@ -237,6 +237,7 @@ export class HeroSkin extends plugin {
         }
 
         const img = await puppeteer.screenshot('HeroSkin', {
+          imgType: 'webp',
             tplFile: 'plugins/GloryOfKings-Plugin/resources/html/HeroSkin.html',
             heroName: displayName,
             skinCount: skins.length,

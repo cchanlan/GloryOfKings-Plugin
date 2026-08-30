@@ -94,6 +94,7 @@ export class SeasonPage extends plugin {
       const fallback = await this.buildFallbackView(campId, userId, profileData, scope)
       if (fallback) {
         const img = await puppeteer.screenshot('SeasonPage', {
+          imgType: 'webp',
           tplFile: 'plugins/GloryOfKings-Plugin/resources/html/SeasonPage.html',
           _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
           ...fallback,
@@ -223,6 +224,7 @@ export class SeasonPage extends plugin {
     const master = withMaster ? this.buildMaster(data, target) : null
 
     const img = await puppeteer.screenshot('SeasonPage', {
+      imgType: 'webp',
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/SeasonPage.html',
       _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
       titleLabel: `${mode}表现`,

@@ -230,6 +230,7 @@ export async function renderBattleDetail ({ head, battle, redTeam, blueTeam, red
   }
 
   return puppeteer.screenshot('QueryGameRecordDetails', {
+    imgType: 'webp',
     tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordDetails.html',
     gameResult: head.gameResult ? '胜利' : '失败',
     gameResultEn: head.gameResult ? 'VICTORY' : 'DEFEAT',

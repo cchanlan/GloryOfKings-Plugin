@@ -174,7 +174,7 @@ export class Help extends plugin {
       const inventoryImage = await puppeteer.screenshot('help', {
         tplFile: 'plugins/GloryOfKings-Plugin/resources/html/help.html',
         _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
-        imgType: 'png',
+        imgType: 'webp',
         sections,
         keyword,
         generatedAt: new Date().toLocaleString()

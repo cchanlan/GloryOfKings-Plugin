@@ -6,9 +6,10 @@ import path from 'path'
 import { PluginData } from '#components'
 
 const PAGE_SIZE = 50
-// 皮肤墙截图 JPEG 质量：满页 50 张大图在 q90 下可达 8MB+，部分适配器发送失败。
-// 保持每页 50 张，仅靠降质压体积——q75 视觉几乎无损但体积约为 q90 的 1/3，满页可压到 ~3MB。
-const SCREENSHOT_QUALITY = 75
+// 皮肤墙截图质量。原来出 JPEG 时满页 50 张大图在 q90 下可达 8MB+、部分适配器发送失败，
+// 只能靠降到 q75 压体积。现在出 webp，同一张图体积约为 jpeg 的 1/3 且失真更低，
+// 所以质量提回 82（webp 的 82 视觉上相当于 jpeg 的 90+），体积仍远低于原来。
+const SCREENSHOT_QUALITY = 82
 
 /**
  * 一条合并转发最多塞多少张图 / 多少字节。
@@ -335,6 +336,7 @@ export class SkinWall extends plugin {
     }
 
     const buildParams = (pageSkins, pageIndex) => ({
+      imgType: 'webp',
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/SkinWall.html',
       // 固定 name(=目录)，用 saveId 区分每页文件，避免 Renderer 复用模板缓存时不建目录导致 ENOENT
       saveId: `SkinWall_${pageIndex}`,

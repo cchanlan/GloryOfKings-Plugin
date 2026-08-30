@@ -61,6 +61,7 @@ export class HeroFightingCapacity extends plugin {
             const displayName = simplifyYuan(heroFightingCapacity[0].name)
 
             const img = await puppeteer.screenshot('HeroFightingCapacit', {
+              imgType: 'webp',
                 tplFile: 'plugins/GloryOfKings-Plugin/resources/html/HeroFightingCapacit.html',
                 photo: heroFightingCapacity[0].photo,
                 name: displayName,

@@ -139,6 +139,7 @@ export class HeroList extends plugin {
     const heroes = await Promise.all(picked.heroes.map(hero => this.buildHeroCard(hero)))
 
     const img = await puppeteer.screenshot('HeroList', {
+      imgType: 'webp',
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/HeroList.html',
       _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
       ydId: String(ID),

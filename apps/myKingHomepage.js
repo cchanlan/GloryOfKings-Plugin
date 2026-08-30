@@ -198,6 +198,7 @@ export class MyKingHomepage extends plugin {
         const isOffline = gameOnline === '离线'
         const honor = isKing ? 'honor' : 'roleJob'
         const data = {
+          imgType: 'webp',
           tplFile: 'plugins/GloryOfKings-Plugin/resources/html/MyKingHomepage.html',
           _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
           roleIcon,

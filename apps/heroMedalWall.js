@@ -120,6 +120,7 @@ export class HeroMedalWall extends plugin {
   async shot (e, userId, stat) {
     try {
       return await puppeteer.screenshot('HeroMedalWall', {
+        imgType: 'webp',
         tplFile: 'plugins/GloryOfKings-Plugin/resources/html/HeroMedalWall.html',
         // 模板的 CSS / 字体都靠 {{_res_path}} 拼相对路径，漏了这项样式表 404，出的是纯文字图
         _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',

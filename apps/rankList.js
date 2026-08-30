@@ -147,7 +147,7 @@ export class RankList extends plugin {
     const img = await puppeteer.screenshot('RankList', {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/RankList.html',
       _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
-      imgType: 'png',
+      imgType: 'webp',
       title,
       scope,
       type,

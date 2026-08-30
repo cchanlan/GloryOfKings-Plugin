@@ -167,6 +167,7 @@ export class QueryGameStats extends plugin {
 
     if (!heroBattles.length) {
       const emptyImg = await puppeteer.screenshot('QueryGameRecordList', {
+        imgType: 'webp',
         tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordList.html',
         data: [],
         qqAvatar,
@@ -188,6 +189,7 @@ export class QueryGameStats extends plugin {
     const processedData = heroBattles.slice(0, TARGET_COUNT).map(this.toListItem)
 
     const listImg = await puppeteer.screenshot('QueryGameRecordList', {
+      imgType: 'webp',
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordList.html',
       data: processedData,
       qqAvatar,
@@ -299,6 +301,7 @@ export class QueryGameStats extends plugin {
       })
 
       const emptyImg = await puppeteer.screenshot('QueryGameRecordList', {
+        imgType: 'webp',
         tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordList.html',
         data: [],
         qqAvatar,
@@ -339,6 +342,7 @@ export class QueryGameStats extends plugin {
     const processedData = battleList.list.map(this.toListItem)
 
     const listImg = await puppeteer.screenshot('QueryGameRecordList', {
+      imgType: 'webp',
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordList.html',
       data: processedData,
       qqAvatar,

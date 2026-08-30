@@ -130,6 +130,7 @@ export class AccountManager extends plugin {
     ]
 
     return await puppeteer.screenshot('accountManage', {
+      imgType: 'webp',
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/accountManage.html',
       type,
       wzryId,
@@ -142,7 +143,7 @@ export class AccountManager extends plugin {
   async generateAuthPoolOverviewHTML(data) {
     return await puppeteer.screenshot('authPoolOverview', {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/authPoolOverview.html',
-      imgType: 'png',
+      imgType: 'webp',
       ...data
     })
   }

@@ -66,6 +66,7 @@ export class HeroGuide extends plugin {
     const camp = await getCampBuild(hero.ename, getCurrentId(e.user_id) || '', String(e.user_id))
 
     const img = await puppeteer.screenshot('HeroGuide', {
+      imgType: 'webp',
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/HeroGuide.html',
       heroName: hero.name,
       // fllb_2105 本身可能已经是「对抗路/打野」这种多定位串，原样透传；
