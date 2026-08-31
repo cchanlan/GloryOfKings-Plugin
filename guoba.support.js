@@ -181,6 +181,28 @@ export function supportGuoba () {
           }
         },
         {
+          component: 'Divider',
+          label: '黑名单'
+        },
+        {
+          field: 'config.blackList',
+          label: '插件黑名单',
+          helpMessage: '命令：#王者拉黑@某人 / #王者取消拉黑@某人 / #王者黑名单',
+          bottomHelpMessage: '填 QQ 号，可以填多个。名单里的人发任何王者指令都不会有回应，之前订阅的战绩推送、上下线提醒、日报周报月报也不再推，群报和排行榜里也不统计他。订阅和绑定数据都不会被删，从名单里移出去就自动恢复。主人不受影响。',
+          component: 'GTags',
+          componentProps: {
+            placeholder: '请输入要拉黑的 QQ 号',
+            allowAdd: true,
+            allowDel: true
+          }
+        },
+        {
+          field: 'config.blackListFollowGlobal',
+          label: '跟随机器人全局黑名单',
+          bottomHelpMessage: '默认开启。开启后，机器人自身黑名单（Yunzai 的 config/config/other.yaml，blackUser / blackQQ 两个字段）里的人也一样不响应。全局黑名单只挡用户主动发的指令，挡不住插件按时间主动发的推送，所以开着它才能把「人已经拉黑了、战绩推送还在推」一起停掉。这里只是跟随，不会去改动全局名单。',
+          component: 'Switch'
+        },
+        {
           component: 'SOFT_GROUP_BEGIN',
           label: '账号鉴权管理'
         },

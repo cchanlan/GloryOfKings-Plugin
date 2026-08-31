@@ -18,6 +18,7 @@ import path from 'path'
 import { readJsonFile, writeJsonFile } from './fileUtils.js'
 import { quarantineCorrupt } from './safeStore.js'
 import { readYamlFile } from './yamlUtils.js'
+import { isBlackUser } from './blackList.js'
 import ApiService from './api.js'
 import { PluginData } from '#components'
 
@@ -125,12 +126,17 @@ export function calcRankSort(rankName = '', rankStar = 0) {
 /**
  * 读取全部绑定关系，返回 [{ botUserId, campId, isCurrent }]。
  * 一个用户可能绑多个营地ID，排名里全部计入，但标记出他当前在用的那个。
+ *
+ * 被拉黑的人整个人不进榜。这里是排行榜和群报统计（groupReportStore）共同的入口，
+ * 在这一处滤掉，两边就都不会再出现他 —— 绑定数据本身不动，移出黑名单即恢复。
  */
 export function getAllBindings() {
   const userData = readYamlFile(USER_DATA_FILE) || {}
   const list = []
 
   for (const [botUserId, info] of Object.entries(userData)) {
+    if (isBlackUser(botUserId)) continue
+
     const ids = info?.ids || []
     const current = Number(info?.current ?? 0)
 

@@ -35,7 +35,7 @@ import {
 import { loadPushList, savePushList, mergeSubState, disableSubFlag, subGroups, withSubGroup, withoutSubGroup, sleep, REQUEST_INTERVAL } from '../utils/pushStore.js'
 import {
   getCurrentId, getUserAvatar, Button, shouldQuote, readYamlFile, parsePerfArgs,
-  AT_HEAD, stripAtText, resolveTargetUserId, pickGroupSafe
+  AT_HEAD, stripAtText, resolveTargetUserId, pickGroupSafe, isBlackUser
 } from '#utils'
 import { Config, PluginData } from '#components'
 
@@ -327,8 +327,9 @@ export class BattleReport extends plugin {
       return
     }
 
+    // 被拉黑的人跳过，订阅不删（移出黑名单就恢复）
     const subs = Object.entries(loadPushList())
-      .filter(([, sub]) => sub?.[kind] === true && subGroups(sub).length > 0)
+      .filter(([qq, sub]) => !isBlackUser(qq) && sub?.[kind] === true && subGroups(sub).length > 0)
     if (!subs.length) return
 
     if (pushing) {

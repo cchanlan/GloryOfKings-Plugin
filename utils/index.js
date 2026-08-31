@@ -29,6 +29,15 @@ import {
   decodeEncodeResUserKey
 } from './wechatLogin.js'
 import Button from './button.js'
+import {
+  getBlackList,
+  isBlackUser,
+  isBlockedEvent,
+  addBlackUser,
+  removeBlackUser,
+  followGlobalBlack,
+  getHostBlackList
+} from './blackList.js'
 import path from 'path'
 import { PluginData, Config } from '#components'
 
@@ -74,7 +83,14 @@ export {
   createWechatLoginSession,
   waitForWechatLogin,
   decodeEncodeResUserKey,
-  Button
+  Button,
+  getBlackList,
+  isBlackUser,
+  isBlockedEvent,
+  addBlackUser,
+  removeBlackUser,
+  followGlobalBlack,
+  getHostBlackList
 }
 
 /**

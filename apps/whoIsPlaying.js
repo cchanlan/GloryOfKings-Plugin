@@ -18,7 +18,7 @@
  */
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { loadPushList, subGroups, getHeroNameMap, normalizeName, ONLINE_LABEL } from '../utils/pushStore.js'
-import { Button, shouldQuote, getUserAvatar, getGroupAvatar } from '#utils'
+import { Button, shouldQuote, getUserAvatar, getGroupAvatar, isBlackUser } from '#utils'
 import { heroIconUrl } from '../utils/reportStore.js'
 
 /** 快照超过这个时长就在文案里标「数据较旧」，单位毫秒 */
@@ -46,8 +46,10 @@ export class WhoIsPlaying extends plugin {
     const here = String(e.group_id || '')
     const self = String(e.user_id)
 
+    // 被拉黑的人不列出来：他那份快照已经不再更新了（推送轮询会跳过他），
+    // 留在名单里只会永远显示「数据较旧」
     const subs = Object.entries(loadPushList()).filter(([qq, sub]) => (
-      here ? subGroups(sub).includes(here) : qq === self
+      !isBlackUser(qq) && (here ? subGroups(sub).includes(here) : qq === self)
     ))
 
     if (!subs.length) {

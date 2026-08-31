@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { writeYamlFile } from './utils/yamlUtils.js'
+import { guardApps } from './utils/blackList.js'
 import { PluginName, PluginData } from './components/Path.js'
 import fs from 'node:fs/promises'
 import chalk from 'chalk'
@@ -115,6 +116,10 @@ async function loadModules() {
 await checkAndCreatePaths()
 await loadModules()
 
+// 黑名单闸门：给所有 app 的方法统一套一层，名单里的人发王者指令一律不响应。
+// 必须在模块全部加载完之后做（拿到的才是完整的 apps），详见 utils/blackList.js
+const guardedCount = guardApps(apps)
+
 const endTime = Date.now()
 const elapsedTime = endTime - startTime
 
@@ -123,6 +128,7 @@ logger.info(chalk.green('王者荣耀插件载入完成'))
 logger.info(`成功加载：${chalk.green(successCount)} 个`)
 logger.info(`加载失败：${chalk.red(failureCount)} 个`)
 logger.info(`总耗时：${chalk.yellow(elapsedTime)} 毫秒`)
+logger.debug(`[${PluginName}] 黑名单闸门已挂上 ${guardedCount} 个方法`)
 logger.info('----------------------')
 
 // 图片缓存清理已经挪到 apps/cacheManager.js：那里既有启动后的一次性清理，

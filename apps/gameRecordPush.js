@@ -59,7 +59,7 @@ import {
   sleep
 } from '../utils/pushStore.js'
 import { fetchBattleDetail, renderBattleDetail } from '../utils/battleDetailImage.js'
-import { getCurrentId, getLocalImage, Button, shouldQuote, pickGroupSafe, resolveMemberName } from '#utils'
+import { getCurrentId, getLocalImage, Button, shouldQuote, pickGroupSafe, resolveMemberName, isBlackUser } from '#utils'
 import { Config } from '#components'
 
 /**
@@ -394,9 +394,11 @@ export class GameRecordPush extends plugin {
 
     // 只轮询这两个开关沾一个的订阅。日报/周报共用同一张 pushList，但它们自己有 cron、
     // 读的是归档库，不需要这个轮询——只开了日报的订阅进来会白发一次 mergeSubState
-    // 再干等 800ms，订阅多了就是纯浪费
+    // 再干等 800ms，订阅多了就是纯浪费。
+    // 被拉黑的人整条跳过（订阅不删，移出黑名单就自动恢复）——推送是插件主动发的，
+    // 不经过指令那条闸门，得在这里挡
     const entries = Object.entries(loadPushList())
-      .filter(([, sub]) => isFlagOn(sub, 'battle') || isFlagOn(sub, 'online'))
+      .filter(([qq, sub]) => !isBlackUser(qq) && (isFlagOn(sub, 'battle') || isFlagOn(sub, 'online')))
     if (!entries.length) return
 
     if (running) {
