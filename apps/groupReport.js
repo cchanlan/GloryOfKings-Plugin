@@ -14,7 +14,7 @@
  * 手动查（#群日报）不限权限。
  */
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { todayStart, weekStart, monthStart, buildGroupView, isMonthlyPushDay } from '../utils/reportStore.js'
+import { resolveRange, buildGroupView, isMonthlyPushDay } from '../utils/reportStore.js'
 import {
   collectGroupReport,
   setGroupFlag,
@@ -36,8 +36,10 @@ const LABEL = { daily: '日报', weekly: '周报', monthly: '月报' }
 /** 指令里的「日/周/月」到 kind */
 const KIND_BY_CHAR = { 日: 'daily', 周: 'weekly', 月: 'monthly' }
 
-/** 区间起点 */
-const RANGE_START = { daily: todayStart, weekly: weekStart, monthly: monthStart }
+/**
+ * 区间口径走 reportStore.resolveRange：周一查周报、1 号查月报会退回上一个完整周期，
+ * 否则那张图只有一天数据（见 resolveRange 的注释）
+ */
 
 /** 配置字段名 */
 const CRON_KEY = {
@@ -117,7 +119,8 @@ export class GroupReport extends plugin {
     })
 
     if (!view) {
-      const scope = { daily: '今天', weekly: '本周', monthly: '本月' }[kind]
+      const { scopeText, isPrev } = resolveRange(kind)
+      const scope = isPrev ? scopeText : { daily: '今天', weekly: '本周', monthly: '本月' }[kind]
       return e.reply(`本群${scope}还没有人打过对局`, shouldQuote())
     }
 
@@ -158,11 +161,11 @@ export class GroupReport extends plugin {
    */
   async buildView (kind, { memberIds = [], groupName = '', groupAvatar = '', degraded = false, bound = 0 } = {}) {
     const nowMs = Date.now()
-    const fromSec = (RANGE_START[kind] || todayStart)(nowMs)
+    const { fromSec, toSec, scopeText } = resolveRange(kind, nowMs)
 
     let collected
     try {
-      collected = await collectGroupReport({ kind, fromSec, memberIds })
+      collected = await collectGroupReport({ kind, fromSec, toSec, memberIds })
     } catch (error) {
       logger.error(`[王者群${LABEL[kind]}] 采集失败: ${error.message}`)
       return null
@@ -173,6 +176,8 @@ export class GroupReport extends plugin {
     const view = buildGroupView(collected.group, {
       kind,
       fromSec,
+      toSec,
+      scopeText,
       nowMs,
       groupName,
       coveredFrom: collected.coveredFrom,

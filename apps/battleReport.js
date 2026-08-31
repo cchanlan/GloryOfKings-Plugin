@@ -27,9 +27,7 @@ import {
   summarizeReport,
   buildReportView,
   getHeroNameMap,
-  todayStart,
-  weekStart,
-  monthStart,
+  resolveRange,
   isMonthlyPushDay
 } from '../utils/reportStore.js'
 import { loadPushList, savePushList, mergeSubState, disableSubFlag, subGroups, withSubGroup, withoutSubGroup, sleep, REQUEST_INTERVAL } from '../utils/pushStore.js'
@@ -51,9 +49,10 @@ const MAX_PAGES = { daily: 3, weekly: 12, monthly: 15 }
 /** 三路报告的中文名，文案里到处要用 */
 const LABEL = { daily: '日报', weekly: '周报', monthly: '月报' }
 
-/** 区间起点。口径分别是今天 00:00 / 本周一 00:00 / 本月 1 号 00:00 */
-const RANGE_START = { daily: todayStart, weekly: weekStart, monthly: monthStart }
-
+/**
+ * 区间口径由 reportStore.resolveRange 定：今天 00:00 起 / 本周一 00:00 起 / 本月 1 号 00:00 起，
+ * 但周一查周报、1 号查月报会退回上一个完整周期——不然那张图只有一天数据（见 resolveRange 的注释）
+ */
 /** 每路对应的配置字段名（cron） */
 const CRON_KEY = { daily: 'dailyReportCron', weekly: 'weeklyReportCron', monthly: 'monthlyReportCron' }
 
@@ -133,15 +132,18 @@ export class BattleReport extends plugin {
     }
 
     // 月报第一次查很可能要翻十几页（约 20 秒），先给个回执，不然用户以为指令没响应
+    const { scopeText, isPrev } = resolveRange(kind)
     if (kind === 'monthly') {
-      await e.reply('正在汇总本月战绩，数据多的话要十几秒，请稍候...', shouldQuote())
+      await e.reply(`正在汇总${isPrev ? '上个月' : '本月'}战绩，数据多的话要十几秒，请稍候...`, shouldQuote())
     }
 
     const view = await this.buildView(String(campId), String(userId), kind, { qq: userId, e })
 
     if (!view) {
       return e.reply(
-        { daily: '今天还没有对局记录', weekly: '本周还没有对局记录', monthly: '本月还没有对局记录' }[kind],
+        isPrev
+          ? `${scopeText}没有对局记录`
+          : { daily: '今天还没有对局记录', weekly: '本周还没有对局记录', monthly: '本月还没有对局记录' }[kind],
         shouldQuote()
       )
     }
@@ -158,11 +160,11 @@ export class BattleReport extends plugin {
    */
   async buildView (campId, qq, kind, { roleName = '', qq: ownerQQ = '', e = null } = {}) {
     const nowMs = Date.now()
-    const fromSec = (RANGE_START[kind] || todayStart)(nowMs)
+    const { fromSec, toSec, scopeText } = resolveRange(kind, nowMs)
 
     let collected
     try {
-      collected = await collectBattles(campId, qq, fromSec, { maxPages: MAX_PAGES[kind] || 3 })
+      collected = await collectBattles(campId, qq, fromSec, { maxPages: MAX_PAGES[kind] || 3, toSec })
     } catch (error) {
       logger.error(`[王者${LABEL[kind]}] ${campId} 取战绩失败: ${error.message}`)
       return null
@@ -171,12 +173,14 @@ export class BattleReport extends plugin {
     if (!collected.battles.length) return null
 
     const heroMap = await getHeroNameMap()
-    const report = summarizeReport(collected.battles, { fromSec, heroMap })
+    const report = summarizeReport(collected.battles, { fromSec, toSec, heroMap })
     if (!report.count) return null
 
     return buildReportView(report, {
       kind,
       fromSec,
+      toSec,
+      scopeText,
       nowMs,
       coveredFrom: collected.coveredFrom,
       truncated: collected.truncated,
@@ -298,7 +302,7 @@ export class BattleReport extends plugin {
     const cron = readConfig()[CRON_KEY[kind]] || ''
     const period = { daily: '每天', weekly: '每周', monthly: '每月' }[kind]
     const unit = { daily: '天', weekly: '周', monthly: '月' }[kind]
-    const scope = { daily: '当日', weekly: '本周', monthly: '本月' }[kind]
+    const scope = { daily: '当日', weekly: '整周', monthly: '本月' }[kind]
 
     return e.reply([
       [
@@ -380,7 +384,7 @@ export class BattleReport extends plugin {
 
     // 这段时间没打就不发。推一张「0 场」的图纯属刷屏
     if (!view) {
-      logger.debug(`[王者${label}] ${qq} 本${{ daily: '日', weekly: '周', monthly: '月' }[kind]}无对局，跳过`)
+      logger.debug(`[王者${label}] ${qq} ${resolveRange(kind).scopeText}无对局，跳过`)
       return
     }
 

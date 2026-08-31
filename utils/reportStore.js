@@ -73,6 +73,52 @@ export function isMonthlyPushDay (nowMs = Date.now()) {
   return next.getMonth() !== d.getMonth()
 }
 
+const DAY_SEC = 86400
+
+/**
+ * 一份报告到底统计哪一段。
+ *
+ * 「本周至今」这个口径单独看没问题，落到周一就废了：本周才过了几个小时，
+ * 周报和日报变成同一张图。实测 2026-08-31（周一）23:58 推出来的周报，
+ * 图上写「8月31日 - 8月31日」、20 场全在同一天，每日趋势图因为只有一根柱子干脆不画，
+ * 「最勤快的一天」写着「8/31 打了 20 局」—— 一周就那一天有数据，这句话毫无意义。
+ * 而把周报 cron 配在周一是很自然的写法（「周一发上周的报」），
+ * 和「本周至今」凑一起就必然出这种图。
+ *
+ * 所以区间不再死认「本周至今」：本周过了不到 2 天（也就是周一）时，
+ * 自动退回上一个完整自然周（上周一 00:00 ~ 上周日 23:59:59）。
+ * 这样 cron 配周日还是周一都能出完整的一周，周中手动查仍是本周进度。
+ * 月报同理，1 号查退回上个月 —— 归档留 35 天（ARCHIVE_KEEP_DAYS），
+ * 月初查上月 1 号刚好还在窗口内，盖不住的部分本来就有 truncated 标注。
+ *
+ * @param {'daily'|'weekly'|'monthly'} kind
+ * @param {number} [nowMs]
+ * @returns {{fromSec:number, toSec:number, scopeText:string, isPrev:boolean}}
+ *   区间是闭区间 [fromSec, toSec]；scopeText 给文案用；isPrev 表示统计的是上一个完整周期
+ */
+export function resolveRange (kind, nowMs = Date.now()) {
+  const nowSec = Math.floor(nowMs / 1000)
+
+  if (kind === 'weekly') {
+    const thisWeek = weekStart(nowMs)
+    if (nowSec - thisWeek < 2 * DAY_SEC) {
+      // 退一秒落到上周日 23:59:59，再取那一周的周一，不用减整天，跨月跨年都不用特殊照顾
+      return { fromSec: weekStart((thisWeek - 1) * 1000), toSec: thisWeek - 1, scopeText: '上周', isPrev: true }
+    }
+    return { fromSec: thisWeek, toSec: nowSec, scopeText: '本周至今', isPrev: false }
+  }
+
+  if (kind === 'monthly') {
+    const thisMonth = monthStart(nowMs)
+    if (nowSec - thisMonth < 2 * DAY_SEC) {
+      return { fromSec: monthStart((thisMonth - 1) * 1000), toSec: thisMonth - 1, scopeText: '上个月', isPrev: true }
+    }
+    return { fromSec: thisMonth, toSec: nowSec, scopeText: '本月至今', isPrev: false }
+  }
+
+  return { fromSec: todayStart(nowMs), toSec: nowSec, scopeText: '今日', isPrev: false }
+}
+
 /* ------------------------------------------------------------------ 统计 */
 
 /**
@@ -285,11 +331,16 @@ export function rankHeroes (battles = [], heroMap = {}) {
  * @param {Array<object>} battles 归档里已按区间过滤的战绩，倒序
  * @param {object} [options]
  * @param {number} [options.fromSec] 区间起点，透传给 summarizeSession 算段位星数与巅峰分
+ * @param {number} [options.toSec] 区间终点，0 = 到现在。统计上一个完整周期（resolveRange 的 isPrev）
+ *   时必须给，否则本周那几场会混进上周的报里
  * @param {Record<string,string>} [options.heroMap] heroId -> 英雄名
  * @returns {object} 给模板用的汇总结果
  */
-export function summarizeReport (battles = [], { fromSec = 0, heroMap = {} } = {}) {
-  const list = Array.isArray(battles) ? battles : []
+export function summarizeReport (battles = [], { fromSec = 0, toSec = 0, heroMap = {} } = {}) {
+  const all = Array.isArray(battles) ? battles : []
+  // 上界在这里再兜一道：调用方大多传的是 collectBattles 过滤好的列表，
+  // 但这个模块是纯函数层，脱机测和群报都直接喂原始归档
+  const list = toSec > 0 ? all.filter(item => toInt(item?.dtEventTime) <= toSec) : all
   const win = list.filter(item => toInt(item?.gameresult) === 1).length
   const lose = list.filter(item => toInt(item?.gameresult) === 2).length
   const decided = win + lose
@@ -566,6 +617,9 @@ function rateTone (rate, count) {
  * @param {'daily'|'weekly'} opts.kind
  * @param {number} opts.fromSec 区间起点
  * @param {number} opts.nowMs 生成时刻
+ * @param {number} [opts.toSec] 区间终点（秒），0 = 到 nowMs。统计上一个完整周期时要给，
+ *   不给的话图上的区间会一直画到今天，和实际统计的那一段不符
+ * @param {string} [opts.scopeText] 「统计范围」那条 fact 的文案，来自 resolveRange
  * @param {number} [opts.coveredFrom] 归档实际覆盖到的最早时刻
  * @param {boolean} [opts.truncated] 翻页撞了上限、区间起点没够着
  * @param {string} [opts.roleName] 玩家名
@@ -576,6 +630,8 @@ export function buildReportView (report, {
   kind = 'daily',
   fromSec = 0,
   nowMs = Date.now(),
+  toSec = 0,
+  scopeText = '',
   coveredFrom = 0,
   truncated = false,
   roleName = '',
@@ -585,6 +641,7 @@ export function buildReportView (report, {
   const isWeekly = kind === 'weekly'
   const isMonthly = kind === 'monthly'
   const nowSec = Math.floor(nowMs / 1000)
+  const endSec = toSec > 0 ? Math.min(toSec, nowSec) : nowSec
   const limit = heroLimit || (isWeekly ? 8 : isMonthly ? 10 : 5)
 
   const star = formatStarChange(report.stars)
@@ -650,7 +707,7 @@ export function buildReportView (report, {
   }
   // 奇数个 fact 会在两列布局里留一个空格子，补一条把它填满
   if (facts.length % 2 === 1) {
-    facts.push({ key: '统计范围', val: isMonthly ? '本月至今' : isWeekly ? '本周至今' : '今日', tone: '' })
+    facts.push({ key: '统计范围', val: scopeText || (isMonthly ? '本月至今' : isWeekly ? '本周至今' : '今日'), tone: '' })
   }
 
   // 活跃时段：24 格，按最高的那小时归一
@@ -662,8 +719,12 @@ export function buildReportView (report, {
     peak: count === maxHour && count > 0
   }))
 
+  // 统计的是上一个完整周期时，把「上周」写进区间徽章里。
+  // 只画日期区间不够：周一收到的图上写着「8月24日 - 8月30日」，
+  // 不说一声很容易被当成「这周的数据怎么是上周的日期」
+  const prevScope = toSec > 0 && endSec < nowSec ? scopeText : ''
   const rangeText = isWeekly || isMonthly
-    ? `${MD(fromSec)} - ${MD(nowSec)}`
+    ? `${prevScope ? `${prevScope} ` : ''}${MD(fromSec)} - ${MD(endSec)}`
     : `${MD(fromSec)} ${WEEKDAY(fromSec)}`
 
   // 覆盖范围如实标注：首次查周报时库是空的，翻页有上限，重度玩家一周 200 场可能盖不住。
@@ -711,6 +772,8 @@ export function buildReportView (report, {
  * @param {'daily'|'weekly'|'monthly'} opts.kind
  * @param {number} opts.fromSec 区间起点
  * @param {number} opts.nowMs 生成时刻
+ * @param {number} [opts.toSec] 区间终点（秒），0 = 到 nowMs，同 buildReportView
+ * @param {string} [opts.scopeText] 区间文案，来自 resolveRange
  * @param {string} [opts.groupName] 群名（取不到就用群号）
  * @param {number} [opts.coveredFrom] 覆盖边界（取所有成员水位的最大值——最差的那个）
  * @param {boolean} [opts.truncated] 有成员翻页撞上限
@@ -722,6 +785,8 @@ export function buildGroupView (group, {
   kind = 'daily',
   fromSec = 0,
   nowMs = Date.now(),
+  toSec = 0,
+  scopeText = '',
   groupName = '',
   coveredFrom = 0,
   truncated = false,
@@ -732,6 +797,7 @@ export function buildGroupView (group, {
   const isWeekly = kind === 'weekly'
   const isMonthly = kind === 'monthly'
   const nowSec = Math.floor(nowMs / 1000)
+  const endSec = toSec > 0 ? Math.min(toSec, nowSec) : nowSec
   const label = isMonthly ? '月报' : isWeekly ? '周报' : '日报'
 
   const topCount = group.rows[0]?.count || 1
@@ -778,8 +844,10 @@ export function buildGroupView (group, {
     peak: count === maxHour && count > 0
   }))
 
+  // 同 buildReportView：统计上一个完整周期时把「上周」写进区间徽章
+  const prevScope = toSec > 0 && endSec < nowSec ? scopeText : ''
   const rangeText = isWeekly || isMonthly
-    ? `${MD(fromSec)} - ${MD(nowSec)}`
+    ? `${prevScope ? `${prevScope} ` : ''}${MD(fromSec)} - ${MD(endSec)}`
     : `${MD(fromSec)} ${WEEKDAY(fromSec)}`
 
   const covered = truncated && coveredFrom > fromSec

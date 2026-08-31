@@ -237,14 +237,21 @@ export function archiveBattles (campId, list) {
  * @param {object} [options]
  * @param {number} [options.maxPages=12] 最多翻几页。第一页 30 场、之后每页 10，
  *   12 页 ≈ 140 场。重度玩家一整周能打 200 场，所以这里可能盖不住，靠 truncated 如实标注
+ * @param {number} [options.toSec=0] 区间终点（秒），0 = 到现在。
+ *   周报统计「上周」时必须给：翻页只能从最新往前翻，本周的场次也会被顺路落库，
+ *   不掐上界的话它们会混进上周的报里
  * @returns {Promise<{battles:Array<object>, coveredFrom:number, truncated:boolean, fetched:number}>}
- *   battles 倒序且已按 fromSec 过滤；coveredFrom 是实际覆盖到的最早时刻；
+ *   battles 倒序且已按区间过滤；coveredFrom 是实际覆盖到的最早时刻；
  *   truncated 为真表示撞了页数上限、区间起点没够着
  */
-export async function collectBattles (campId, qq, fromSec, { maxPages = 12 } = {}) {
+export async function collectBattles (campId, qq, fromSec, { maxPages = 12, toSec = 0 } = {}) {
   const key = String(campId || '')
   const from = toInt(fromSec)
-  const inRange = list => list.filter(item => toInt(item?.dtEventTime) >= from)
+  const to = toInt(toSec)
+  const inRange = list => list.filter(item => {
+    const at = toInt(item?.dtEventTime)
+    return at >= from && (to <= 0 || at <= to)
+  })
 
   // 落库前库里最新一场。第一页要一直翻到接上它，中间才没有空洞：
   // 库冻了几天的情况下，光拉第一页可能只补上最近几场，和库之间还缺一段

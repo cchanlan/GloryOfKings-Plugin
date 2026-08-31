@@ -187,12 +187,13 @@ export function resolveMemberIdentity (campId, qq, { snapshot = readSnapshot(), 
  * @param {object} opts
  * @param {'daily'|'weekly'|'monthly'} opts.kind
  * @param {number} opts.fromSec 区间起点
+ * @param {number} [opts.toSec] 区间终点（秒），0 = 到现在。周报统计上一整周时要给
  * @param {Array<string>} opts.memberIds 群成员 bot user_id 列表
  * @param {number} [opts.limit] 成员上限
  * @returns {Promise<{group:object|null, scanned:number, bound:number, coveredFrom:number, truncated:boolean}>}
  *   group 为 null 表示这个区间群里一场都没打（不出空图）
  */
-export async function collectGroupReport ({ kind = 'daily', fromSec = 0, memberIds = [], limit = MAX_MEMBERS } = {}) {
+export async function collectGroupReport ({ kind = 'daily', fromSec = 0, toSec = 0, memberIds = [], limit = MAX_MEMBERS } = {}) {
   const { targets, bound } = resolveGroupTargets(memberIds, { limit })
   if (!targets.length) return { group: null, scanned: 0, bound: 0, coveredFrom: 0, truncated: false }
 
@@ -209,7 +210,7 @@ export async function collectGroupReport ({ kind = 'daily', fromSec = 0, memberI
   for (const { campId, qq } of targets) {
     let collected
     try {
-      collected = await collectBattles(campId, qq, fromSec, { maxPages })
+      collected = await collectBattles(campId, qq, fromSec, { maxPages, toSec })
     } catch (error) {
       // 单个成员失败（登录态失效 / 频控）不能让整份群报挂掉，跳过就是少一行
       logger.debug(`[王者群报] ${campId} 采集失败: ${error.message}`)
@@ -221,7 +222,7 @@ export async function collectGroupReport ({ kind = 'daily', fromSec = 0, memberI
 
     if (!collected.battles.length) continue
 
-    const report = summarizeReport(collected.battles, { fromSec, heroMap })
+    const report = summarizeReport(collected.battles, { fromSec, toSec, heroMap })
     if (!report.count) continue
 
     members.push({
