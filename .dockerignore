@@ -1,0 +1,7 @@
+# 密钥和数据库绝不能进镜像层：.env 是两把真密钥，data/ 里有 QQ 的加盐哈希
+.git
+.env
+data
+node_modules
+README.md
+LICENSE

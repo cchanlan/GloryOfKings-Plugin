@@ -116,6 +116,60 @@ NoNewPrivileges=true
 WantedBy=multi-user.target
 ```
 
+### 用 Docker
+
+镜像由 CI 自动构建（server 分支每次推送都会更新 `latest`，另有按提交的短 sha tag）：
+
+```bash
+docker pull ghcr.io/cchanlan/gloryofkings-plugin-server:latest
+```
+
+**先说最容易翻车的一点：`GOK_SALT` 必须固定**。它一换，库里所有 QQ 的哈希当场作废，
+所以生成一次写进 env 文件，之后每次起容器都用同一份 —— 别在命令行里现生成：
+
+```bash
+# 生成一次，存好，以后别动
+cat > /etc/gok-share.env <<EOF
+GOK_SALT=$(openssl rand -hex 32)
+GOK_ADMIN_SECRET=$(openssl rand -hex 32)
+EOF
+chmod 600 /etc/gok-share.env
+
+docker run -d --name gok-share \
+  --restart unless-stopped \
+  --env-file /etc/gok-share.env \
+  -p 8787:8787 \
+  -v gok-share-data:/app/data \
+  ghcr.io/cchanlan/gloryofkings-plugin-server:latest
+```
+
+或者用 compose：
+
+```yaml
+services:
+  gok-share:
+    image: ghcr.io/cchanlan/gloryofkings-plugin-server:latest
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    env_file: /etc/gok-share.env
+    volumes:
+      - gok-share-data:/app/data
+
+volumes:
+  gok-share-data:
+```
+
+几个容器环境的细节：
+
+- 容器以非 root 用户（uid 1000）跑。数据卷用 named volume 最省事；
+  要 bind mount 宿主目录的话，先把目录 `chown 1000:1000`
+- `GOK_HOST` 留空 = 容器里监听所有网卡，配合 `-p` 端口映射正好，不用改
+- 前面挂了 HTTPS 反代时加 `-e GOK_TRUST_PROXY=1`：容器里看到来源都是反代的 IP，
+  「监听回环就自动信任 X-Forwarded-For」的判断在容器里用不上，要显式开
+- GHCR 的包默认**私有**，别的机器拉取要先 `docker login ghcr.io`，
+  或在 GitHub 仓库的 Packages 设置里把它改成 public
+
 ---
 
 ## 可选：配 HTTPS 反代

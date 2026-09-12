@@ -1,0 +1,46 @@
+# server 分支每次推送都重新构建镜像并推到 GHCR。
+# 这个工作流文件只存在于 server 分支，所以只会被推这个分支触发 ——
+# master 上的插件代码变更不会引来无谓的镜像构建。
+#
+# 镜像名：ghcr.io/<owner>/<repo>-server（metadata-action 会自动转小写）。
+# 打 latest 和短 sha 两个 tag；包默认私有，对外分发要在仓库的 Packages 设置里改。
+name: 构建共享库镜像
+
+on:
+  push:
+    branches: [server]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository }}-server
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=
+
+      # 零依赖项目，构建就是拷文件，几秒的事，不用配缓存
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
