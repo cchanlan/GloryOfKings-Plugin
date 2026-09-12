@@ -10,7 +10,7 @@
 > 仓库里**只含服务端**的分支，根目录就是这个项目本身，可以脱离插件独立克隆部署：
 >
 > ```bash
-> git clone --depth 1 -b server https://github.com/cchanlan/GloryOfKings-Plugin.git gok-share-server
+> git clone --depth 1 -b server https://gitcode.com/ccxhan/GloryOfKings-Plugin.git gok-share-server
 > ```
 
 ---
@@ -57,7 +57,9 @@
 > 这份文档是给**手工部署**、或者想把服务端搬到另一台机器上跑的人看的。
 
 ```bash
-git clone --depth 1 -b server https://github.com/cchanlan/GloryOfKings-Plugin.git gok-share-server
+# 三个源任选一个，内容完全一样（推荐国内的 gitcode 或 gitee）
+git clone --depth 1 -b server https://gitcode.com/ccxhan/GloryOfKings-Plugin.git gok-share-server
+# 也可以换成 gitee.com/longhengmu/GloryOfKings-Plugin.git 或 github.com/cchanlan/GloryOfKings-Plugin.git
 cd gok-share-server
 
 # 1. 生成两把密钥。它们必须不同，程序会检查
