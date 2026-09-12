@@ -1,0 +1,12 @@
+{
+    "name": "gok-share-server",
+    "version": "1.0.0",
+    "description": "王者营地ID共享库服务端（GloryOfKings-Plugin 的 server 分支）",
+    "type": "module",
+    "engines": {
+        "node": ">=24"
+    },
+    "scripts": {
+        "start": "node bin/start.mjs"
+    }
+}

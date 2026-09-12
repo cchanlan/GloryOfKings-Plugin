@@ -1,0 +1,7 @@
+# 数据库和密钥不进 git：.env 里是两把真密钥，data/ 里有 QQ 的加盐哈希
+# （虽然单独拿走解不出 QQ，但都是不该出现在公开仓库的东西）
+data/
+.env
+node_modules/
+*.css.map
+.DS_Store
