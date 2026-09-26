@@ -383,6 +383,28 @@ export function subGroups (sub) {
 }
 
 /**
+ * 这条订阅是不是「空壳」——**既没有任何一路推送开着，也没有推送目标群**。
+ *
+ * ⚠️ 判据不能用 `hasAnyFlag`：它对**缺失**的 `battle` 字段按「开着」算（为了兼容首个
+ * 版本写下的订阅，那些记录没有这个字段），而空壳恰好也没有 `battle` 字段，会被它
+ * 误判成正式订阅。所以这里要求开关**显式为 true**。
+ *
+ * 空壳是怎么来的：`#开启在线状态` 把隐身标记（`optedOut`）清掉之后，如果这个人本来就
+ * 没开任何推送，记录里就只剩个 `{}`。留着它有害无益 —— `checkAll` 的 entries 过滤走
+ * `isFlagOn(sub,'battle')`（缺字段算开着），于是这条空壳会被收进轮询名单：每轮白占
+ * 一个请求预算（`MAX_REQUESTS_PER_ROUND` 才 6 个）、白等一次 800ms 错峰，
+ * 而且它**永远清不掉**（`hasAnyFlag` 恒为真，`disableSubFlag` 也碰不到它）。
+ *
+ * ⚠️ 「有推送目标群」的订阅一律不算空壳：用户开着 battle 但还没打过、groups 是空的，
+ * 那是他明确要的推送；首个版本的订阅同样没有 `battle` 字段，靠群号把它认出来。
+ */
+export function isJunkSub (sub) {
+  if (!sub) return true
+  if (subGroups(sub).length) return false
+  return !SUB_FLAGS.some(key => sub[key] === true)
+}
+
+/**
  * 把群号并进订阅的推送群列表，返回要写回的字段。
  * `group` 恒等于列表第一项：只认单值 `group` 的旧代码路径至少还能推到一个群。
  * @returns {{groups:string[], group:string, added:boolean}}

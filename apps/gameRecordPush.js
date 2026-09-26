@@ -37,7 +37,7 @@ import {
   endSubBatch,
   disableSubFlag,
   isFlagOn,
-  hasAnyFlag,
+  isJunkSub,
   subGroups,
   withSubGroup,
   withoutSubGroup,
@@ -474,10 +474,15 @@ export class GameRecordPush extends plugin {
 
     if (!alreadyShown) {
       // 只清掉隐身标记：其余字段（battle/online/日报…）和快照字段都原样保留，
-      // 已经攒着的在线状态立刻可用，不必等下一轮重新采集
+      // 已经攒着的在线状态立刻可用，不必等下一轮重新采集。
+      //
+      // ⚠️ 清完如果什么都没剩（他本来就没开任何推送），整条记录要**删掉**而不是留个 `{}`：
+      //    空壳会被 entries 收进轮询名单（`isFlagOn` 对缺失的 battle 字段按「开着」算），
+      //    每轮白占一个请求预算、还永远清不掉。判据见 pushStore.isJunkSub
       const next = { ...sub }
       delete next.optedOut
-      list[qq] = next
+      if (isJunkSub(next)) delete list[qq]
+      else list[qq] = next
       savePushList(list)
     }
 
@@ -577,22 +582,21 @@ export class GameRecordPush extends plugin {
       .filter(([qq, sub]) => !isBlackUser(qq) &&
         (isFlagOn(sub, 'battle') || isFlagOn(sub, 'online')))
 
-    // 清掉历史遗留的纯影子记录（`onlineStatus` 这个字段已经废弃，见 pushStore 的 SUB_FLAGS）。
+    // 清掉没有意义的订阅记录：历史遗留的影子订阅（`onlineStatus` 字段已废弃，
+    // 见 pushStore 的 SUB_FLAGS）和「清隐身标记时留下的空壳」。判据见 pushStore.isJunkSub。
     //
-    // 它们不进 entries、不发请求、也不占配额，唯一的后果是让整表写盘变慢：用户规模下
-    // 这张表被塞进几百条僵尸记录，单次 stringify 从毫秒级涨到近百毫秒，而轮询每轮要
-    // 写它好几次。名单既然改由索引现算，这些记录就没有存在的理由了，一次清干净。
+    // 它们既不播报也不采集，唯一的后果是让整表写盘变慢：用户规模下这张表被塞进几百条
+    // 僵尸记录，单次 stringify 从毫秒级涨到近百毫秒，而轮询每轮要写它好几次。
+    // 名单既然改由索引现算，这些记录就没有存在的理由了，一次清干净。
     //
-    // ⚠️ 判据必须带 `!hasAnyFlag(sub)`：开了 battle / online / 日报周报的订阅是用户明确
-    //    要的推送，一条都不能碰（他们的记录里也可能残留着历史写下的 onlineStatus）。
-    //    用户主动隐身的（optedOut）写的是 `onlineStatus: false`，天然不满足这个判据，
-    //    那个标记不会被误删。
+    // ⚠️ `optedOut` 的记录**必须留着** —— 那是用户主动隐身的标记，删了他就又会被列进
+    //    `#谁在打游戏` 名单，而当初发那条关闭指令就是为了不被列出来。
     const stale = Object.keys(list)
-      .filter(qq => list[qq]?.onlineStatus === true && !hasAnyFlag(list[qq]))
+      .filter(qq => list[qq]?.optedOut !== true && isJunkSub(list[qq]))
     if (stale.length) {
       for (const qq of stale) delete list[qq]
       savePushList(list)
-      logger.info(`[王者推送] 清理 ${stale.length} 条历史影子订阅（名单已改由群成员索引现算）`)
+      logger.info(`[王者推送] 清理 ${stale.length} 条无效订阅记录（历史影子/空壳，名单已改由群成员索引现算）`)
     }
 
     if (!entries.length) return
