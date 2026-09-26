@@ -14,9 +14,9 @@
  * 快照有两个来源：
  * - 开过战绩推送 / 上下线提醒的人 → 常驻轮询每轮顺手写（apps/gameRecordPush.js），
  *   但那一路有离线退避（判成离线就跳几轮），刚上线的人最坏能滞后十分钟
- * - 只绑了营地号、什么推送都没开的人（影子订阅）→ **不常驻查**，由这条指令触发时现刷
+ * - 名单里的其他人（绑了营地号、但什么推送都没开）→ **不常驻查**，由这条指令触发时现刷
  *
- * ⚠️ **2026-09-20 起这条指令对名单里的人一律现刷**（原先只刷影子订阅，发起人自己
+ * ⚠️ **2026-09-20 起这条指令对名单里的人一律现刷**（原先只刷其中一部分，发起人自己
  * 另开小灶）。理由是账号池已经到 8 个（`utils/api.js` 按账号分队列并发，实际速率
  * 约 6~7 个请求/秒），一个群几十个请求几秒就跑完；而「发指令看的却还是十分钟前的
  * 状态」比多打几个请求难受得多。常驻轮询那边**不变**，退避照旧 —— 省配额靠的是
@@ -58,6 +58,17 @@ const REFRESH_COOLDOWN_MS = 60 * 1000
  * 超出的按「快照最旧」优先刷，剩下的用旧数据出图（会带「数据较旧」标记）。
  */
 const MAX_REFRESH = 40
+
+/**
+ * 名单里「没有订阅记录」的人用的默认订阅项。
+ *
+ * ⚠️ `battle` / `online` 必须**显式写 false**，不能给个空对象：
+ * `collectSnapshot` 里 `battleOn = sub?.battle !== false` 对 `{}` 会算成 true，
+ * 于是每个人都白多拉一次战绩列表（名单里大多数人根本没订阅推送）。
+ * 显式 false 之后 `needBattleList` 只在「游戏中 / 刚下线」时才补拉，
+ * 与改动前影子订阅的行为一致。
+ */
+const NO_SUB = Object.freeze({ battle: false, online: false })
 
 /** 现刷并发锁：一次只允许一条指令在刷，避免几个人同时发把请求量翻倍 */
 let refreshing = false
@@ -113,6 +124,12 @@ export class WhoIsPlaying extends plugin {
     //   ② 退群的人绑着营地ID 就一直赖在名单里，谁也弄不出去。
     // 换成索引后，退群的人不在成员表里 → 自然出表，不需要任何额外清理逻辑。
     //
+    // ⚠️ 名单**不再读订阅表决定「谁在里面」**（2026-09-26 改）。早先名单 = 订阅表记录
+    //    ∩ 本群成员，而「绑了营地号但没开任何推送」的人靠定时任务每轮自动补建的
+    //    「影子订阅」垫进来 —— 那段补建要遍历每个群 × 每个群成员，是定时任务卡死的
+    //    头号根因，已整套废除。名单本来就能从索引现算，不需要任何记录垫底。
+    //    订阅表现在只提供两件事：快照字段、以及「这个人隐身了吗」。
+    //
     // 索引拿不到时（冷启动适配器还没连上）回落到旧判据，宁可多列几个也不能把
     // 本群的人判成不在群 —— 那种「名单突然空了」比多列更误导人。
     //
@@ -122,22 +139,27 @@ export class WhoIsPlaying extends plugin {
 
     const here = String(e.group_id || '')
     const self = String(e.user_id)
+    const list = loadPushList()
+    const ready = isIndexReady()
+
+    let subs
+    if (!here) {
+      // 私聊：只有自己。判据是「自己绑了营地号」而不是「订阅表里有记录」——
+      // 早先绑了号、但还没被补建成影子订阅的人私聊发这条指令会被回
+      // 「你还没绑定营地ID」，那是个 bug（补建机制已废除，现在也不会再有这个窗口）
+      subs = getCurrentId(self) ? [[self, list[self] || NO_SUB]] : []
+    } else if (ready) {
+      // 群里：索引里的成员本身就是「群成员 ∩ 已绑定营地号」，直接拿来当名单
+      subs = membersOfGroup(here).map(qq => [qq, list[qq] || NO_SUB])
+    } else {
+      // 索引不可用时的兜底：仍按推送目标群判（拿不到成员表就无从知道谁在群里）
+      subs = Object.entries(list).filter(([, sub]) => subGroups(sub).includes(here))
+    }
 
     // 被拉黑的人不列出来：他那份快照已经不再更新了（推送轮询会跳过他），
     // 留在名单里只会永远显示「数据较旧」。
-    const list = loadPushList()
-    const ready = isIndexReady()
-    const members = ready ? new Set(membersOfGroup(here)) : null
-
-    const subs = Object.entries(list).filter(([qq, sub]) => {
-      if (isBlackUser(qq)) return false
-      // 私聊没有群成员表，退化成「只看自己」
-      if (!here) return qq === self
-      if (members) return members.has(qq)
-      // 索引不可用时的兜底：仍按推送目标群判，但不放行 onlineStatus，
-      // 免得又回到「谁的在线状态都往本群灌」的老毛病
-      return subGroups(sub).includes(here)
-    })
+    // 主动隐身的人（#关闭在线状态，写的是 optedOut 标记）同样摘掉。
+    subs = subs.filter(([qq]) => !isBlackUser(qq) && list[qq]?.optedOut !== true)
 
     if (!subs.length) {
       await e.reply([
@@ -216,7 +238,8 @@ export class WhoIsPlaying extends plugin {
   }
 
   /**
-   * 现刷名单里所有人的在线快照 —— **不分影子还是正式订阅**（见文件头的理由）。
+   * 现刷名单里所有人的在线快照 —— **名单里的人一律刷**，跟他有没有订阅推送无关
+   * （名单来自群成员索引，见 list 方法）。
    *
    * ⚠️⚠️ **刷到的结果不落盘**，只作为返回值交给本次出图。这一条是硬约束，别改回
    * `mergeSubState`：订阅项里的 `lastOnlineState` / `lastGamingStart` / `lastGameSeq`
@@ -294,7 +317,9 @@ export class WhoIsPlaying extends plugin {
         if (!campId || isProfileHidden(campId)) return
 
         try {
-          const { patch } = await collectSnapshot(qq, campId, sub)
+          // snapshot: true —— 名单里的人一律采一份在线状态，跟「他有没有开推送」无关。
+          // 名单现在来自群成员索引，绝大多数人压根没有订阅记录（sub 是 NO_SUB）
+          const { patch } = await collectSnapshot(qq, campId, sub, Date.now(), { snapshot: true })
           if (Object.keys(patch).length) out.set(qq, patch)
         } catch (error) {
           // 单个人失败不该毁掉整张图：留旧快照（图上会标「数据较旧」）

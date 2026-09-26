@@ -22,9 +22,9 @@
  *   ① 该不该拉战绩列表 —— pushStore.needBattleList，零代价，不影响任何提醒；
  *   ② 这一轮该不该查 —— pushStore.resolveNextCheck 按不活跃时长退避，跳过若干轮，
  *      代价是上线播报最坏晚「封顶倍数 × cron」，配置项 idleBackoffMax 填 1 可关掉。
- * - 轮询名单里**没有影子订阅**（只给 #谁在打游戏 采集、不推任何群的那批人）：他们数量
- *   最多（实测 20 个订阅里 17 个）又常年离线，常驻查纯属白烧配额，改成那条指令触发时
- *   现刷（见 apps/whoIsPlaying.js）。所以这里只管真会播报的两路：战绩推送 / 上下线提醒。
+ * - 轮询名单只收**真会播报的两路**（战绩推送 / 上下线提醒）。#谁在打游戏 那份名单
+ *   （群成员 ∩ 已绑定营地号，可能几十上百人）**不进这个轮询**，改由那条指令触发时现刷
+ *   （见 apps/whoIsPlaying.js）—— 常驻查他们纯属白烧配额，而离线的号也从来不产生播报。
  *
  * 数据层与全部纯计算逻辑在 utils/pushStore.js，这里只管指令交互和消息发送。
  */
@@ -32,9 +32,12 @@ import {
   loadPushList,
   savePushList,
   mergeSubState,
+  mergeSubStates,
+  beginSubBatch,
+  endSubBatch,
   disableSubFlag,
   isFlagOn,
-  isPureShadow,
+  hasAnyFlag,
   subGroups,
   withSubGroup,
   withoutSubGroup,
@@ -67,7 +70,6 @@ import {
 import { fetchBattleDetail, renderBattleDetail } from '../utils/battleDetailImage.js'
 import { fetchRoleNames } from '../utils/roleName.js'
 import { getAllBindings } from '../utils/rankStore.js'
-import { membersOfGroup, groupsOfMember, isIndexReady, getGroupIndex, refreshGroupIndex } from '../utils/groupIndex.js'
 import { getCurrentId, getLocalImage, Button, shouldQuote, pickGroupSafe, resolveMemberName, isBlackUser, ApiService, isProfileHidden } from '#utils'
 import { Config } from '#components'
 
@@ -426,6 +428,12 @@ export class GameRecordPush extends plugin {
    * 只控制「要不要出现在 #谁在打游戏 名单里」，**和营地的「在线状态」隐私设置无关**：
    * 那个管的是营地自己的数据给不给看，这个管的是本插件要不要把采集到的快照展示给群友。
    *
+   * ⚠️ 默认是**开着**的：绑了营地号、人又在群里，就默认出现在那份名单里（名单由
+   * 群成员索引现算，见 apps/whoIsPlaying.js）。所以这条指令实际管的是**隐身**：
+   * 关闭 = 写一个 `optedOut` 标记把自己摘出去，开启 = 把标记清掉。
+   * 早先那套「自动补建影子订阅 + `onlineStatus` 字段」已在 2026-09-26 废除，
+   * 记录里不再写那个字段了，判据一律看 `optedOut`。
+   *
    * 也不做任何播报——上下线播报是 #开启上下线提醒（online）的事，两者独立：
    * 只想被看到、不想被播报的号就只开这一个。
    */
@@ -436,23 +444,24 @@ export class GameRecordPush extends plugin {
     const sub = list[qq]
 
     if (!enable) {
-      if (!sub || !isFlagOn(sub, 'onlineStatus')) {
+      // 判据是 optedOut 而不是某个开关字段：默认就在名单里，只有主动关过的人才有这个标记
+      if (sub?.optedOut === true) {
         await e.reply('你本来就没开在线状态展示', shouldQuote())
         return
       }
       // 关掉时**留一条记录**而不是把整条订阅删掉。
       //
-      // 删掉是不行的：影子订阅每一轮都会把「在群里 + 绑了营地号」的人自动补回来，
-      // 于是用户发了关闭指令、下一轮开关又自己变回开 —— 关不掉。
-      // 所以关的时候写 onlineStatus:false + optedOut:true，影子订阅看到 optedOut 就跳过。
-      // 其余开关（battle/online/日报…）原样保留，不能因为关这个就把人家的推送删了。
-      list[qq] = { ...(sub || {}), onlineStatus: false, optedOut: true }
+      // 删掉是不行的：没有记录就代表「没隐身」，下一轮名单又把他列回来 —— 关不掉。
+      // 所以关的时候写 optedOut:true，#谁在打游戏 组装名单时看到它就跳过。
+      // 其余开关（battle/online/日报…）原样保留，不能因为隐身就把人家的推送删了。
+      list[qq] = { ...(sub || {}), optedOut: true }
       savePushList(list)
       await e.reply('已关闭在线状态展示，之后 #谁在打游戏 不会再列出你', shouldQuote())
       return
     }
 
-    // 绑了营地号就够 —— 采集只需要营地ID，不需要在群里发（影子订阅一个群都不推）
+    // 绑了营地号才谈得上「出现在名单里」——名单就是「群成员 ∩ 已绑定营地号」，
+    // 没绑的号根本不在那份名单上，开了也没有意义。
     // 同 :120，订阅入口不去问共享库（值会被固化进订阅文件）
     const campId = getCurrentId(qq)
     if (!campId) {
@@ -460,26 +469,18 @@ export class GameRecordPush extends plugin {
       return
     }
 
-    // 已经开着的两种情况：避免重复的一次性提示
-    const alreadyShown = isFlagOn(sub, 'onlineStatus')
+    // 默认就是开着的，只有主动关过（带 optedOut 标记）的人才是关着的
+    const alreadyShown = sub?.optedOut !== true
 
-    list[qq] = {
-      ...(sub || {}),
-      // 影子和正常订阅的统一写法：battle 显式写 false，否则 isFlagOn 会按「缺字段算开着」
-      battle: sub?.battle === true,
-      online: sub?.online === true,
-      onlineStatus: true,
-      campId: String(campId),
-      // 重新开启就清掉「用户关过」的标记（见关闭分支的说明），别把标记写进每一条记录
-      ...(sub?.optedOut ? { optedOut: false } : {}),
-      // 不重置 lastOnlineState 等快照字段：已经攒着的在线状态立刻可用，
-      // 清掉的话要等下一轮轮询才重新有数据
-      ...(sub ? {} : { enabledAt: Date.now(), skipTicks: 0, idleSince: '' })
+    if (!alreadyShown) {
+      // 只清掉隐身标记：其余字段（battle/online/日报…）和快照字段都原样保留，
+      // 已经攒着的在线状态立刻可用，不必等下一轮重新采集
+      const next = { ...sub }
+      delete next.optedOut
+      list[qq] = next
+      savePushList(list)
     }
-    savePushList(list)
 
-    // 文案不再说「不开就不列你」：绑了营地号、人在群里，默认就会被列进去
-    // （见 gameRecordPush 的影子订阅），这个开关管的是「要不要采集你的在线状态」。
     await e.reply(
       alreadyShown
         ? '在线状态展示本来就在开着，无需重复开启'
@@ -509,7 +510,9 @@ export class GameRecordPush extends plugin {
 
     const battleOn = sub.battle !== false
     const onlineOn = sub.online === true
-    const statusOn = isFlagOn(sub, 'onlineStatus')
+    // 名单默认包含所有「在本群 + 绑了营地号」的人，所以这里看的是**隐身标记**，
+    // 不是某个开关字段（onlineStatus 已废弃，见 toggleStatus 的注释）
+    const hidden = sub.optedOut === true
     const groups = subGroups(sub)
     // 自适应节流的现状。不显示的话用户没法判断「怎么半天没动静」是退避还是坏了
     const cap = Math.max(1, Number(cfg.idleBackoffMax) || DEFAULT_IDLE_BACKOFF_MAX)
@@ -520,7 +523,7 @@ export class GameRecordPush extends plugin {
         '📢 推送订阅',
         `战绩推送：${battleOn ? '已开启' : '未开启'}`,
         `上下线提醒：${onlineOn ? '已开启' : '未开启'}`,
-        `在线状态展示：${statusOn ? '已开启' : '未开启'}`,
+        `群内展示：${hidden ? '已隐身' : '正常'}`,
         `营地ID：${sub.campId || '—'}`,
         `推送群：${groups.length ? groups.join('、') : '—'}${groups.length > 1 ? `（共 ${groups.length} 个）` : ''}`,
         `检查间隔：最快 ${cfg.battleResultCron || '—'}`,
@@ -528,7 +531,7 @@ export class GameRecordPush extends plugin {
         cfg.onlineReminder === false ? '⚠️ 插件推送总开关关着，暂时不会推' : '',
         battleOn ? '关闭：#关闭战绩推送' : '开启：#开启战绩推送',
         onlineOn ? '关闭：#关闭上下线提醒' : '开启：#开启上下线提醒',
-        statusOn ? '关闭：#关闭在线状态' : '开启：#开启在线状态'
+        hidden ? '取消隐身：#开启在线状态' : '隐身：#关闭在线状态'
       ].filter(Boolean).join('\n'),
       Button.push(battleOn)
     ], shouldQuote())
@@ -551,122 +554,46 @@ export class GameRecordPush extends plugin {
   async checkAll () {
     if (readConfig().onlineReminder === false) return
 
-    // 刷新「群成员索引」—— 影子订阅的补建与退群清理全都依赖它，而它反映的是
-    // 适配器当前的群成员表（有人中途进群/退群，索引必须跟着动）。
-    // 放在这一轮的最前面：后面的 isIndexReady / membersOfGroup / groupsOfMember
-    // 用的就是刚刷出来的这一份。纯内存读，不发任何请求，开销可以忽略。
-    // 刷新失败（适配器没连上、成员缓存全空）时索引保持原样，不会把人误判成退群。
-    const refresh = refreshGroupIndex()
-    if (!refresh.ok && refresh.reason !== 'empty-gl') {
-      logger.debug(`[王者推送] 群成员索引本轮未刷新（${refresh.reason}），沿用上一次的`)
-    }
-
-    // 只轮询这三个开关沾一个的订阅。日报/周报共用同一张 pushList，但它们自己有 cron、
-    // 读的是归档库，不需要这个轮询——只开了日报的订阅进来会白发一次 mergeSubState
-    // 再干等 800ms，订阅多了就是纯浪费。
+    // 名单只收「开了 battle 或 online 一路的人」。日报/周报共用同一张 pushList，
+    // 但它们有自己的 cron、读的是归档库，不需要这个轮询——只开了日报的订阅进来会
+    // 白发一次请求再干等 800ms，订阅多了就是纯浪费。
     // 被拉黑的人整条跳过（订阅不删，移出黑名单就自动恢复）——推送是插件主动发的，
     // 不经过指令那条闸门，得在这里挡
     //
-    // ⚠️ 从这一行到下面第 570 行那个 `savePushList(list)` 是一整块**同步**的
-    // read-modify-write：中间一个 await 都没有，对事件循环而言是原子的，所以
-    // 两次重叠的 checkAll 不会互相覆盖写盘。**不要往这段里加任何 await**
+    // ⚠️ 从 `loadPushList()` 到下面清影子记录那次 `savePushList(list)` 是一整块**同步**的
+    // read-modify-write：中间一个 await 都没有，对事件循环而言是原子的，所以两次重叠的
+    // checkAll 不会互相覆盖写盘。**不要往这段里加任何 await**
     // （包括把 getCurrentId 换成共享库那个异步版）——一旦让出 microtask，
     // 而重入保护（下面的 `running`）又在这段之后才生效，整表覆盖丢写就成现实了。
-    const list = loadPushList()
-    // 纯影子订阅（只给 #谁在打游戏 采集、不往任何群播报）**不进常驻轮询**：
-    // 那批人是「没开任何推送、只绑了营地号」的群友，离线也好、从没上线也好，
-    // 每轮都照样占一份配额（实测 20 个订阅里 17 个是它们、贡献了八成请求量，
-    // 正是 -30107 的来源）。它们的快照改由 #谁在打游戏 触发时现刷
-    // （apps/whoIsPlaying.js），没人看就不查——上下线提醒和战绩推送因此能按原速跑。
     //
-    // 注意只是**不查**，记录本身照旧由下面这段补建和维护：那是快照的落脚处，
-    // 现刷的时候得有地方写（mergeSubState 找不到记录就直接丢弃）。
+    // ⚠️ 名单**只来自订阅表，不再扫群成员**。早先这里还有一段「把群里绑了营地号、
+    //    但没开任何推送的人补成影子订阅」，每轮对「每个群 × 每个群成员」调一次
+    //    `getCurrentId`（每次都读整份 UserData.yaml），用户规模下是几千次 × 每次
+    //    十几毫秒的**同步**阻塞，整段无 await —— 那正是「定时任务一跑机器人就整个僵住」
+    //    的头号根因，已删。#谁在打游戏 的名单改由群成员索引现算
+    //    （apps/whoIsPlaying.js 的 list），不再需要这些记录垫底。
+    const list = loadPushList()
     const entries = Object.entries(list)
-      .filter(([qq, sub]) => !isBlackUser(qq) && !isPureShadow(sub) &&
+      .filter(([qq, sub]) => !isBlackUser(qq) &&
         (isFlagOn(sub, 'battle') || isFlagOn(sub, 'online')))
 
-    // 把「绑了营地号但没开任何推送」的人补成影子订阅——#谁在打游戏 要能看到他们。
+    // 清掉历史遗留的纯影子记录（`onlineStatus` 这个字段已经废弃，见 pushStore 的 SUB_FLAGS）。
     //
-    // 范围严格限定成「**当前某个群里**的绑定者」（群成员索引，见 utils/groupIndex.js）：
-    // 退群的人不在任何群的成员表里，于是不会被补出来；已经存在的老影子订阅
-    // 由下面的清理步骤删掉。这样「谁在打游戏」列出的人必然是本群的人。
+    // 它们不进 entries、不发请求、也不占配额，唯一的后果是让整表写盘变慢：用户规模下
+    // 这张表被塞进几百条僵尸记录，单次 stringify 从毫秒级涨到近百毫秒，而轮询每轮要
+    // 写它好几次。名单既然改由索引现算，这些记录就没有存在的理由了，一次清干净。
     //
-    // 索引不可用时（冷启动适配器没连上）整段跳过：宁可这一轮不补，
-    // 也不能因为「索引是空的」就把所有人判成退群、把订阅删光。
-    // 「已经存在的订阅」要以**整张表**为准，不能拿上面的 entries —— 那是「这轮要查谁」，
-    // 影子订阅被排除在外，用它算 known 会让每轮都把影子当成「还没建」重复补一遍，
-    // 补建是整条覆盖写，它们的快照字段（昵称、观测时刻）每轮被清空一次（实测踩过）。
-    const known = new Set(Object.keys(list))
-    const shadows = new Set()
-    const removed = new Set()
-
-    if (isIndexReady()) {
-      // 当前在群里、且绑了营地号的 QQ -> 他要被采集的营地号
-      const inGroup = new Map()
-      for (const gid of listAllGroupIds()) {
-        for (const qq of membersOfGroup(gid)) {
-          if (inGroup.has(qq)) continue
-          const campId = getCurrentId(qq)
-          if (campId && /^\d+$/.test(String(campId))) inGroup.set(qq, String(campId))
-        }
-      }
-
-      for (const [qq, campId] of inGroup) {
-        if (known.has(qq)) continue
-        // 被拉黑的人不补影子订阅。这不是可选优化：entries 的过滤里有 isBlackUser，
-        // 补进去的订阅下一轮就会被过滤掉、再下一轮又补 —— 每轮一建一弃死循环，
-        // 白写盘还刷日志（实测全局黑名单里的 2561472184 就这样反复「新建」了几十轮）。
-        if (isBlackUser(qq)) continue
-        // 用户主动关过在线状态展示的，别自动补回来 —— 补了就是「发了关闭指令也关不掉」。
-        // 见 toggleStatus 关闭分支：那种记录是 onlineStatus:false + optedOut:true，
-        // 它还在 list 里（所以 known 已经含它），这里再挡一道是防它被别的路径清掉。
-        if (list[qq]?.optedOut === true) continue
-        known.add(qq)
-        shadows.add(qq)
-        // battle/online 显式写 false：isFlagOn 对 battle 是「缺字段算开着」，
-        // 不写就会把影子订阅当成开了战绩推送
-        list[qq] = {
-          campId,
-          battle: false,
-          online: false,
-          onlineStatus: true,
-          enabledAt: Date.now()
-        }
-      }
-
-      // 清理纯影子订阅（只采集、不推任何群、也不上图）。两种都清：
-      //   ① 已不在任何群 —— 退群了，留着白发请求、还在别人的名单里挂着
-      //   ② 被拉黑 —— entries 已经把他挡在轮询外，他既不会上图也不会攒新快照，
-      //      留着就是一条永不更新的僵尸记录
-      //
-      // 三条保护，缺一条就会误删：
-      //   ① 只删「纯采集」的订阅 —— 用户自己开过 battle/online/daily 的，
-      //      那是他明确要的推送，退群了/被拉黑时也该留着（移出黑名单即恢复）
-      //   ② 只删能在索引里确认真不在任何群、或确认被拉黑的
-      //   ③ 索引不可用时整段不跑（上面 if 已经保证）
-      //
-      // 删黑名单那条不是「可选优化」：黑名单的人仍在群里，groupsOfMember 非空，
-      // 只按「退群」判永远清不掉他（实测 2561472184/1750168371 这样赖了几十小时）。
-      for (const [qq, sub] of Object.entries(list)) {
-        if (!isPureShadow(sub)) continue
-        const outOfGroups = !groupsOfMember(qq).length
-        const banned = isBlackUser(qq)
-        if (!outOfGroups && !banned) continue
-        delete list[qq]
-        known.delete(qq)
-        removed.add(qq)
-        logger.info(`[王者推送] 清理影子订阅 ${qq}：${banned ? '已被拉黑' : '已不在任何群'}`)
-      }
-    }
-
-    // 只要这一轮动过 list（补过影子或清过订阅）就得落盘。
-    // 早先这里只判 shadows.size：清理删掉的项只改内存、不写盘，下一轮 loadPushList()
-    // 又从磁盘把死人读回来 —— 退群清理形同虚设。
-    if (shadows.size || removed.size) {
+    // ⚠️ 判据必须带 `!hasAnyFlag(sub)`：开了 battle / online / 日报周报的订阅是用户明确
+    //    要的推送，一条都不能碰（他们的记录里也可能残留着历史写下的 onlineStatus）。
+    //    用户主动隐身的（optedOut）写的是 `onlineStatus: false`，天然不满足这个判据，
+    //    那个标记不会被误删。
+    const stale = Object.keys(list)
+      .filter(qq => list[qq]?.onlineStatus === true && !hasAnyFlag(list[qq]))
+    if (stale.length) {
+      for (const qq of stale) delete list[qq]
       savePushList(list)
-      if (shadows.size) logger.info(`[王者推送] 新建 ${shadows.size} 条影子订阅（群里的绑定者，只采集不播报）: ${[...shadows].join(',')}`)
+      logger.info(`[王者推送] 清理 ${stale.length} 条历史影子订阅（名单已改由群成员索引现算）`)
     }
-    for (const qq of shadows) entries.push([qq, list[qq]])
 
     if (!entries.length) return
 
@@ -698,6 +625,11 @@ export class GameRecordPush extends plugin {
     let sent = 0
     // 下一轮从哪个下标接着查，空串 = 本轮所有人都轮过了、下轮从头开始
     let next = ''
+    // 退避递减攒在这里、循环结束一次落盘。逐个 mergeSubState 的话，用户规模下是几百次
+    // 「整表 parse + 整表 stringify + 写盘」（155KB 的订阅表单次约 287ms），而这段一个
+    // await 都没有 —— 就是一分多钟的同步阻塞。它们各自只改自己的 skipTicks，
+    // 没有任何一处需要读到前一处刚写的值，攒起来一次写完全等价
+    const skipPatches = []
 
     try {
       for (let i = 0; i < total; i += 1) {
@@ -707,7 +639,7 @@ export class GameRecordPush extends plugin {
         // 退避中：递减计数就走，注意**不能 sleep**——跳过的订阅没发请求，没必要错峰
         const skip = Number(sub?.skipTicks) || 0
         if (skip > 0) {
-          mergeSubState(qq, { skipTicks: skip - 1 })
+          skipPatches.push([qq, { skipTicks: skip - 1 }])
           continue
         }
 
@@ -734,6 +666,15 @@ export class GameRecordPush extends plugin {
         await sleep(REQUEST_INTERVAL)
       }
     } finally {
+      // 退避计数先落盘，异常路径也不能漏：漏了的话退避中的订阅永远停在原地，
+      // 等于把自适应节流整个关掉（每个离线号每轮都真查一次，正是 -30107 的来源）
+      if (skipPatches.length) {
+        try {
+          mergeSubStates(skipPatches)
+        } catch (error) {
+          logger.error(`[王者推送] 写退避计数失败: ${error.message}`)
+        }
+      }
       running = false
       cursor = next === '' ? 0 : next
       // 命中就闭嘴一段时间再探（探测期会自己延长到营地真放行为止）；没命中才把恢复期倒数掉
@@ -758,11 +699,34 @@ export class GameRecordPush extends plugin {
    * @param {Record<string,string>} heroMap heroId -> 英雄名
    */
   async checkOne (qq, sub, heroMap) {
-    // 没有推送目标群就不用轮询 —— 这条对「要播报」的两路成立，但**影子订阅例外**：
-    // 它只给 #谁在打游戏 采集在线状态，一个群都不推，也没写 groups。
-    // 所以判据要放成「有群要推 或者 只是采集」，否则影子订阅永远进不来。
-    const hasSnapshotOnly = isFlagOn(sub, 'onlineStatus') && sub.online !== true && sub.battle === false
-    if (!subGroups(sub).length && !hasSnapshotOnly) return
+    // 这一轮对这条订阅的所有写入攒成一批，结束（含异常和提前 return）时一次落盘。
+    //
+    // 一次检查会分好几处写同一条记录：战绩游标（checkBattle）、上下线基准
+    // （checkOnline）、开播提示的几个字段（checkHint）、收尾的退避计数。
+    // 每处都是「整表 parse + 整表 stringify + 写盘」，用户规模下那是几百毫秒一次的
+    // **同步**阻塞，一轮要撞好几次。它们改的是互不重叠的字段，没有任何一处需要读到
+    // 前一处刚写的值，攒起来最后写一次完全等价。
+    //
+    // ⚠️ 批内 `mergeSubState` 恒返回 true（此刻还不知道订阅在不在），
+    //    所以批内不要靠返回值判断订阅是否存在。
+    beginSubBatch()
+    try {
+      return await this.checkOneInner(qq, sub, heroMap)
+    } finally {
+      try {
+        endSubBatch()
+      } catch (error) {
+        logger.error(`[王者推送] 落盘 ${qq} 的订阅状态失败: ${error.message}`)
+      }
+    }
+  }
+
+  /** checkOne 的实际逻辑。外面那层只管把这一轮的写入攒成一批落盘 */
+  async checkOneInner (qq, sub, heroMap) {
+    // 没有推送目标群就不用轮询。能进到这里的人至少开了 battle / online 一路
+    // （entries 已经过滤过），而两路播报都得有群可推才谈得上「轮询」——
+    // 没设推送群的订阅查了也没处发
+    if (!subGroups(sub).length) return
 
     // 营地ID 动态取，不锁死在订阅时那个：用户 #切换营地 后应该跟着换。
     const campId = getCurrentId(qq)
@@ -794,7 +758,7 @@ export class GameRecordPush extends plugin {
       if (handled === 'switched') return
     }
 
-    // 播报只在真的开了上下线提醒时做：只开着 onlineStatus 的号是「只采集不播报」，
+    // 播报只在真的开了上下线提醒时做：只开了战绩推送的号不播上下线，
     // 拉 profile 只是为了填快照，不能顺手把他的上下线播出来（那是另一件事，得用户自己开）
     if (onlineOn) {
       await this.checkOnline(qq, sub, data, state)
@@ -1431,11 +1395,6 @@ async function callWatchApi (path, { method = 'GET', body = null, timeout = 1500
   } finally {
     clearTimeout(timer)
   }
-}
-
-/** 索引里所有群号。影子订阅要扫「群里有哪些人」，得先有群的全集 */
-function listAllGroupIds () {
-  return Object.keys(getGroupIndex().groups || {})
 }
 
 /**

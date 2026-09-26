@@ -22,6 +22,7 @@
  * 纯计算逻辑（连胜、筛新场次、文案）都放在这个文件里而不是 apps/ 下，
  * 因为 apps/*.js 的 `extends plugin` 依赖 Yunzai 注入的全局，脱离 Bot 环境 import 就崩，没法单测。
  */
+import fs from 'node:fs'
 import path from 'path'
 import { readYamlFile, writeYamlFile } from './yamlUtils.js'
 import { quarantineCorrupt } from './safeStore.js'
@@ -43,6 +44,204 @@ import { rankBand, isRankJump } from './rankTrend.js'
 import { PluginData } from '#components'
 
 const PUSH_FILE = path.join(PluginData, 'GameRecordPush.yaml')
+
+/**
+ * 深拷贝。优先 `structuredClone`（Node 17+ 全局），拿不到时退回 JSON 往返 ——
+ * 订阅项里只有字符串/数字/布尔，JSON 往返语义完全够。能力探测是必要的：
+ * 插件会被装在各种 Node 版本上跑，这里不该成为启动即崩的那一行。
+ */
+const deepCopy = typeof structuredClone === 'function'
+  ? structuredClone
+  : (value) => JSON.parse(JSON.stringify(value))
+
+/**
+ * 订阅表的解析结果缓存：`{ mtimeNs, size, data }`。data 是整张表（qq -> 订阅项）。
+ *
+ * ## 为什么必须有它
+ *
+ * 这张表被读写得极频繁，而且**都在同步循环里**：推送轮询给每个退避中的订阅
+ * 减一次 skipTicks，用户规模下是几百次「整表读 + 整表写」。实测（2026-09-26）
+ * 一张 400 条记录 / 155KB 的表，单次 parse 198ms + stringify 89ms ——
+ * 几百次就是**一分多钟的同步阻塞**，而那段循环里一个 await 都没有，
+ * 事件循环完全停摆（表现就是「定时任务一跑，机器人整个僵住」）。
+ *
+ * 缓存靠**文件指纹**失效，不靠写入方主动通知：这张表的写入方有指令、日报、推送轮询
+ * 好几处，逐个加失效调用一定会漏，漏一处就是「用户刚关掉的推送又自己开回来了」。
+ * 指纹判定对写入方零要求。
+ *
+ * ⚠️ `currentList()` 返回的是**缓存本体**，只给本文件内部用，调用方不得修改。
+ * 对外的 `loadPushList()` 一律返回拷贝 —— 调用方拿到的表可以随便改，
+ * 而写盘失败时也不会留下「内存有、盘上没有」的脏缓存。
+ */
+let listCache = null
+
+/**
+ * 取文件的指纹。文件不存在或 stat 失败时返回 null。
+ *
+ * 用 `bigint: true` 拿**纳秒级**的 mtimeNs，而不是毫秒级的 mtimeMs：毫秒精度下同一
+ * 毫秒内的两次写会得到同一个值，只能靠 size 兜底，而「改了个等长的值」（skipTicks
+ * 5→4 就是）size 也不变 —— 那就漏判了。纳秒精度下这个窗口小到可以忽略。
+ *
+ * ⚠️ 纳秒精度的上限取决于文件系统（ext4 纳秒、NTFS 约 100 纳秒、FAT 只有 2 秒），
+ *    所以它不是绝对保证。真正的保证来自写入方：`savePushList` 写完会主动把缓存
+ *    对齐过去，不依赖指纹；指纹只用来接住「用户手改了文件」这类外部改动。
+ */
+function fingerprint () {
+  try {
+    const stat = fs.statSync(PUSH_FILE, { bigint: true })
+    return { mtimeNs: stat.mtimeNs, size: stat.size }
+  } catch {
+    return null
+  }
+}
+
+/** 拿缓存里的整张订阅表（**不拷贝**）。调用方不得修改返回值 */
+function currentList () {
+  const fp = fingerprint()
+  if (!fp) {
+    listCache = null
+    return {}
+  }
+  if (listCache && listCache.mtimeNs === fp.mtimeNs && listCache.size === fp.size) return listCache.data
+
+  try {
+    const data = readYamlFile(PUSH_FILE)
+    const list = data?.pushList
+    const value = list && typeof list === 'object' ? list : {}
+    listCache = { mtimeNs: fp.mtimeNs, size: fp.size, data: value }
+    return value
+  } catch (error) {
+    // 解析失败要把坏文件隔离出去（留证 + 打日志），理由见 utils/safeStore.js。
+    // 隔离后文件不在了，下次读会走上面 !fp 那条路返回空表
+    quarantineCorrupt(PUSH_FILE, error, '[王者推送]')
+    listCache = null
+    return {}
+  }
+}
+
+/* ------------------------------------------------------------------ 订阅存取 */
+
+/**
+ * 读取订阅表（返回**拷贝**，调用方随便改）。文件缺失或内容损坏时返回空表，不抛错——
+ * 这个文件由 index.js 启动时创建成 { pushList: {} }，但用户手动编辑坏了也不该让定时任务挂掉。
+ *
+ * 「坏了返回空表」有个隐蔽的副作用必须堵住：轮询和指令都会在读完之后写回，
+ * 空表会被 savePushList 固化下来，于是「文件坏了」变成「所有人的订阅都没了」，
+ * 而且一行日志都没有。所以解析失败时把坏文件隔离出去（留证 + 打日志），
+ * 详见 utils/safeStore.js。
+ *
+ * @returns {Record<string, object>} qq -> 订阅项
+ */
+export function loadPushList () {
+  return deepCopy(currentList())
+}
+
+/** 整表写回。只在指令场景用（开启/关闭订阅），轮询里一律走 mergeSubState / mergeSubStates */
+export function savePushList (pushList) {
+  const data = { pushList: pushList || {} }
+  writeYamlFile(PUSH_FILE, data)
+
+  // 写盘之后把缓存对齐到刚写下去的内容。存的是拷贝：调用方常常是
+  // `savePushList(list)` 之后就 return，但也可能顺手再改 list，存引用会让缓存跟着变。
+  // ⚠️ 顺序不能反 —— 必须先写盘成功再更新缓存，写盘抛错时缓存保持旧值，
+  //    下次读会因指纹对不上而重新读盘，不会出现「内存新、盘上旧」的假象
+  const fp = fingerprint()
+  listCache = fp ? { mtimeNs: fp.mtimeNs, size: fp.size, data: deepCopy(data.pushList) } : null
+}
+
+/**
+ * 批内待落盘的 patch。null = 当前不在批里。
+ * 见 beginSubBatch / endSubBatch。
+ */
+let pendingPatches = null
+
+/**
+ * 开始一个「订阅写批」。
+ *
+ * 一轮检查单个订阅会分好几处写同一条记录（战绩游标、上下线基准、开播提示、退避计数…），
+ * 每处都整表读改写一次。用户规模下那是几百毫秒一次的同步阻塞，而它们改的是**互不重叠的
+ * 字段**，没有任何一处需要读到前一处刚写的值 —— 攒起来最后写一次，结果完全等价。
+ *
+ * ⚠️ 批内 `mergeSubState` 的返回值是**乐观的 true**（此刻还不知道订阅在不在），
+ *    所以**不要在批内靠返回值判断订阅是否存在**，那个判断请用 loadPushList()。
+ * ⚠️ 不支持嵌套：已经在批里时返回 false，调用方自己保证成对。
+ *
+ * @returns {boolean} 是否成功开批（false = 已经在批里）
+ */
+export function beginSubBatch () {
+  if (pendingPatches) return false
+  pendingPatches = []
+  return true
+}
+
+/**
+ * 结束批并把攒下的 patch 一次落盘。
+ * @returns {number} 实际写入的条数（订阅已被删掉的会跳过，不计入）
+ */
+export function endSubBatch () {
+  const patches = pendingPatches
+  pendingPatches = null
+  if (!patches?.length) return 0
+  return mergeSubStates(patches)
+}
+
+/**
+ * 字段级合并写回单个订阅。
+ *
+ * 轮询一轮要几十秒（串行 + 800ms 间隔），期间用户完全可能开启或关闭订阅。
+ * 如果拿轮询开始时的旧快照整体写回，用户这期间的改动会被静默覆盖掉，
+ * 表现出来就是「刚关了推送又自己开回来了」。所以每次写之前重新读一遍再合并。
+ * 订阅已被删除时不重建，直接返回 false。
+ *
+ * @param {string|number} qq 订阅者 QQ
+ * @param {object} patch 要合并进去的字段
+ * @returns {boolean} 是否写入成功（在批里时恒为 true，见 beginSubBatch 的警告）
+ */
+export function mergeSubState (qq, patch) {
+  const key = String(qq)
+  // 在批里：只攒不写，批结束时统一落盘
+  if (pendingPatches) {
+    pendingPatches.push([key, patch])
+    return true
+  }
+
+  const list = deepCopy(currentList())
+  if (!list[key]) return false
+
+  list[key] = { ...list[key], ...patch }
+  savePushList(list)
+  return true
+}
+
+/**
+ * 批量字段合并写回。语义与逐条调 `mergeSubState` 完全一致，只是把 N 次
+ * 「整表读 + 整表写」合并成 1 次。
+ *
+ * 推送轮询里对**每个退避中的订阅**都要把 skipTicks 减一，用户规模下那是几百次全表
+ * 读改写（155KB 的表单次约 287ms）—— 几百次就是一分多钟的同步阻塞。攒起来一次写完。
+ *
+ * ⚠️ 只在**批结束时**读表，所以期间用户改过订阅（文件指纹变了）会自动拿到最新那份，
+ *    逐条合并进去，不会整表覆盖掉用户刚做的改动。订阅已被删除的跳过、不重建。
+ *
+ * @param {Array<[string|number, object]>} patches 要合并的 (qq, patch) 列表
+ * @returns {number} 实际写入的条数
+ */
+export function mergeSubStates (patches) {
+  if (!patches?.length) return 0
+
+  const list = deepCopy(currentList())
+  let count = 0
+  for (const [qq, patch] of patches) {
+    const key = String(qq)
+    // 订阅已被删除时不重建，理由同 mergeSubState
+    if (!list[key]) continue
+    list[key] = { ...list[key], ...patch }
+    count += 1
+  }
+
+  if (count) savePushList(list)
+  return count
+}
 
 /**
  * 每个订阅之间的间隔。rankStore 用 600ms 拉 profile 能稳定跑完 20+ 账号，
@@ -95,57 +294,6 @@ const toInt = value => {
   return Number.isFinite(num) ? Math.trunc(num) : 0
 }
 
-/* ------------------------------------------------------------------ 订阅存取 */
-
-/**
- * 读取订阅表。文件缺失或内容损坏时返回空表，不抛错——
- * 这个文件由 index.js 启动时创建成 { pushList: {} }，但用户手动编辑坏了也不该让定时任务挂掉。
- *
- * 「坏了返回空表」有个隐蔽的副作用必须堵住：轮询和指令都会在读完之后写回，
- * 空表会被 savePushList 固化下来，于是「文件坏了」变成「所有人的订阅都没了」，
- * 而且一行日志都没有。所以解析失败时把坏文件隔离出去（留证 + 打日志），
- * 详见 utils/safeStore.js。
- *
- * @returns {Record<string, object>} qq -> 订阅项
- */
-export function loadPushList () {
-  try {
-    const data = readYamlFile(PUSH_FILE)
-    const list = data?.pushList
-    return list && typeof list === 'object' ? list : {}
-  } catch (error) {
-    quarantineCorrupt(PUSH_FILE, error, '[王者推送]')
-    return {}
-  }
-}
-
-/** 整表写回。只在指令场景用（开启/关闭订阅），轮询里一律走 mergeSubState */
-export function savePushList (pushList) {
-  writeYamlFile(PUSH_FILE, { pushList: pushList || {} })
-}
-
-/**
- * 字段级合并写回单个订阅。
- *
- * 轮询一轮要几十秒（串行 + 800ms 间隔），期间用户完全可能开启或关闭订阅。
- * 如果拿轮询开始时的旧快照整体写回，用户这期间的改动会被静默覆盖掉，
- * 表现出来就是「刚关了推送又自己开回来了」。所以每次写之前重新读一遍再合并。
- * 订阅已被删除时不重建，直接返回 false。
- *
- * @param {string|number} qq 订阅者 QQ
- * @param {object} patch 要合并进去的字段
- * @returns {boolean} 是否写入成功
- */
-export function mergeSubState (qq, patch) {
-  const key = String(qq)
-  const list = loadPushList()
-  if (!list[key]) return false
-
-  list[key] = { ...list[key], ...patch }
-  savePushList(list)
-  return true
-}
-
 /* --------------------------------------------------------------- 订阅开关 */
 
 /**
@@ -159,12 +307,12 @@ export function mergeSubState (qq, patch) {
  * 五者共用 GameRecordPush.yaml 的同一条记录（group / campId / roleName 都是现成的）。
  * 群报的订阅不在这里——那是按群存的，见 utils/groupReportStore.js。
  *
- * `onlineStatus` 比较特别：它**不做任何推送**，只让轮询顺手记一份在线状态快照，
- * 供 `#谁在打游戏` 展示。也就是说它开着的订阅走「只采集不播报」，
- * 与 `online`（上下线播报）是两件独立的事——别把二者合并，合并了就会有人
- * 只想被看到、却被播报刷屏。
+ * ⚠️ 这份清单里**只有会播报的推送**。曾经还有一个 `onlineStatus`——它不播报，只用来标记
+ *    「这是自动补建出来的影子订阅，给 `#谁在打游戏` 垫名单用」。整套影子订阅机制已在
+ *    2026-09-26 废除：那份名单现在由群成员索引现算、查看时现刷（apps/whoIsPlaying.js），
+ *    不需要任何订阅记录垫底。别把它加回来。
  */
-export const SUB_FLAGS = ['battle', 'online', 'daily', 'weekly', 'monthly', 'onlineStatus']
+export const SUB_FLAGS = ['battle', 'online', 'daily', 'weekly', 'monthly']
 
 /**
  * 某个开关是否开着。
@@ -179,29 +327,6 @@ export function isFlagOn (sub, key) {
 /** 这条订阅还有任何一路推送开着吗 */
 export function hasAnyFlag (sub) {
   return SUB_FLAGS.some(key => isFlagOn(sub, key))
-}
-
-/**
- * 是不是「纯影子订阅」——只给 `#谁在打游戏` 采集在线状态，不往任何群播报。
- *
- * 判据是「一路会播报的推送都没开、但拿着 onlineStatus」。两类用途完全不同的订阅
- * 混在同一张表、同一个轮询里，所以凡是「播报要及时」相关的取舍都要先过这一道：
- * 影子晚半小时知道某人还在离线没有代价，正式订阅晚半小时播上线就不像话了。
- * 退避封顶（apps/gameRecordPush.js 的 backoffCap）和图上「数据较旧」的阈值
- * （apps/whoIsPlaying.js）都按它分档。
- *
- * 另有两条现成的用法别改坏：
- * - **退群清理只删这一类**（gameRecordPush.js 的清理循环）。判据必须是「播报开关
- *   全关」而不是「有没有 groups」——用户开着 battle、还没打过的号 groups 也可能是空的，
- *   那是他明确要的，退群了也不该被我们删掉。
- * - daily / weekly / monthly 要一起看：那三路同样共用这条订阅，
- *   只判 battle/online 会把「只开了日报」的人误当成影子。
- */
-export function isPureShadow (sub) {
-  if (!sub) return false
-  if (sub.battle === true || sub.online === true) return false
-  if (sub.daily === true || sub.weekly === true || sub.monthly === true) return false
-  return isFlagOn(sub, 'onlineStatus')
 }
 
 /**
@@ -1273,7 +1398,7 @@ export function hasOnlineSignal (state) {
  *
  * @param {object} opts
  * @param {boolean} opts.battleOn 订阅开了战绩推送
- * @param {boolean} opts.onlineOn 调用方传的是**采集开关**（online 或 onlineStatus 任一），不是播报开关
+ * @param {boolean} opts.onlineOn 调用方传的是**采集开关**（这个订阅这一轮采不采在线状态），不是播报开关
  * @param {object|null} opts.state 本轮的 profile 结果
  * @param {object} opts.sub 订阅项，读 lastOnlineState 判「是不是刚下线那一轮」
  * @returns {boolean}
@@ -1283,7 +1408,7 @@ export function needBattleList ({ battleOn, onlineOn, state, sub = {} } = {}) {
   if (!onlineOn || !hasOnlineSignal(state)) return battleOn
 
   const online = toInt(state.gameOnline) !== 0
-  // 「游戏中」单独拎出来：影子订阅（只采集不播报）靠它决定要不要补拉一次战绩列表。
+  // 「游戏中」单独拎出来：只采集不播报的号靠它决定要不要补拉一次战绩列表。
   // 不能把 online 直接改成「含 2」——justWentOffline 复用了 online，一改「刚下线」就失灵
   const playing = toInt(state.gameOnline) === 2
   const wasOnline = sub.lastOnlineState !== undefined &&
@@ -1292,7 +1417,7 @@ export function needBattleList ({ battleOn, onlineOn, state, sub = {} } = {}) {
     String(sub.lastOnlineState) !== '0'
   const justWentOffline = !online && wasOnline
 
-  // 只采集（onlineStatus）的订阅在「游戏中」时也要拉一次：英雄只在战绩列表里，
+  // 只采集不播报的号在「游戏中」时也要拉一次：英雄只在战绩列表里，
   // 不拉的话 #谁在打游戏 会出现「正在对局却没有英雄」的空行
   return battleOn ? (online || justWentOffline) : (justWentOffline || playing)
 }
@@ -1465,17 +1590,20 @@ function startingNewGame (start, prev) {
  * @param {string} campId 营地 ID
  * @param {object} sub 订阅项
  * @param {number} [nowMs] 观测时刻
+ * @param {object} [opts]
+ * @param {boolean} [opts.snapshot] 强制采一次在线状态快照，即使这条订阅没开上下线提醒。
+ *   `#谁在打游戏` 的现刷路径要传它 —— 那条路是「不管你有没有开推送，只要在本群名单里
+ *   就采一份」，与「订阅项开了什么」无关
  * @returns {Promise<{state: object|null, data: object|null, patch: object}>}
  *   state / data 为 null 表示这一轮没拿到；两个都空时 patch 也是空的
  */
-export async function collectSnapshot (qq, campId, sub, nowMs = Date.now()) {
+export async function collectSnapshot (qq, campId, sub, nowMs = Date.now(), { snapshot = false } = {}) {
   const battleOn = sub?.battle !== false
   const onlineOn = sub?.online === true
-  // 只采集不播报：给 #谁在打游戏 攒在线状态快照用。三种来源都算——
-  //   ① 显式开了在线状态展示（onlineStatus）
-  //   ② 开了上下线提醒（online）—— 它本来就要拉 profile，顺手记一份不额外发请求
-  //   ③ 没订阅的绑定号（影子订阅，只带 onlineStatus）
-  const snapshotOn = onlineOn || isFlagOn(sub, 'onlineStatus')
+  // 要不要采在线状态快照。两个来源：
+  //   ① 开了上下线提醒（online）—— 它本来就要拉 profile，顺手记一份不额外发请求
+  //   ② 调用方显式要求（`#谁在打游戏` 的现刷，见 opts.snapshot）
+  const snapshotOn = onlineOn || snapshot === true
 
   let state = null
   let onlineSignalMissing = false
@@ -1505,7 +1633,7 @@ export async function collectSnapshot (qq, campId, sub, nowMs = Date.now()) {
   }
 
   // 战绩列表这一轮拉不拉，判据见 needBattleList
-  // 注意传的是 battleOn 而不是 snapshotOn：只采集（onlineStatus）时不拉战绩列表，
+  // 注意传的是 battleOn 而不是 snapshotOn：只采集时不拉战绩列表，
   // profile 里的 gameOnline 已经够填快照了，省下的请求量正好抵掉扩量的开销
   let data = null
   if (needBattleList({ battleOn, onlineOn: snapshotOn, state, sub })) {
