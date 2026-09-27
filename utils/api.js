@@ -1697,6 +1697,21 @@ class ApiService {
     return availableResults
   }
 
+  /**
+   * 大神观战池：营地公开的「正在打的高端局」，每条自带**内嵌的 RTMP 流**。
+   *
+   * 零参数、不可筛不可翻页，每次返回**随机 10 场**（服务端每次换一批人）。
+   * `tvChoiceItems` 里混着主播 / 节目 / 赛事各种条目，靠 `tvType` 区分 ——
+   * **只有 `tvType === 2` 是对局**（4 主播 / 5 活动 / 6 节目 / 7 赛事都没有 battle）。
+   *
+   * 对局自带 `battleInfo.gameType`：4 = 排位赛、14 = 巅峰赛（营地只开放这两种观战）；
+   * 分路在 `battleInfo.roleInfo.tag` 里（`id === 4` 那条，name 就是「打野」这类）。
+   * ⚠️ 巅峰赛每天 12:00 才开，没开的时候池子里只有排位。
+   */
+  async getTvChoiceItems(targetUserId = '', requesterBotUserId = '') {
+    return this.#request('POST', '/info/tv/choiceitem', {}, {}, 2, targetUserId, requesterBotUserId)
+  }
+
   async getHeroList() {
     try {
       return await this.#fetchExternalJson('https://pvp.qq.com/web201605/js/herolist.json')

@@ -23,7 +23,15 @@ import { AT_HEAD, stripAtText } from '../utils/atTarget.js'
 import { getImgType, shouldQuote } from '#utils'
 import { Config } from '#components'
 import authStore from '../utils/authStore.js'
+import apiService from '../utils/api.js'
+import { LANES, MODE_NAME, matchLane, pickBattles } from '../utils/masterPool.js'
 import { reportRemoteAccounts } from '../utils/remoteAccounts.js'
+
+/** 一次开几路。10 是主人的定数（营地池子每次也正好给 10 场） */
+const MASTER_COUNT = 10
+
+/** 两种模式各占一半：排位 5 + 巅峰 5（一边不够就用另一边补满） */
+const MASTER_PER_MODE = 5
 
 /** 配置读取。改成配置项后不用重启（Config 挂了 chokidar） */
 function cfg () {
@@ -84,6 +92,18 @@ function liveLinks (path) {
 function canTls (base) {
   const host = String(base).replace(/^[a-z]+:\/\//i, '').replace(/\/.*$/, '')
   return !(/^\d/.test(host) || /^\[/.test(host) || /^localhost/i.test(host) || /:\d+$/.test(host))
+}
+
+/**
+ * 大神观战的直播间链接。
+ *
+ * 只给 **http** 那条：服务端会 302 到营地 CDN，观众直连腾讯云、本机上行≈0（见 liveLinks）。
+ * 一次发 10 路，每条再挂一个 https 就太长了 —— 黑屏的人照末尾那句提示自己改协议。
+ */
+function masterLink (rid) {
+  const base = publicBase()
+  const url = `${base}/r/${rid}/`
+  return canTls(base) ? url.replace(/^https:/i, 'http:') : url
 }
 
 /**
@@ -195,6 +215,11 @@ export class WatchBattle extends plugin {
     //    · 「在播」= 现在有几路直播在跑（房间列表，编号给「停 N」用）
     //    以前「列表」指的是后者，主人明确纠正过：列表就该是「谁在打」。
     if (/^(在播|直播间|正在播|rooms?)$/i.test(arg)) return this.rooms(e)
+
+    // ⭐ 大神观战：走营地**公开的高端局池**，跟好友名单是两套数据源（见 master）
+    //    `#观战大神` 和 `#观战大神 打野` 都落进来 —— 前者 arg 是「大神」，后者是「大神 打野」
+    const masterArg = arg.match(/^大神\s*(.*)$/)
+    if (masterArg) return this.master(e, masterArg[1].trim())
 
     // 名单和开播都要用「发起人自己的营地好友」，没有他自己的登录态就无从下手
     const watchers = myWatchers(e)
@@ -355,6 +380,108 @@ export class WatchBattle extends plugin {
       //    跟开局多久无关（实测有一局开局 175 秒了照样要等 75 秒）。
       //    只说「在等画面 + 通常多快」，别替营地编理由。
       res.pending ? `${links}\n画面马上就来，最长等 1 分钟左右` : links,
+      shouldQuote()
+    )
+  }
+
+  /**
+   * ⭐ 大神观战：从营地**公开的高端局池**里随机拉一批，直接开播。
+   *
+   * 跟好友观战是**两套数据源**，别混：
+   *   · 好友观战 → 服务端 `/api/friends`，只能用「发起人自己的营地好友」，
+   *     而且一个账号只能服务一路（取流要好友关系）
+   *   · 大神观战 → 营地公开池（`/info/tv/choiceitem`），流**内嵌**在响应里，
+   *     走服务端 `/api/start` 的**直连分支** —— 不需要好友关系，一次开几路都行
+   *
+   * 用法：#观战大神 / #观战大神 打野 / #观战大神 在播 / #观战大神 停
+   *
+   * 模式按 `gameType` 分（4 排位 / 14 巅峰），各取一半、凑不齐互补。
+   * ⚠️ 巅峰赛每天 12:00 才开，没开的时候池子里只有排位 —— 那就全开排位。
+   */
+  async master (e, arg) {
+    // 房间是同一个服务在管，「停 / 在播」直接复用好友观战那几条路
+    if (/^(停|停止|关|关闭|stop)$/i.test(arg)) return this.stopMine(e)
+    if (/^(?:停|停止|关|关闭)\s*全部$/.test(arg) || /^全(?:部)?(?:停|停止|关|关闭)$/.test(arg)) {
+      return this.stopAll(e)
+    }
+    if (/^(停|停止|关|关闭)\s*(\d+)$/i.test(arg)) {
+      return this.stopOne(e, Number(arg.match(/(\d+)/)[1]))
+    }
+    if (/^(在播|直播间|正在播|rooms?)$/i.test(arg)) return this.rooms(e)
+
+    // 剩下的当分路筛。认不出的词要说一声 —— 默默忽略的话，用户会以为已经筛过了
+    const wanted = String(arg || '').trim()
+    const lane = matchLane(wanted)
+    if (wanted && !lane) {
+      return e.reply(`分路认不出「${wanted}」\n可选：${LANES.join(' / ')}`, shouldQuote())
+    }
+
+    // 拉池子要登录态（营地接口都要），用发起人自己的全局号
+    const watchers = myWatchers(e)
+    if (!watchers.length) {
+      return e.reply('先全局登录才能拉大神观战\n发 #营地wx全局登录 或 #营地QQ全局登录', shouldQuote())
+    }
+
+    let res
+    try {
+      res = await apiService.getTvChoiceItems(watchers[0])
+    } catch (error) {
+      logger.error(`[观战大神] 拉对局池失败: ${error.message}`)
+      return e.reply('拉不到对局池，稍后再试', shouldQuote())
+    }
+
+    // 筛选和「排位 5 + 巅峰 5」的分流都在 utils/masterPool.js 里（能脱机单测）
+    //
+    // ⚠️ 只拉一次：实测连续三次调用拿到的是**同一批**（去重后新增 0），
+    //    池子短时间内不会换人 —— 多拉几次纯属白打接口，还平白招惹频控。
+    //    所以按分路筛完不够就是不够（实测「打野」一次只有 3 场），如实报几路。
+    const { picked, laneMissed } = pickBattles(res?.data?.tvChoiceItems || res?.tvChoiceItems || [], {
+      lane,
+      count: MASTER_COUNT,
+      perMode: MASTER_PER_MODE
+    })
+    if (!picked.length) {
+      return e.reply(
+        laneMissed ? `这批大神里没有「${lane}」的对局，稍后再试` : '现在没有可观战的对局，稍后再试',
+        shouldQuote()
+      )
+    }
+
+    await e.reply(`正在开 ${picked.length} 路直播，稍等…`, shouldQuote())
+
+    // 并发开：直连模式不用取流、不用轮询，每路就一次请求
+    const results = await Promise.all(picked.map(async (it) => {
+      try {
+        const r = await callApi('/api/start', {
+          method: 'POST',
+          timeout: 60000,
+          body: {
+            // ⭐ 直连模式：给了流地址就跳过「取流 + 轮询这局还在不在」
+            rtmpUrl: it.url,
+            nick: it.nick,
+            owner: String(e.user_id || '')
+          }
+        })
+        return r?.ok ? { ...it, rid: r.rid } : { ...it, error: r?.error || '开播失败' }
+      } catch (error) {
+        logger.error(`[观战大神] 开播失败: ${error.message}`)
+        return { ...it, error: '观战服务没响应' }
+      }
+    }))
+
+    const ok = results.filter((it) => it.rid)
+    if (!ok.length) {
+      return e.reply(`一路都没开起来\n${results[0]?.error || '稍后再试'}`, shouldQuote())
+    }
+
+    const lines = ok.map((it, i) => {
+      const head = [MODE_NAME[it.gameType], it.lane].filter(Boolean).join('·')
+      const tail = [it.nick, it.desc].filter(Boolean).join(' ')
+      return `${i + 1}. ${head} ${tail}\n${masterLink(it.rid)}`
+    })
+    await e.reply(
+      `大神观战 · 共 ${ok.length} 路\n${lines.join('\n')}\n`
+      + '黑屏或一直「重连中」，把链接开头的 http 改成 https 再打开',
       shouldQuote()
     )
   }
