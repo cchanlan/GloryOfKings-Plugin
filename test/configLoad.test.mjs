@@ -7,10 +7,15 @@
  *   ② `validateConfig` 抛错时原本只 `copyFileSync`、**没有写回** —— 用户所有设置
  *      （包括接入令牌）被模板整份盖掉，而且只在日志里留一行
  *
- * ⚠️ 测试**在插件目录内的临时子目录里**跑（`<插件>/tmp-config-test/`）：
+ * ⚠️ 测试用的临时目录**放在云崽根、不能放在插件目录内**：
  *    `Config.js` 要 import `chokidar`/`lodash`（pnpm 布局下挂在云崽根），
- *    还要 `#components` 这个 imports 别名 —— 只有真目录里这些才解析得到。
- *    跑完连同临时目录一起删掉。
+ *    临时目录放在云崽根下，往上找 node_modules 正好解析得到。
+ *
+ * ⚠️⚠️ **千万别改回插件目录内**（原先是 `<插件>/tmp-config-test/`）：
+ *    JiuLi 的 file_watch 监听 `plugins/` 下的增删改，临时目录「建了又删」会被
+ *    当成**插件被删除**，直接把整个 GloryOfKings-Plugin 卸载掉 ——
+ *    实测 2026-09-27：跑完一轮测试后插件下线、规则从 1024 条掉到 1022 条，
+ *    群里的 `#观战大神` 完全没反应，查了半天才发现是测试自己把插件踢了。
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -21,10 +26,17 @@ import { fileURLToPath } from 'node:url'
 import YAML from 'yaml'
 
 const PLUGIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const TMP = path.join(PLUGIN, 'tmp-config-test')
+/** 云崽根（`<云崽>/plugins/<插件>` 的上两级）—— 见文件头，临时目录绝不能落在插件里 */
+const TMP = path.join(path.resolve(PLUGIN, '..', '..'), 'tmp-config-test')
 
 /** 搭一个临时「插件」，把真 Config.js / YamlReader.js 和模板拷进去 */
 function setup (userYaml) {
+  // 防回归：临时目录一旦落回插件目录内，跑完这一轮就会把插件从 file_watch 眼里「删掉」
+  // （见文件头那段实测）。这条断言比注释管用 —— 改回去会直接红。
+  assert.ok(
+    !TMP.startsWith(PLUGIN + path.sep),
+    `临时目录不能放在插件目录内（会被热重载当成插件删除）：${TMP}`
+  )
   fs.rmSync(TMP, { recursive: true, force: true })
   fs.mkdirSync(path.join(TMP, 'components'), { recursive: true })
   fs.mkdirSync(path.join(TMP, 'config', 'config'), { recursive: true })
