@@ -236,6 +236,99 @@ export function isIndexReady () {
   return Object.keys(getGroupIndex().groups || {}).length > 0
 }
 
+/**
+ * 实时查「这些人现在还在不在各自要推送的群里」——**刻意不走落盘索引**。
+ *
+ * ## 为什么不复用 membersOfGroup / groupsOfMember
+ *
+ * 那两个查的是 `GroupIndex.yaml`（内存里那份），而它**只在 `#谁在打游戏` 触发时
+ * 刷新一次**（`refreshGroupIndex()` 不会自己跑，定时任务那条链完全不碰它）。推送
+ * 轮询可能几小时没人看过那张图，索引就停在几小时前的快照 —— 拿它判退群，要么该清的
+ * 没清、要么把刚退群的人留着继续推。退群这件事要的正是「现在」，索引给不了。
+ *
+ * 适配器的 `gml`（群成员缓存）本身是**实时**的：OneBotv11 收到 `group_decrease`
+ * 就 `gml.get(gid)?.delete(user_id)`（NapCat / icqq 同款做法），人一退群缓存立刻少一个。
+ * 所以这里直接问它。
+ *
+ * ## 为什么签名是「一次问一批」
+ *
+ * JiuLi 内核的 `Bot.gml` 是个 **getter**，每次访问都遍历所有账号、把每个群的成员表
+ * `Object.assign(new Map(i), …)` **全量深拷贝**一遍（见 src/core/bot.ts 的 gml getter）。
+ * 逐个人逐次调用就是几千次深拷贝，纯属白烧 CPU。所以这里收一份
+ * `[{ qq, groups }]`，只访问一次 `Bot.gml`，把需要的群成员表一次性拿出来。
+ *
+ * ## 返回值语义（调用方必须区分这三种）
+ *
+ * - `ok: false` —— **拿不到成员缓存**（冷启动、适配器没连上、群不在缓存里）。
+ *   调用方必须原样放行，绝不能让「查不到」变成「退群了」。
+ * - `ok: true` + `gone[qid] = [群号]` —— 这个人**确定不在**这些群里了。
+ * - `ok: true` 且 `gone[qid]` 里没有 —— 在群里，或者**那个人压根不在 gml 里**
+ *   （icqq 只在 `cache_group_member` 开着时才缓存成员，关掉时 gml 整个是空的）。
+ *
+ * ⚠️ 「人在 gml 里、但不在这个群」才算确定退群；gml 里连群都没有时宁可放行，
+ *    误判会把好端端的人的推送停掉，比漏判糟得多。
+ *
+ * @param {Array<{qq: string, groups: string[]}>} entries 待判定的 QQ 与各自的推送群
+ * @returns {{ok: boolean, gone: Record<string, string[]>, reason?: string}}
+ */
+export function detectLeftGroups (entries) {
+  const host = getBot()
+  if (!host) return { ok: false, gone: {}, reason: 'no-bot' }
+
+  const list = Array.isArray(entries) ? entries.filter(item => item?.groups?.length) : []
+  if (!list.length) return { ok: true, gone: {} }
+
+  let memberMap
+  try {
+    memberMap = host.gml
+  } catch (err) {
+    logger?.debug?.(`[王者索引] 取成员缓存失败: ${err.message}`)
+    return { ok: false, gone: {}, reason: 'gml-failed' }
+  }
+
+  if (!memberMap || !memberMap.size) {
+    return { ok: false, gone: {}, reason: 'no-member-cache' }
+  }
+
+  const gone = {}
+  let sawAnyGroup = false
+
+  for (const { qq, groups } of list) {
+    const uid = cleanId(qq)
+    if (!uid) continue
+
+    for (const groupId of groups) {
+      const gid = cleanId(groupId)
+      if (!gid) continue
+
+      // 群号形态要跟 gl/gml 的键一致：icqq 是数字，官bot 是 openid 字符串
+      let members = memberMap.get(gid)
+      if (!members) members = memberMap.get(Number(gid))
+      // ⚠️⚠️ 这个群没有成员缓存 —— 无从判断，跳过（不许判成退群）。
+      //
+      // `!members.size` 那一半是**必须的**，别当成多余的防守：OneBotv11 的
+      // `getMemberMap` 在营地/适配器 API 抽风时会 `gml.set(group_id, new Map())`
+      // 塞一个**空 Map** 进去（它没有 icqq 那句 `if (!mlist?.size) gml.delete(gid)`
+      // 保护）。空 Map 的 `.has` 是存在的，只看 `.has` 就会得出「这个群有成员表、
+      // 而人人都不在里面」—— 一次把整群人的推送全删掉。
+      // 口径和 refreshGroupIndex 保持一致：**空成员表 == 没有缓存**。
+      if (!members?.has || !members.size) continue
+
+      sawAnyGroup = true
+      // 反向确认：这个群有**非空**成员表，而人不在里面 → 确定不在这个群了
+      if (!members.has(uid) && !members.has(Number(uid))) {
+        if (!gone[uid]) gone[uid] = []
+        gone[uid].push(gid)
+      }
+    }
+  }
+
+  // 一个群的成员表都没拿到（缓存全空）时同样不许下结论
+  if (!sawAnyGroup) return { ok: false, gone: {}, reason: 'no-member-cache' }
+
+  return { ok: true, gone }
+}
+
 /** 清掉内存缓存，下次 getGroupIndex 会重新读盘。主要给测试用 */
 export function resetGroupIndexCache () {
   index = null

@@ -30,7 +30,7 @@ import {
   resolveRange,
   isMonthlyPushDay
 } from '../utils/reportStore.js'
-import { loadPushList, savePushList, mergeSubState, disableSubFlag, subGroups, withSubGroup, withoutSubGroup, sleep, REQUEST_INTERVAL } from '../utils/pushStore.js'
+import { loadPushList, savePushList, mergeSubState, disableSubFlag, subGroups, withSubGroup, withoutSubGroup, sweepLeftGroups, sleep, REQUEST_INTERVAL } from '../utils/pushStore.js'
 import { fetchRoleNames } from '../utils/roleName.js'
 import {
   getImgType,
@@ -339,8 +339,20 @@ export class BattleReport extends plugin {
       return
     }
 
-    // 被拉黑的人跳过，订阅不删（移出黑名单就恢复）
-    const subs = Object.entries(loadPushList())
+    // ⭐ 退群闸门。这一路走的是 battleReport 自己的三个 cron task（见 constructor 的
+    // `this.task`），**不经过 gameRecordPush.checkAll** —— 而 checkAll 的 task 还可能
+    // 因为 `battleResultCron` 留空而压根不注册（日历推送照跑）。所以这里必须自己扫一次，
+    // 否则退群的人会一直收到日报/周报/月报发到那个群（出图用的就是他自己的号）。
+    // 判据与口径全在 pushStore.sweepLeftGroups，和 checkAll 是同一份实现。
+    const list = loadPushList()
+    const swept = sweepLeftGroups(list)
+    if (swept.cleared || swept.stopped) {
+      logger.mark(`[王者${label}] 退群清理：摘掉 ${swept.cleared} 个推送群${swept.stopped ? `，停掉 ${swept.stopped} 条订阅` : ''}`)
+    }
+
+    // 被拉黑的人跳过，订阅不删（移出黑名单就恢复）。
+    // ⚠️ 读的是上面那份**已被就地清理过**的 `list`，不能重新 loadPushList —— 那会拿回旧表
+    const subs = Object.entries(list)
       .filter(([qq, sub]) => !isBlackUser(qq) && sub?.[kind] === true && subGroups(sub).length > 0)
     if (!subs.length) return
 

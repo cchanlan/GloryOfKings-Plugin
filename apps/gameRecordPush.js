@@ -41,6 +41,7 @@ import {
   subGroups,
   withSubGroup,
   withoutSubGroup,
+  sweepLeftGroups,
   streakMilestone,
   fetchLatest,
   fetchOnlineState,
@@ -559,6 +560,32 @@ export class GameRecordPush extends plugin {
   async checkAll () {
     if (readConfig().onlineReminder === false) return
 
+    // ⭐ 退群闸门：把「人已经不在推送群里」的群从订阅上摘掉，**放在读 entries 之前**。
+    //
+    // 为什么需要：投放判据从头到尾只有 `subGroups(sub)` —— `send` 里 `pickGroupSafe(gid)`
+    // 拿到群就发，**从不校验订阅者本人在不在那个群里**。人退群后订阅记录还在、群号还有效，
+    // 插件就永远往那个群推他的战绩。（这段归属闸门在 2026-09-26「定时任务不再卡死」
+    // 那笔重构里被当成影子订阅机制的一部分误删了，删完 `groupsOfMember` 就成了死代码。）
+    //
+    // ⚠️ 判据必须用**实时的** `Bot.gml`，不能查 `GroupIndex.yaml`：那份索引只在
+    //    `#谁在打游戏` 触发时刷新，推送轮询可能几小时没人看图、索引早就停在旧快照上。
+    //    OneBotv11 收到 `group_decrease` 时立刻 `gml.delete(user_id)`，所以 gml 是准的。
+    //
+    // ⚠️ `sweepLeftGroups` 全程**同步**（不发请求、不 await），整块 read-modify-write
+    //    对事件循环是原子的，两次重叠的 checkAll 不会互相覆盖写盘 —— 与下面那段
+    //    stale 清理同一条理由，不要在这里加 await。
+    //
+    // ⚠️ 拿不到成员缓存时它返回 `ok: false` 并且**一个人都不动** ——
+    //    把「查不到」当成「退群了」会一次把所有人的推送全停掉。
+    //
+    // 订阅表**只读这一次**：`loadPushList()` 返回深拷贝，读第二遍纯属白烧。
+    // 退群清理就地改这份拷贝，所以它必须排在下面 `entries` 之前。
+    const list = loadPushList()
+    const swept = sweepLeftGroups(list)
+    if (swept.cleared || swept.stopped) {
+      logger.mark(`[王者推送] 退群清理：摘掉 ${swept.cleared} 个推送群${swept.stopped ? `，停掉 ${swept.stopped} 条订阅` : ''}`)
+    }
+
     // 名单只收「开了 battle 或 online 一路的人」。日报/周报共用同一张 pushList，
     // 但它们有自己的 cron、读的是归档库，不需要这个轮询——只开了日报的订阅进来会
     // 白发一次请求再干等 800ms，订阅多了就是纯浪费。
@@ -577,7 +604,6 @@ export class GameRecordPush extends plugin {
     //    十几毫秒的**同步**阻塞，整段无 await —— 那正是「定时任务一跑机器人就整个僵住」
     //    的头号根因，已删。#谁在打游戏 的名单改由群成员索引现算
     //    （apps/whoIsPlaying.js 的 list），不再需要这些记录垫底。
-    const list = loadPushList()
     const entries = Object.entries(list)
       .filter(([qq, sub]) => !isBlackUser(qq) &&
         (isFlagOn(sub, 'battle') || isFlagOn(sub, 'online')))

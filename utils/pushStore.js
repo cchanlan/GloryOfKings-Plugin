@@ -41,6 +41,9 @@ export { normalizeName }
 import { isWatchableMode } from './watchMode.js'
 // 段位高低的判据（大段位层级）与「跳变」的判据都在段位趋势那边，同一套口径只留一份实现
 import { rankBand, isRankJump } from './rankTrend.js'
+// ⚠️ 依赖方向：groupIndex 只 import yamlUtils / #components，**不回头 import 本文件**，
+//    所以这里反向引用它不会成环。退群判据必须用实时的 gml（见 detectLeftGroups 的注释）
+import { detectLeftGroups } from './groupIndex.js'
 import { PluginData } from '#components'
 
 const PUSH_FILE = path.join(PluginData, 'GameRecordPush.yaml')
@@ -434,6 +437,143 @@ export function withoutSubGroup (sub, groupId) {
     removed: rest.length !== groups.length,
     empty: rest.length === 0
   }
+}
+
+/* --------------------------------------------------- 退群清理（一次落盘） */
+
+/**
+ * 把「人已经退了的群」从订阅上处理掉，**整表只读改写一次**。
+ *
+ * ## 为什么要它
+ *
+ * 推送的投放判据从头到尾只有 `subGroups(sub)` —— 发消息时 `pickGroupSafe(group)`
+ * 拿到群就发，**从来不校验订阅者本人在不在那个群里**。于是人退群之后，订阅记录还在、
+ * 群号还有效，插件就永远往那个群推他的战绩。
+ * （这段归属闸门在 2026-09-26「定时任务不再卡死」那笔重构里被当成影子订阅机制的一部分
+ * 误删了 —— 实际上它是独立的，删完 `groupsOfMember` 就成了全仓库没人调用的死代码。）
+ *
+ * ## ⭐ 五路推送都是「这个人的事」，人走了就一起停
+ *
+ * `pushList` 是**按 QQ 存**的一张表，五路推送全都往 `subGroups(sub)` 发：
+ * - `battle` / `online`：他的战绩、他的上下线
+ * - `daily` / `weekly` / `monthly`：他的个人日报/周报/月报 ——
+ *   出图用的是**订阅者自己的号**（`battleReport.pushOne` → `buildView(campId, qq)`），
+ *   发到他订阅的那个群。**群报告是另一套**（`#王者群日报`，住 `data/GroupReportPush.yaml`），
+ *   压根不读这张表。
+ *
+ * 所以五路一视同仁：人退群 = 这些内容在那个群没人要了。
+ *   `{ battle: true, daily: true, groups: ['G1','G2'] }` + 退 G1
+ *   → `{ battle: true, daily: true, groups: ['G2'] }`（G2 照旧）
+ *   `{ battle: true, daily: true, groups: ['G1'] }` + 退 G1
+ *   → 整条删掉（一个能发的群都不剩）
+ *
+ * ## 记录的去留
+ *
+ * - 还有群在 → 摘掉退了的那些，其余原样
+ * - 群退光了 → 整条删掉。留着只会在 `entries` 里白占一个请求预算
+ *   （轮询循环里的 `sent += 1` 是**无条件**的）加一次 800ms 错峰
+ * - `optedOut: true` → **永远留着**（缩成只剩标记本身）。它是「别把我列进 #谁在打游戏」
+ *   的隐身标记，跟群列表无关，人重新进群之后依然算数，绝不能顺手清掉
+ *
+ * ⚠️ 只有「**确定**退了」才动。`detectLeftGroups` 返回 `ok: false`（拿不到成员缓存）
+ *    时必须原样放行 —— 冷启动/适配器没连上时把所有人判成退群，等于一次把推送全停掉。
+ *
+ * ⚠️ 这个函数**天然幂等**，别再加「和上一轮比有没有变」的护栏：
+ *    删掉的记录下一轮 `table[qq]` 直接不存在；缩成 `{optedOut:true}` 的下一轮
+ *    `subGroups` 为空、`gone` 里那几个群已经不在列表里 → 走「无事可做」那条 `continue`。
+ *
+ * @param {Record<string, string[]>} gone qq -> 确定已退的群号数组
+ * @param {Record<string, object>} [list] 已读好的订阅表（就地改，省一次整表读）。
+ *   不传就自己 loadPushList。传了的话**调用方要接着用这个对象**，它已经被改过了
+ * @returns {{cleared: number, stopped: number}} cleared 摘掉的群数，stopped 整条停掉的订阅数
+ */
+export function dropLeftGroups (gone, list = null) {
+  const ids = Object.keys(gone || {})
+  if (!ids.length) return { cleared: 0, stopped: 0 }
+
+  const table = list || loadPushList()
+  let cleared = 0
+  let stopped = 0
+  // ⚠️ 落盘用独立的 changed：任一路径改过就写。虽然现在是「改了就一定动 counts」，
+  //    但把判据绑在计数上，将来加一条不动计数的分支就会静默丢改动
+  //    （内存里改了、盘上没写，下一轮读回来又是旧的）。
+  let changed = false
+
+  for (const qq of ids) {
+    const sub = table[qq]
+    if (!sub) continue
+
+    const left = new Set(gone[qq].map(String))
+    const all = subGroups(sub)
+    const rest = all.filter(gid => !left.has(gid))
+    // 退的群压根不在这条订阅的列表里 —— 无事可做（也顺便保证了幂等）
+    if (rest.length === all.length) continue
+
+    const dropped = all.length - rest.length
+
+    // 还有别的群在 → 摘掉退了的那些，两个字段一起维护（`group` 恒为列表首项）
+    if (rest.length) {
+      table[qq] = { ...sub, groups: rest, group: rest[0] || '' }
+      cleared += dropped
+      changed = true
+      logger.mark(`[王者推送] ${qq} 已退 ${dropped} 个推送群，已摘掉`)
+      continue
+    }
+
+    // 群退光了。隐身标记跟群列表无关，必须留（存量记录缩成只剩标记本身）
+    if (sub.optedOut === true) {
+      table[qq] = { optedOut: true }
+      cleared += dropped
+      changed = true
+      logger.mark(`[王者推送] ${qq} 已退 ${dropped} 个推送群，保留隐身标记`)
+      continue
+    }
+
+    // 一个能发的群都不剩了 → 整条停掉
+    delete table[qq]
+    stopped += 1
+    cleared += dropped
+    changed = true
+    logger.mark(`[王者推送] ${qq} 已退全部推送群，订阅已停`)
+  }
+
+  if (changed) savePushList(table)
+  return { cleared, stopped }
+}
+
+/**
+ * 退群巡检：读表 → 判定 → 清理，**一次到位**。给所有投放路径共用。
+ *
+ * ## 为什么必须是一个共用函数
+ *
+ * 退群清理只挂在 `checkAll`（战绩推送那条 cron）里是**盖不全**的：
+ * `daily` / `weekly` / `monthly` 走的是 battleReport 自己注册的三个 cron task
+ * （`pushAll('daily')` …），压根不经过 `checkAll`；而 admin 也可能把
+ * `battleResultCron` 留空 —— 那时 `checkAll` 的 task 根本不会注册，
+ * 日历推送却照跑。两条路各写一份必然漂移，所以收在这里一处。
+ *
+ * ## 调用时机
+ *
+ * 两条投放路径的开头各调一次即可（都是几十秒一次的定时任务，开销可忽略）：
+ * - `checkAll`（战绩/上下线，cron 那条）
+ * - `battleReport.pushAll`（日报/周报/月报，三个 cron）
+ * 判定是纯内存读（`Bot.gml`）+ 一张表的读改写，**不发任何请求**。
+ *
+ * ⚠️ 拿不到成员缓存时 `detectLeftGroups` 返回 `ok: false`，这里直接返回全 0
+ *    —— 冷启动/适配器没连上时一个人都不许动。
+ *
+ * @param {Record<string, object>} [list] 已读好的订阅表（就地改）。不传自己读
+ * @returns {{cleared: number, stopped: number, ok: boolean}}
+ */
+export function sweepLeftGroups (list = null) {
+  const table = list || loadPushList()
+  const left = detectLeftGroups(
+    Object.entries(table).map(([qq, sub]) => ({ qq, groups: subGroups(sub) }))
+  )
+  if (!left.ok) return { cleared: 0, stopped: 0, ok: false }
+
+  const { cleared, stopped } = dropLeftGroups(left.gone, table)
+  return { cleared, stopped, ok: true }
 }
 
 /* ------------------------------------------------------- 连胜/连败里程碑 */
