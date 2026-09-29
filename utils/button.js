@@ -528,6 +528,23 @@ export default class Button {
   }
 
   /**
+   * 王者公告清单
+   * @param {boolean} subscribed 本群是否已开公告推送，决定给「开启」还是「关闭」
+   */
+  static gameNews(subscribed = false) {
+    return segment.button(
+      [
+        { text: subscribed ? '关闭公告推送' : '开启公告推送', callback: `#${subscribed ? '关闭' : '开启'}王者公告推送` },
+        { text: '皮肤上新', callback: '#皮肤上新' }
+      ],
+      [
+        { text: '英雄梯度', callback: '#英雄梯度' },
+        { text: '英雄攻略', input: '#英雄攻略 ' }
+      ]
+    )
+  }
+
+  /**
    * 英雄攻略（出装 / 克制 / 技能）
    * @param {string} heroName 当前查的英雄名
    */

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>王者公告详情</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+            width: 900px;
+            background: linear-gradient(160deg, #0f1420 0%, #1a2133 100%);
+            color: #fff;
+            padding: 32px;
+        }
+
+        .page-head {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .page-title {
+            font-size: 26px;
+            font-weight: bold;
+            color: #eef2f8;
+        }
+
+        /* 分页角标：多页时才出现，让人知道还有后续 */
+        .page-no {
+            font-size: 15px;
+            color: #9aa7bd;
+            margin-left: auto;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 26px 28px;
+        }
+
+        .news-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+
+        .news-category {
+            font-size: 13px;
+            font-weight: bold;
+            border-radius: 6px;
+            padding: 3px 10px;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .news-time {
+            font-size: 14px;
+            color: #9aa7bd;
+        }
+
+        .news-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #eef2f8;
+            line-height: 1.4;
+            margin-bottom: 18px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .head-cover {
+            width: 100%;
+            border-radius: 10px;
+            margin-bottom: 18px;
+        }
+
+        /* ---- 正文。样式全由这里给：官网原文的内联 style 在数据层已剥掉 ---- */
+        .content {
+            font-size: 17px;
+            line-height: 1.85;
+            color: #ccd5e2;
+        }
+
+        .content p {
+            margin: 0 0 12px 0;
+        }
+
+        .content p:last-child {
+            margin-bottom: 0;
+        }
+
+        .content h1,
+        .content h2,
+        .content h3,
+        .content h4 {
+            font-size: 19px;
+            color: #eef2f8;
+            margin: 20px 0 10px 0;
+        }
+
+        .content strong,
+        .content b {
+            color: #eef2f8;
+            font-weight: bold;
+        }
+
+        /* 官网用纯红 #ff0000 标关键信息（更新时间、数值改动），深色底上换成浅金红 */
+        .content em.hl {
+            color: #ff9f6b;
+            font-style: normal;
+            font-weight: bold;
+        }
+
+        .content ul,
+        .content ol {
+            margin: 0 0 12px 22px;
+        }
+
+        .content li {
+            margin-bottom: 6px;
+        }
+
+        .content img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin: 10px 0;
+            display: block;
+        }
+
+        .content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+            font-size: 15px;
+        }
+
+        .content td,
+        .content th {
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            padding: 7px 10px;
+        }
+
+        .notice {
+            margin-top: 18px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            background: rgba(245, 215, 110, 0.1);
+            border: 1px solid rgba(245, 215, 110, 0.3);
+            font-size: 14px;
+            line-height: 1.6;
+            color: #f0d79a;
+            word-break: break-all;
+        }
+
+        .footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 13px;
+            color: #6b7688;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page-head">
+        <span class="page-title">王者公告</span>
+        {{if pageCount > 1}}<span class="page-no">{{pageNo}} / {{pageCount}}</span>{{/if}}
+    </div>
+
+    <div class="card">
+        <!-- 标题和头图只在首页出现，后续页直接接正文 -->
+        {{if pageNo == 1}}
+        <div class="news-meta">
+            <span class="news-category" style="color: {{color}}">{{category}}</span>
+            <span class="news-time">{{timeText}}</span>
+        </div>
+        <div class="news-title">{{title}}</div>
+        {{if headCover}}<img class="head-cover" src="{{headCover}}" onerror="this.style.display='none'">{{/if}}
+        {{/if}}
+
+        <!-- @ 是 art-template 的原样输出：正文是已清洗过的 HTML，不能转义 -->
+        <div class="content">{{@ page}}</div>
+
+        {{if isLast && truncated}}
+        <div class="notice">公告太长，后面 {{totalPages - pageCount}} 页没放进来，看完整版：{{url}}</div>
+        {{/if}}
+    </div>
+
+    <div class="footer">GloryOfKings-Plugin · 数据来自王者荣耀官网</div>
+</body>
+
+</html>

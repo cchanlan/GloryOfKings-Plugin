@@ -1757,6 +1757,130 @@ class ApiService {
   }
 
   /**
+   * 官网资讯列表（公告 / 新闻 / 赛事都在里面）。
+   *
+   * 端点是**官网资讯页自己调的那个**（`web201706/newsindex.shtml` → `js/newsindex.js`），
+   * 零鉴权、不占营地频控配额。营地那边的 `/info/listinfov2` 一类要登录态、会吃账号配额，
+   * 而公告对所有人都一样，没必要为它消耗营地的号。
+   *
+   * ⚠️ 必须带签名，否则回 `{"msg":"p0 error","status":-1}`（52 字节，很容易误判成
+   * 「端点不存在」——实际上端点是对的，只是参数不全）。签名算法和 token 都明文写在
+   * 官网那个 js 里：`md5(token + source + serviceId + 秒级时间戳)`。
+   *
+   * ⚠️ `tagids` 参数**服务端不生效**（传了照样返回全量，实测 total 恒为 10125），
+   * 想按标签筛只能拉回来本地筛。
+   *
+   * 频道 ID（实测语义见 utils/gameNews.js 的 CHANNEL_NEWS）：
+   * 1762 版本公告专区 / 1760 热门 / 1761 新闻 / 1763 活动 / 1766 体验服。
+   *
+   * @param {object} [options]
+   * @param {number} [options.chanid] 频道 ID，默认 1762 版本公告专区
+   * @param {number} [options.limit] 取多少条，默认 30
+   * @param {number} [options.start] 偏移，翻页用
+   * @returns {Promise<{items: object[], total: number}>}
+   */
+  async getPvpNewsList({ chanid = 1762, limit = 30, start = 0 } = {}) {
+    // 官网前端写死的常量，照抄即可（见 newsindex.js 的 makeSign）
+    const token = '234ce0aef3020cb83887883877b64869'
+    const serviceId = 18
+    const source = 'web_pc'
+    const timestamp = Math.floor(Date.now() / 1000)
+    const sign = crypto
+      .createHash('md5')
+      .update(`${token}${source}${serviceId}${timestamp}`)
+      .digest('hex')
+
+    const query = new URLSearchParams({
+      serviceId: String(serviceId),
+      filter: 'channel',
+      sortby: 'sIdxTime',
+      source,
+      logic: 'or',
+      // 1=图文 2=视频，官网首页就是这两类一起拉
+      typeids: '1,2',
+      withtop: 'yes',
+      chanid: String(chanid),
+      limit: String(limit),
+      start: String(start),
+      exclusiveChannel: '4',
+      exclusiveChannelSign: sign,
+      time: String(timestamp)
+    })
+
+    let data
+    try {
+      data = await this.#fetchExternalJson(`https://apps.game.qq.com/cmc/cross?${query.toString()}`)
+    } catch (error) {
+      logger.error('[获取官网资讯] 接口请求失败', error)
+      throw new Error(`获取官网资讯失败。错误: ${error.message || error}`)
+    }
+
+    // status 非 0 时 msg 才是有用的信息（签名错就是 'p0 error'）
+    if (Number(data?.status) !== 0) {
+      throw new Error(`获取官网资讯失败：${data?.msg || '接口返回异常'}`)
+    }
+
+    return {
+      items: Array.isArray(data?.data?.items) ? data.data.items : [],
+      total: Number(data?.data?.total) || 0
+    }
+  }
+
+  /**
+   * 官网公告正文。`getPvpNewsList` 只给标题，正文要按 id 单独取。
+   *
+   * 端点来自详情页调的 `fillNews.detail()`（fillnewsgicp/v1.2.js 里写着
+   * `newsType:'news'` → searchNews.php、`'video'` → search.php）。
+   *
+   * ⚠️ 响应是 **JSONP 形式**：整体是 `var searchObj={...}` 而不是裸 JSON，
+   * 直接 `response.json()` 会抛解析错，必须先剥掉 `var searchObj=` 前缀和结尾的分号。
+   * 正文在 `msg.sContent`，是一段 **HTML**（带大量内联 style，见 utils/gameNews.js 的清洗）。
+   *
+   * @param {string|number} id 公告 id（列表项的 iId）
+   * @returns {Promise<{title: string, time: string, content: string}>}
+   */
+  async getPvpNewsDetail(id) {
+    const tid = this.#toString(id).trim()
+    if (!tid) {
+      throw new Error('缺少公告 id')
+    }
+
+    const url = `https://apps.game.qq.com/wmp/v3.1/public/searchNews.php?p0=18&source=web_pc&id=${encodeURIComponent(tid)}`
+
+    let response
+    try {
+      response = await fetch(url, { signal: AbortSignal.timeout(EXTERNAL_TIMEOUT_MS) })
+    } catch (error) {
+      throw describeAbort(error, EXTERNAL_TIMEOUT_MS)
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+
+    const text = await response.text()
+    // 剥 JSONP 外壳：`var searchObj={...};` → `{...}`
+    const json = text.replace(/^[\s\S]*?var\s+searchObj\s*=/, '').replace(/;\s*$/, '').trim()
+
+    let data
+    try {
+      data = JSON.parse(json)
+    } catch {
+      throw new Error('公告正文解析失败（接口返回格式变了）')
+    }
+
+    if (Number(data?.status) !== 0) {
+      throw new Error(`获取公告正文失败：${data?.msg || '接口返回异常'}`)
+    }
+
+    return {
+      title: String(data?.msg?.sTitle || '').trim(),
+      time: String(data?.msg?.sIdxTime || data?.msg?.sCreated || '').trim(),
+      content: String(data?.msg?.sContent || '')
+    }
+  }
+
+  /**
    * 官网英雄资料页原始 HTML（出装建议 / 英雄关系 / 技能）。
    *
    * 两个坑：

@@ -487,6 +487,20 @@ export function supportGuoba () {
         },
         {
           component: 'Divider',
+          label: '王者公告'
+        },
+        {
+          field: 'config.gameNewsCron',
+          label: '公告检查时间',
+          bottomHelpMessage: '按这个时间查一次官网资讯，把新发的版本更新 / 体验服 / 活动公告推给已 #开启王者公告推送 的群。数据是官网公开接口，不占营地请求配额。首次运行只记时间水位、不补推历史。留空 = 不自动推送，只保留 #王者公告 指令。',
+          helpMessage: '修改后重启生效',
+          component: 'EasyCron',
+          componentProps: {
+            placeholder: '默认每 2 小时的第 53 分'
+          }
+        },
+        {
+          component: 'Divider',
           label: '黑名单'
         },
         {
