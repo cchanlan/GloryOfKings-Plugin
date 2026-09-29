@@ -55,15 +55,22 @@ const INVISIBLE_RE = /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u206
 const PRIVATE_USE_RE = /[\uE000-\uF8FF]|[\uDB80-\uDBBF][\uDC00-\uDFFF]/g
 
 /**
- * 昵称兜底：剔除渲染不出来的字符，全没了就给个占位名。
- * 推送那边（utils/pushStore.js）也要拿营地昵称拼文案，同一套清洗规则，所以导出复用。
+ * 昵称清洗：剔除渲染不出来的字符，但**不兜底**——清洗后为空就返回空串，
+ * 由调用方决定退回什么（有的地方要显示占位名，有的地方要退回 QQ 号）。
  */
-export function normalizeName(name) {
-  const cleaned = String(name || '')
+export function cleanName (name) {
+  return String(name || '')
     .replace(PRIVATE_USE_RE, '')
     .replace(INVISIBLE_RE, '')
     .trim()
-  return cleaned || '无名召唤师'
+}
+
+/**
+ * 昵称兜底：清洗规则同 cleanName，全被剔光了就给个占位名。
+ * 推送那边（utils/pushStore.js）也要拿营地昵称拼文案，同一套清洗规则，所以导出复用。
+ */
+export function normalizeName(name) {
+  return cleanName(name) || '无名召唤师'
 }
 
 /**

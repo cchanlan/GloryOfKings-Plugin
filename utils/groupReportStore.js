@@ -23,6 +23,7 @@ import { getAllBindings, readSnapshot } from './rankStore.js'
 import { mapConcurrent } from './parallel.js'
 import { loadPushList } from './pushStore.js'
 import { summarizeReport, getHeroNameMap, summarizeGroup } from './reportStore.js'
+import { fetchRoleIdentities } from './roleName.js'
 import { PluginData } from '#components'
 
 const GROUP_PUSH_FILE = path.join(PluginData, 'GroupReportPush.yaml')
@@ -163,19 +164,25 @@ export function resolveGroupTargets (memberIds = [], { limit = MAX_MEMBERS } = {
 }
 
 /**
- * 一个账号的展示名与头像，全部零请求。
+ * 一个账号的展示名与头像。
  *
- * 优先级是按「准不准」排的：推送订阅项里的 roleName 是轮询时刚更新过的，
- * 排名快照次之（默认 12 小时有效），都没有才退回 QQ 号。
- * 头像用排名快照里的营地头像——官方机器人拿不到 QQ 头像（openid 形态），
- * 而营地头像对谁都能显示。
+ * 优先读本地现成的两处，都命中就零请求：
+ *   - 推送订阅项里的 roleName 是轮询时刚更新过的，最准
+ *   - 排名快照次之（默认 12 小时有效）
+ *
+ * 两处都没有（典型是**刚绑定、快照还没刷到**）时不再退回 QQ 号裸奔 ——
+ * 这里只如实返回空值，由 collectGroupReport 统一补查一次 profile，
+ * 昵称和头像一起补上（见那里 needFetch 的注释）。
+ * 头像只用营地头像：官方机器人拿不到 QQ 头像（openid 形态），营地头像对谁都能显示。
+ *
+ * @returns {{name:string, icon:string}} name 为空表示本地查不到，需要补查
  */
 export function resolveMemberIdentity (campId, qq, { snapshot = readSnapshot(), pushList = loadPushList() } = {}) {
   const entry = snapshot.entries?.[String(campId)] || {}
   const sub = pushList[String(qq)] || {}
 
   return {
-    name: String(sub.roleName || entry.roleName || qq || '召唤师'),
+    name: String(sub.roleName || entry.roleName || ''),
     icon: String(entry.roleIcon || '')
   }
 }
@@ -239,6 +246,36 @@ export async function collectGroupReport ({ kind = 'daily', fromSec = 0, toSec =
       report,
       battles: collected.battles
     })
+  }
+
+  // 本地（推送订阅项 / 排名快照）凑不齐「名字 + 头像」的人，补查一次 profile，两样一起补。
+  //
+  // 为什么非补不可：快照只在有人发 `#排位排名` 时才刷新（TTL 12 小时），
+  // 而推送订阅项只有开了战绩推送的人才有 —— 于是**刚绑定、快照还没刷到**的成员
+  // 两处都查不到，榜上就裸奔成一串 QQ 号、头像也空着
+  // （2026-09-30 实测：群里 9 个上榜的人有 2 个是这样）。
+  // 补查是每人一发请求，所以只补「已经确认有对局、会上榜」的人 ——
+  // 没上榜的人不该为一次群报白花频控额度。
+  // 走 mapConcurrent 而不是串行 await：每个人要用自己的属主身份去查（和 collectBattles 一致），
+  // 串行会退化成一次一发；fetchRoleIdentities 有 600 秒缓存，常驻成员只会在第一次补。
+  const incomplete = members.filter(member => !member.name || !member.icon)
+  if (incomplete.length) {
+    await mapConcurrent(incomplete, async (member) => {
+      try {
+        const identity = (await fetchRoleIdentities([member.campId], member.qq))[member.campId]
+        if (identity?.name && !member.name) member.name = identity.name
+        if (identity?.icon && !member.icon) member.icon = identity.icon
+      } catch (error) {
+        // 补查失败只是显示成 QQ 号 / 没头像，不该影响这份群报
+        logger.debug(`[王者群报] ${member.campId} 补查昵称失败: ${error.message}`)
+      }
+    })
+  }
+
+  // 最后还是查不到的（隐藏主页、登录态失效）退回 QQ 号而不是统一的「召唤师」：
+  // 群里多个人都叫「召唤师」就没法分辨谁是谁了，QQ 号至少认得出人
+  for (const member of members) {
+    if (!member.name) member.name = String(member.qq || '')
   }
 
   if (!members.length) return { group: null, scanned: targets.length, bound, coveredFrom, truncated }
