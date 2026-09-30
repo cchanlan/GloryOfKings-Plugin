@@ -416,18 +416,20 @@ export class WatchBattle extends plugin {
       return e.reply(`分路认不出「${wanted}」\n可选：${LANES.join(' / ')}`, shouldQuote())
     }
 
-    // 拉池子要登录态（营地接口都要），用发起人自己的全局号
-    const watchers = myWatchers(e)
-    if (!watchers.length) {
-      return e.reply('先全局登录才能拉大神观战\n发 #营地wx全局登录 或 #营地QQ全局登录', shouldQuote())
-    }
-
+    // ⭐ 不需要发起人先登录：大神观战走营地**公开池**，池子里的全局号只要有一个登录过就能拉
+    //    （`getAuthCandidates` 只认 `isGlobalDefault`，跟发起人是谁无关 —— 见 utils/authStore.js）。
+    //    所以这里不传账号，让 api 层自己挑池子里的号；一个可用号都没有时才提示去登录。
     let res
     try {
-      res = await apiService.getTvChoiceItems(watchers[0])
+      res = await apiService.getTvChoiceItems()
     } catch (error) {
       logger.error(`[观战大神] 拉对局池失败: ${error.message}`)
-      return e.reply('拉不到对局池，稍后再试', shouldQuote())
+      return e.reply(
+        error?.name === 'AuthConfigError'
+          ? '这台机器还没有可用的营地登录态\n发 #营地wx全局登录 或 #营地QQ全局登录'
+          : '拉不到对局池，稍后再试',
+        shouldQuote()
+      )
     }
 
     // 筛选和「排位 5 + 巅峰 5」的分流都在 utils/masterPool.js 里（能脱机单测）
