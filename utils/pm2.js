@@ -30,6 +30,7 @@
  * 两边全乱。所以退路下 PM2_HOME 一律不设，行为跟没接 lpm2 之前完全一致。
  */
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
@@ -159,69 +160,67 @@ export function pm2Bin () {
 }
 
 /**
- * lpm2 的真实 JS 入口，没有则空串。
- * 只解析路径（不跑进程）：能不能真跑由部署时的 `lpm2Usable()` 判定。
+ * 解析某个包的真实 JS 入口 —— **纯读文件，不跑进程**。
+ * 两遍：① 模块解析（本地安装 / NODE_PATH / pnpm 软链都能命中）
+ *       ② 全局安装的固定落点（作用域包名直接当路径拼）
+ * @returns {string} 找不到返回空串
+ */
+function resolvePkgJs (pkgName, binKey) {
+  for (const base of [path.join(PLUGIN_DIR, '__resolve__.js'), import.meta.url]) {
+    try {
+      const req = createRequire(base)
+      const abs = readBin(req.resolve(`${pkgName}/package.json`), binKey)
+      if (abs) return abs
+    } catch {}
+  }
+  for (const root of globalRoots()) {
+    const abs = readBin(path.join(root, pkgName, 'package.json'), binKey)
+    if (abs) return abs
+  }
+  return ''
+}
+
+/**
+ * lpm2 的真实 JS 入口，没有则空串（纯解析路径）。
  * @returns {string}
  */
 export function lpm2Bin () {
   if (!IS_WIN) return ''
   if (cachedLpm2Resolved) return cachedLpm2
   cachedLpm2Resolved = true
-  cachedLpm2 = ''
-
-  // ① 走模块解析：本地安装 / NODE_PATH / pnpm 软链都能命中
-  for (const base of [path.join(PLUGIN_DIR, '__resolve__.js'), import.meta.url]) {
-    try {
-      const req = createRequire(base)
-      const abs = readBin(req.resolve('@lyln/lpm2/package.json'), 'lpm2')
-      if (abs) {
-        cachedLpm2 = abs
-        return cachedLpm2
-      }
-    } catch {}
-  }
-  // ② 全局安装的固定落点（包名是 @lyln/lpm2，多一层作用域目录）
-  for (const root of globalRoots()) {
-    const abs = readBin(path.join(root, '@lyln', 'lpm2', 'package.json'), 'lpm2')
-    if (abs) {
-      cachedLpm2 = abs
-      return cachedLpm2
-    }
-  }
+  cachedLpm2 = resolvePkgJs('@lyln/lpm2', 'lpm2')
   return cachedLpm2
 }
 
+/** pm2 自己的真实 JS 入口（纯解析，不跑进程）；没有返回空串 */
+function resolvePm2Js () {
+  return resolvePkgJs('pm2', 'pm2')
+}
+
 /**
- * lpm2 是否真能用：跑一次 `lpm2 --version`。
- * 光看文件在不在不够 —— lpm2 是壳子，它自己解析不到 pm2 时会直接退出 1
- * （典型：`--legacy-peer-deps` 装出来的 lpm2 没带 pm2）。
+ * lpm2 是否可用 —— **纯看文件，绝不跑进程**。
+ *
+ * ⚠️ 别用 `lpm2 --version` 来探测：pm2 的 CLI 在任何命令之前都会先把 daemon 确保起来，
+ *    探测一次就在机器上留一个常驻 daemon（2026-09-30 实测：`lpm2 --version` 直接打出
+ *    「[PM2] Spawning PM2 daemon with pm2_home=…」）。只读的状态查询不该有这种副作用，
+ *    本机不跑这些服务时尤其明显。
+ *
+ * 判据：lpm2 入口在，且从插件视角能解析到 pm2（lpm2 的 pm2 是 peer 依赖，可能没带上）。
+ * 真跑不起来的（node 版本、权限等）交给真正执行命令时暴露 —— 那时的错误信息会带 lpm2 的输出。
  */
-export function lpm2Usable () {
+export function lpm2Ready () {
+  if (!IS_WIN) return false
   if (cachedUsableResolved) return cachedUsable
   cachedUsableResolved = true
-  cachedUsable = false
-
-  const js = lpm2Bin()
-  if (!js) return cachedUsable
-  try {
-    const r = spawnSync(process.execPath, [js, '--version'], {
-      encoding: 'utf-8', timeout: 30000, windowsHide: true, env: process.env
-    })
-    cachedUsable = !r.error && r.status === 0
-  } catch {
-    cachedUsable = false
-  }
+  cachedUsable = Boolean(lpm2Bin()) && Boolean(resolvePm2Js())
   return cachedUsable
 }
 
-/** 专属 PM2_HOME 建出来（建不出来就不能用它，否则 pm2 起不来） */
+/** 专属 PM2_HOME 建出来（真要跑命令时才建；建不出来就让 pm2 自己报错） */
 function ensureHomeDir () {
   try {
     fs.mkdirSync(PM2_HOME_DIR, { recursive: true })
-    return true
-  } catch {
-    return false
-  }
+  } catch {}
 }
 
 /**
@@ -236,8 +235,10 @@ function launcher () {
   cachedLauncher = null
 
   // Windows 优先 lpm2；POSIX 永远直连（见文件头）
+  // ⚠️ 这里**不建目录**：launcher() 也会被「看一眼状态」这类只读调用走到，
+  //    只读的东西不该在磁盘上留东西。建目录挪到真要跑命令的 pm2() 里。
   const js = lpm2Bin()
-  if (js && lpm2Usable() && ensureHomeDir()) {
+  if (js && lpm2Ready()) {
     cachedLauncher = {
       kind: 'lpm2',
       cmd: process.execPath,
@@ -312,6 +313,8 @@ export function pm2 (args = [], { timeout = 120000, env } = {}) {
     }
   }
 
+  if (l.env?.PM2_HOME) ensureHomeDir()
+
   const childEnv = { ...process.env, ...(l.env || {}), ...(env || {}) }
   const common = { encoding: 'utf-8', timeout, windowsHide: true, env: childEnv }
 
@@ -380,11 +383,27 @@ function pickProc (result, name) {
   return parseJsonArray(result.out).find(p => p.name === name) || null
 }
 
+/** 本插件专属 daemon 有没有留下痕迹（存过 dump 或跑过进程） */
+function hasOwnDaemonHistory () {
+  try {
+    if (fs.existsSync(path.join(PM2_HOME_DIR, 'dump.pm2'))) return true
+    const pids = path.join(PM2_HOME_DIR, 'pids')
+    return fs.existsSync(pids) && fs.readdirSync(pids).length > 0
+  } catch {
+    return false
+  }
+}
+
 /**
  * `pm2 jlist` 里指定名字的进程，没有则 null。
  * Windows 上查的是**插件自己的 daemon**（隔离那个）。
+ *
+ * ⚠️ pm2 的 `jlist` 会**顺手把 daemon 拉起来**。本插件从没部署过（专属 home 里既没有
+ *    dump 也没有进程 pid）时直接当「没在跑」—— 不为了一句状态查询就在机器上留一个常驻
+ *    daemon（本机不跑这些服务时尤其明显）。
  */
 export function pm2Proc (name) {
+  if (launcher()?.kind === 'lpm2' && !hasOwnDaemonHistory()) return null
   return pickProc(pm2(['jlist'], { timeout: 30000 }), name)
 }
 
@@ -397,7 +416,25 @@ export function pm2Proc (name) {
  */
 export function pm2ForeignProc (name) {
   if (launcher()?.kind !== 'lpm2') return null
+  // ⚠️ 机器原本那套 pm2 里没有跑着的进程（pids 为空）时别去连它：pm2 的任何命令都会
+  //    顺手把 daemon 拉起来，而这种情况本来也不可能有「残留的旧进程」可查。
+  if (!sysPm2HasProcesses()) return null
   return pickProc(runPm2Direct(['jlist']), name)
+}
+
+/** 机器原本那套 pm2 的 home（用户没另设 PM2_HOME 就是 ~/.pm2） */
+function sysPm2Home () {
+  return process.env.PM2_HOME || path.join(os.homedir(), '.pm2')
+}
+
+/** 机器原本那套 pm2 里现在有没有跑着的进程（纯读 pids 目录，不碰 daemon） */
+function sysPm2HasProcesses () {
+  try {
+    const pids = path.join(sysPm2Home(), 'pids')
+    return fs.existsSync(pids) && fs.readdirSync(pids).length > 0
+  } catch {
+    return false
+  }
 }
 
 /** 当前用的哪种进程管理方式（给状态指令显示用，只读不启进程） */

@@ -8,7 +8,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { spawn, spawnSync } from 'node:child_process'
-import { pm2Bin, resetPm2Cache, lpm2Usable } from './pm2.js'
+import { pm2Bin, resetPm2Cache, lpm2Ready } from './pm2.js'
 
 const IS_WIN = process.platform === 'win32'
 const IS_MAC = process.platform === 'darwin'
@@ -169,7 +169,8 @@ export async function ensureDependencies ({ needFfmpeg = false, needWs = false, 
       // pnpm 关掉 auto-install-peers、--legacy-peer-deps 都会跳过），装不上它会直接
       // 以「could not resolve pm2」退出 —— 所以两个都显式装。
       // Linux / macOS 那边 pm2 的 socket 本来就按 PM2_HOME 分，不需要 lpm2，只装 pm2。
-      const pm2Ready = () => (IS_WIN ? lpm2Usable() || Boolean(pm2Bin()) : Boolean(pm2Bin()))
+      // ⚠️ 只做**纯文件**判断，不跑探测命令 —— 跑 pm2 / lpm2 会顺手把 daemon 拉起来
+      const pm2Ready = () => (IS_WIN ? lpm2Ready() : Boolean(pm2Bin()))
       const pm2Pkgs = IS_WIN ? ['@lyln/lpm2', 'pm2'] : ['pm2']
 
       if (!pm2Ready()) {
