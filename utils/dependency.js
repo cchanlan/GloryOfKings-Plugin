@@ -8,7 +8,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { spawn, spawnSync } from 'node:child_process'
-import { pm2Bin, resetPm2Cache } from './pm2.js'
+import { pm2Bin, resetPm2Cache, lpm2Usable } from './pm2.js'
 
 const IS_WIN = process.platform === 'win32'
 const IS_MAC = process.platform === 'darwin'
@@ -163,19 +163,28 @@ export async function ensureDependencies ({ needFfmpeg = false, needWs = false, 
   if (previous) await previous
   try {
     const result = { ok: true, changed: false, pm2: false, ffmpeg: needFfmpeg ? await findFfmpeg() : '', messages: [], commands: [] }
-      if (!pm2Bin()) {
+
+      // Windows 上服务跑在插件自己的 pm2 里（lpm2 提供隔离管道 + 专属 PM2_HOME），
+      // 所以先要 lpm2；它的 pm2 是 peer 依赖，自动安装不可靠（npm 6 没有这机制、
+      // pnpm 关掉 auto-install-peers、--legacy-peer-deps 都会跳过），装不上它会直接
+      // 以「could not resolve pm2」退出 —— 所以两个都显式装。
+      // Linux / macOS 那边 pm2 的 socket 本来就按 PM2_HOME 分，不需要 lpm2，只装 pm2。
+      const pm2Ready = () => (IS_WIN ? lpm2Usable() || Boolean(pm2Bin()) : Boolean(pm2Bin()))
+      const pm2Pkgs = IS_WIN ? ['@lyln/lpm2', 'pm2'] : ['pm2']
+
+      if (!pm2Ready()) {
         const npm = npmBin()
         if (!npm) return { ...result, ok: false, messages: ['没找到 npm，无法自动安装 pm2。'] }
-        const r = await run(npm, ['install', '-g', 'pm2'], { env: npmEnv(cfg) })
-        result.commands.push(`${npm} install -g pm2`)
+        const r = await run(npm, ['install', '-g', ...pm2Pkgs], { env: npmEnv(cfg) })
+        result.commands.push(`${npm} install -g ${pm2Pkgs.join(' ')}`)
         if (!r.ok) {
           logger.warn?.(`[依赖] pm2 安装失败：${redact(r.err).slice(-500)}`)
-          return { ...result, ok: false, messages: ['pm2 自动安装失败，请手动安装：npm install -g pm2'] }
+          return { ...result, ok: false, messages: [`pm2 自动安装失败，请手动安装：npm install -g ${pm2Pkgs.join(' ')}`] }
         }
         resetPm2Cache()
         result.changed = true
       }
-      result.pm2 = Boolean(pm2Bin())
+      result.pm2 = pm2Ready()
       if (!result.pm2) return { ...result, ok: false, messages: ['pm2 安装后仍不可用，请重启云崽后再部署。'] }
 
       if (needWs) {

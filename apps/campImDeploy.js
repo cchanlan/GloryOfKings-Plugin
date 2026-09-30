@@ -29,7 +29,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { PluginPath, PluginName, Config } from '#components'
 import { shouldQuote } from '#utils'
-import { pm2, pm2Proc, resetPm2Cache, isOurProcess } from '../utils/pm2.js'
+import { pm2, pm2Proc, resetPm2Cache, isOurProcess, pm2ForeignProc, launcherInfo } from '../utils/pm2.js'
 import {
   installPackage, fetchPackageMeta, probeStatus, waitStatus, fmtUptime,
   normalizeBase, STATE_FILE
@@ -241,6 +241,18 @@ export class CampImDeploy extends plugin {
       ].join('\n'), shouldQuote())
     }
 
+    // 老版本部署的进程可能还挂在**机器原本的 pm2** 上（本插件现在跑自己的，见 utils/pm2.js）。
+    // 直接起新的会撞端口，所以先认出来、让主人切一下，不静默去停它。
+    const outside = pm2ForeignProc(PROC_NAME)
+    if (!running && outside && isOurProcess(outside, SERVER_DIR)) {
+      return e.reply([
+        '先停掉旧的那个营地消息进程（它还挂在系统 pm2 上）：',
+        '',
+        `在机器人所在设备执行：pm2 delete ${PROC_NAME}`,
+        '执行完再发一次 #营地消息部署'
+      ].join('\n'), shouldQuote())
+    }
+
     // 认不出是我们的目录 → 拒绝动它（见文件头第 2 条规矩）
     const hasState = fs.existsSync(path.join(SERVER_DIR, STATE_FILE))
     if (fs.existsSync(SERVER_DIR) && !fs.existsSync(ENTRY_FILE) && !hasState) {
@@ -354,9 +366,21 @@ export class CampImDeploy extends plugin {
   async status (e) {
     const proc = pm2Proc(PROC_NAME)
     const port = serverPort()
+    const launcher = launcherInfo()
     const lines = ['📨 营地消息服务']
 
     if (!proc) {
+      // 本插件管的进程里没有，但旧进程可能还在系统 pm2 上跑着 —— 说清楚怎么切
+      const outside = pm2ForeignProc(PROC_NAME)
+      if (outside && isOurProcess(outside, SERVER_DIR)) {
+        return e.reply([
+          '📨 营地消息服务',
+          '没在跑（本插件管的进程里没有）',
+          '',
+          `旧进程还挂在系统 pm2 上，先执行：pm2 delete ${PROC_NAME}`,
+          '再发一次 #营地消息部署'
+        ], shouldQuote())
+      }
       lines.push('', '没在跑', `发 #营地消息部署 装一个（${GROUP_HINT}）`)
       return e.reply(lines, shouldQuote())
     }
@@ -366,6 +390,7 @@ export class CampImDeploy extends plugin {
     }
 
     lines.push('', `进程：${proc.pm2_env?.status || '未知'}`)
+    lines.push(`进程管理：${launcher.kind === 'lpm2' ? 'lpm2（独立运行，不占系统 pm2）' : '系统 pm2'}`)
     lines.push(`已跑：${fmtUptime(Date.now() - (proc.pm2_env?.pm_uptime || 0))}`)
     const restarts = proc.pm2_env?.restart_time
     if (restarts) lines.push(`重启次数：${restarts}`)
