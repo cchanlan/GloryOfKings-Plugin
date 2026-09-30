@@ -237,7 +237,11 @@ function launcher () {
   // Windows 优先 lpm2；POSIX 永远直连（见文件头）
   // ⚠️ 这里**不建目录**：launcher() 也会被「看一眼状态」这类只读调用走到，
   //    只读的东西不该在磁盘上留东西。建目录挪到真要跑命令的 pm2() 里。
-  const js = lpm2Bin()
+  // ★ 平台分工：Windows 才考虑 lpm2（那边 pm2 的管道写死，需要按 PM2_HOME 派生）；
+  //   Linux / macOS 直接落到下面的「直连 pm2」，不碰 lpm2、不设专属 home（见文件头）。
+  // ⚠️ 这里**不建目录**：launcher() 也会被「看一眼状态」这类只读调用走到，
+  //    只读的东西不该在磁盘上留东西。建目录挪到真要跑命令的 pm2() 里。
+  const js = IS_WIN ? lpm2Bin() : ''
   if (js && lpm2Ready()) {
     cachedLauncher = {
       kind: 'lpm2',
