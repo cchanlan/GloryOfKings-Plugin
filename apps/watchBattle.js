@@ -533,7 +533,19 @@ export class WatchBattle extends plugin {
     //    —— 跟 scoped 的桶是两份缓存。也就是说，为了确认「这局还在不在」，
     //    反而把池子里每个号都探了一遍，跟上面「不带 refresh 防频控」的初衷正好相反。
     //    用 owners（= 当初能看到这个好友的那些账号）最准：那一场本来就是它们看到的。
+    //
+    // ⚠️⚠️ **scope 为空时仍要裸查一次**（2026-10-02 补，别改成「跳过复查」）：
+    //    正常路径下 `sendHint` 已经把 watcher/owners/userID/roleId 一起记进来了，scope 不该为空。
+    //    为空只可能是「旧版本记下的 hint」（那时只发 battleID+campId）——
+    //    这种情况 **`hint.userID` 也是 0**，而 `/api/start` 缺 userID 会直接回
+    //    「缺参数：battleID / userID」。所以这次裸查不只是复查「这局还在不在」，
+    //    更是**取回 userID / roleId 的唯一途径**，跳过它等于把旧 hint 彻底堵死。
+    //    代价：裸查会退回整个账号池（7 个号各一次请求，实测 0.7 秒），
+    //    比 scoped 的 1 次多，但只发生在旧 hint 上 —— 发一条日志留痕，别默默打。
     const scope = (Array.isArray(hint.owners) && hint.owners.length ? hint.owners : [hint.watcher]).filter(Boolean)
+    if (!scope.length) {
+      logger.mark(`[营地观战] hint 没带账号范围（${hint.battleID}），退回整池复查以取回 userID`)
+    }
     let now
     try {
       now = await callApi('/api/friends' + (scope.length ? `?watchers=${encodeURIComponent(scope.join(','))}` : ''))
@@ -562,7 +574,7 @@ export class WatchBattle extends plugin {
           userID: still.userId,
           roleId: still.roleId,
           owner: String(e.user_id || ''),
-          nick: still.nick || still.campNick
+          nick: still.nick || still.campNick || hint.nick
         }
       })
     } catch (error) {

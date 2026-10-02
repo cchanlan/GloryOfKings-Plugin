@@ -1012,14 +1012,16 @@ export class GameRecordPush extends plugin {
     // 好友判定只拦「**明确不是好友**」—— 那种情况提示了群友也开不了。
     // 查不到（观战服务没起 / 抽风）**照发**：宁可发一条可能开不了的，
     // 也不能让用户完全不知道有人在打（2026-09-20 改，原先这里卡死了整整两天）。
-    const friend = await this.isFriendCampId(sub.campId)
+    // ⚠️ 顺手把这一行的坐标（watcher/owners/userId/roleId）带出来给 sendHint，
+    //    别让它只发 battleID —— 少了 owners 那边会裸查整个账号池（见 findFriend 注释）
+    const friend = await this.findFriend(sub.campId)
     if (friend === false) {
       logger.mark(`[王者推送] ${qq} 的营地 ${sub.campId} 不是任何全局账号的好友，不发开播提示`)
       mergeSubState(qq, { hintGamingStart: gameKey })
       return
     }
 
-    const ok = await this.sendHint(qq, sub, data.gaming, minutes)
+    const ok = await this.sendHint(qq, sub, data.gaming, minutes, friend?.record || null)
     // 只有真发出去了才记「这局问过」—— 发送失败留着下轮重试，否则这条提示就永远丢了
     if (ok) mergeSubState(qq, { hintGamingStart: gameKey })
   }
@@ -1151,7 +1153,8 @@ export class GameRecordPush extends plugin {
         //    什么都不发、日志里也一片空白。主人反馈的「周五一整天没提示」就是这个 ——
         //    当天 20:18 上线时观战服务还没部署（22:24 才创建），闸门从头到尾查不到。
         //    宁可发一条「可能开不了」的提示，也不能让用户完全不知道他在打。
-        const friend = await this.isFriendCampId(sub.campId)
+        // ⚠️ 顺手把坐标带出来给 sendHint（同上，少了 owners 那边会裸查整个账号池）
+        const friend = await this.findFriend(sub.campId)
         if (friend === null) {
           if (now - lastFriendNullLogAt > 5 * 60 * 1000) {
             lastFriendNullLogAt = now
@@ -1163,7 +1166,7 @@ export class GameRecordPush extends plugin {
           continue
         }
 
-        const ok = await this.sendHint(qq, sub, data.gaming, minutes)
+        const ok = await this.sendHint(qq, sub, data.gaming, minutes, friend?.record || null)
         // ⚠️ 只有真发出去了才记「这局提示过」—— 发送失败（群取不到）时留着下轮重试，
         //    否则这条提示就永远丢了
         if (ok) {
@@ -1179,30 +1182,41 @@ export class GameRecordPush extends plugin {
   }
 
   /**
-   * 这个营地号是不是「某个全局账号的好友」。
-   *
-   * 问服务端 `/api/friends`（它的 `friendCampIds` 是**所有全局账号好友的并集**）——
-   * 插件端没有 getcampfriends，好友关系只有服务端拿得到。
-   * 服务没起 / 没配观战地址时返回 false（不提示）—— 观战服务不在线时提示也没用。
-   */
-  /**
-   * 这个营地号是不是「某个全局账号的好友」。
+   * 查这个营地号的好友情况，顺带取回**这一场的坐标**（watcher / owners / userId / roleId）。
    *
    * 问服务端 `/api/friends`（它的 `friendCampIds` 是**所有全局账号好友的并集**）——
    * 插件端没有 getcampfriends，好友关系只有服务端拿得到。
    *
-   * @returns {Promise<boolean|null>} `true`/`false` = 明确结论；
-   *   **`null` = 查不到**（观战服务没起、返回异常、网络不通）。
+   * @returns {Promise<{record: object|null}|false|null>}
+   *   · `{ record }` = 是好友。`record` 是 `/api/friends` 里这一行的完整记录
+   *     （**他正在打时才有**；`record: null` 表示是好友但当前不在对局里）；
+   *   · `false` = 明确不是任何全局账号的好友；
+   *   · `null` = 查不到（观战服务没起、返回异常、网络不通）。
    *   ⚠️ 调用方**必须**把 null 和 false 分开处理：把「查不到」当成「不是好友」的话，
    *      一次服务抖动就会把这一局标记成已处理、再也不问（实测踩过）。
+   *
+   * ⚠️⚠️ **为什么非要顺手把 record 带出来**（2026-10-02 修）：
+   *    `sendHint` 原先只往 `/api/hint/remember` 发 battleID + campId，**没发 watcher/owners**。
+   *    而 `#营地开播`（apps/watchBattle.js 的 startHinted）复查时要拿
+   *    `owners || [watcher]` 当 `?watchers=` 去限定查哪几个号；hint 里这两个字段是空的，
+   *    scope 就成了 `[]` → **裸调 `/api/friends`**，把账号池里每个号都探一遍
+   *    （实测池子里有 7 个号，就是一个请求/号）。后果正是那段注释极力想避免的：
+   *    ① **频控风险**（命中要静默 12 小时）；② 缓存 key 变成 `'*'`，和 scoped 的桶是两份缓存。
+   *    实测服务端记下的 hint 就是 `userID:0 / roleId:'' / watcher:'' / owners:[]` 四个空值，
+   *    连 `userID` 都没有 —— 而 `/api/start` 缺 userID 会直接回「缺参数」，
+   *    所以那边只能靠这次裸查把坐标捞回来（捞不到就只能回一句「这局打完了」）。
+   *    这里本来就要调 `/api/friends`，返回里 `playing` 那几行**天然带着** watcher/owners，
+   *    顺手捞出来交给 `sendHint` 就行 —— **零额外请求**。
    */
-  async isFriendCampId (campId) {
+  async findFriend (campId) {
     const id = String(campId || '')
     if (!id) return false
     try {
       const data = await callWatchApi('/api/friends')
       if (!data?.ok) return null
-      return (data.friendCampIds || []).includes(id)
+      if (!(data.friendCampIds || []).includes(id)) return false
+      const record = (data.playing || []).find(p => String(p.campId) === id) || null
+      return { record }
     } catch (error) {
       logger.debug(`[王者推送] 查好友失败（观战服务没起？）：${error.message}`)
       return null
@@ -1210,19 +1224,26 @@ export class GameRecordPush extends plugin {
   }
 
   /**
-   * 发开播提示，并把这一场的坐标记到服务端（供群友发 `#营地开播` 时开播）。
+   * 发开播提示，并把这一场的**完整坐标**记到服务端（供群友发 `#营地开播` 时开播）。
    *
    * ⚠️ 坐标必须存**服务端**：`watcher`/`owners`（这个好友能被哪些账号看到）只有服务端知道，
    *    而取流必须用「加了这个好友的那个账号」（换号一律 -1003）。
+   *
+   * @param {object|null} coord `findFriend` 捞回来的那一行（`{ record }` 的 record）。
+   *   ⚠️⚠️ **必须带上 `watcher` / `owners` / `userId` / `roleId`**（2026-10-02 修）：
+   *      原先只发 battleID + campId，导致 `#营地开播` 复查时拿不到账号范围、
+   *      退化成裸查整个账号池（频控风险 + 慢 + 缓存分桶错乱，详见 `findFriend` 的注释）。
+   *      取不到（不是好友但服务查不到、或他不在对局里）时传 null —— 字段留空是**兜底**，
+   *      不是正常路径。
    */
-  async sendHint (qq, sub, gaming, minutes) {
+  async sendHint (qq, sub, gaming, minutes, coord = null) {
     const name = sub.roleName || await this.resolveDisplayName(qq, sub)
     const text = `${name} 已经开局 ${minutes} 分钟了\n要不要开一路观战？发 #营地开播`
     const ok = await this.send(qq, sub, text)
     if (!ok) return false
 
-    // 记坐标给「#营地开播」用。服务端会自己去 /api/friends 里查 watcher/owners，
-    // 这里只需要给 battleID + campId 就够定位
+    // 记坐标给「#营地开播」用。battleID + campId 定位这一场，
+    // watcher/owners/userId/roleId 供那边复查「这局还在不在」和取流 —— 少了它们那边会裸查整个账号池
     const groups = subGroups(sub)
     for (const gid of groups) {
       try {
@@ -1230,9 +1251,15 @@ export class GameRecordPush extends plugin {
           method: 'POST',
           body: {
             groupId: gid,
-            battleID: String(gaming?.battleId || ''),
+            battleID: String(gaming?.battleId || coord?.battleId || ''),
             campId: String(sub.campId || ''),
-            nick: name
+            nick: name,
+            // ⚠️ 这四个是 `#营地开播` 复查/取流的关键：缺了 owners 它会退化成查全部账号
+            watcher: String(coord?.watcher || ''),
+            owners: Array.isArray(coord?.owners) ? coord.owners.map(String) : [],
+            // 取流要 mainRoleInfo.userId，轮询配对局要 roleId —— 两个不是一回事，都别省
+            userID: Number(coord?.userId) || 0,
+            roleId: String(coord?.roleId || '')
           }
         })
       } catch (error) {
