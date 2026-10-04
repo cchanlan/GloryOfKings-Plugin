@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>王者公告</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+            width: 1000px;
+            background: linear-gradient(160deg, #0f1420 0%, #1a2133 100%);
+            color: #fff;
+            padding: 36px;
+        }
+
+        .page-head {
+            display: flex;
+            align-items: baseline;
+            gap: 14px;
+            margin-bottom: 22px;
+        }
+
+        .page-title {
+            font-size: 32px;
+            font-weight: bold;
+            color: #eef2f8;
+        }
+
+        .page-sub {
+            font-size: 16px;
+            color: #9aa7bd;
+        }
+
+        .stats-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 22px 24px;
+        }
+
+        /* 一条公告：左边横版配图，右边标题与分类 */
+        .news {
+            display: flex;
+            gap: 16px;
+            padding: 14px;
+            background: rgba(0, 0, 0, 0.22);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+
+        .news:last-child {
+            margin-bottom: 0;
+        }
+
+        /* 置顶的加金边，扫一眼就知道官方在强推哪条 */
+        .news.is-top {
+            background: rgba(245, 215, 110, 0.08);
+            border-color: rgba(245, 215, 110, 0.45);
+        }
+
+        .news-cover {
+            width: 180px;
+            height: 101px;
+            border-radius: 10px;
+            object-fit: cover;
+            background: rgba(0, 0, 0, 0.35);
+            flex-shrink: 0;
+        }
+
+        .news-body {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .news-top {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        /* 分类色块，颜色由 JS 按类别给（CATEGORIES），兜底是「公告」蓝 */
+        .news-category {
+            font-size: 13px;
+            font-weight: bold;
+            border-radius: 6px;
+            padding: 2px 9px;
+            background: rgba(255, 255, 255, 0.08);
+            flex-shrink: 0;
+        }
+
+        .news-top-flag {
+            font-size: 13px;
+            font-weight: bold;
+            border-radius: 6px;
+            padding: 2px 9px;
+            color: #f5d76e;
+            background: rgba(245, 215, 110, 0.14);
+            flex-shrink: 0;
+        }
+
+        .news-time {
+            font-size: 14px;
+            color: #9aa7bd;
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+
+        .news-title {
+            font-size: 19px;
+            font-weight: bold;
+            color: #eef2f8;
+            line-height: 1.4;
+            margin-top: 9px;
+        }
+
+        .empty {
+            font-size: 16px;
+            color: #8b97ab;
+        }
+
+        .footer {
+            margin-top: 22px;
+            text-align: center;
+            font-size: 14px;
+            color: #6b7688;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page-head">
+        <span class="page-title">王者公告</span>
+        <span class="page-sub">{{if pushMode}}新公告提醒{{else}}官网最新{{/if}}</span>
+    </div>
+
+    {{if list.length}}
+    <div class="stats-card">
+        {{each list n}}
+        <div class="news{{if n.top}} is-top{{/if}}">
+            {{if n.cover}}<img class="news-cover" src="{{n.cover}}" alt="" onerror="this.style.visibility='hidden'">{{/if}}
+            <div class="news-body">
+                <div class="news-top">
+                    <span class="news-category" style="color: {{n.color}}">{{n.category}}</span>
+                    {{if n.top}}<span class="news-top-flag">置顶</span>{{/if}}
+                    <span class="news-time">{{n.timeText}}</span>
+                </div>
+                <div class="news-title">{{n.title}}</div>
+            </div>
+        </div>
+        {{/each}}
+    </div>
+    {{else}}
+    <div class="stats-card">
+        <div class="empty">官网最近没有公告</div>
+    </div>
+    {{/if}}
+
+    <div class="footer">GloryOfKings-Plugin · 数据来自王者荣耀官网</div>
+</body>
+
+</html>

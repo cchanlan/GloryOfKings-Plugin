@@ -1,0 +1,226 @@
+@charset "UTF-8";
+@font-face {
+  font-family: Number;
+  src: url(../font/tttgbnumber.woff) format("woff"), url(../font/tttgbnumber.ttf) format("truetype");
+}
+@font-face {
+  font-family: YS;
+  src: url(../font/HYWH-65W.woff) format("woff"), url(../font/HYWH-65W.ttf) format("truetype");
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: YS, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  width: 1050px;
+  padding: 40px;
+  color: #fff;
+  background: linear-gradient(160deg, #0f1420 0%, #1a2133 100%);
+  transform: scale(3);
+  transform-origin: 0 0;
+  position: relative;
+  z-index: 0;
+}
+
+body::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image:
+    linear-gradient(160deg, rgba(15, 20, 32, 0.88) 0%, rgba(20, 25, 45, 0.93) 100%),
+    url("https://game.gtimg.cn/images/yxzj/img201606/skin/hero-info/152/152-bigskin-8.jpg");
+  background-size: cover;
+  background-position: center top;
+  filter: blur(6px);
+  z-index: -1;
+}
+
+.card {
+  background: rgba(10,14,26,0.55);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 21px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+  overflow: hidden;
+}
+
+/* 头部 */
+.card-header {
+  display: flex;
+  align-items: center;
+  padding: 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04);
+}
+.avatar {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  border: 2px solid #f5d76e;
+  margin-right: 18px;
+  object-fit: cover;
+}
+.username { font-size: 26px; font-weight: bold; color: #eef2f8; margin-bottom: 6px; }
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.16);
+  color: #c8d0dd;
+}
+.season-label {
+  margin-left: auto;
+  text-align: right;
+  font-size: 20px;
+  color: #f5d76e;
+  letter-spacing: 2px;
+}
+.season-label .sub {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  letter-spacing: 0;
+  color: rgba(255,255,255,0.45);
+}
+
+/* 全赛季汇总格子 */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: rgba(255,255,255,0.07);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.stat-cell {
+  padding: 18px 20px;
+  background: rgba(15,20,32,0.6);
+  text-align: center;
+}
+.stat-cell.gold { background: rgba(245,215,110,0.06); }
+.stat-val {
+  font-family: Number, YS, sans-serif;
+  font-size: 22px;
+  font-weight: bold;
+  color: #f5d76e;
+  margin-bottom: 4px;
+}
+.stat-cell:not(.gold) .stat-val { color: #eef2f8; }
+.stat-key { font-size: 13px; color: rgba(255,255,255,0.5); }
+
+/* 通用 section */
+.section {
+  padding: 22px 24px 22px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.section:last-child { border-bottom: none; }
+.section-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #f5d76e;
+  margin-bottom: 16px;
+  letter-spacing: 1px;
+}
+.section-title .tip {
+  margin-left: 10px;
+  font-size: 13px;
+  font-weight: normal;
+  letter-spacing: 0;
+  color: rgba(255,255,255,0.4);
+}
+.hl { font-family: Number, YS, sans-serif; color: #f5d76e; font-weight: bold; }
+
+/* 上分趋势 */
+.trend-wrap canvas { display: block; width: 100%; height: auto; }
+
+/* 赛季总结 */
+.season-list { display: flex; flex-direction: column; gap: 14px; }
+.season-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+.season-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.season-name { font-size: 20px; font-weight: bold; color: #eef2f8; }
+.season-cur {
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #f5d76e;
+  background: rgba(245,215,110,0.14);
+  border: 1px solid rgba(245,215,110,0.4);
+}
+.season-date { margin-left: auto; font-size: 13px; color: rgba(255,255,255,0.4); }
+
+.season-body {
+  display: grid;
+  grid-template-columns: 150px repeat(3, 1fr);
+  gap: 10px 4px;
+  padding: 14px 0 4px;
+}
+.rank-cell {
+  grid-row: span 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-right: 1px solid rgba(255,255,255,0.07);
+}
+.rank-name { font-size: 17px; font-weight: bold; }
+.rank-star { font-family: Number, YS, sans-serif; font-size: 13px; color: rgba(255,255,255,0.5); }
+.rank-score { font-family: Number, YS, sans-serif; font-size: 26px; font-weight: bold; }
+.mini-cell { text-align: center; }
+.mini-val {
+  font-family: Number, YS, sans-serif;
+  font-size: 24px;
+  font-weight: bold;
+  color: #eef2f8;
+  line-height: 1.2;
+}
+.mini-cell.gold .mini-val { color: #f5d76e; }
+.mini-key { font-size: 12px; color: rgba(255,255,255,0.45); margin-top: 2px; }
+
+/* 赛季常用英雄 */
+.hero-row { display: flex; gap: 10px; margin-top: 12px; }
+.hero-card {
+  flex: 1;
+  background: rgba(0,0,0,0.22);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+  padding: 10px 6px 8px;
+  text-align: center;
+}
+.hero-icon {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  border: 2px solid rgba(245,215,110,0.4);
+  object-fit: cover;
+  margin-bottom: 6px;
+}
+.hero-name {
+  font-size: 12px;
+  color: #eef2f8;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hero-stats { font-size: 11px; color: rgba(255,255,255,0.5); line-height: 1.6; }
+.hero-stats .hl { font-size: 13px; }
+
+.footer {
+  text-align: center;
+  padding: 14px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.25);
+  border-top: 1px solid rgba(255,255,255,0.07);
+}

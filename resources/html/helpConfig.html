@@ -1,0 +1,327 @@
+<style>
+    /* 王者控制台面板：全局配置总览 + 指令清单。
+       底色、描边、文字色统一走变量，方便跟其它出图模板对齐。 */
+    :root {
+        --gok-gold: #e4bea0;
+        --gok-deep: #121820;
+        --gok-card: rgba(22, 28, 40, 0.85);
+        --gok-surface: rgba(255, 255, 255, 0.05);
+        --gok-edge-gold: rgba(228, 190, 160, 0.2);
+        --gok-edge: rgba(255, 255, 255, 0.08);
+        --gok-ink: #eef0f4;
+        --gok-ink-dim: rgba(238, 240, 244, 0.6);
+        --gok-blue: #5fb1eb;
+
+        --gok-ok: #8be668;
+        --gok-bad: #f56c6c;
+        --gok-warn: #ffb84d;
+    }
+
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    body {
+        width: 1080px;
+        padding: 30px;
+        font-family: inherit;
+        color: var(--gok-ink);
+        background: #000;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    .gok-page {
+        position: relative;
+        border-radius: 24px;
+        overflow: hidden;
+        background: var(--gok-deep) url('{{_res_path}}img/background.jpg') no-repeat center/cover;
+        border: 1px solid var(--gok-edge-gold);
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+    }
+
+    .gok-veil {
+        background: linear-gradient(180deg, rgba(16, 20, 29, 0.88) 0%, rgba(18, 24, 32, 0.96) 100%);
+        backdrop-filter: blur(8px);
+        padding: 45px 55px;
+    }
+
+    .gok-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 1px solid var(--gok-edge-gold);
+        padding-bottom: 24px;
+        margin-bottom: 30px;
+    }
+
+    .gok-head-title h1 {
+        font-size: 40px;
+        font-weight: 800;
+        color: var(--gok-gold);
+        text-shadow: 0 4px 16px rgba(228, 190, 160, 0.3);
+        margin-bottom: 10px;
+    }
+
+    .gok-head-meta {
+        text-align: right;
+        font-size: 13px;
+        color: var(--gok-ink-dim);
+        line-height: 1.6;
+    }
+
+    .gok-head-meta strong {
+        color: var(--gok-gold);
+    }
+
+    /* 必须和下面的 .gok-cmd-grid 用同一套列宽：早先这里是 1.15fr 0.85fr，
+       结果上下两排的分界线错开，四个框看着就是歪的 */
+    .gok-status-grid,
+    .gok-cmd-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+    }
+
+    .gok-status-grid {
+        margin-bottom: 24px;
+    }
+
+    .gok-card {
+        background: var(--gok-card);
+        border: 1px solid var(--gok-edge);
+        border-radius: 18px;
+        padding: 24px;
+        /* 纵向撑满：同一行的两个框高度由高的那个决定，内容少的那框
+           靠下面的列表 / 统计格吃掉多余空间，空白均分到各项之间，
+           不然会全堆在框底（看着像没写完） */
+        display: flex;
+        flex-direction: column;
+    }
+
+    .gok-card h2 {
+        font-size: 20px;
+        color: var(--gok-gold);
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .gok-card h2 .gok-card-title {
+        display: flex;
+        align-items: center;
+    }
+
+    .gok-card h2 .gok-card-title::before {
+        content: '';
+        display: inline-block;
+        width: 4px;
+        height: 18px;
+        background: var(--gok-gold);
+        margin-right: 12px;
+        border-radius: 2px;
+    }
+
+    .gok-card-tag {
+        font-size: 13px;
+        color: var(--gok-ink-dim);
+        background: var(--gok-surface);
+        padding: 4px 10px;
+        border-radius: 100px;
+    }
+
+    /* 明细列表和统计格都靠 flex:1 + space-between 把剩余高度均分掉 */
+    .gok-list,
+    .gok-stat-grid {
+        display: grid;
+        gap: 12px;
+        flex: 1;
+        align-content: space-between;
+    }
+
+    .gok-stat-grid {
+        grid-template-columns: repeat(2, 1fr);
+        margin-top: 20px;
+    }
+
+    /* 三种条目共用底色和描边，各自的圆角与内边距在下面单独给 */
+    .gok-list-row,
+    .gok-stat,
+    .gok-cmd-row {
+        background: var(--gok-surface);
+        border: 1px solid rgba(255, 255, 255, 0.03);
+    }
+
+    .gok-list-row {
+        border-radius: 14px;
+        padding: 14px 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .gok-row-main {
+        flex-grow: 1;
+        /* 不加 min-width:0 的话，右侧 value 一长就把这里挤到逐字换行（中文任意位置可断） */
+        min-width: 0;
+    }
+
+    .gok-row-label {
+        font-size: 15px;
+        font-weight: bold;
+        color: var(--gok-ink);
+        margin-bottom: 4px;
+    }
+
+    .gok-row-note {
+        font-size: 13px;
+        color: var(--gok-ink-dim);
+    }
+
+    .gok-row-value {
+        font-size: 16px;
+        font-weight: bold;
+        margin-left: 16px;
+        /* 不收缩：默认 flex-shrink:1 会被左边的 flex-grow 挤成省略号（实测「5 个可用」→「5 个…」）；
+           上限 45% 保证再长的 value 也不会把左边标签挤成竖排 */
+        flex-shrink: 0;
+        max-width: 45%;
+        text-align: right;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .gok-stat {
+        border-radius: 12px;
+        padding: 14px 10px;
+        text-align: center;
+    }
+
+    .gok-stat-label {
+        font-size: 12px;
+        color: var(--gok-ink-dim);
+        margin-bottom: 6px;
+    }
+
+    .gok-stat-value {
+        font-size: 22px;
+        font-weight: 800;
+    }
+
+    .gok-cmd-row {
+        border-radius: 14px;
+        padding: 12px 18px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .gok-cmd-name {
+        font-size: 16px;
+        font-weight: bold;
+        color: var(--gok-blue);
+        /* 命令名绝不折行：默认会被右边的 desc 挤成「#营地wx全局登 / 录」 */
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .gok-cmd-note {
+        font-size: 13px;
+        color: var(--gok-ink-dim);
+        text-align: right;
+        min-width: 0;
+        margin-left: 12px;
+    }
+
+    /* tone-* 的名字由 JS 以数据形式传进来（见 utils/masterPanel.js），不能改 */
+    .tone-on {
+        color: var(--gok-ok);
+    }
+
+    .tone-off {
+        color: var(--gok-bad);
+    }
+
+    .tone-warn {
+        color: var(--gok-warn);
+    }
+
+    .tone-neutral {
+        color: var(--gok-blue);
+    }
+</style>
+
+<body>
+    <div class="gok-page">
+        <div class="gok-veil">
+            <div class="gok-head">
+                <div class="gok-head-title">
+                    <h1>王者控制台及环境面板</h1>
+                </div>
+                <div class="gok-head-meta">
+                    <div class="info-tip"><strong>提示：</strong>以上数据与设置均为系统全局配置，普通用户请使用【#王者帮助】。</div>
+                    <div class="info-time">{{generatedAt}} | GloryOfKings-Plugin</div>
+                </div>
+            </div>
+
+            <div class="gok-status-grid">
+                <div class="gok-card">
+                    <h2>
+                        <span class="gok-card-title">当前运行状态与策略</span>
+                        <span class="gok-card-tag">含控制指令</span>
+                    </h2>
+                    <div class="gok-list">
+                        {{each strategyRows row}}
+                        <div class="gok-list-row">
+                            <div class="gok-row-main">
+                                <div class="gok-row-label">{{row.label}}</div>
+                                <div class="gok-row-note">{{row.desc}}</div>
+                            </div>
+                            <div class="gok-row-value tone-{{row.tone}}">{{row.value}}</div>
+                        </div>
+                        {{/each}}
+                    </div>
+                </div>
+
+                <div class="gok-card">
+                    <h2>
+                        <span class="gok-card-title">账号池连通性审计</span>
+                        <span class="gok-card-tag">实时统计</span>
+                    </h2>
+                    <div class="gok-stat-grid">
+                        {{each summaryRows row}}
+                        <div class="gok-stat">
+                            <div class="gok-stat-label">{{row.label}}</div>
+                            <div class="gok-stat-value tone-{{row.tone}}">{{row.value}}</div>
+                        </div>
+                        {{/each}}
+                    </div>
+                </div>
+            </div>
+
+            <div class="gok-cmd-grid">
+                {{each commandGroups group}}
+                <div class="gok-card">
+                    <h2>
+                        <span class="gok-card-title">{{group.title}}</span>
+                        <span class="gok-card-tag">{{group.items.length}} 项指令</span>
+                    </h2>
+                    <div class="gok-list">
+                        {{each group.items item}}
+                        <div class="gok-cmd-row">
+                            <span class="gok-cmd-name">{{item.command}}</span>
+                            <span class="gok-cmd-note">{{item.desc}}</span>
+                        </div>
+                        {{/each}}
+                    </div>
+                </div>
+                {{/each}}
+            </div>
+
+
+        </div>
+    </div>
+</body>

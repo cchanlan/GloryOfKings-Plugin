@@ -1,0 +1,201 @@
+<style>
+    /* 账号状态看板 —— 统一 gok- 命名体系；tag-<中文操作名> 由数据驱动，选择器保持原样 */
+    :root {
+        --c-primary: #e4bea0;
+        --c-bg: #121820;
+        --c-panel: rgba(22, 28, 40, 0.85);
+        --c-panel-light: rgba(255, 255, 255, 0.05);
+        --c-border: rgba(228, 190, 160, 0.2);
+        --c-border-soft: rgba(255, 255, 255, 0.08);
+        --c-text: #eef0f4;
+        --c-text-muted: rgba(238, 240, 244, 0.6);
+        --c-accent: #5fb1eb;
+
+        --badge-bind: #a78bfa;
+        --badge-switch: #34d399;
+        --badge-delete: #fb7185;
+        --badge-query: #5fb1eb;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+        width: 800px;
+        padding: 30px;
+        font-family: inherit;
+        color: var(--c-text);
+        background: #000;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    /* 卡片外框：深色底 + 背景大图 */
+    .gok-page {
+        position: relative;
+        border-radius: 24px;
+        overflow: hidden;
+        background: var(--c-bg) url('../img/bgImgV2.png') no-repeat center/cover;
+        border: 1px solid var(--c-border);
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+    }
+
+    /* 内容蒙层：渐变 + 毛玻璃 */
+    .gok-overlay {
+        background: linear-gradient(180deg, rgba(16, 20, 29, 0.88) 0%, rgba(18, 24, 32, 0.96) 100%);
+        backdrop-filter: blur(8px);
+        padding: 40px 45px;
+    }
+
+    .gok-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 1px solid var(--c-border);
+        padding-bottom: 24px;
+        margin-bottom: 30px;
+    }
+
+    .gok-title h1 {
+        font-size: 36px;
+        font-weight: 800;
+        color: var(--c-primary);
+        text-shadow: 0 4px 16px rgba(228, 190, 160, 0.3);
+    }
+
+    .gok-header-meta {
+        text-align: right;
+        font-size: 13px;
+        color: var(--c-text-muted);
+        line-height: 1.6;
+    }
+
+    .gok-target-name {
+        color: var(--c-primary);
+        font-weight: bold;
+    }
+
+    /* 面板标题与操作徽标同行 */
+    .gok-panel {
+        background: var(--c-panel);
+        border: 1px solid var(--c-border-soft);
+        border-radius: 18px;
+        padding: 24px;
+        margin-bottom: 24px;
+    }
+
+    .gok-panel h2 {
+        font-size: 18px;
+        color: var(--c-primary);
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+    }
+
+    .gok-panel h2::before {
+        content: '';
+        display: inline-block;
+        width: 4px;
+        height: 16px;
+        background: var(--c-primary);
+        margin-right: 12px;
+        border-radius: 2px;
+    }
+
+    /* 操作类型徽标；tag-<操作名> 的取值由调用方数据决定，四种配色逐一对应 */
+    .gok-tag {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: bold;
+        margin-left: 14px;
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .tag-绑定 { color: var(--badge-bind); border: 1px solid rgba(167, 139, 250, 0.4); }
+    .tag-切换 { color: var(--badge-switch); border: 1px solid rgba(52, 211, 153, 0.4); }
+    .tag-删除 { color: var(--badge-delete); border: 1px solid rgba(251, 113, 133, 0.4); }
+    .tag-查询 { color: var(--badge-query); border: 1px solid rgba(95, 177, 235, 0.4); }
+
+    /* 已绑定账号 ID 列表 */
+    .gok-id-list {
+        background: var(--c-panel-light);
+        border: 1px solid rgba(255, 255, 255, 0.03);
+        border-radius: 12px;
+        padding: 16px;
+        font-family: 'Consolas', monospace;
+        font-size: 15px;
+        line-height: 1.8;
+        white-space: pre-wrap;
+    }
+
+    /* 可用指令提示区 */
+    .gok-tips {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px dashed rgba(255, 255, 255, 0.06);
+    }
+
+    .gok-tips-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 18px;
+    }
+
+    .gok-tip {
+        padding: 4px 0;
+        border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+    }
+
+    .gok-tip-cmd {
+        font-size: 13px;
+        font-weight: bold;
+        color: var(--c-accent);
+        display: block;
+        line-height: 1.4;
+        word-break: break-word;
+    }
+
+    .gok-tip-example {
+        font-size: 11px;
+        color: var(--c-text-muted);
+        display: block;
+        margin-top: 2px;
+        line-height: 1.45;
+    }
+</style>
+
+<body>
+    <div class="gok-page">
+        <div class="gok-overlay">
+            <div class="gok-header">
+                <div class="gok-title">
+                    <h1>账号状态看板 <span class="gok-tag tag-{{type}}">{{type}}操作</span></h1>
+                </div>
+                <div class="gok-header-meta">
+                    <div class="gok-header-time">{{timestamp}} | 目标: {{wzryId}}{{if wzryName}} <span class="gok-target-name">{{wzryName}}</span>{{/if}}</div>
+                </div>
+            </div>
+
+            {{if idList}}
+            <div class="gok-panel">
+                <h2>绑定的账号列表</h2>
+                <div class="gok-id-list">{{idList}}</div>
+                {{if parsedFuncs && parsedFuncs.length}}
+                <div class="gok-tips">
+                    <div class="gok-tips-grid">
+                    {{each parsedFuncs item}}
+                        <div class="gok-tip">
+                            <span class="gok-tip-cmd">{{item.cmd}}</span>
+                            {{if item.example}}
+                            <span class="gok-tip-example">{{item.example}}</span>
+                            {{/if}}
+                        </div>
+                    {{/each}}
+                    </div>
+                </div>
+                {{/if}}
+            </div>
+            {{/if}}
+        </div>
+    </div>
+</body>

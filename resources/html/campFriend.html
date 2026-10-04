@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>营地好友</title>
+  <!-- 卡片 / 区块 / 页脚的基础样式全在 BattleReport.css，这里只补好友列表特有的增量 -->
+  <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
+  <style>
+    /* 一行一个人：编号 + 头像 + 昵称/段位 + 右侧「在打」标记 */
+    .fri-list { display: flex; flex-direction: column; gap: 10px; }
+    .fri-row {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      background: linear-gradient(100deg, rgba(126,231,135,0.09), rgba(255,255,255,0.03));
+      border: 1px solid rgba(126,231,135,0.28);
+      border-radius: 13px;
+      padding: 11px 16px;
+    }
+    /* 编号是这张图的主角 —— 群友要照着它发指令，做得显眼一点 */
+    .fri-idx {
+      width: 34px; height: 34px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: rgba(126,231,135,0.18);
+      border: 1.5px solid rgba(126,231,135,0.5);
+      color: #7ee787;
+      font-size: 17px;
+      font-family: Number, YS, "PingFang SC", Arial, sans-serif;
+      line-height: 1;
+    }
+    .fri-avatar {
+      width: 46px; height: 46px;
+      border-radius: 50%;
+      border: 2px solid rgba(126,231,135,0.45);
+      object-fit: cover;
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.06);
+    }
+    /* 角色名最长的有十几个字，别把右边挤出去 */
+    .fri-main { flex: 1; min-width: 0; }
+    .fri-name {
+      font-size: 16px;
+      color: #fff;
+      margin-bottom: 5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .fri-meta { font-size: 12.5px; color: rgba(255,255,255,0.4); display: flex; gap: 12px; }
+    .fri-meta .rank { color: rgba(255,255,255,0.58); }
+    /* 「在打」胶囊：亮绿 —— 这人正在对局中，手机多半在手边 */
+    .fri-tag {
+      flex-shrink: 0;
+      font-size: 13px;
+      color: rgba(126,231,135,0.9);
+      background: rgba(126,231,135,0.12);
+      border: 1px solid rgba(126,231,135,0.3);
+      border-radius: 8px;
+      padding: 4px 11px;
+    }
+    /* 「空闲」胶囊：压暗 —— 人在游戏里但没开局 */
+    .fri-tag.idle {
+      color: rgba(255,255,255,0.35);
+      background: rgba(255,255,255,0.05);
+      border-color: rgba(255,255,255,0.12);
+    }
+    /* 超出显示上限的提示 */
+    .fri-more {
+      margin-top: 10px;
+      text-align: center;
+      font-size: 13px;
+      color: rgba(255,255,255,0.38);
+    }
+    .head-sub { font-size: 13px; color: rgba(255,255,255,0.42); }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="card-header">
+    <!-- ⚠️ 这里不摆群名/群头像：看的是**当前营地号**的好友，
+         换 #切换营地 之后名单就变了，摆群名只会误导人 -->
+    <div class="user-info">
+      <h2 class="username">在游戏里的好友</h2>
+      <div class="head-sub">营地号 {{selfUserId}} 的 {{total}} 位好友里，{{friends.length}} 位在游戏里</div>
+    </div>
+    <div class="report-label">
+      营地好友
+      <span class="sub">点编号发消息</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">
+      在游戏里（{{friends.length}}）
+    </div>
+    <div class="fri-list">
+      {{each friends row}}
+      <div class="fri-row">
+        <div class="fri-idx">{{row.idx}}</div>
+        <img class="fri-avatar" src="{{row.avatar}}" alt="" onerror="this.style.visibility='hidden'">
+        <div class="fri-main">
+          <div class="fri-name">{{row.name}}</div>
+          <div class="fri-meta">
+            {{if row.jobName}}<span class="rank">{{row.jobName}}</span>{{/if}}
+          </div>
+        </div>
+        {{if row.inBattle}}
+        <span class="fri-tag">对局中</span>
+        {{else}}
+        <span class="fri-tag idle">空闲</span>
+        {{/if}}
+      </div>
+      {{/each}}
+    </div>
+    {{if more}}
+    <div class="fri-more">还有 {{more}} 人在游戏里，没列出来</div>
+    {{/if}}
+  </div>
+
+  <div class="footer">发 #营地私聊 编号 内容 就能给 TA 发消息</div>
+</div>
+</body>
+</html>

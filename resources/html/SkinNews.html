@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>皮肤上新</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+            width: 1000px;
+            background: linear-gradient(160deg, #0f1420 0%, #1a2133 100%);
+            color: #fff;
+            padding: 36px;
+        }
+
+        .page-head {
+            display: flex;
+            align-items: baseline;
+            gap: 14px;
+            margin-bottom: 22px;
+        }
+
+        .page-title {
+            font-size: 32px;
+            font-weight: bold;
+            color: #eef2f8;
+        }
+
+        .page-sub {
+            font-size: 16px;
+            color: #9aa7bd;
+        }
+
+        .stats-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 22px 24px;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #eef2f8;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 18px;
+            background: #f5d76e;
+            border-radius: 2px;
+        }
+
+        .section-title.soon::before { background: #7ee0a8; }
+        .section-title.today::before { background: #ff5b7c; }
+
+        /* 一条皮肤：左边横版封面（官网 fmlb_4536 是 16:9 的横图），右边文字 */
+        .skin {
+            display: flex;
+            gap: 16px;
+            padding: 14px;
+            background: rgba(0, 0, 0, 0.22);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+
+        .skin:last-child {
+            margin-bottom: 0;
+        }
+
+        /* 今天上线的那条加金边，扫一眼就知道「今天能买」 */
+        .skin.is-today {
+            background: rgba(245, 215, 110, 0.08);
+            border-color: rgba(245, 215, 110, 0.45);
+        }
+
+        .skin-cover {
+            width: 200px;
+            height: 112px;
+            border-radius: 10px;
+            object-fit: cover;
+            background: rgba(0, 0, 0, 0.35);
+            flex-shrink: 0;
+        }
+
+        .skin-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .skin-top {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .skin-hero-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 7px;
+            object-fit: cover;
+            background: rgba(0, 0, 0, 0.35);
+            flex-shrink: 0;
+        }
+
+        .skin-name {
+            font-size: 20px;
+            font-weight: bold;
+            color: #eef2f8;
+        }
+
+        .skin-hero {
+            font-size: 15px;
+            color: #9aa7bd;
+        }
+
+        /* 品质用行内色块，颜色由 JS 按品质给（QUALITY_COLOR），未知品质回落成灰 */
+        .skin-quality {
+            font-size: 13px;
+            font-weight: bold;
+            border-radius: 6px;
+            padding: 2px 9px;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .skin-date {
+            font-size: 15px;
+            font-weight: bold;
+            color: #f5d76e;
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+
+        .skin-date .tag {
+            font-size: 13px;
+            font-weight: normal;
+            color: #9aa7bd;
+            margin-right: 5px;
+        }
+
+        .skin-intro {
+            font-size: 15px;
+            color: #b6c0d0;
+            line-height: 1.5;
+            margin-top: 8px;
+        }
+
+        .skin-get {
+            font-size: 14px;
+            color: #8b97ab;
+            line-height: 1.45;
+            margin-top: 6px;
+        }
+
+        .empty {
+            font-size: 16px;
+            color: #8b97ab;
+        }
+
+        .footer {
+            margin-top: 22px;
+            text-align: center;
+            font-size: 14px;
+            color: #6b7688;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page-head">
+        <span class="page-title">皮肤上新</span>
+        <span class="page-sub">{{dateText}}{{if pushMode}} · 上新提醒{{/if}}</span>
+    </div>
+
+    {{if todayList.length}}
+    <div class="stats-card">
+        <div class="section-title today">今日上线</div>
+        {{each todayList s}}
+        <div class="skin is-today">
+            <img class="skin-cover" src="{{s.cover}}" alt="{{s.name}}" onerror="this.style.visibility='hidden'">
+            <div class="skin-body">
+                <div class="skin-top">
+                    {{if s.heroAvatar}}<img class="skin-hero-avatar" src="{{s.heroAvatar}}" alt="" onerror="this.style.visibility='hidden'">{{/if}}
+                    <span class="skin-name">{{s.name}}</span>
+                    <span class="skin-hero">{{s.hero}}</span>
+                    {{if s.quality}}<span class="skin-quality" style="color: {{s.color}}">{{s.quality}}</span>{{/if}}
+                    <span class="skin-date"><span class="tag">上线</span>{{s.dateText}}</span>
+                </div>
+                {{if s.intro}}<div class="skin-intro">{{s.intro}}</div>{{/if}}
+                {{if s.getWay}}<div class="skin-get">获取方式：{{s.getWay}}</div>{{/if}}
+            </div>
+        </div>
+        {{/each}}
+    </div>
+    {{/if}}
+
+    {{if upcoming.length}}
+    <div class="stats-card">
+        <div class="section-title soon">即将上线</div>
+        {{each upcoming s}}
+        <div class="skin">
+            <img class="skin-cover" src="{{s.cover}}" alt="{{s.name}}" onerror="this.style.visibility='hidden'">
+            <div class="skin-body">
+                <div class="skin-top">
+                    {{if s.heroAvatar}}<img class="skin-hero-avatar" src="{{s.heroAvatar}}" alt="" onerror="this.style.visibility='hidden'">{{/if}}
+                    <span class="skin-name">{{s.name}}</span>
+                    <span class="skin-hero">{{s.hero}}</span>
+                    {{if s.quality}}<span class="skin-quality" style="color: {{s.color}}">{{s.quality}}</span>{{/if}}
+                    <span class="skin-date"><span class="tag">{{s.countdown}}</span>{{s.dateText}}</span>
+                </div>
+                {{if s.intro}}<div class="skin-intro">{{s.intro}}</div>{{/if}}
+                {{if s.getWay}}<div class="skin-get">获取方式：{{s.getWay}}</div>{{/if}}
+            </div>
+        </div>
+        {{/each}}
+    </div>
+    {{/if}}
+
+    {{if recent.length}}
+    <div class="stats-card">
+        <div class="section-title">最近上线</div>
+        {{each recent s}}
+        <div class="skin">
+            <img class="skin-cover" src="{{s.cover}}" alt="{{s.name}}" onerror="this.style.visibility='hidden'">
+            <div class="skin-body">
+                <div class="skin-top">
+                    {{if s.heroAvatar}}<img class="skin-hero-avatar" src="{{s.heroAvatar}}" alt="" onerror="this.style.visibility='hidden'">{{/if}}
+                    <span class="skin-name">{{s.name}}</span>
+                    <span class="skin-hero">{{s.hero}}</span>
+                    {{if s.quality}}<span class="skin-quality" style="color: {{s.color}}">{{s.quality}}</span>{{/if}}
+                    <span class="skin-date"><span class="tag">{{s.countdown}}</span>{{s.dateText}}</span>
+                </div>
+                {{if s.intro}}<div class="skin-intro">{{s.intro}}</div>{{/if}}
+                {{if s.getWay}}<div class="skin-get">获取方式：{{s.getWay}}</div>{{/if}}
+            </div>
+        </div>
+        {{/each}}
+    </div>
+    {{/if}}
+
+    {{if !todayList.length && !upcoming.length && !recent.length}}
+    <div class="stats-card">
+        <div class="empty">官网资料库里暂时没有带上线日期的皮肤数据</div>
+    </div>
+    {{/if}}
+
+    <div class="footer">GloryOfKings-Plugin · 数据来自王者荣耀官网资料库</div>
+</body>
+
+</html>

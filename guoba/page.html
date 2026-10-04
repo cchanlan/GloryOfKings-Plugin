@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>营地消息</title>
+<!-- ⚠️⚠️ CSS **必须在这里自己引**（照 Gscore-Adapter 的写法）。
+     锅巴前端的 `injectAssets()` 只在**片段模式**（描述符没写 `src`）才注入 style/script；
+     我们用的是 iframe 模式（有 `src`），那条路根本不会跑 —— 靠它等于没样式（实测踩过）。
+     iframe 内的相对引用走锅巴种的 Cookie 过鉴权，能正常加载。
+
+     ⚠️ 同时描述符里**也要**写 `style: 'page.css'`：锅巴的 `resolveAsset()` 按
+     `[src, style, script]` 白名单放行静态资源，没声明的话这个请求会被 403。
+
+     ⚠️ 页面 CSS 的类名都带 `gki-` 前缀 —— 因为片段模式下它会被注入到面板全局，
+     通用类名（.card/.toggle）会撞上别的插件的自定义页面。 -->
+<link rel="stylesheet" href="page.css" />
+</head>
+<body>
+  <div class="gki-page">
+    <header class="gki-topbar">
+      <div>
+        <h1>营地消息</h1>
+        <p>只有名单里的号会挂长连接收消息，收到的好友消息推给它的归属人。</p>
+      </div>
+      <div class="gki-side">
+        <span class="gki-status" id="status">已同步</span>
+        <div class="gki-count" id="count">—</div>
+      </div>
+    </header>
+
+    <main class="gki-content">
+      <div class="gki-inner">
+        <div class="gki-section-head">
+          <h2>账号列表</h2>
+          <p>这里的号是**专门收消息**的，跟查询/推送轮询用的账号池是两回事 —— 轮询的号不用加进来。</p>
+        </div>
+        <section class="gki-list" id="list">
+          <div class="gki-empty">加载中…</div>
+        </section>
+
+        <div class="gki-section-head gki-add-head" id="addHead" hidden>
+          <h2>可以加进来的号</h2>
+          <p>登录过但没在名单里的，点一下就加进来。</p>
+        </div>
+        <section class="gki-list gki-add" id="addList" hidden></section>
+      </div>
+    </main>
+  </div>
+
+  <div class="gki-toast" id="toast"></div>
+
+<script>
+(function () {
+  var q = new URLSearchParams(location.search)
+  var apiBase = q.get('__apiBase') || ''
+  var token = q.get('token') || ''
+  // 锅巴的兼容层会把 token 挂在 window.__GUOBA__ 上，两个来源都认
+  if (!token && window.__GUOBA__) token = window.__GUOBA__.token || ''
+  var API = apiBase + '/gok-camp-im/accounts'
+
+  var accounts = []
+  var available = []
+  var saved = '[]'
+  var busy = false
+
+  var listEl = document.getElementById('list')
+  var statusEl = document.getElementById('status')
+  var countEl = document.getElementById('count')
+  var addHead = document.getElementById('addHead')
+  var addList = document.getElementById('addList')
+  var toastEl = document.getElementById('toast')
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+  }
+
+  function req(method, body) {
+    var opt = { method: method, headers: {} }
+    if (token) opt.headers['guoba-access-token'] = token
+    if (body) {
+      opt.headers['Content-Type'] = 'application/json'
+      opt.body = JSON.stringify(body)
+    }
+    return fetch(API, opt).then(function (r) {
+      return r.json().then(function (d) {
+        if (!r.ok || d.ok === false) throw new Error(d.error || ('HTTP ' + r.status))
+        return d
+      })
+    })
+  }
+
+  function snapshot() {
+    return JSON.stringify(accounts.map(function (a) {
+      return { userId: a.userId, enable: a.enable }
+    }))
+  }
+
+  function dirty() { return snapshot() !== saved }
+
+  function toast(text, bad) {
+    toastEl.textContent = text
+    toastEl.className = 'gki-toast gki-show' + (bad ? ' gki-bad' : '')
+    clearTimeout(toast._t)
+    toast._t = setTimeout(function () { toastEl.className = 'gki-toast' }, 2600)
+  }
+
+  // 保存状态写在标题栏右上角（和「N / M 已启用」并排），**不放按钮** ——
+  // 开关是自动存的，锅巴标题栏本来就有「刷新」，页内再放一个纯属多余（主人 2026-09-20 定的）
+  function setStatus(text, bad) {
+    statusEl.textContent = text
+    statusEl.classList.toggle('gki-bad', Boolean(bad))
+  }
+
+  function render() {
+    var all = accounts.length
+    countEl.textContent = all + ' 个号收消息'
+    countEl.classList.toggle('gki-has-off', all === 0)
+
+    if (!all) {
+      listEl.innerHTML = '<div class="gki-empty"><b>名单是空的，一个号都不收消息</b>'
+        + '<span>从下面「可以加进来的号」里挑，或者发 #营地wx全局登录 扫码添加</span></div>'
+      renderAdd()
+      return
+    }
+
+    listEl.innerHTML = accounts.map(function (a, i) {
+      var name = a.nickname || ('营地号 ' + a.userId)
+      var initial = esc(name.slice(0, 1))
+      var avatar = a.avatar
+        ? '<img class="gki-av" src="' + esc(a.avatar) + '" alt=""'
+          + ' onerror="this.className=\'gki-av gki-fallback\';this.textContent=\'' + initial + '\';this.removeAttribute(\'src\')" />'
+        : '<span class="gki-av gki-fallback">' + initial + '</span>'
+      var ownerTag = a.owner
+        ? '<span class="gki-tag gki-owner">归属 ' + esc(a.ownerMasked) + '</span>'
+        : '<span class="gki-tag gki-orphan">无归属 · 不推</span>'
+      return '' +
+        '<article class="gki-card' + (a.enable ? '' : ' gki-off') + '">' +
+          avatar +
+          '<div class="gki-info">' +
+            '<div class="gki-title"><span class="gki-name">' + esc(name) + '</span>' + ownerTag + '</div>' +
+            '<div class="gki-meta"><span>ID: ' + esc(a.userId) + '</span></div>' +
+          '</div>' +
+          '<div class="gki-actions">' +
+            '<label class="gki-toggle"><input type="checkbox" data-index="' + i + '"' + (a.enable ? ' checked' : '') + ' /><i></i></label>' +
+          '</div>' +
+        '</article>'
+    }).join('')
+
+    Array.prototype.forEach.call(listEl.querySelectorAll('input[type=checkbox]'), function (el) {
+      el.addEventListener('change', function () {
+        var i = Number(el.dataset.index)
+        accounts[i].enable = el.checked
+        render()
+        scheduleSave()
+      })
+    })
+
+    renderAdd()
+  }
+
+  // 「可以加进来的号」：登录过、但不在名单里的
+  function renderAdd() {
+    var show = available.length > 0
+    addHead.hidden = !show
+    addList.hidden = !show
+    if (!show) { addList.innerHTML = ''; return }
+    addList.innerHTML = available.map(function (a, i) {
+      var name = a.nickname || ('营地号 ' + a.userId)
+      var tag = a.owner
+        ? '<span class="gki-tag gki-owner">归属 ' + esc(a.ownerMasked) + '</span>'
+        : '<span class="gki-tag gki-orphan">无归属 · 不推</span>'
+      return '<article class="gki-card gki-off gki-addable" data-add="' + i + '">' +
+        '<span class="gki-av gki-fallback">' + esc(name.slice(0, 1)) + '</span>' +
+        '<div class="gki-info"><div class="gki-title"><span class="gki-name">' + esc(name) + '</span>' + tag + '</div>' +
+        '<div class="gki-meta"><span>ID: ' + esc(a.userId) + '</span></div></div>' +
+        '<div class="gki-actions"><span class="gki-plus">＋ 加入</span></div>' +
+        '</article>'
+    }).join('')
+    Array.prototype.forEach.call(addList.querySelectorAll('[data-add]'), function (el) {
+      el.addEventListener('click', function () {
+        var a = available[Number(el.dataset.add)]
+        if (!a) return
+        accounts.push({ userId: a.userId, nickname: a.nickname, avatar: a.avatar || '', owner: a.owner, ownerMasked: a.ownerMasked, enable: true })
+        render()
+        scheduleSave()
+      })
+    })
+  }
+
+  function load() {
+    req('GET').then(function (d) {
+      accounts = d.accounts || []
+      available = d.available || []
+      saved = snapshot()
+      render()
+      setStatus('已同步')
+    }).catch(function (e) {
+      listEl.innerHTML = '<div class="gki-empty"><b>读不到账号列表</b><span>' + esc(e.message) + '</span></div>'
+    })
+  }
+
+  // ⭐ 改完自动保存：主人**不用**去找保存按钮（原来那个 dock 只在有改动时才冒出来，
+  //    实际用起来根本看不见 —— 主人反馈「这页面没有保存按钮」，2026-09-20）。
+  //    debounce 一下：连着拨几个开关只发一次请求。
+  var saveTimer = null
+
+  function scheduleSave() {
+    if (saveTimer) clearTimeout(saveTimer)
+    saveTimer = setTimeout(save, 350)
+  }
+
+  function save() {
+    if (busy) { scheduleSave(); return }   // 上一发还没回来，等会儿再存
+    busy = true
+    setStatus('保存中…')
+    req('POST', {
+      accounts: accounts.map(function (a) {
+        return { userId: a.userId, enable: a.enable }
+      })
+    }).then(function (d) {
+      accounts = d.accounts || accounts
+      available = d.available || available
+      saved = snapshot()
+      render()
+      setStatus('已同步')
+    }).catch(function (e) {
+      setStatus('保存失败，点上面刷新重试', true)
+    }).then(function () { busy = false })
+  }
+
+  load()
+})()
+</script>
+</body>
+</html>

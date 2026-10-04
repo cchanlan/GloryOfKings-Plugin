@@ -1,0 +1,11 @@
+# 以下为请求默认值
+# 当账号本身未携带这些字段时，会回退到这里的配置
+gameAreaId: 1
+gameUserSex: 1
+kohDimGender: 2
+
+# 如果本机时间和服务端时间存在明显偏差，可补这个毫秒偏移
+serverTimeOffsetMs: 0
+
+# 额外请求头覆盖项，通常保持为空
+extraHeaders: {}

@@ -1,0 +1,19 @@
+node_modules/*
+config/config/*
+data/*
+# 营地观战的服务端：代码住在 watch-server 分支，部署时由 #营地观战部署 拉到这个目录。
+# 整个目录都不提交 —— 免得跟服务端分支两份版本打架，客户端只拉 master 时也不该带上服务端。
+# （共享库早年也住这儿，后来搬到 <云崽根>/data/gok-share-server/，被上面的 data/* 挡着了）
+server/
+*.css.map
+.DS_Store
+# 营地消息服务：代码住在 im-server 分支，部署时由 #营地消息部署 拉到这个目录。
+# ⚠️ 别和上面那个 server/ 混（那是观战服务，住 watch-server 分支）。
+server-im/
+
+# 主人专属的本地扩展指令（不进公开仓，换机器时从私库取）
+local/
+
+# ⚠️ 本地自用的测试文件：公开仓不收录（协作者已推的那几个 test/*.test.mjs 是他们的，保留）
+# 新写的调试/验证脚本一律加到这里，别混进功能提交
+test/masterPool.test.mjs

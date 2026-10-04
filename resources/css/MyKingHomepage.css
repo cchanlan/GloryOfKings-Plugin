@@ -1,0 +1,352 @@
+@charset "UTF-8";
+@font-face {
+  font-family: Number;
+  src: url(../font/tttgbnumber.woff) format("woff"), url(../font/tttgbnumber.ttf) format("truetype");
+}
+@font-face {
+  font-family: YS;
+  src: url(../font/HYWH-65W.woff) format("woff"), url(../font/HYWH-65W.ttf) format("truetype");
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: YS, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+  width: 1050px;
+  padding: 40px;
+  color: #fff;
+  background: linear-gradient(160deg, #0f1420 0%, #1a2133 100%);
+  transform: scale(3);
+  transform-origin: 0 0;
+  position: relative;
+  z-index: 0;
+}
+
+/* 背景大图层：模糊 + 暗化，保证前景清晰；图挂了则退回上面的深色渐变 */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image:
+    linear-gradient(160deg, rgba(15, 20, 32, 0.88) 0%, rgba(20, 25, 45, 0.93) 100%),
+    url("https://game.gtimg.cn/images/yxzj/img201606/skin/hero-info/152/152-bigskin-8.jpg");
+  background-size: cover;
+  background-position: center top;
+  filter: blur(6px);
+  z-index: -1;
+}
+
+/* 顶部金色标题块（.page-title）在本模板中已无对应元素，重构时一并移除 */
+
+/* ===== 主页卡片外框 ===== */
+.gok-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 21px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  width: 100%;
+  overflow: hidden;
+}
+
+/* ===== 卡头：头像 + 昵称 + 状态徽标 ===== */
+.gok-card-head {
+  display: flex;
+  align-items: center;
+  padding: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+}
+.gok-card-head .gok-avatar {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: 2px solid #f5d76e;
+  margin-right: 20px;
+  object-fit: cover;
+}
+.gok-card-head .gok-user {
+  flex-grow: 1;
+}
+.gok-card-head .gok-user .gok-username {
+  font-size: 28px;
+  font-weight: bold;
+  margin: 0 0 8px 0;
+  color: #eef2f8;
+}
+
+/* 徽标排版共用；等级 / 角色 / 在线三态只差配色 */
+.gok-card-head .gok-user .gok-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: bold;
+  margin-right: 8px;
+}
+.gok-card-head .gok-user .gok-badge--level {
+  background: rgba(245, 215, 110, 0.14);
+  border: 1px solid rgba(245, 215, 110, 0.4);
+  color: #f5d76e;
+}
+.gok-card-head .gok-user .gok-badge--role {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #c8d0dd;
+}
+.gok-card-head .gok-user .gok-badge--online {
+  background: rgba(87, 201, 138, 0.16);
+  border: 1px solid rgba(87, 201, 138, 0.45);
+  color: #57c98a;
+}
+.gok-card-head .gok-user .gok-badge--online.is-offline {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #9aa7bd;
+}
+
+.gok-card-body {
+  padding: 24px;
+  display: flex;
+}
+
+.gok-info-col {
+  flex: 2;
+}
+
+/* ===== 基础信息四宫格 ===== */
+.gok-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+/* 基础信息格与战绩格共用的卡片底 */
+.gok-info-item,
+.gok-stats .gok-stat-card {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+}
+
+.gok-info-item {
+  display: flex;
+  align-items: center;
+  padding: 14px;
+  font-size: 17px;
+  color: #eef2f8;
+}
+.gok-info-item .gok-info-key {
+  color: #9aa7bd;
+}
+
+.gok-info-icon {
+  width: 26px;
+  height: 26px;
+  margin-right: 12px;
+  color: #f5d76e;
+}
+
+/* ===== 战绩数据三宫格 ===== */
+.gok-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-top: 20px;
+}
+.gok-stats .gok-stat-card {
+  padding: 16px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.gok-stats .gok-stat-card .gok-stat-value {
+  font-size: 26px;
+  font-weight: bold;
+  color: #f5d76e;
+  margin-bottom: 6px;
+  position: relative;
+}
+.gok-stats .gok-stat-card .gok-stat-value .gok-stat-unit {
+  font-size: 15px;
+  font-weight: normal;
+  color: #9aa7bd;
+}
+.gok-stats .gok-stat-card .gok-stat-value .gok-stat-icon {
+  width: 65px;
+}
+.gok-stats .gok-stat-card .gok-stat-value .gok-stat-content {
+  z-index: 1;
+}
+
+/* 以下 style1xx 取值来自调用方数据 showStyle，选择器必须逐一对齐；
+   113 / 112 / 111 只差 top，公共声明合并 */
+.gok-stats .gok-stat-card .gok-stat-value .gok-stat-content.style113,
+.gok-stats .gok-stat-card .gok-stat-value .gok-stat-content.style112,
+.gok-stats .gok-stat-card .gok-stat-value .gok-stat-content.style111 {
+  position: absolute;
+  font-size: 13px;
+  color: #ffffff;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.gok-stats .gok-stat-card .gok-stat-value .gok-stat-content.style113 {
+  top: 19px;
+}
+.gok-stats .gok-stat-card .gok-stat-value .gok-stat-content.style112 {
+  top: 22px;
+}
+.gok-stats .gok-stat-card .gok-stat-value .gok-stat-content.style110 {
+  display: none;
+}
+.gok-stats .gok-stat-card .gok-stat-value .gok-stat-content.style111 {
+  top: 29px;
+}
+.gok-stats .gok-stat-card .gok-stat-value .gok-stat-content.style102 {
+  margin-bottom: 10px;
+}
+.gok-stats .gok-stat-card .gok-stat-label {
+  font-size: 15px;
+  color: #9aa7bd;
+}
+
+/* ===== 战斗力条 ===== */
+.gok-combat {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  align-items: center;
+  margin-top: 20px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.18);
+  padding-top: 14px;
+  font-size: 20px;
+  color: #eef2f8;
+}
+.gok-combat .gok-combat-icon {
+  width: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  margin-right: 10px;
+}
+
+/* ===== 段位图槽位（5v5 / 巅峰赛各一个） ===== */
+.gok-rank-slot {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.gok-rank-frame {
+  position: relative;
+  width: 150px;
+  height: 324px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 50px;
+  margin-right: 25px;
+}
+.gok-rank-frame .gok-rank-star-bar {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 85%;
+  z-index: 3;
+}
+.gok-rank-frame .gok-rank-bg {
+  position: relative;
+  width: 100%;
+  top: -15px;
+  height: 100%;
+  z-index: 1;
+}
+.gok-rank-frame .gok-rank-honor {
+  position: absolute;
+  z-index: 3;
+  width: 160%;
+}
+.gok-rank-frame .gok-rank-main {
+  position: absolute;
+  top: -3%;
+  width: 190%;
+  height: auto;
+  z-index: 2;
+}
+.gok-rank-frame .gok-rank-badge {
+  position: absolute;
+  top: 75%;
+  background: rgba(245, 215, 110, 0.16);
+  border: 1px solid rgba(245, 215, 110, 0.4);
+  color: #f5d76e;
+  padding: 5px 24px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+  z-index: 3;
+}
+.gok-rank-frame .gok-rank-star-count {
+  position: absolute;
+  top: 35px;
+  z-index: 3;
+  color: #ffffff;
+  display: flex;
+  font-size: 18px;
+}
+.gok-rank-frame .gok-rank-star-count img {
+  width: 20px;
+  height: 20px;
+  margin-right: 10px;
+}
+
+/* ===== 巅峰赛叠层 ===== */
+.gok-rank-frame .gok-peak-cube {
+  width: 100%;
+  position: absolute;
+  z-index: 2;
+  top: 0;
+}
+.gok-rank-frame .gok-peak-avatar {
+  z-index: 2;
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+  position: absolute;
+  top: 44%;
+}
+.gok-rank-frame .gok-peak-avatar img {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+.gok-rank-frame .gok-peak-avatar .gok-peak-avatar-border {
+  width: 66px;
+  height: 66px;
+  left: -16px;
+  top: -16px;
+}
+.gok-rank-frame .gok-peak-desc {
+  position: absolute;
+  z-index: 2;
+  font-size: 15px;
+  top: 60%;
+  color: #EED8D7;
+}
+
+.gok-footer {
+  margin-top: 26px;
+  text-align: center;
+  font-size: 16px;
+  color: #6f7c92;
+}

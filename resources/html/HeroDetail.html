@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <title>英雄详情</title>
+  <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
+  <style>
+    /* 三格概览（.stat-grid 默认四格，这里只有一个英雄的三个数）。
+       底色必须**做实**：公共样式里 .stat-grid 垫了一层白 0.07（格子之间那 1px 的缝就靠它显形），
+       .stat-cell 又是 0.5 半透明 —— 两层叠起来比卡片本身还亮，底下的模糊背景图会透上来，
+       看着像「遮罩没盖住」。这里两层都换成实色，色值取自卡片区域实测的 RGB(20,26,37)；
+       只留比卡片略深一档的格子，分隔靠明度差而不是那道白缝。 */
+    .stat-grid.three { grid-template-columns: repeat(3, 1fr); background: #141a25; }
+    .stat-grid.three .stat-cell { background: #0e1420; }
+
+    /* 英雄头图：立绘当背景，左边压名字和称号，靠暗色渐变保证可读。
+       ⚠️ 这里**不能加 border-bottom**：那条 1px 的 rgba(255,255,255,0.08) 在
+       body 的 scale(3) 下会变成一条横贯整卡的明显亮缝，而立绘的遮罩 ::after 是
+       `inset: 0`（只覆盖 padding box、不含 border），压根压不暗它 ——
+       出来就是「遮罩没盖全」的样子。头图和下面的三格靠明度差分隔就够了。 */
+    .hero-hero {
+      position: relative;
+      height: 250px;
+      background: linear-gradient(100deg, rgba(120,140,190,0.25), rgba(30,40,70,0.6));
+      background-size: cover;
+      background-position: center 22%;
+    }
+    .hero-hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, rgba(10,14,26,0.96) 0%, rgba(10,14,26,0.82) 38%, rgba(10,14,26,0.25) 72%, rgba(10,14,26,0.55) 100%);
+    }
+    .hh-body {
+      position: relative;
+      z-index: 1;
+      height: 100%;
+      padding: 30px 34px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 12px;
+    }
+    .hh-name {
+      font-size: 40px;
+      font-weight: 700;
+      line-height: 1.1;
+      text-shadow: 0 2px 12px rgba(0,0,0,0.6);
+    }
+    .hh-alias {
+      margin-left: 14px;
+      font-size: 18px;
+      font-weight: 400;
+      color: rgba(255,255,255,0.62);
+    }
+    .hh-tags { display: flex; gap: 8px; flex-wrap: wrap; }
+    .hh-tag {
+      font-size: 14px;
+      padding: 3px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.28);
+      color: rgba(255,255,255,0.86);
+      background: rgba(10,14,26,0.45);
+    }
+    .hh-tag.gold { border-color: rgba(245,215,110,0.6); color: #f5d76e; }
+    .hh-medals { display: flex; flex-direction: column; gap: 6px; }
+    .hh-medal {
+      align-self: flex-start;
+      font-size: 15px;
+      padding: 3px 14px;
+      border-radius: 9px;
+      color: #ffd98a;
+      background: rgba(245,215,110,0.12);
+      border: 1px solid rgba(245,215,110,0.35);
+    }
+
+    /* 近一个月荣誉 */
+    .honor-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .honor-cell {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 12px;
+      padding: 14px 8px;
+      text-align: center;
+    }
+    .honor-val { font-family: Number, YS, sans-serif; font-size: 28px; line-height: 1.1; margin-bottom: 6px; }
+    .honor-key { font-size: 13px; color: rgba(255,255,255,0.42); }
+    .honor-cell.gold .honor-val { color: #f5d76e; }
+    .honor-cell.dim .honor-val { color: rgba(255,255,255,0.35); }
+
+    /* 荣耀战力 + 曲线 */
+    .power-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+    .power-val { font-family: Number, YS, sans-serif; font-size: 40px; color: #f5d76e; line-height: 1; }
+    .power-tip { font-size: 13px; color: rgba(255,255,255,0.38); }
+    .chart-box { width: 100%; }
+    .chart-box canvas { width: 100%; display: block; }
+
+    /* 五维雷达 */
+    .radar-wrap { display: flex; align-items: center; gap: 30px; }
+    .radar-stats { flex: 1; display: flex; flex-direction: column; gap: 9px; }
+    .rs-row { display: flex; align-items: center; gap: 12px; font-size: 15px; }
+    .rs-row .rs-name { color: rgba(255,255,255,0.55); width: 52px; flex-shrink: 0; }
+    .rs-row .rs-bar { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.1); overflow: hidden; }
+    .rs-row .rs-bar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, rgba(245,215,110,0.55), #f5d76e); }
+    .rs-row .rs-val { font-family: Number, YS, sans-serif; font-size: 17px; width: 40px; text-align: right; color: rgba(255,255,255,0.85); }
+
+    /* 最近比赛：一局一行 */
+    .match-list { display: flex; flex-direction: column; gap: 9px; }
+    .match-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 16px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.09);
+      position: relative;
+      overflow: hidden;
+    }
+    .match-row::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 4px;
+    }
+    .match-row.win-bg::before { background: #57c98a; }
+    .match-row.loss-bg::before { background: #ff5b7c; }
+    .match-icon {
+      width: 46px; height: 46px;
+      border-radius: 50%;
+      border: 2px solid rgba(245,215,110,0.35);
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    .match-main { flex: 1; min-width: 0; }
+    .match-title { display: flex; align-items: center; gap: 10px; font-size: 16px; margin-bottom: 5px; }
+    .match-res.win { color: #6fd39b; font-weight: 600; }
+    .match-res.lose { color: #e96e6e; font-weight: 600; }
+    .match-type { color: rgba(255,255,255,0.5); font-size: 14px; }
+    /* 三杀及以上 / 超神：营地那套金色立体字图标（resources/img/kill_N.png）。
+       高度对齐 KDA 数字，跟营地列表一样紧贴战绩。
+       整块**固定宽度**、数字右对齐，这样有图标没图标、图标几个都不影响数字的落点，
+       否则这一列会随图标宽度左右浮动、对不齐（营地那页的 KDA 是一根直线）。
+       接口没有生涯累计口径，只能逐场标 */
+    .match-kda { display: flex; align-items: center; gap: 6px; flex-shrink: 0; width: 200px; }
+    .match-kda .kda-num {
+      font-family: Number, YS, sans-serif;
+      font-size: 19px;
+      min-width: 88px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .mk-tag { display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }
+    .mk-tag img { height: 20px; display: block; }
+    .match-meta { font-size: 13px; color: rgba(255,255,255,0.34); }
+    .match-tags { display: flex; align-items: center; gap: 8px; width: 210px; justify-content: flex-end; flex-shrink: 0; }
+    .match-grade { font-family: Number, YS, sans-serif; font-size: 17px; color: rgba(255,255,255,0.6); width: 46px; text-align: right; flex-shrink: 0; }
+    .tag-icon { height: 26px; display: block; }
+
+    .empty-tip { padding: 22px 0; text-align: center; color: rgba(255,255,255,0.4); font-size: 15px; }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <div class="card-header">
+      {{if qqAvatar}}<img class="avatar" src="{{qqAvatar}}" onerror="this.style.display='none'">{{/if}}
+      <div class="user-info">
+        <div class="username">{{nickname}}</div>
+        <span class="badge">ID: {{ydId}}</span>
+      </div>
+      <div class="report-label">英雄详情<span class="sub">{{heroName}}</span></div>
+    </div>
+
+    <!-- 英雄头图 -->
+    <div class="hero-hero" {{if portrait}}style="background-image:url('{{portrait}}')"{{/if}}>
+      <div class="hh-body">
+        <div class="hh-name">{{heroName}}{{if heroAlias}}<span class="hh-alias">{{heroAlias}}</span>{{/if}}</div>
+        <div class="hh-tags">
+          {{if heroType}}<span class="hh-tag" style="border-color:{{heroTypeColor}};color:{{heroTypeColor}}">{{heroType}}</span>{{/if}}
+          {{if branchRoad}}<span class="hh-tag">{{branchRoad}}</span>{{/if}}
+          {{if skilledText}}<span class="hh-tag gold">{{skilledText}}</span>{{/if}}
+        </div>
+        {{if medals.length}}
+        <div class="hh-medals">
+          {{each medals m}}<span class="hh-medal">{{m}}</span>{{/each}}
+        </div>
+        {{/if}}
+      </div>
+    </div>
+
+    <!-- 生涯总览 -->
+    <div class="stat-grid three">
+      <div class="stat-cell">
+        <div class="stat-val">{{totalGames}}</div>
+        <div class="stat-key">总场次</div>
+      </div>
+      <div class="stat-cell good">
+        <div class="stat-val">{{winRate}}%</div>
+        <div class="stat-key">总胜率</div>
+      </div>
+      <div class="stat-cell gold">
+        <div class="stat-val">{{power}}</div>
+        <div class="stat-key">荣耀战力</div>
+      </div>
+    </div>
+
+    <!-- 近一个月荣誉 -->
+    <div class="section">
+      <div class="section-title">近一个月荣誉<span class="tip">综合得分 {{honor.score}}</span></div>
+      <div class="honor-grid">
+        <div class="honor-cell {{if honor.best}}gold{{else}}dim{{/if}}">
+          <div class="honor-val">{{honor.best}}</div>
+          <div class="honor-key">顶级</div>
+        </div>
+        <div class="honor-cell {{if honor.gold}}gold{{else}}dim{{/if}}">
+          <div class="honor-val">{{honor.gold}}</div>
+          <div class="honor-key">金牌</div>
+        </div>
+        <div class="honor-cell {{if honor.silver}}gold{{else}}dim{{/if}}">
+          <div class="honor-val">{{honor.silver}}</div>
+          <div class="honor-key">银牌</div>
+        </div>
+        <div class="honor-cell {{if honor.mvp}}gold{{else}}dim{{/if}}">
+          <div class="honor-val">{{honor.mvp}}</div>
+          <div class="honor-key">MVP</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 荣耀战力趋势 -->
+    {{if powerCurve.length >= 2}}
+    <div class="section">
+      <div class="section-title">荣耀战力趋势</div>
+      <div class="power-head">
+        <span class="power-val">{{power}}</span>
+        <span class="power-tip">{{powerCurve[0].date}} 起 · 共 {{powerCurve.length}} 天</span>
+      </div>
+      <div class="chart-box">
+        <canvas id="powerCanvas" width="2400" height="620"></canvas>
+      </div>
+    </div>
+    {{/if}}
+
+    <!-- 近一个月战绩表现 -->
+    <div class="section">
+      <div class="section-title">近一个月战绩表现</div>
+      <div class="radar-wrap">
+        <canvas id="radarCanvas" width="620" height="620" style="width:280px;height:280px;flex-shrink:0"></canvas>
+        <div class="radar-stats">
+          {{each radar r}}
+          <div class="rs-row">
+            <span class="rs-name">{{r.label}}</span>
+            <span class="rs-bar"><i style="width:{{r.pct * 100}}%"></i></span>
+            <span class="rs-val">{{r.value}}</span>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+    </div>
+
+    <!-- 最近比赛 -->
+    <div class="section">
+      <div class="section-title">最近比赛{{if hideMatch}}<span class="tip">对方隐藏了详细战绩</span>{{/if}}</div>
+      {{if recent.length}}
+      <div class="match-list">
+        {{each recent m}}
+        <div class="match-row {{if m.win}}win-bg{{else}}loss-bg{{/if}}">
+          {{if m.heroIcon}}<img class="match-icon" src="{{m.heroIcon}}" onerror="this.style.display='none'">{{/if}}
+          <div class="match-main">
+            <div class="match-title">
+              <span class="match-res {{if m.win}}win{{else}}lose{{/if}}">{{m.gameResult}}</span>
+              <span class="match-type">{{m.gameType}}</span>
+            </div>
+            <div class="match-meta">{{m.gameTime}}{{if m.gameDuration}} · {{m.gameDuration}}{{/if}}{{if m.desc}} · {{m.desc}}{{/if}}</div>
+          </div>
+          <div class="match-kda">
+            <span class="kda-num">{{m.killCnt}}/{{m.deadCnt}}/{{m.assistCnt}}</span>
+            {{each m.killTags k}}<span class="mk-tag"><img src="{{k.icon}}" alt="{{k.text}}"></span>{{/each}}
+          </div>
+          <div class="match-tags">
+            {{if m.evaluate.icon}}<img class="tag-icon" src="{{m.evaluate.icon}}" title="{{m.evaluate.label}}" onerror="this.style.display='none'">{{/if}}
+            {{if m.mvp.icon}}<img class="tag-icon" src="{{m.mvp.icon}}" title="{{m.mvp.label}}" onerror="this.style.display='none'">{{/if}}
+          </div>
+          <div class="match-grade">{{m.grade}}</div>
+        </div>
+        {{/each}}
+      </div>
+      {{else}}
+      <div class="empty-tip">暂无对局记录</div>
+      {{/if}}
+    </div>
+
+    <div class="footer">数据来自王者营地 · 仅统计该英雄的对局</div>
+  </div>
+
+  <script>
+    /* 数组字面量后面紧跟 (function…)() 会被解析成「数组当函数调用」，
+       所以这两行必须有分号，IIFE 前也补一个，别靠自动分号插入 */
+    var powerCurve = {{@powerCurveJson}};
+    var radar = {{@radarJson}};
+
+    /* 荣耀战力曲线：同一天只留一个点（后端已按天去重），平滑贝塞尔 + 渐变填充 */
+    ;(function drawPower () {
+      var canvas = document.getElementById('powerCanvas')
+      if (!canvas || !powerCurve || powerCurve.length < 2) return
+      var ctx = canvas.getContext('2d')
+      var W = canvas.width, H = canvas.height
+      var pad = { l: 130, r: 40, t: 40, b: 90 }
+      var plotW = W - pad.l - pad.r
+      var plotH = H - pad.t - pad.b
+
+      var values = powerCurve.map(function (p) { return p.value })
+      var dataMin = Math.min.apply(null, values)
+      var dataMax = Math.max.apply(null, values)
+      var span = dataMax - dataMin
+      var axisMin = dataMin - (span > 0 ? span * 0.15 : 10)
+      var axisMax = dataMax + (span > 0 ? span * 0.15 : 10)
+      var range = axisMax - axisMin || 1
+
+      var xs = powerCurve.map(function (_, i) { return pad.l + i * plotW / (powerCurve.length - 1) })
+      var ys = values.map(function (v) { return pad.t + (1 - (v - axisMin) / range) * plotH })
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+      ctx.lineWidth = 2
+      for (var i = 0; i <= 4; i++) {
+        var gy = pad.t + i * plotH / 4
+        ctx.beginPath(); ctx.moveTo(pad.l, gy); ctx.lineTo(W - pad.r, gy); ctx.stroke()
+      }
+
+      var smooth = function () {
+        ctx.moveTo(xs[0], ys[0])
+        for (var i = 0; i < xs.length - 1; i++) {
+          var x0 = xs[i - 1] === undefined ? xs[i] : xs[i - 1], y0 = ys[i - 1] === undefined ? ys[i] : ys[i - 1]
+          var x1 = xs[i], y1 = ys[i]
+          var x2 = xs[i + 1], y2 = ys[i + 1]
+          var x3 = xs[i + 2] === undefined ? x2 : xs[i + 2], y3 = ys[i + 2] === undefined ? y2 : ys[i + 2]
+          ctx.bezierCurveTo(x1 + (x2 - x0) / 6, y1 + (y2 - y0) / 6, x2 - (x3 - x1) / 6, y2 - (y3 - y1) / 6, x2, y2)
+        }
+      }
+
+      var grad = ctx.createLinearGradient(0, pad.t, 0, H - pad.b)
+      grad.addColorStop(0, 'rgba(245,215,110,0.32)')
+      grad.addColorStop(1, 'rgba(245,215,110,0.02)')
+      ctx.beginPath()
+      smooth()
+      ctx.lineTo(xs[xs.length - 1], H - pad.b)
+      ctx.lineTo(xs[0], H - pad.b)
+      ctx.closePath()
+      ctx.fillStyle = grad
+      ctx.fill()
+
+      ctx.beginPath()
+      smooth()
+      ctx.strokeStyle = '#f5d76e'
+      ctx.lineWidth = 5
+      ctx.lineJoin = 'round'
+      ctx.lineCap = 'round'
+      ctx.stroke()
+
+      var dotR = powerCurve.length > 30 ? 5 : 7
+      xs.forEach(function (x, i) {
+        ctx.beginPath(); ctx.arc(x, ys[i], dotR, 0, Math.PI * 2)
+        ctx.fillStyle = '#f5d76e'; ctx.fill()
+      })
+
+      ctx.font = '30px YS,sans-serif'
+      ctx.textAlign = 'right'
+      ctx.fillStyle = 'rgba(255,255,255,0.6)'
+      var minIdx = values.indexOf(dataMin), maxIdx = values.indexOf(dataMax)
+      ctx.fillText(String(dataMin), pad.l - 16, ys[minIdx] + 10)
+      if (minIdx !== maxIdx) ctx.fillText(String(dataMax), pad.l - 16, ys[maxIdx] + 10)
+
+      ctx.fillStyle = 'rgba(255,255,255,0.5)'
+      ctx.textAlign = 'left'
+      ctx.fillText(powerCurve[0].date, xs[0], H - 30)
+      ctx.textAlign = 'right'
+      ctx.fillText(powerCurve[powerCurve.length - 1].date, xs[xs.length - 1], H - 30)
+      if (powerCurve.length >= 8) {
+        var mi = Math.floor((powerCurve.length - 1) / 2)
+        ctx.textAlign = 'center'
+        ctx.fillText(powerCurve[mi].date, xs[mi], H - 30)
+      }
+    })();
+
+    /* 五维雷达 */
+    (function drawRadar () {
+      var canvas = document.getElementById('radarCanvas')
+      if (!canvas || !radar || !radar.length) return
+      var ctx = canvas.getContext('2d')
+      var W = canvas.width, H = canvas.height
+      var cx = W / 2, cy = H / 2
+      var R = Math.min(W, H) / 2 - W * 0.16
+      var N = radar.length
+      var angles = radar.map(function (_, i) { return (i / N) * Math.PI * 2 - Math.PI / 2 })
+
+      for (var ring = 1; ring <= 4; ring++) {
+        ctx.beginPath()
+        angles.forEach(function (a, i) {
+          var x = cx + Math.cos(a) * R * ring / 4
+          var y = cy + Math.sin(a) * R * ring / 4
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+        })
+        ctx.closePath()
+        ctx.strokeStyle = ring === 4 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)'
+        ctx.lineWidth = 2
+        ctx.stroke()
+      }
+
+      angles.forEach(function (a) {
+        ctx.beginPath()
+        ctx.moveTo(cx, cy)
+        ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R)
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)'
+        ctx.lineWidth = 2
+        ctx.stroke()
+      })
+
+      ctx.beginPath()
+      angles.forEach(function (a, i) {
+        var r2 = R * Math.max(radar[i].pct, 0.02)
+        var x = cx + Math.cos(a) * r2, y = cy + Math.sin(a) * r2
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+      })
+      ctx.closePath()
+      ctx.fillStyle = 'rgba(245,215,110,0.25)'
+      ctx.fill()
+      ctx.strokeStyle = '#f5d76e'
+      ctx.lineWidth = Math.max(W / 160, 2)
+      ctx.stroke()
+
+      ctx.fillStyle = 'rgba(255,255,255,0.78)'
+      ctx.font = 'bold ' + Math.round(W / 20) + 'px YS,sans-serif'
+      ctx.textAlign = 'center'
+      angles.forEach(function (a, i) {
+        var dist = R + W * 0.12
+        ctx.fillText(radar[i].label, cx + Math.cos(a) * dist, cy + Math.sin(a) * dist + W / 60)
+      })
+    })();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,370 @@
+<style>
+    /* 用户鉴权信息统计 —— 统一 gok- 命名体系，装饰色条不再依赖 CSS :has() */
+    :root {
+        --c-primary: #e4bea0;
+        --c-bg: #121820;
+        --c-panel: rgba(22, 28, 40, 0.85);
+        --c-panel-light: rgba(255, 255, 255, 0.05);
+        --c-border: rgba(228, 190, 160, 0.2);
+        --c-border-soft: rgba(255, 255, 255, 0.08);
+        --c-text: #eef0f4;
+        --c-text-muted: rgba(238, 240, 244, 0.6);
+        --c-accent: #5fb1eb;
+
+        --tone-blue: #60a5fa;
+        --tone-cyan: #22d3ee;
+        --tone-green: #34d399;
+        --tone-purple: #c084fc;
+        --tone-emerald: #10b981;
+        --tone-red: #f87171;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+        width: 1000px;
+        padding: 30px;
+        font-family: inherit;
+        color: var(--c-text);
+        background: #000;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    /* 卡片外框：深色底 + 背景大图 */
+    .gok-page {
+        position: relative;
+        border-radius: 24px;
+        overflow: hidden;
+        background: var(--c-bg) url('../img/bgImgV2.png') no-repeat center/cover;
+        border: 1px solid var(--c-border);
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+    }
+
+    /* 内容蒙层：渐变 + 毛玻璃 */
+    .gok-overlay {
+        background: linear-gradient(180deg, rgba(16, 20, 29, 0.88) 0%, rgba(18, 24, 32, 0.96) 100%);
+        backdrop-filter: blur(8px);
+        padding: 40px 45px;
+    }
+
+    .gok-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        border-bottom: 1px solid var(--c-border);
+        padding-bottom: 24px;
+        margin-bottom: 30px;
+    }
+
+    .gok-title h1 {
+        font-size: 36px;
+        font-weight: 800;
+        color: var(--c-primary);
+        text-shadow: 0 4px 16px rgba(228, 190, 160, 0.3);
+    }
+
+    .gok-header-meta {
+        text-align: right;
+        font-size: 13px;
+        color: var(--c-text-muted);
+        line-height: 1.6;
+    }
+
+    /* 顶部总览六宫格 */
+    .gok-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 12px;
+        margin-bottom: 24px;
+    }
+
+    .gok-summary-label {
+        font-size: 12px;
+        color: var(--c-text-muted);
+        margin-bottom: 8px;
+        font-weight: bold;
+    }
+
+    .gok-summary-value {
+        font-size: 24px;
+        font-weight: 800;
+    }
+
+    /* tone 由调用方按数据传入：blue / cyan / green / purple / emerald / red。
+       color 负责数值上色，--tone 供左侧装饰色条复用；
+       色条改走元素自身 class，不再依赖 :has()，Chromium 105 以下同样出色条 */
+    .tone-blue { color: var(--tone-blue); --tone: var(--tone-blue); }
+    .tone-cyan { color: var(--tone-cyan); --tone: var(--tone-cyan); }
+    .tone-green { color: var(--tone-green); --tone: var(--tone-green); }
+    .tone-purple { color: var(--tone-purple); --tone: var(--tone-purple); }
+    .tone-emerald { color: var(--tone-emerald); --tone: var(--tone-emerald); }
+    .tone-red { color: var(--tone-red); --tone: var(--tone-red); }
+
+    /* 总览卡与归属卡共用的卡片底 */
+    .gok-summary-card,
+    .gok-owner-card {
+        background: var(--c-panel-light);
+        border: 1px solid rgba(255, 255, 255, 0.03);
+    }
+
+    .gok-summary-card {
+        border-radius: 12px;
+        padding: 18px 10px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .gok-summary-card::before {
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 4px;
+        background: var(--tone, transparent);
+    }
+
+    /* 面板 */
+    .gok-panel {
+        background: var(--c-panel);
+        border: 1px solid var(--c-border-soft);
+        border-radius: 18px;
+        padding: 24px;
+        margin-bottom: 24px;
+    }
+
+    /* 面板末位去掉下边距，替代原来的一次性内联覆盖 */
+    .gok-panel--last { margin-bottom: 0; }
+
+    .gok-panel-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .gok-panel h2 {
+        font-size: 20px;
+        color: var(--c-primary);
+        display: flex;
+        align-items: center;
+    }
+
+    .gok-panel h2::before {
+        content: '';
+        display: inline-block;
+        width: 4px;
+        height: 18px;
+        background: var(--c-primary);
+        margin-right: 12px;
+        border-radius: 2px;
+    }
+
+    .gok-panel-note {
+        font-size: 13px;
+        color: var(--c-text-muted);
+    }
+
+    .gok-empty { color: var(--c-text-muted); }
+
+    /* QQ 归属卡 */
+    .gok-owner-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+    }
+
+    .gok-owner-card {
+        border-radius: 14px;
+        padding: 16px;
+    }
+
+    .gok-owner-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 14px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        padding-bottom: 12px;
+    }
+
+    .gok-owner-name {
+        font-size: 16px;
+        font-weight: 800;
+        color: var(--c-text);
+        margin-bottom: 6px;
+    }
+
+    .gok-owner-meta {
+        font-size: 12px;
+        color: var(--c-text-muted);
+    }
+
+    .gok-count-col {
+        display: flex;
+        gap: 6px;
+        flex-direction: column;
+        align-items: flex-end;
+    }
+
+    /* 计数胶囊与状态徽标共用排版，只差内边距 */
+    .gok-count-pill,
+    .gok-badge {
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: bold;
+    }
+
+    .gok-count-pill {
+        padding: 3px 8px;
+        background: rgba(255, 255, 255, 0.06);
+    }
+
+    .gok-badge { padding: 4px 8px; }
+
+    /* UID 列表 */
+    .gok-uid-list {
+        display: grid;
+        gap: 8px;
+    }
+
+    .gok-uid-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid transparent;
+    }
+
+    .gok-uid-row.is-current {
+        border-color: rgba(52, 211, 153, 0.3);
+        background: rgba(52, 211, 153, 0.05);
+    }
+
+    .gok-uid-name {
+        font-size: 14px;
+        font-weight: bold;
+        color: var(--c-text);
+    }
+
+    .gok-uid-note {
+        font-size: 11px;
+        color: var(--c-text-muted);
+        margin-top: 4px;
+    }
+
+    .gok-uid-row.is-current .gok-uid-note,
+    .gok-uid-row.is-current .gok-uid-name {
+        color: var(--tone-green);
+    }
+
+    /* 状态徽标：class 取值 valid / invalid / none 由调用方传入 */
+    .gok-badge.valid {
+        background: rgba(52, 211, 153, 0.1);
+        color: var(--tone-green);
+    }
+
+    .gok-badge.invalid {
+        background: rgba(248, 113, 113, 0.1);
+        color: var(--tone-red);
+    }
+
+    .gok-badge.none {
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--c-text-muted);
+    }
+
+    /* 共享池孤儿账号（原 .shared-card 的 grid-column 规则已无对应元素，重构时移除） */
+    .gok-shared-list {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+    }
+</style>
+
+<body>
+    <div class="gok-page">
+        <div class="gok-overlay">
+            <div class="gok-header">
+                <div class="gok-title">
+                    <h1>用户鉴权信息统计</h1>
+                </div>
+                <div class="gok-header-meta">
+                    <div class="gok-header-time">{{timestamp}} | GloryOfKings-Plugin</div>
+                </div>
+            </div>
+
+            <div class="gok-summary-grid">
+                {{each overviewCards item}}
+                <div class="gok-summary-card tone-{{item.tone}}">
+                    <div class="gok-summary-label">{{item.label}}</div>
+                    <div class="gok-summary-value">{{item.value}}</div>
+                </div>
+                {{/each}}
+            </div>
+
+            <div class="gok-panel">
+                <div class="gok-panel-head">
+                    <h2>QQ 归属审计</h2>
+                    {{if omittedOwnerCount > 0}}
+                    <div class="gok-panel-note">仅展示前 60 个 QQ，已省略 {{omittedOwnerCount}} 个</div>
+                    {{/if}}
+                </div>
+                
+                {{if ownerSections && ownerSections.length}}
+                <div class="gok-owner-grid">
+                    {{each ownerSections owner}}
+                    <div class="gok-owner-card">
+                        <div class="gok-owner-head">
+                            <div>
+                                <div class="gok-owner-name">QQ {{owner.maskedQqId}}</div>
+                                <div class="gok-owner-meta">当前 {{owner.currentMaskedCampId}}</div>
+                            </div>
+                            <div class="gok-count-col">
+                                <div class="gok-count-pill tone-blue">Token {{owner.tokenCount}}</div>
+                                {{if owner.validTokenCount}}<div class="gok-count-pill tone-green">{{owner.validTokenCount}} 有效</div>{{/if}}
+                                {{if owner.invalidTokenCount}}<div class="gok-count-pill tone-red">{{owner.invalidTokenCount}} 失效</div>{{/if}}
+                            </div>
+                        </div>
+
+                        <div class="gok-uid-list">
+                            {{each owner.uidEntries item}}
+                            <div class="gok-uid-row {{item.isCurrent ? 'is-current' : ''}}">
+                                <div>
+                                    <div class="gok-uid-name">{{item.maskedCampUserId}}</div>
+                                    <div class="gok-uid-note">{{item.isCurrent ? '当前默认' : '已绑定'}}</div>
+                                </div>
+                                <div class="gok-badge {{item.badgeClass}}">{{item.badgeText}}</div>
+                            </div>
+                            {{/each}}
+                        </div>
+                    </div>
+                    {{/each}}
+                </div>
+                {{else}}
+                <div class="gok-empty">暂无数据</div>
+                {{/if}}
+            </div>
+
+            {{if unownedAccounts && unownedAccounts.length}}
+            <div class="gok-panel gok-panel--last">
+                <div class="gok-panel-head">
+                    <h2>共享池孤儿账号</h2>
+                </div>
+                <div class="gok-shared-list">
+                    {{each unownedAccounts item}}
+                    <div class="gok-uid-row">
+                        <div>
+                            <div class="gok-uid-name">{{item.maskedCampUserId}}</div>
+                            <div class="gok-uid-note">{{item.nickname}}</div>
+                        </div>
+                        <div class="gok-badge {{item.statusClass}}">Token</div>
+                    </div>
+                    {{/each}}
+                </div>
+            </div>
+            {{/if}}
+        </div>
+    </div>
+</body>

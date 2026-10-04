@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>营地消息</title>
+  <style>
+    @font-face {
+      font-family: YS;
+      src: url("{{_res_path}}font/HYWH-65W.woff") format("woff"),
+           url("{{_res_path}}font/HYWH-65W.ttf") format("truetype");
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: YS, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      /* 一张完整消息卡片：头像+昵称+来源+正文；宽 420、缩放 2.5，webp <100k */
+      width: 420px;
+      padding: 26px;
+      background: linear-gradient(160deg, #0f1420 0%, #1a2133 100%);
+      transform: scale(2.5);
+      transform-origin: 0 0;
+    }
+    .card {
+      background: rgba(10,14,26,0.55);
+      border: 1px solid rgba(126,231,135,0.28);
+      border-radius: 20px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+      padding: 22px 24px;
+    }
+    /* 顶部：头像 + 昵称/来源 + 营地消息标签 */
+    .head {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .avatar {
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      border: 2.5px solid rgba(126,231,135,0.5);
+      object-fit: cover;
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.06);
+    }
+    /* 头像挂了露出底下的绿字占位，别开天窗 */
+    .avatar-fallback {
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      border: 2.5px solid rgba(126,231,135,0.5);
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(126,231,135,0.12);
+      color: rgba(126,231,135,0.9);
+      font-size: 30px;
+    }
+    .info { flex: 1; min-width: 0; }
+    .name {
+      font-size: 23px;
+      font-weight: 600;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .sub {
+      margin-top: 6px;
+      font-size: 13.5px;
+      color: rgba(255,255,255,0.42);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tag {
+      flex-shrink: 0;
+      font-size: 13.5px;
+      color: rgba(126,231,135,0.9);
+      background: rgba(126,231,135,0.12);
+      border: 1px solid rgba(126,231,135,0.3);
+      border-radius: 9px;
+      padding: 5px 12px;
+    }
+    /* 正文气泡 */
+    .body {
+      margin-top: 18px;
+      font-size: 19px;
+      line-height: 1.55;
+      color: #fff;
+      background: rgba(255,255,255,0.05);
+      border-radius: 14px;
+      padding: 15px 17px;
+      /* 长消息自动换行，别撑破卡片 */
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="head">
+    {{if avatar}}
+    <img class="avatar" src="{{avatar}}" alt="">
+    {{else}}
+    <div class="avatar-fallback">🎮</div>
+    {{/if}}
+    <div class="info">
+      <div class="name">{{name}}</div>
+      {{if sub}}<div class="sub">{{sub}}</div>{{/if}}
+    </div>
+    <div class="tag">营地消息</div>
+  </div>
+  <div class="body">{{message}}</div>
+</div>
+</body>
+</html>

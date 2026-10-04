@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="{{_res_path}}css/MyKingHomepage.css">
+</head>
+
+<body>
+    <div class="gok-card">
+        <div class="gok-card-head">
+            <img src="{{roleIcon}}" alt="用户头像" class="gok-avatar">
+            <div class="gok-user">
+                <h2 class="gok-username">{{roleName}}</h2>
+                <span class="gok-badge gok-badge--level">等级 {{gameLevel}}</span>
+                <span class="gok-badge gok-badge--role">{{roleText}}</span>
+                <span class="gok-badge gok-badge--online{{isOffline ? " is-offline" : "" }}">{{gameOnline}}</span>
+            </div>
+        </div>
+        <div class="gok-card-body">
+            <div class="gok-info-col">
+                <div class="gok-info-grid">
+                    <div class="gok-info-item">
+                        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9H4.5a2.5 2.5 0 0 1 0-5H6'/%3E%3Cpath d='M18 9h1.5a2.5 2.5 0 0 0 0-5H18'/%3E%3Cpath d='M4 22h16'/%3E%3Cpath d='M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22'/%3E%3Cpath d='M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22'/%3E%3Cpath d='M18 2H6v7a6 6 0 0 0 12 0V2Z'/%3E%3C/svg%3E"
+                            alt="奖杯图标" class="gok-info-icon">
+                        <span class="gok-info-key">10v10段位：</span><span>{{rank10v10}}</span>
+                    </div>
+                    <div class="gok-info-item">
+                        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9H4.5a2.5 2.5 0 0 1 0-5H6'/%3E%3Cpath d='M18 9h1.5a2.5 2.5 0 0 0 0-5H18'/%3E%3Cpath d='M4 22h16'/%3E%3Cpath d='M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22'/%3E%3Cpath d='M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22'/%3E%3Cpath d='M18 2H6v7a6 6 0 0 0 12 0V2Z'/%3E%3C/svg%3E"
+                            alt="奖杯图标" class="gok-info-icon">
+                        <span class="gok-info-key">5v5段位：</span><span>{{rank5v5}}</span>
+                    </div>
+                    <div class="gok-info-item">
+                        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpolyline points='12 6 12 12 16 14'/%3E%3C/svg%3E"
+                            alt="时钟图标" class="gok-info-icon">
+                        <span class="gok-info-key">上次上线：</span><span>{{onlineTime}}</span>
+                    </div>
+                    <div class="gok-info-item">
+                        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18.36 6.64a9 9 0 1 1-12.73 0'/%3E%3Cline x1='12' y1='2' x2='12' y2='12'/%3E%3C/svg%3E"
+                            alt="关机图标" class="gok-info-icon">
+                        <span class="gok-info-key">上次离线：</span><span>{{offlineTime}}</span>
+                    </div>
+                </div>
+                <div class="gok-stats">
+                    {{each mod v}}
+                    <div class="gok-stat-card">
+                        <div class="gok-stat-value">
+                            {{if v.icon}}
+                            <img src="{{v.icon}}" alt="" class="gok-stat-icon">
+                            {{/if}}
+                            <div class="gok-stat-content style{{v.showStyle}}">{{v.content}}</div>
+                        </div>
+                        <div class="gok-stat-label">{{v.name}}</div>
+                    </div>
+                    {{/each}}
+                </div>
+                {{if combat}}
+                <div class="gok-combat">
+                    <img src="{{combat.icon}}" alt="" class="gok-combat-icon">
+                    {{combat.name}}: {{combat.content}}
+                </div>
+                {{/if}}
+            </div>
+            <div class="gok-rank-slot">
+                <div class="gok-rank-frame">
+                    <img src="{{_res_path}}img/flag{{flagImg}}.png" alt="段位图片" class="gok-rank-bg">
+                    <img src="{{rankIcon}}" alt="段位图片" class="gok-rank-main">
+                    <img src="{{starImg}}" alt="" class="gok-rank-star-bar">
+                    <img src="{{_res_path}}img/{{honor}}.png" class="gok-rank-honor"></img>
+                    {{if isKing}}
+                    <div class="gok-rank-star-count">
+                        <img src="{{_res_path}}img/star.png" alt="">
+                        × {{rankingStar}}
+                    </div>
+                    {{/if}}
+                    <div class="gok-rank-badge">{{rank5v5}}</div>
+                </div>
+            </div>
+            <div class="gok-rank-slot">
+                <div class="gok-rank-frame">
+                    <img src="{{_res_path}}img/flag{{modePeakRace.param1.flagPag}}.png" alt="段位图片"
+                        class="gok-rank-bg">
+                    <img src="{{modePeakRace.icon}}" alt="段位图片" class="gok-rank-main">
+                    <img src="{{_res_path}}img/cube.png" alt="" class="gok-peak-cube">
+                    <div class="gok-peak-avatar">
+                        <img src="{{modePeakRace.param1.roleIcon}}" alt="" class="gok-avatar">
+                        <img src="{{_res_path}}img/modePeakRace-avatar.png" alt="" class="gok-peak-avatar-border">
+                    </div>
+                    <div class="gok-peak-desc">{{modePeakRace.param1.desc}}</div>
+                    <div class="gok-rank-badge">巅峰赛</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="gok-footer">GloryOfKings-Plugin · 王者主页</div>
+</body>
+<script>
+    const doc = document.querySelectorAll(".gok-stats .gok-stat-card .gok-stat-value");
+
+    doc.forEach((item) => {
+        if (/[\/\.]/.test(item.textContent)) {
+            const s = item.textContent.replace(/([\/\.])/, "_$1").split("_")
+            if (s.length > 1) {
+                item.innerHTML = `<div class="gok-stat-content style102"><span>${s[0]}</span><span class="gok-stat-unit">${s[1]}</span><div>`
+            }
+        }
+    });
+    const modePeakRace_content = document.querySelector(".gok-peak-desc");
+    if (!/^\d+$/.test(modePeakRace_content.textContent)) {
+        modePeakRace_content.style.fontSize = "9px";
+        modePeakRace_content.style.color = "#ffffffd3";
+    }
+</script>
+
+</html>

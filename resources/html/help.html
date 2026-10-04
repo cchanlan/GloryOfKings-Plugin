@@ -1,0 +1,368 @@
+<style>
+    @font-face {
+        font-family: 'HYWenHei';
+        src: url('{{_res_path}}font/HYWH-65W.woff') format('woff');
+        font-weight: normal;
+    }
+
+    @font-face {
+        font-family: 'tttgbnumber';
+        src: url('{{_res_path}}font/tttgbnumber.woff') format('woff');
+        font-weight: normal;
+    }
+
+    :root {
+        --c-primary: #e4bea0;
+        --c-bg: #0d1118;
+        --c-panel: rgba(20, 26, 37, 0.72);
+        --c-card: rgba(255, 255, 255, 0.045);
+        --c-border: rgba(228, 190, 160, 0.22);
+        --c-border-soft: rgba(255, 255, 255, 0.07);
+        --c-text: #eef0f4;
+        --c-text-muted: rgba(238, 240, 244, 0.55);
+        --c-text-dim: rgba(238, 240, 244, 0.46);
+        --accent: #e4bea0;
+    }
+
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    /*
+     * 整页缩放基准：所有尺寸都写成 rem，这里的根字号就是唯一的倍率开关。
+     * 原先用 zoom: 2，但部分渲染服务（如 snapka）取元素盒尺寸时不计 zoom，
+     * 截图会按缩放前的宽度裁切，只截到左上角一小块。rem 没有这个问题。
+     */
+    html {
+        font-size: 2px;
+        background: #05070b;
+    }
+
+    body {
+        color: var(--c-text);
+        background: #05070b;
+        font-family: 'HYWenHei', 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: geometricPrecision;
+    }
+
+    /*
+     * 宽度 1440rem 配下面 .cards 的 3 列是一起定的，别单独改其中一个。
+     *
+     * **关键：按屏幕宽度适配看图时，字号只取决于原图总宽，跟列数无关。**
+     * 列数只决定每张卡多宽（留白多少）、说明能写多少字。所以想让字变大就得收窄
+     * #container。只改列数而不动宽度的话，字是一点没变大的。
+     *
+     * 历史：1080rem + 3 列（2160x5718，1:2.65 的细长条，缩到 20% 才看得全，糊成一团）→
+     * 1800rem + 5 列（3600x4457，1:1.24，按「整页装进屏幕」看最优）→
+     * 1440rem + 4 列（2880x5519，1:1.92）→
+     * 现在 1440rem + 3 列：卡变宽、说明少截断，代价是行数变多、整图更高。
+     * 主人是在手机上点开大图上下滑着看，这个看法下按宽度适配，字最大。
+     * 哪天真要「一眼看完整页」，得回到 5 列那个比例。
+     */
+    #container {
+        width: 1440rem;
+        padding: 28rem;
+    }
+
+    .page {
+        position: relative;
+        border-radius: 26rem;
+        overflow: hidden;
+        border: 1rem solid var(--c-border);
+        box-shadow: 0 18rem 52rem rgba(0, 0, 0, 0.65);
+        background:
+            linear-gradient(180deg, rgba(11, 15, 23, 0.86) 0%, rgba(10, 14, 21, 0.95) 45%, rgba(8, 11, 17, 0.985) 100%),
+            var(--c-bg) url('{{_res_path}}img/background.jpg') no-repeat center top / cover;
+    }
+
+    .glow {
+        position: absolute;
+        top: -180rem;
+        right: -120rem;
+        width: 520rem;
+        height: 520rem;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(228, 190, 160, 0.16) 0%, rgba(228, 190, 160, 0) 70%);
+    }
+
+    .inner {
+        position: relative;
+        padding: 40rem 44rem 34rem;
+    }
+</style>
+<style>
+    .header {
+        display: flex;
+        align-items: center;
+        padding-bottom: 22rem;
+        margin-bottom: 24rem;
+        border-bottom: 1rem solid var(--c-border);
+    }
+
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 16rem;
+    }
+
+    .brand-mark {
+        width: 62rem;
+        height: 62rem;
+        border-radius: 18rem;
+        overflow: hidden;
+        border: 1rem solid rgba(228, 190, 160, 0.35);
+        box-shadow: 0 8rem 22rem rgba(0, 0, 0, 0.45);
+    }
+
+    .brand-mark img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .brand-text h1 {
+        font-size: 36rem;
+        font-weight: normal;
+        letter-spacing: 1rem;
+        color: var(--c-primary);
+        text-shadow: 0 4rem 18rem rgba(228, 190, 160, 0.28);
+    }
+
+    .brand-sub {
+        margin-top: 6rem;
+        font-size: 13rem;
+        letter-spacing: 1rem;
+        color: var(--c-text-dim);
+    }
+</style>
+<style>
+    .panel {
+        position: relative;
+        margin-bottom: 18rem;
+        padding: 22rem 24rem 24rem;
+        border-radius: 20rem;
+        background: var(--c-panel);
+        border: 1rem solid var(--c-border-soft);
+        box-shadow: inset 0 1rem 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .panel::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 26rem;
+        bottom: 26rem;
+        width: 3rem;
+        border-radius: 0 3rem 3rem 0;
+        background: var(--accent);
+        box-shadow: 0 0 14rem var(--accent);
+    }
+
+    .t-gold { --accent: #e4bea0; }
+    .t-blue { --accent: #5fb1eb; }
+    .t-orange { --accent: #ffb84d; }
+    .t-green { --accent: #8be668; }
+</style>
+<style>
+    .panel-head {
+        display: flex;
+        align-items: center;
+        gap: 12rem;
+        margin-bottom: 18rem;
+    }
+
+    .panel-icon {
+        width: 34rem;
+        height: 34rem;
+        border-radius: 10rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14rem;
+        color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 14%, transparent);
+        border: 1rem solid color-mix(in srgb, var(--accent) 32%, transparent);
+    }
+
+    .panel-title {
+        display: flex;
+        align-items: baseline;
+        gap: 12rem;
+    }
+
+    .panel-title h2 {
+        font-size: 21rem;
+        font-weight: normal;
+        letter-spacing: 1rem;
+        color: var(--c-text);
+    }
+
+    .panel-desc {
+        font-size: 13rem;
+        color: var(--c-text-dim);
+    }
+
+    .tag-master {
+        padding: 3rem 10rem;
+        border-radius: 20rem;
+        font-size: 11rem;
+        color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 14%, transparent);
+        border: 1rem solid color-mix(in srgb, var(--accent) 34%, transparent);
+    }
+</style>
+<style>
+    .cards {
+        display: grid;
+        /* 列数与 #container 宽度绑定，改动见上面 #container 的注释 */
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14rem;
+    }
+
+    .card {
+        display: flex;
+        flex-direction: column;
+        gap: 7rem;
+        padding: 15rem 16rem 14rem;
+        border-radius: 14rem;
+        background: var(--c-card);
+        border: 1rem solid var(--c-border-soft);
+        border-left: 2rem solid color-mix(in srgb, var(--accent) 45%, transparent);
+    }
+
+    /*
+     * 每张卡固定「指令名 / 别名 / 说明」各一行，三行封顶。
+     * 内容多的（如 #谁在打游戏 有 8 个别名）靠截断收口，不许把卡片撑高 ——
+     * grid 同行等高，一张高卡会把整行都顶起来，参差不齐就是这么来的。
+     */
+    .card-cmd {
+        display: flex;
+        align-items: baseline;
+        flex-wrap: nowrap;
+        gap: 6rem;
+        overflow: hidden;
+    }
+
+    .cmd {
+        font-size: 16rem;
+        letter-spacing: 0.5rem;
+        color: var(--accent);
+        white-space: nowrap;
+    }
+
+    .args {
+        padding: 2rem 8rem;
+        border-radius: 7rem;
+        font-size: 13rem;
+        letter-spacing: 0.5rem;
+        color: color-mix(in srgb, var(--accent) 72%, #ffffff);
+        background: color-mix(in srgb, var(--accent) 13%, transparent);
+        border: 1rem solid color-mix(in srgb, var(--accent) 28%, transparent);
+        /* 参数块内部也不许折行，否则 [序号/营地ID] 会断成两行把卡顶高 */
+        white-space: nowrap;
+    }
+
+    .alias {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 5rem;
+        overflow: hidden;
+    }
+
+    .alias-chip {
+        padding: 2rem 8rem;
+        border-radius: 7rem;
+        font-size: 12rem;
+        color: var(--c-text-muted);
+        background: rgba(255, 255, 255, 0.06);
+        border: 1rem solid var(--c-border-soft);
+        /* nowrap 的 flex 里不加这两条，chip 会被压扁变形 */
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+
+    .card-desc {
+        margin-top: auto;
+        font-size: 13rem;
+        line-height: 1.5;
+        color: var(--c-text-muted);
+        /* 说明也压到一行，超出的加省略号 */
+        display: -webkit-box;
+        -webkit-line-clamp: 1;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 22rem;
+        padding-top: 18rem;
+        border-top: 1rem solid var(--c-border-soft);
+        font-size: 12rem;
+        color: var(--c-text-dim);
+    }
+
+    .footer-tip b {
+        font-weight: normal;
+        color: var(--c-primary);
+    }
+</style>
+
+<body>
+    <div id="container">
+    <div class="page">
+        <div class="glow"></div>
+        <div class="inner">
+            <div class="header">
+                <div class="brand">
+                    <div class="brand-mark"><img src="{{_res_path}}img/app_logo.png" /></div>
+                    <div class="brand-text">
+                        <h1>王者荣耀插件</h1>
+                        <div class="brand-sub">GloryOfKings-Plugin · 指令帮助</div>
+                    </div>
+                </div>
+            </div>
+
+            {{each sections section}}
+            <div class="panel t-{{section.theme}}">
+                <div class="panel-head">
+                    <div class="panel-icon">{{section.icon}}</div>
+                    <div class="panel-title">
+                        <h2>{{section.title}}</h2>
+                        <span class="panel-desc">{{section.desc}}</span>
+                    </div>
+                    {{if section.master}}<span class="tag-master">主人权限</span>{{/if}}
+                </div>
+                <div class="cards">
+                    {{each section.list item}}
+                    <div class="card">
+                        <div class="card-cmd">
+                            <span class="cmd">{{item.cmd}}</span>
+                            {{if item.args}}<span class="args">{{item.args}}</span>{{/if}}
+                        </div>
+                        {{if item.alias}}
+                        <div class="alias">
+                            {{each item.alias.slice(0, 2) a}}<span class="alias-chip">{{a}}</span>{{/each}}
+                        </div>
+                        {{/if}}
+                        <div class="card-desc">{{item.desc}}</div>
+                    </div>
+                    {{/each}}
+                </div>
+            </div>
+            {{/each}}
+
+            <div class="footer">
+                <div class="footer-tip">参数中 <b>[ ]</b> 为选填，省略则使用当前默认账号 · 查询类指令可 <b>@某人</b> 查他的数据 · 登录态失效请重新扫码</div>
+                <div class="footer-time">{{generatedAt}}</div>
+            </div>
+        </div>
+    </div>
+    </div>
+</body>

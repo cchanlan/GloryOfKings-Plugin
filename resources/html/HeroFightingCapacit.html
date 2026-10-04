@@ -1,0 +1,279 @@
+<style>
+    /* 英雄最低战力区域查询 —— 统一 gok- 命名体系，配色与结构原样保留 */
+    :root {
+        --primary-color: #bb86fc;
+        --secondary-color: #03dac6;
+        --background-color: #121212;
+        --surface-color: #1e1e1e;
+        --on-surface-color: #e0e0e0;
+        --gradient-start: #4a0e4e;
+        --gradient-end: #81185e;
+        --shadow-color: rgba(0, 0, 0, 0.2);
+    }
+
+    body {
+        width: 900px;
+        font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background-color: var(--background-color);
+        color: var(--on-surface-color);
+        margin: 0;
+        padding: 0;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    .gok-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    /* 顶部英雄横幅：渐变底 + 下方大圆角 */
+    .gok-hero-banner {
+        text-align: center;
+        padding: 40px 0;
+        background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+        border-radius: 0 0 50% 50% / 20px;
+        margin-bottom: 40px;
+        box-shadow: 0 4px 12px var(--shadow-color);
+    }
+
+    .gok-hero-banner h1 {
+        color: #ffffff;
+        font-size: 2.5em;
+        margin-bottom: 10px;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .gok-player {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 20px;
+        gap: 20px;
+    }
+
+    .gok-player-avatar {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        border: 4px solid var(--secondary-color);
+        object-fit: cover;
+    }
+
+    .gok-player-name {
+        font-size: 1.8em;
+        font-weight: bold;
+        color: #ffffff;
+        margin-bottom: 5px;
+    }
+
+    .gok-player-alias {
+        font-size: 1.2em;
+        color: var(--secondary-color);
+        opacity: 0.9;
+    }
+
+    /* 最低战力四宫格 */
+    .gok-summary {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 40px;
+        flex-wrap: wrap;
+        gap: 20px;
+    }
+
+    /* 四宫格卡片与平台卡共用的半透明底 */
+    .gok-summary-item,
+    .gok-platform-card {
+        background-color: var(--surface-color);
+        opacity: 0.8;
+    }
+
+    .gok-summary-item {
+        text-align: center;
+        padding: 20px;
+        border-radius: 10px;
+        min-width: 150px;
+        border: 1px solid var(--primary-color);
+    }
+
+    .gok-summary-value {
+        font-size: 2em;
+        font-weight: bold;
+        color: var(--primary-color);
+        margin-bottom: 5px;
+    }
+
+    .gok-summary-label {
+        color: var(--secondary-color);
+        font-size: 0.9em;
+    }
+
+    /* 各平台明细卡 */
+    .gok-platform-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+        gap: 30px;
+        margin: 30px 0;
+    }
+
+    .gok-platform-card {
+        border-radius: 15px;
+        padding: 25px;
+        box-shadow: 0 8px 16px var(--shadow-color);
+        border: 1px solid var(--secondary-color);
+    }
+
+    .gok-platform-title {
+        font-size: 1.4em;
+        font-weight: bold;
+        color: var(--secondary-color);
+        margin-bottom: 20px;
+        border-bottom: 2px solid var(--secondary-color);
+        padding-bottom: 10px;
+        text-align: center;
+    }
+
+    .gok-data-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 15px;
+        align-items: center;
+        padding: 8px 0;
+    }
+
+    .gok-data-label {
+        font-weight: bold;
+        color: var(--primary-color);
+    }
+
+    .gok-data-value {
+        color: var(--on-surface-color);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    /* 省 / 市 / 地区值之间的竖线分隔 */
+    .gok-data-sep {
+        width: 1px;
+        height: 16px;
+        background-color: var(--primary-color);
+        opacity: 0.5;
+    }
+
+    /* 行内强调数值（省份战力 / 城市战力 / 地区战力）
+       原先是三处重复的行内 style，这里收敛成同一个类 */
+    .gok-data-strong {
+        font-weight: bold;
+        font-size: 1.2em;
+        color: var(--primary-color);
+    }
+
+    /* 国标分强调块 */
+    .gok-guobiao {
+        font-size: 1.2em;
+        font-weight: bold;
+        text-align: center;
+        margin: 20px 0;
+        padding: 15px;
+        background-color: rgba(187, 134, 252, 0.1);
+        border-radius: 8px;
+        border: 1px solid rgba(187, 134, 252, 0.2);
+    }
+
+    .gok-guobiao .gok-data-label {
+        font-size: 0.9em;
+        margin-bottom: 8px;
+        opacity: 0.9;
+    }
+
+    .gok-guobiao .gok-data-value {
+        font-size: 1.8em;
+        color: var(--primary-color);
+        justify-content: center;
+    }
+
+    .gok-signature {
+        text-align: center;
+        margin-top: 40px;
+        font-size: 0.9em;
+        color: #7f7f7f;
+        padding: 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+</style>
+
+<body>
+    <header class="gok-hero-banner">
+        <h1>英雄最低战力区域查询</h1>
+        <div class="gok-player">
+            <img src="{{photo}}" alt="{{name}}" class="gok-player-avatar">
+            <div>
+                <div class="gok-player-name">{{name}}</div>
+                <div class="gok-player-alias">{{alias}}</div>
+            </div>
+        </div>
+    </header>
+    <div class="gok-container">
+        <div class="gok-summary">
+            <div class="gok-summary-item">
+                <div class="gok-summary-value">{{minStats.guobiao}}</div>
+                <div class="gok-summary-label">最低国标分</div>
+            </div>
+            <div class="gok-summary-item">
+                <div class="gok-summary-value">{{minStats.provincePower}}</div>
+                <div class="gok-summary-label">最低省份战力</div>
+            </div>
+            <div class="gok-summary-item">
+                <div class="gok-summary-value">{{minStats.cityPower}}</div>
+                <div class="gok-summary-label">最低城市战力</div>
+            </div>
+            <div class="gok-summary-item">
+                <div class="gok-summary-value">{{minStats.areaPower}}</div>
+                <div class="gok-summary-label">最低地区战力</div>
+            </div>
+        </div>
+        <div class="gok-platform-grid">
+            {{each data item}}
+            <div class="gok-platform-card">
+                <div class="gok-platform-title">{{item.platform}}</div>
+                <div class="gok-data-row">
+                    <span class="gok-data-label">省份：</span>
+                    <span class="gok-data-value">
+                        <span>{{item.province}}</span>
+                        <span class="gok-data-sep"></span>
+                        <span class="gok-data-strong">{{item.provincePower}}</span>
+                    </span>
+                </div>
+                <div class="gok-data-row">
+                    <span class="gok-data-label">城市：</span>
+                    <span class="gok-data-value">
+                        <span>{{item.city}}</span>
+                        <span class="gok-data-sep"></span>
+                        <span class="gok-data-strong">{{item.cityPower}}</span>
+                    </span>
+                </div>
+                <div class="gok-data-row">
+                    <span class="gok-data-label">地区：</span>
+                    <span class="gok-data-value">
+                        <span>{{item.area}}</span>
+                        <span class="gok-data-sep"></span>
+                        <span class="gok-data-strong">{{item.areaPower}}</span>
+                    </span>
+                </div>
+                <div class="gok-guobiao">
+                    <div class="gok-data-label">国标分</div>
+                    <div class="gok-data-value">{{item.guobiao}}</div>
+                </div>
+                <div class="gok-data-row">
+                    <span class="gok-data-label">更新时间：</span>
+                    <span class="gok-data-value">{{item.updatetime}}</span>
+                </div>
+            </div>
+            {{/each}}
+        </div>
+        <div class="gok-signature">GloryOfKings-Plugin</div>
+    </div>
+</body>
