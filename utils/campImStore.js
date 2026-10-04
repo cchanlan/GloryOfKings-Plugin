@@ -216,6 +216,37 @@ export function isInImList (userId) {
 }
 
 /**
+ * 把收消息名单里**已经不在账号池里**的号清掉，返回被清掉的那几个。
+ *
+ * ⚠️⚠️ 为什么需要它（2026-10-05 修）：`accounts` 是一份**独立白名单**，
+ *    号被从账号池删掉（`#清理失效营地账号`、锅巴里删号）之后，
+ *    白名单里那一条**不会跟着走**，于是永远挂在名单里。
+ *    而锅巴的两个页面（插件配置里的「哪些营地号收消息」、侧边栏的「营地消息」）
+ *    原先都是**遍历白名单**来列账号的 —— 池子里查不到就退回一个空对象，
+ *    条目照样显示、开关照样是开的。结果就是「账号管理页只有 1 个号，
+ *    收消息名单却列着 4 个」，两张表对不上，面板在骗人。
+ *
+ *    ⚠️ 实际收消息**不受影响**：`apps/campIm.js` 是拿账号池去 filter 白名单
+ *       （`all.filter(a => store.isAccountEnabled(a.userId))`），僵尸号本来就不会挂 ws。
+ *       所以这是个「显示错 + 数据脏」的问题，不是「真的多收了消息」。
+ *
+ *    调用方：锅巴那两个读取入口（它们手上正好有账号池）。
+ *    读写时机是每次打开页面，等于**自愈**，不用额外挂钩子到删号流程上。
+ *
+ * @param {Iterable<string>} validUserIds 账号池里当前有效的号
+ * @returns {string[]} 被清掉的号（没有就是空数组）
+ */
+export function pruneAccounts (validUserIds) {
+  const c = load()
+  const keep = new Set([...validUserIds].map(String).filter(Boolean))
+  const removed = Object.keys(c.accounts).filter(uid => !keep.has(String(uid)))
+  if (!removed.length) return []
+  for (const uid of removed) delete c.accounts[uid]
+  save()
+  return removed
+}
+
+/**
  * 记「某归属人最近收到的那条营地推送」。
  *
  * ⚠️ 为什么要落盘：`sendPrivate` 拿不到发出去那条私信的 id，没法按 reply_id 精确映射，
@@ -306,6 +337,7 @@ export default {
   setAccountEnabled,
   getAccountSwitches,
   isInImList,
+  pruneAccounts,
   setLastPush,
   getLastPush,
   setFriendList,

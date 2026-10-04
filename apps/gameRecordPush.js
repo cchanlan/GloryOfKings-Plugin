@@ -1237,7 +1237,21 @@ export class GameRecordPush extends plugin {
    *      不是正常路径。
    */
   async sendHint (qq, sub, gaming, minutes, coord = null) {
-    const name = sub.roleName || await this.resolveDisplayName(qq, sub)
+    // ⚠️⚠️ **名字优先用营地实时返回的角色名**（2026-10-05 修）。
+    //    原先写的是 `sub.roleName || 群名片`，而 `#营地开播` 回话时用的是
+    //    `/api/friends` 里那一行的 `nick`（= 营地实时 roleName）—— **两个不同源**：
+    //      · `sub.roleName` 是订阅那一刻抓的，抓不到时还会**退回 QQ 群名片**
+    //        （实测订阅表里就有拿不到 roleName 的，提示里显示的其实是群昵称）
+    //      · 开播回话用的是王者角色名
+    //    于是同一个人出现两个名字，看着像「提示开播这个人、却开了另外一个人」。
+    //    `coord.nick` 就是 `/api/friends` 那一行的名字，跟开播那边**同源**，用它就一致了。
+    const campName = String(coord?.nick || coord?.campNick || '').trim()
+    const name = campName || sub.roleName || await this.resolveDisplayName(qq, sub)
+    // 顺手把抓到的角色名补进订阅表：订阅时没抓到 roleName 的，这里补上之后
+    // 后面的提示、以及别处用 `sub.roleName` 的地方就都准了
+    if (campName && campName !== String(sub?.roleName || '')) {
+      mergeSubState(qq, { roleName: campName })
+    }
     const text = `${name} 已经开局 ${minutes} 分钟了\n要不要开一路观战？发 #营地开播`
     const ok = await this.send(qq, sub, text)
     if (!ok) return false

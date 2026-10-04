@@ -515,16 +515,19 @@ class AuthStore {
     let found = !normalizedUserId
 
     for (const [accountUserId, account] of Object.entries(pool.accounts)) {
-      // ⚠️⚠️ 这里**不能**包成 `Boolean(normalizedUserId) && …`。
+      // ⚠️⚠️ 左边**必须再包一层 `Boolean`**（2026-10-05 修）。
       //
-      // `&&` 短路时返回的是**左操作数本身**：传空串时 `shouldBeGlobal` 是 `''`
-      // 而不是 `false`，于是落进 #normalizeAccount 的 flag 分支时
-      // `typeof '' === 'boolean'` 为假 → 沿用池里的旧标记 →
-      // **`setGlobalAccount('')` 其实清不掉任何全局标记**（上游就是这个行为）。
+      // 裸写 `normalizedUserId && accountUserId === normalizedUserId` 时，
+      // `&&` 短路返回的是**左操作数本身**：传空串时结果是 `''` 而不是 `false`。
+      // 而 #normalizeAccount 的 flag 分支只认真正的布尔
+      // （`typeof account[key] === 'boolean'`），拿到 `''` 会**沿用池里的旧标记** ——
+      // 于是 `setGlobalAccount('')` 一个全局标记都清不掉（上游一直是这个行为）。
       //
-      // 看着像 bug，但差分测试逐字节钉住了它，重构期间一律照原样保留，
-      // 要不要修由主人定（见交付说明）。
-      const shouldBeGlobal = normalizedUserId && accountUserId === normalizedUserId
+      // 这不是「特意保留的怪癖」，上游就是错的：传空串的语义是「全部取消」，
+      // 清不掉等于这个入口白给。包成布尔之后两条语义都对：
+      //   传 userId → 那一个是 true、其余是 false
+      //   传空串   → 全部是 false
+      const shouldBeGlobal = Boolean(normalizedUserId) && accountUserId === normalizedUserId
       if (shouldBeGlobal) {
         found = true
       }
@@ -848,7 +851,11 @@ class AuthStore {
         priority: toNumber(item.priority ?? existing.priority ?? DEFAULT_PRIORITY, DEFAULT_PRIORITY),
         authInvalid: Boolean(item.authInvalid),
         authErrorCount: Number(item.authErrorCount ?? existing.authErrorCount ?? 0),
-        nickname: toText(item.nickname || existing.nickname || existing.userName),
+        // ⚠️ 这里用 `??` 而不是 `||`（2026-10-05 修）：`||` 分不出
+        //    「表单压根没带这个字段」和「表单明确把昵称清空了」——
+        //    后者（`nickname: ''`）会被当成没带，又落回旧值 / `userName`，
+        //    主人把昵称清空之后怎么保存都还在。
+        nickname: toText(item.nickname ?? existing.nickname ?? existing.userName),
         userName: toText(item.userName),
         snsnickname: toText(item.snsnickname),
         remark: toText(item.remark),

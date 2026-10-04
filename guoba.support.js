@@ -5,7 +5,7 @@ import authStore from './utils/authStore.js'
 // ⚠️ 用具名导入，**不要用 `import * as`** —— 锅巴重新扫描时用带 query 的动态 import 加载本文件，
 //    那个上下文里命名空间导入会报 `does not provide an export named 'default'`，整个 support 载入失败
 //    （2026-09-20 实测：锅巴「插件配置」页里那一堆开关全没了）。用具名导入没有这个问题。
-import { getAccountSwitches, setAccountEnabled, invalidate } from './utils/campImStore.js'
+import { getAccountSwitches, setAccountEnabled, invalidate, pruneAccounts } from './utils/campImStore.js'
 import { ownerOf } from './utils/campImPush.js'
 
 function getAuthPoolSnapshot () {
@@ -33,8 +33,13 @@ function getAuthPoolSnapshot () {
  *    这里放一份是为了让主人不用切页面，在「插件配置」里就能顺手开关。
  */
 function getCampImSnapshot () {
-  const switches = getAccountSwitches()
   const all = authStore.listAccounts().filter(a => a?.userId && a?.userSig)
+  // ⚠️⚠️ **先跟账号池对账，再读名单**（2026-10-05 修）。原先直接
+  //    `Object.keys(switches).map(...)` 遍历白名单，池子里查不到就退回空对象、
+  //    条目照样列出来 —— 「账号管理页 1 个号、收消息名单 4 个」就是这么来的。
+  //    详见 utils/campImStore.js 的 pruneAccounts。
+  pruneAccounts(all.map(a => a.userId))
+  const switches = getAccountSwitches()
   const infoOf = new Map(all.map(a => [String(a.userId), a]))
 
   // ⚠️⚠️ **只列「收消息名单」里的号**（`campIm.yaml` 的 accounts）——
@@ -42,14 +47,18 @@ function getCampImSnapshot () {
   //    不代表它要挂 ws 收消息。早先这里把池子里的号全列出来、默认开，
   //    账号一多就没法管（2026-09-20 主人指出）。
   //    想加号：去侧边栏「营地消息」页面，那儿有「可以加进来的号」。
-  const accounts = Object.keys(switches).map(uid => {
-    const a = infoOf.get(String(uid)) || {}
-    return {
-      userId: String(uid),
-      nickname: a.nickname || a.userName || '',
-      enable: true
-    }
-  })
+  // ⚠️ 再 filter 一道兜底（同 guoba/index.js 的理由）：宁可少列，
+  //    也不能把池子里没有的号显示成「在收消息」
+  const accounts = Object.keys(switches)
+    .filter(uid => infoOf.has(String(uid)))
+    .map(uid => {
+      const a = infoOf.get(String(uid)) || {}
+      return {
+        userId: String(uid),
+        nickname: a.nickname || a.userName || '',
+        enable: true
+      }
+    })
 
   // ⭐ 「＋新增」下拉里能挑的号：登录过、但还没进收消息名单的。
   //    ⚠️ 不给人手填 —— 谁记得住营地号那一串数字（2026-09-20 主人吐槽）。

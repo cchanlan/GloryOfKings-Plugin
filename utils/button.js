@@ -566,4 +566,20 @@ export default class Button {
     ])
     return segment.button(...rows)
   }
+
+  /**
+   * 观战：账号都占着时问「要不要中断上一路」。
+   *
+   * ⚠️ 一个账号只能服务一路，所以**只有一个登录态时开第二路必然没号可用**。
+   *    这里给两颗按钮：确认中断（直接以 callback 触发指令）或算了。
+   *    两条 callback 都能被 `#营地观战` 那条规则命中（arg 分别是「确认中断」「继续等」）。
+   *
+   * 非 QQBot 适配器会自动忽略 button 段，所以文案里必须把指令写出来，别只给按钮。
+   */
+  static watchReplace() {
+    return segment.button([
+      { text: '中断上一路，开这个', callback: '#营地观战 确认中断' },
+      { text: '算了，继续看', callback: '#营地观战 继续等' }
+    ])
+  }
 }

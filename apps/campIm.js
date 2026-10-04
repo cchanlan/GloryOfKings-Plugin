@@ -20,6 +20,7 @@ import { shouldQuote } from '#utils'
 import * as client from '../utils/campImClient.js'
 import * as store from '../utils/campImStore.js'
 import { pushToOwner, ownerOf, getLastPush } from '../utils/campImPush.js'
+import { readQuoted as readQuotedImpl } from '../utils/quoted.js'
 import authStore from '../utils/authStore.js'
 
 /** 配置读取（现读，改完不用重启） */
@@ -544,69 +545,11 @@ async function tryQuoteImpl (e) {
 /**
  * 读被引用消息的纯文本。
  *
- * 各家适配器给的口子不一样，逐个试：
- *   · `e.getReply()` —— 云崽 loader 在收到 reply 段时挂的（`loader.js:367`）
- *   · `bot.getMsg(id)` / `e.group.getMsg(id)` / `e.friend.getMsg(id)`
- *   · `bot.sendApi('get_msg')` —— Gscore-Adapter 走这条
- *   · `getChatHistory` —— 部分适配器只给这条
- *
- * ⚠️ 全失败要返回 null（不是 ''）—— 调用方靠它区分「读不到」和「读到空的」。
+ * ⚠️ 实现搬去 `utils/quoted.js` 了 —— `apps/watchBattle.js` 的 `#营地开播` 也要用
+ *    （引用开播提示时按人名挑回原来那一场），两边各留一份必然漂移。
+ *    这里只做转发，调用点不用改。
  */
-async function readQuoted (e) {
-  const refId = e.reply_id
-  if (!refId) return null
-
-  const bot = e.bot || globalThis.Bot
-
-  // ① 云崽自带的（yenai 也走这条，实测能拿到东西）
-  try {
-    if (typeof e.getReply === 'function') {
-      const t = flattenMsg(await e.getReply())
-      if (t) return t
-    }
-  } catch { /* 换下一条路 */ }
-
-  // ② 适配器各自的
-  for (const fn of [
-    () => bot?.getMsg?.(refId),
-    () => e.group?.getMsg?.(refId),
-    () => e.friend?.getMsg?.(refId),
-    () => bot?.sendApi?.('get_msg', { message_id: refId }),
-    () => e.group?.getChatHistory?.(e.source?.seq, 1),
-    () => e.friend?.getChatHistory?.(e.source?.time, 1)
-  ]) {
-    try {
-      let r = await fn()
-      if (Array.isArray(r)) r = r.pop()        // 聊天记录返回的是数组
-      const t = flattenMsg(r)
-      if (t) return t
-    } catch { /* 换下一条路 */ }
-  }
-
-  return null
-}
-
-/** 把各种形状的「消息」对象拍平成纯文本；拍不出东西返回 '' */
-function flattenMsg (r) {
-  if (!r) return ''
-  if (typeof r === 'string') return r
-
-  // OneBot 的 get_msg 返回：{ message: [...], raw_message: '...' }
-  if (typeof r.raw_message === 'string' && r.raw_message) return r.raw_message
-  if (typeof r.message === 'string') return r.message
-
-  const arr = Array.isArray(r.message)
-    ? r.message
-    : Array.isArray(r.msg_elements) ? r.msg_elements : null
-  if (!arr) return ''
-
-  return arr.map(seg => {
-    if (!seg) return ''
-    if (typeof seg === 'string') return seg
-    if (seg.type === 'text') return seg.text ?? seg.data?.text ?? ''
-    return ''
-  }).join('')
-}
+const readQuoted = (e) => readQuotedImpl(e)
 
 /**
  * 这条被引用的消息是不是「营地推送」。

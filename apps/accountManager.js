@@ -654,7 +654,15 @@ export class AccountManager extends plugin {
     await this.#recallMessage(e, pending.scanStatusMessageId)
     pending.qrMessageId = ''
     pending.scanStatusMessageId = ''
-    pending.scanStatusRecallTimer = null
+    // ⚠️⚠️ 置空前**必须先 clearTimeout**（2026-10-05 修）。
+    //    收尾的 `#clearPendingLogin` 是拿 `if (pending.scanStatusRecallTimer)` 判的，
+    //    这里直接置 null，它之后就**再也不会去清**那个定时器了 ——
+    //    定时器会一直挂到自然到期，而它的闭包抓着整个 `e`（消息事件），
+    //    等于每次登录成功都白留一份会话上下文到最后期限。
+    if (pending.scanStatusRecallTimer) {
+      clearTimeout(pending.scanStatusRecallTimer)
+      pending.scanStatusRecallTimer = null
+    }
   }
 
   async #onLoginStatusChange(e, botUserId, taskId, status = {}) {

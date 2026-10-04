@@ -20,12 +20,48 @@
  */
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { AT_HEAD, stripAtText } from '../utils/atTarget.js'
-import { getImgType, shouldQuote } from '#utils'
+import { Button, getImgType, shouldQuote } from '#utils'
 import { Config } from '#components'
 import authStore from '../utils/authStore.js'
 import apiService from '../utils/api.js'
 import { LANES, MODE_NAME, matchLane, pickBattles } from '../utils/masterPool.js'
 import { reportRemoteAccounts } from '../utils/remoteAccounts.js'
+import { readQuoted } from '../utils/quoted.js'
+
+/**
+ * 待确认的「中断上一路、开这一路」请求。
+ *
+ * ⚠️ 为什么需要它：一个账号只能服务一路，**只有一个登录态时开第二路必然没号可用**。
+ *    这时不能干巴巴回一句「等一路结束再开」（用户想看的正是新这一路），
+ *    而要问一句「要不要中断上一路」，用户点了确认再拿这个请求重开。
+ *    请求本体（battleID / userID / roleId / watcher / owners）在这里存着，
+ *    确认时原样重发 + `replace: true` —— 不用让用户重新报一遍编号。
+ *
+ * key = `<群号>:<QQ>`，一人一份、互不干扰；TTL 见 PENDING_TTL_MS。
+ */
+const pendingReplace = new Map()
+/** 待确认请求活多久。开播提示本身 40 分钟过期，这里给 5 分钟够点按钮了 */
+const PENDING_TTL_MS = 5 * 60 * 1000
+
+const pendingKey = e => `${String(e.group_id || e.user_id || '')}:${String(e.user_id || '')}`
+
+function rememberPending (e, payload) {
+  const k = pendingKey(e)
+  pendingReplace.set(k, { ...payload, at: Date.now() })
+  // 顺手清掉过期的，省得一个人反复触发攒一堆（条目本来就少，全扫一遍没成本）
+  for (const [key, v] of pendingReplace) {
+    if (Date.now() - (v?.at || 0) > PENDING_TTL_MS) pendingReplace.delete(key)
+  }
+}
+
+function takePending (e) {
+  const k = pendingKey(e)
+  const v = pendingReplace.get(k)
+  if (!v) return null
+  pendingReplace.delete(k)
+  if (Date.now() - (v.at || 0) > PENDING_TTL_MS) return null
+  return v
+}
 
 /** 一次开几路。10 是主人的定数（营地池子每次也正好给 10 场） */
 const MASTER_COUNT = 10
@@ -217,6 +253,10 @@ export class WatchBattle extends plugin {
     //    以前「列表」指的是后者，主人明确纠正过：列表就该是「谁在打」。
     if (/^(在播|直播间|正在播|rooms?)$/i.test(arg)) return this.rooms(e)
 
+    // 「中断上一路、开这一路」的确认/放弃 —— 只认待确认请求，没有就说明一声
+    // ⚠️ 放在登录态检查**前面**：确认时不该再要一遍登录态（本来就有，且这一步不查好友）
+    if (/^(确认中断|确认|继续等|算了|取消)$/i.test(arg)) return this.confirmReplace(e, arg)
+
     // ⭐ 大神观战：走营地**公开的高端局池**，跟好友名单是两套数据源（见 master）
     //    `#观战大神` 和 `#观战大神 打野` 都落进来 —— 前者 arg 是「大神」，后者是「大神 打野」
     const masterArg = arg.match(/^大神\s*(.*)$/)
@@ -268,7 +308,13 @@ export class WatchBattle extends plugin {
       playing: rows,
       total: data.total || 0,
       online: data.online || 0,
-      free: rows.filter(r => r.canWatch).length
+      // ⚠️⚠️ **优先用服务端算好的 `free`**（2026-10-05 修）。原先这里写的是
+      //    `rows.filter(r => r.canWatch).length`，把服务端的值**盖掉了**：
+      //    `canWatch` 是「这一行能不能开」，而 `free` 是「还剩几个空闲账号」，
+      //    两个完全不同的口径。实测服务端 free=4、这里算出来 10，
+      //    模板就报「还能开 10 路」—— 明明只有 4 个号，点了第 5 个只会被告知没号。
+      //    服务端没给（老版本）时才退回按行数估算。
+      free: Number.isFinite(data.free) ? data.free : rows.filter(r => r.canWatch).length
     })
 
     // 这条指令跟「推送订阅」无关，所以不给按钮：
@@ -299,8 +345,11 @@ export class WatchBattle extends plugin {
     const me = String(e.user_id || '')
     const lines = list.map((r, i) => {
       const extra = [r.recording ? '录制中' : '', `${r.clients} 人在看`].filter(Boolean).join(' · ')
-      // 标出哪几路是自己开的 —— 「停 N」的 N 就是这个编号
-      const mine = me && String(r.owner || '') === me ? '（你开的）' : ''
+      // 标出哪几路是自己开的 —— 「停 N」的 N 就是这个编号。
+      // ⚠️ 同一局被别人复用过的房间要认 `coOwners`：后发起的那个人也该看到「（你开的）」，
+      //    否则他会以为这一路不是自己的（2026-10-05 修）
+      const mine = me && (String(r.owner || '') === me || (r.coOwners || []).map(String).includes(me))
+        ? '（你开的）' : ''
       return `${i + 1}. ${r.nick || r.rid}${mine}${extra ? `（${extra}）` : ''}\n${base}${r.url}`
     })
     const tail = (canTls(base) ? '\n\n黑屏或一直「重连中」：把网址开头的 http 改成 https 再打开' : '')
@@ -339,36 +388,56 @@ export class WatchBattle extends plugin {
       )
     }
 
-    await e.reply(`正在开播「${picked.nick || picked.campNick}」，稍等…`, shouldQuote())
+    // ⚠️ 别在这里先说「正在开播…稍等」——交给 `launch` 判。
+    //    这一路本来能用的账号全被占着时（`canWatch === false`），服务端会**立刻**
+    //    回 no-account，先说一句「稍等」等于让用户白等一场（2026-10-05 修）。
+    return this.launch(e, {
+      watcher: picked.watcher,
+      owners: picked.owners || [picked.watcher],
+      battleID: picked.battleId,
+      userID: picked.userId,
+      roleId: picked.roleId,
+      nick: picked.nick || picked.campNick
+    }, { label: picked.nick || picked.campNick, canWatch: picked.canWatch })
+  }
+
+  /**
+   * 真正发起 `/api/start`，并处理「没号可用」→ 问是否中断上一路。
+   *
+   * ⚠️ 抽出来是因为有两条入口：`#营地观战 N`（选好友）和 `#营地开播`（开提示里那一场）。
+   *    两条的账号占用/中断确认逻辑必须一模一样，不然又会长出两套行为。
+   *
+   * @param {object} body `/api/start` 的请求体（不含 owner）
+   * @param {object} opts `label` 显示名、`replace` 是否已确认中断、`canWatch` 这一路现在有没有空闲账号
+   */
+  async launch (e, body, { label = '', replace = false, canWatch } = {}) {
+    const payload = { ...body, owner: String(e.user_id || '') }
+
+    // ⚠️⚠️ 「正在开播…稍等」**只在这一路真有可能开起来的时候说**（2026-10-05 修）。
+    //    `/api/start` 成功那条路要等首帧（最长一分钟），所以必须先安抚一句；
+    //    但账号被占时服务端是**立刻**回 no-account 的，这时候先说「稍等」再告诉人家
+    //    「没号了」，等于让人白等一场 —— 而这正是这次要修掉的现象。
+    //    `canWatch === false` 就是服务端算好的「这一路现在没号可用」（`owners` 里没空闲账号），
+    //    为假直接进 agent 流程，别先出声。
+    //    `replace` 时也不用说 —— `confirmReplace` 已经报过「正在中断上一路…」了。
+    const willTry = canWatch !== false && !replace
+    if (willTry) await e.reply(`正在开播「${label || payload.nick || '这一路'}」，稍等…`, shouldQuote())
 
     let res
     try {
       res = await callApi('/api/start', {
         method: 'POST',
         timeout: 60000,
-        body: {
-          // ⚠️ watcher 只是**首选**账号（好友所属的那个）；被占时服务端会从
-          //    owners 里挑另一个也能看到 TA 的空闲账号（一个账号只能服务一路）
-          watcher: picked.watcher,
-          owners: picked.owners || [picked.watcher],
-          battleID: picked.battleId,
-          // ⚠️ 两个 ID 都要发：服务端拿 userID 取流、拿 roleId 轮询「这局还在不在」
-          userID: picked.userId,
-          roleId: picked.roleId,
-          // 谁开的这一路 —— 多路下「停」只停自己开的，靠它认人
-          owner: String(e.user_id || ''),
-          nick: picked.nick || picked.campNick
-        }
+        body: replace ? { ...payload, replace: true } : payload
       })
     } catch (error) {
       logger.error(`[营地观战] 开播失败: ${error.message}`)
       return e.reply(this.serviceDownText(error), shouldQuote())
     }
+
     if (!res?.ok) {
-      // 账号都占着 → 引导去看正在播的，而不是叫他重试
-      if (res?.code === 'no-account') {
-        return e.reply(`${res.error}\n发 #营地观战 在播 挑一个正在播的看`, shouldQuote())
-      }
+      // 账号都占着 → 问一句要不要中断上一路（只有一个登录态时这是唯一的办法）
+      if (res?.code === 'no-account') return this.askReplace(e, payload, res, label)
       // 其余失败：服务端已经把人话原因带回来了（「这个人现在不能被观战」之类），原样转达
       return e.reply(`${res?.error || '这局取不到画面'}\n重发 #营地观战 换一个试试`, shouldQuote())
     }
@@ -376,6 +445,13 @@ export class WatchBattle extends plugin {
     // ⭐ 每一路一个**独立网址**（带房间号），两个人可以同时看不同的对局
     // ⚠️ 发 http + https 两条（先点 http 保零上行，黑屏再点 https）—— 见 liveLinks 的注释
     const links = liveLinks(res.url || '/')
+    // ⚠️ 复用别人已经开好的那一局时**不要再报「稍等」**（2026-10-05 修）：
+    //    画面早就在推了，服务端也**不会**回 pending，这时说「画面马上就来」是骗人的。
+    //    （原先没管 reused，用户看到「正在开播…稍等」其实是别人开的那一路，
+    //      而且没有 pending 字段、连那句「最长等 1 分钟」都没有 —— 就是这个原因。）
+    if (res.reused) {
+      return e.reply(`这一局已经有人在播了，直接看这一路\n${links}`, shouldQuote())
+    }
     await e.reply(
       // ⚠️ 别报「开局约 2 分钟」这种假数 —— 后台只知道「这一刻还没拿到画面」，
       //    跟开局多久无关（实测有一局开局 175 秒了照样要等 75 秒）。
@@ -383,6 +459,45 @@ export class WatchBattle extends plugin {
       res.pending ? `${links}\n画面马上就来，最长等 1 分钟左右` : links,
       shouldQuote()
     )
+  }
+
+  /**
+   * 没号可用了 → 问「要不要中断上一路」。
+   *
+   * ⚠️ 只有**确实有房间占着账号**时才问；一条都没有（纯没登录态）就别拿这话误导人。
+   * ⚠️ 待确认请求存在 `pendingReplace` 里，用户点按钮/发「确认中断」时原样重发 ——
+   *    不用让他重新报一遍编号。
+   */
+  async askReplace (e, payload, res, label = '') {
+    const occupied = Array.isArray(res?.occupied) ? res.occupied : []
+    if (!occupied.length) {
+      // 没有房间占着 → 是真的没空闲账号，别问「中断」这种不存在的事
+      return e.reply(`${res?.error || '没有空闲账号'}\n发 #营地观战 在播 看现在有哪几路`, shouldQuote())
+    }
+
+    rememberPending(e, { payload, label })
+    const who = occupied.map(o => `「${o.nick || o.rid}」`).join('、')
+    const name = label || payload.nick || '这一路'
+    return e.reply([
+      `账号都在忙，现在在播的有 ${who}`,
+      `要中断上面那一路、改播「${name}」吗？`,
+      '',
+      '确认中断：发 #营地观战 确认中断',
+      '算了继续看：发 #营地观战 继续等'
+    ].join('\n'), Button.watchReplace(), shouldQuote())
+  }
+
+  /** 确认/放弃「中断上一路」 */
+  async confirmReplace (e, arg) {
+    const pend = takePending(e)
+    if (!pend) {
+      return e.reply('没有等你确认的开播\n直接发 #营地观战 编号 就行', shouldQuote())
+    }
+    if (!/^(确认中断|确认)$/.test(arg)) {
+      return e.reply('好，那就不动现在这一路\n发 #营地观战 在播 可以看正在播的', shouldQuote())
+    }
+    await e.reply(`正在中断上一路、改播「${pend.label || '新的一路'}」…`, shouldQuote())
+    return this.launch(e, pend.payload, { label: pend.label, replace: true })
   }
 
   /**
@@ -508,9 +623,28 @@ export class WatchBattle extends plugin {
       return e.reply('这个指令要在群里发（开的是本群最近提示的那一场）', shouldQuote())
     }
 
+    // ⚠️⚠️ **先看这条指令有没有引用那条开播提示**（2026-10-05 修）。
+    //    一个群里订阅了上下线提醒的人往往不止一个（实测群 575663150 就有 3 个），
+    //    于是「A 开局提示一条、B 开局又提示一条」，原先只认**最新**那条 ——
+    //    用户看着 A 的提示发 `#营地开播`，开出来的却是 B。
+    //    引用着提示发指令时，把原文里那个人名认出来，去服务端挑回**原来那一场**。
+    let wantNick = ''
+    const quoted = await readQuoted(e).catch(() => null)
+    if (quoted) {
+      // 提示原文形如「<名字> 已经开局 N 分钟了\n要不要开一路观战？发 #营地开播」
+      const m = quoted.match(/^(.+?)\s*已经开局\s*\d+\s*分钟/)
+      if (m) wantNick = m[1].trim()
+      if (!wantNick) {
+        // 认得出是我们的提示但取不出名字 → 说明一声，别默默开了别人那一场
+        logger.mark(`[营地观战] 引用的是开播提示但认不出人名：${quoted.slice(0, 40)}`)
+      }
+    }
+
     let data
     try {
-      data = await callApi(`/api/hint/latest?group=${encodeURIComponent(gid)}`)
+      const q = `/api/hint/latest?group=${encodeURIComponent(gid)}` +
+        (wantNick ? `&nick=${encodeURIComponent(wantNick)}` : '')
+      data = await callApi(q)
     } catch (error) {
       logger.error(`[营地观战] 取开播提示失败: ${error.message}`)
       return e.reply(this.serviceDownText(error), shouldQuote())
@@ -519,7 +653,18 @@ export class WatchBattle extends plugin {
 
     const hint = data.hint
     if (!hint?.battleID) {
+      // 引用着某条提示、但那条已经不在了（超时 40 分钟 / 服务重启过）—— 说清楚，
+      // 别让人以为「本群还没有提示」是自己看错了
+      if (wantNick) {
+        return e.reply(`「${wantNick}」那条开播提示已经过期了\n发送 #营地观战 看看现在谁在打`, shouldQuote())
+      }
       return e.reply('本群还没有开播提示\n发送 #营地观战 看看好友里谁在打', shouldQuote())
+    }
+    // ⚠️ 群里有好几场提示、用户又没引用时，提醒一句「这次开的是谁」——
+    //    免得他以为开的是刚才那条（多提示场景下最容易误会的就是这一点）
+    if (!wantNick && Number(data.total || 0) > 1) {
+      const names = (data.list || []).map(h => h.nick).filter(Boolean).slice(0, 3).join('、')
+      logger.mark(`[营地观战] 本群有 ${data.total} 条提示（${names}），开的是最新那条「${hint.nick}」`)
     }
 
     // 现查：这一局还在不在。对局结束后营地不会立刻清 battleId，所以不能只看「有没有值」，
@@ -559,42 +704,21 @@ export class WatchBattle extends plugin {
       return e.reply('这一局已经打完了\n发送 #营地观战 看看最新名单', shouldQuote())
     }
 
-    await e.reply(`正在开播「${still.nick || hint.nick || '对局'}」，稍等…`, shouldQuote())
-
-    let res
-    try {
-      res = await callApi('/api/start', {
-        method: 'POST',
-        timeout: 60000,
-        body: {
-          // ⚠️ watcher 只是首选；被占时服务端从 owners 里挑另一个也能看到 TA 的空闲账号
-          watcher: still.watcher || hint.watcher,
-          owners: still.owners || hint.owners || [],
-          battleID: still.battleId,
-          // ⚠️ 两个 ID 都要发：服务端拿 userID 取流、拿 roleId 轮询「这局还在不在」
-          userID: still.userId,
-          roleId: still.roleId,
-          owner: String(e.user_id || ''),
-          nick: still.nick || still.campNick || hint.nick
-        }
-      })
-    } catch (error) {
-      logger.error(`[营地观战] 开播失败: ${error.message}`)
-      return e.reply(this.serviceDownText(error), shouldQuote())
-    }
-    if (!res?.ok) {
-      if (res?.code === 'no-account') {
-        return e.reply(`${res.error}\n发 #营地观战 在播 挑一个正在播的看`, shouldQuote())
-      }
-      return e.reply(`${res?.error || '这局取不到画面'}\n重发 #营地观战 换一个试试`, shouldQuote())
-    }
-
-    // ⚠️ 同上：http + https 两条，先点 http（见 liveLinks 的注释）
-    const links = liveLinks(res.url || '/')
-    await e.reply(
-      res.pending ? `${links}\n画面马上就来，最长等 1 分钟左右` : links,
-      shouldQuote()
-    )
+    // ⚠️ 「正在开播…稍等」交给 `launch` 判（`still.canWatch === false` 时它会跳过）——
+    //    这一路没号可用时服务端立刻回 no-account，先说「稍等」等于让人白等一场（2026-10-05 修）
+    // ⚠️ 走同一个 launch：账号被占时也会问「要不要中断上一路」（和 `#营地观战 N` 一致）
+    return this.launch(e, {
+      // ⚠️ watcher 只是首选；被占时服务端从 owners 里挑另一个也能看到 TA 的空闲账号
+      watcher: still.watcher || hint.watcher,
+      owners: still.owners || hint.owners || [],
+      battleID: still.battleId,
+      // ⚠️ 两个 ID 都要发：服务端拿 userID 取流、拿 roleId 轮询「这局还在不在」
+      userID: still.userId,
+      roleId: still.roleId,
+      // ⚠️ `campNick` 是营地昵称兜底，原先这里漏了它（只有 `#营地观战 N` 那条带了）——
+      //    两个名字都取不到时会回一句「正在开播「对局」」，很怪（2026-10-05 修）
+      nick: still.nick || still.campNick || hint.nick
+    }, { label: still.nick || still.campNick || hint.nick, canWatch: still.canWatch })
   }
 
   /**

@@ -95,7 +95,8 @@ export function buildMasterPanelData () {
         items: [
           { command: '#王者设置', desc: '查看本面板与链路状态' },
           { command: '#王者用户统计', desc: '精简版绑定情况统计' },
-          { command: '#清理失效营地账号', desc: '移除无法使用的登录态' }
+          { command: '#清理失效营地账号', desc: '移除无法使用的登录态' },
+          { command: '#隐藏主页名单 / #清除隐藏主页', desc: '隐藏主页的号' }
         ]
       },
       {
