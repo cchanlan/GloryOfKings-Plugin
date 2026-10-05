@@ -934,14 +934,30 @@ class AuthStore {
         )
       }
 
+      // ⭐ 救回语义：主人在面板上把关键凭证换成了**新值**（且不是清空），说明这个号
+      //    被人工修过 —— 旧的「登录态失效」标记继续留着的话，请求照样跳过它，等于白修。
+      //    检测到凭证变化就把 authInvalid 和累计的错误计数/时间/文案一并清掉，
+      //    让号回到候选里，由后续真实请求重新验证。
+      //    ⚠️ 空串提交（把字段清空了）不算修复：那号坏得更彻底了，原 flag 必须保持。
+      const credentialChanged = ['token', 'userKey', 'encodeRes', 'userSig'].some(field => {
+        const incoming = toText(item[field])
+        return incoming && incoming !== toText(existing[field])
+      })
+      const rescued = Boolean(existing.authInvalid) && credentialChanged
+      if (rescued) {
+        logger.warn(
+          `${LOG_TAG} 账号 ${userId} 凭证被手动更新（锅巴保存），撤销登录态失效标记与错误计数，等待真实请求重新验证`
+        )
+      }
+
       nextAccounts[userId] = this.#normalizeAccount({
         ...existing,
         userId,
         ownerBotUserId: toText(item.ownerBotUserId),
         isGlobalDefault,
         priority: toNumber(item.priority ?? existing.priority ?? DEFAULT_PRIORITY, DEFAULT_PRIORITY),
-        authInvalid: Boolean(item.authInvalid),
-        authErrorCount: Number(item.authErrorCount ?? existing.authErrorCount ?? 0),
+        authInvalid: rescued ? false : Boolean(item.authInvalid),
+        authErrorCount: rescued ? 0 : Number(item.authErrorCount ?? existing.authErrorCount ?? 0),
         // ⚠️ 这里用 `??` 而不是 `||`（2026-10-05 修）：`||` 分不出
         //    「表单压根没带这个字段」和「表单明确把昵称清空了」——
         //    后者（`nickname: ''`）会被当成没带，又落回旧值 / `userName`，
@@ -975,8 +991,8 @@ class AuthStore {
         updatedAt: toText(item.updatedAt || existing.updatedAt),
         lastLoginAt: toText(item.lastLoginAt || existing.lastLoginAt),
         lastSuccessAt: toText(item.lastSuccessAt || existing.lastSuccessAt),
-        lastAuthErrorAt: toText(item.lastAuthErrorAt || existing.lastAuthErrorAt),
-        lastAuthErrorMessage: toText(item.lastAuthErrorMessage || existing.lastAuthErrorMessage)
+        lastAuthErrorAt: rescued ? '' : toText(item.lastAuthErrorAt || existing.lastAuthErrorAt),
+        lastAuthErrorMessage: rescued ? '' : toText(item.lastAuthErrorMessage || existing.lastAuthErrorMessage)
       }, existing)
     }
 

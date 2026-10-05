@@ -1502,12 +1502,14 @@ class CampTransport {
   async #runWithCandidates ({ url, candidates, context = {}, execute, onBusinessCode, errorLogExtra = {} }) {
     const { endpoint, method, targetUserId = '', requesterBotUserId = '' } = context
     let lastError = null
-    // 本轮给哪些账号打过失效标记（{ userId, message }），
+    // 本轮给哪些账号打过失效标记（{ userId, message, definite }），
     // 给循环结束后的「全候选同错 → 判定系统性问题、撤销标记」保险用。
+    // definite = 这条标记来自确定性信号（-30003 / 响应体精确短语判定），
+    // 撤销保险只看它：确定性的标记不撤，非确定性的（如 encodeRes 本地解密失败）可撤。
     const markedFailures = []
 
-    const markCandidateFailure = (candidate, message) => {
-      markedFailures.push({ userId: toText(candidate?.auth?.userId), message: toText(message) })
+    const markCandidateFailure = (candidate, message, definite = false) => {
+      markedFailures.push({ userId: toText(candidate?.auth?.userId), message: toText(message), definite: Boolean(definite) })
       this.#auth.markFailure(candidate, message)
     }
 
@@ -1577,7 +1579,9 @@ class CampTransport {
           lastError = decision.error
 
           if (decision.mark) {
-            markCandidateFailure(candidate, decision.error.message)
+            // 业务码路径的 mark:true 只在 isDefiniteAuthFailure 命中时给出
+            // （-30003 / 响应体精确短语），所以这里的标记恒为确定性（definite）
+            markCandidateFailure(candidate, decision.error.message, true)
           }
 
           logger.warn(`[王者接口] ${candidate.label} ${decision.reason || '鉴权异常'}，${isLast ? '且没有更多可回退账号' : '尝试回退到下一个账号'}`, {
@@ -1635,7 +1639,11 @@ class CampTransport {
         // 版本号）换多少个号都是同样的错，直接抛给上层，一个账号都不标——
         // 否则 cClientVersionCode 失效一次，全池账号会挨个被撞下来团灭。
         if (!isLast && error instanceof AuthAccountError) {
-          markCandidateFailure(candidate, error.message)
+          // definite=false：能抛到这儿的 AuthAccountError 来自请求**本地**预处理
+          // （目前只有 #decodeEncodeRes 的 encodeRes 解密失败），不是营地服务端给的
+          // 确定性失效信号——整池账号若共用同一份导坏的 encodeRes，就会被这道本地错
+          // 同文案团灭，撤销保险必须能把它撤回来
+          markCandidateFailure(candidate, error.message, false)
           logger.warn(`[王者接口] ${candidate.label} 登录态失效，尝试回退到下一个账号`, {
             endpoint,
             targetUserId,
@@ -1646,7 +1654,7 @@ class CampTransport {
         }
 
         if (error instanceof AuthAccountError) {
-          markCandidateFailure(candidate, error.message)
+          markCandidateFailure(candidate, error.message, false)   // 同上：本地预处理错，非确定性
         }
 
         break
@@ -1657,14 +1665,18 @@ class CampTransport {
     // 数字后）相同的原因失败——这种形状基本是配置/系统问题（比如客户端参数失效
     // 在每个号上表现一致），而不是一排账号恰好同时失效。
     // 把本轮新标掉的 authInvalid 撤回来，免得同一类系统错分批团灭全池。
-    // ⚠️ 例外：如果共同原因就是确定性的「登录态失效」（-30003 / 精确短语），
-    //    那是一排 token 真的都死了，标记该留。
+    // ⚠️ 例外：只要有一条标记是确定性的（definite，来自 -30003 / 响应体精确短语），
+    //    那是 token 真的死了，标记该留。
+    // ⚠️ 判定不能用最终错误文案匹配精确短语：业务码路径（「登录态失效(returnCode=…)」）
+    //    和 encodeRes 解密失败（「请重新登录该账号」）的文案都自带触发词，
+    //    用文案匹配恒为 true、撤销永不执行（旧实现就是这个死代码）；必须用打标记时
+    //    记下的 definite 布尔。
     if (markedFailures.length > 1 && markedFailures.length >= candidates.length) {
       const normalized = markedFailures.map(failure => failure.message.replace(/\d+/g, ''))
       const uniform = normalized.every(text => text === normalized[0])
-      const isDefinite = ACCOUNT_INVALID_MESSAGE_RE.test(markedFailures[0].message)
+      const anyDefinite = markedFailures.some(failure => failure.definite)
 
-      if (uniform && !isDefinite) {
+      if (uniform && !anyDefinite) {
         logger.error('[王者接口] 全部候选账号以相同原因失败，判定为配置/系统问题，已撤销本轮失效标记', {
           endpoint,
           targetUserId: toText(targetUserId),
