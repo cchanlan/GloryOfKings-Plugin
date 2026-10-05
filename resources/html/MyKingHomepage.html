@@ -66,8 +66,8 @@
             <div class="gok-rank-slot">
                 <div class="gok-rank-frame">
                     <img src="{{_res_path}}img/flag{{flagImg}}.png" alt="段位图片" class="gok-rank-bg">
-                    <img src="{{rankIcon}}" alt="段位图片" class="gok-rank-main">
-                    <img src="{{starImg}}" alt="" class="gok-rank-star-bar">
+                    {{if rankIcon}}<img src="{{rankIcon}}" alt="段位图片" class="gok-rank-main">{{/if}}
+                    {{if starImg}}<img src="{{starImg}}" alt="" class="gok-rank-star-bar">{{/if}}
                     <img src="{{_res_path}}img/{{honor}}.png" class="gok-rank-honor"></img>
                     {{if isKing}}
                     <div class="gok-rank-star-count">
@@ -78,20 +78,22 @@
                     <div class="gok-rank-badge">{{rank5v5}}</div>
                 </div>
             </div>
+            {{if modePeakRace}}
             <div class="gok-rank-slot">
                 <div class="gok-rank-frame">
                     <img src="{{_res_path}}img/flag{{modePeakRace.param1.flagPag}}.png" alt="段位图片"
                         class="gok-rank-bg">
-                    <img src="{{modePeakRace.icon}}" alt="段位图片" class="gok-rank-main">
+                    {{if modePeakRace.icon}}<img src="{{modePeakRace.icon}}" alt="段位图片" class="gok-rank-main">{{/if}}
                     <img src="{{_res_path}}img/cube.png" alt="" class="gok-peak-cube">
                     <div class="gok-peak-avatar">
-                        <img src="{{modePeakRace.param1.roleIcon}}" alt="" class="gok-avatar">
+                        {{if modePeakRace.param1.roleIcon}}<img src="{{modePeakRace.param1.roleIcon}}" alt="" class="gok-avatar">{{/if}}
                         <img src="{{_res_path}}img/modePeakRace-avatar.png" alt="" class="gok-peak-avatar-border">
                     </div>
                     <div class="gok-peak-desc">{{modePeakRace.param1.desc}}</div>
                     <div class="gok-rank-badge">巅峰赛</div>
                 </div>
             </div>
+            {{/if}}
         </div>
     </div>
     <div class="gok-footer">GloryOfKings-Plugin · 王者主页</div>
