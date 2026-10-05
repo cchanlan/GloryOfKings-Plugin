@@ -32,6 +32,8 @@ import {
 } from '../utils/reportStore.js'
 import { loadPushList, savePushList, mergeSubState, disableSubFlag, subGroups, withSubGroup, withoutSubGroup, sweepLeftGroups, sleep, REQUEST_INTERVAL } from '../utils/pushStore.js'
 import { fetchRoleNames } from '../utils/roleName.js'
+// 并发锁跨热重载共享：模块级 `let` 在热重载后是新变量，锁会被架空（见 utils/hotState.js）
+import { hotBox } from '../utils/hotState.js'
 import {
   getImgType,
   resolveCurrentId, getCurrentId, getUserAvatar, Button, shouldQuote, readYamlFile, parsePerfArgs,
@@ -61,8 +63,14 @@ const CRON_KEY = { daily: 'dailyReportCron', weekly: 'weeklyReportCron', monthly
 /** 定时推送时每个订阅之间的间隔。出图本身就要一秒多，这里只防接口补页扎堆 */
 const PUSH_GAP = REQUEST_INTERVAL
 
-/** 轮询并发锁，三个 task 共用一把：都要出图，撞在一起会把 puppeteer 拖垮 */
-let pushing = false
+/**
+ * 轮询并发锁，三个 task 共用一把：都要出图，撞在一起会把 puppeteer 拖垮。
+ *
+ * ⚠️ 必须跨热重载共享（见 `utils/hotState.js`）：模块级 `let` 在热重载后是**新变量**，
+ *    而旧实例那一轮（要出图，好几秒）还在跑 —— 新实例看到 `false` 就会并发再来一轮，
+ *    两轮同时压 puppeteer，正是这把锁当初要防的事。
+ */
+const S = hotBox('battleReport.pushing', { pushing: false })
 
 export class BattleReport extends plugin {
   constructor () {
@@ -356,12 +364,12 @@ export class BattleReport extends plugin {
       .filter(([qq, sub]) => !isBlackUser(qq) && sub?.[kind] === true && subGroups(sub).length > 0)
     if (!subs.length) return
 
-    if (pushing) {
+    if (S.pushing) {
       logger.warn(`[王者${label}] 上一轮推送还在跑，本轮跳过`)
       return
     }
 
-    pushing = true
+    S.pushing = true
     try {
       for (const [qq, sub] of subs) {
         try {
@@ -372,7 +380,7 @@ export class BattleReport extends plugin {
         await sleep(PUSH_GAP)
       }
     } finally {
-      pushing = false
+      S.pushing = false
     }
   }
 

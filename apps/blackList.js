@@ -58,7 +58,18 @@ export class GokBlackList extends plugin {
   async pickTarget (e) {
     if (e.at && !e.atme) return { userId: String(e.at) }
 
-    const digits = stripAtText(e.msg).match(/(\d{5,12})(?!\d)/)
+    // ⚠️⚠️ 必须有**前置**边界 `(?<!\d)`（2026-10-06 修）。
+    //    原来只有后置的 `(?!\d)`，它只保证「匹配结尾后面不是数字」，但正则引擎会
+    //    **从串中任意位置起匹配** —— 遇到 13 位以上的连续数字时，它会从第 2 位开始
+    //    截出 12 位。实测（本机 node 复现）：
+    //      "#王者拉黑 1580886057"           -> 1580886057      ✅
+    //      "#王者拉黑 1234567890123"        -> 234567890123    ❌ 第 1 位被吃掉
+    //      "#王者拉黑 1580886057123456789"  -> 057123456789    ❌ 前 2 位被吃掉
+    //    后果：主人从聊天记录里连带复制了一长串数字时，**真正想拉黑的人毫发无损**，
+    //    而回复却说「已拉黑 057123456789」—— 一个不存在的号被写进了黑名单。
+    //    加前置边界后长数字串会**取不到**（`digits` 为空），落到下面正常的「请写 QQ 号」
+    //    提示路径，而不是静默拉黑一个错的号。
+    const digits = stripAtText(e.msg).match(/(?<!\d)(\d{5,12})(?!\d)/)
     if (digits) return { userId: digits[1] }
 
     const { userId, hint } = await resolveTargetUserId(e, { requireMaster: true })

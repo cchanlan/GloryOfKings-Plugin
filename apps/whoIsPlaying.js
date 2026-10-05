@@ -34,6 +34,8 @@ import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { loadPushList, subGroups, getHeroNameMap, normalizeName, ONLINE_LABEL, collectSnapshot } from '../utils/pushStore.js'
 import { membersOfGroup, isIndexReady, refreshGroupIndex } from '../utils/groupIndex.js'
 import { mapConcurrent } from '../utils/parallel.js'
+// 现刷并发锁跨热重载共享：模块级 `let` 在热重载后是新变量，锁会被架空（见 utils/hotState.js）
+import { hotBox } from '../utils/hotState.js'
 import { getImgType, Button, shouldQuote, getUserAvatar, getGroupAvatar, isBlackUser, isProfileHidden, getCurrentId, ApiService } from '#utils'
 import { heroIconUrl } from '../utils/reportStore.js'
 
@@ -70,8 +72,7 @@ const MAX_REFRESH = 40
  */
 const NO_SUB = Object.freeze({ battle: false, online: false })
 
-/** 现刷并发锁：一次只允许一条指令在刷，避免几个人同时发把请求量翻倍 */
-let refreshing = false
+/** 现刷并发锁（与门限一起锚在 hotBox 里，见下方 lastRefreshAt 的说明） */
 
 /**
  * 「上次现刷时刻」，qq → 毫秒。
@@ -79,15 +80,24 @@ let refreshing = false
  * 现刷**不落盘**（理由见 refreshSnapshots），所以 REFRESH_COOLDOWN_MS 这个门限
  * 没法靠订阅项里的 lastSeenAt 记（那是常驻轮询写的），得自己在内存里记一份。
  * 进程重启后丢失，等于放行一次全量刷，无所谓。
+ *
+ * ⚠️ 但**热重载**丢它就不是「无所谓」了：热重载比重启频繁得多（plugins/ 下改任何文件都会触发），
+ *    每次热重载都把门限清空 → 下一个人发指令又能全量刷一遍。所以和锁一起锚进 hotBox。
  */
-const lastRefreshAt = new Map()
+const S = hotBox('whoIsPlaying.refreshing', {
+  refreshing: false,
+  lastRefreshAt: new Map(),
+  lastRefreshPatch: new Map()
+})
+/** 「上次现刷时刻」，qq → 毫秒（跨热重载共享，见上） */
+const lastRefreshAt = S.lastRefreshAt
 
 /**
  * 「上次现刷到的字段」，qq → patch。门限内复用同一份，避免「第二个人发指令反而
  * 看到更旧的状态」（现刷不落盘，盘上那份只有常驻轮询写过）。
  * 和 lastRefreshAt 一起清、一起涨，上限见 refreshSnapshots 收尾那几行。
  */
-const lastRefreshPatch = new Map()
+const lastRefreshPatch = S.lastRefreshPatch
 
 /**
  * 「刚打完」的展示窗口：对局结束后这么久之内还单独列一组。
@@ -294,9 +304,9 @@ export class WhoIsPlaying extends plugin {
     const picked = due.slice(0, MAX_REFRESH)
     if (selfEntry && !picked.includes(selfEntry)) picked[picked.length - 1] = selfEntry
 
-    if (!picked.length || refreshing) return out
+    if (!picked.length || S.refreshing) return out
 
-    refreshing = true
+    S.refreshing = true
     try {
       // 一个人一秒多，串行拉完要好一会儿，不先说一声群里会以为机器人卡死了。
       // 注意请求是**按账号并发**的（N 个号 N 路并行），秒数要按账号数折算，
@@ -348,7 +358,7 @@ export class WhoIsPlaying extends plugin {
         lastRefreshPatch.set(qq, out.get(qq))
       }
     } finally {
-      refreshing = false
+      S.refreshing = false
     }
 
     return out

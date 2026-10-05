@@ -150,6 +150,20 @@ export default class ShareNotify extends plugin {
   }
 }
 
-// 模块顶层排一次。unref 保证它不会吊住事件循环
-const bootTimer = setTimeout(() => runNotify().catch(() => {}), FIRST_RUN_DELAY_MS)
-bootTimer.unref?.()
+// 模块顶层排一次。unref 保证它不会吊住事件循环。
+//
+// ⚠️⚠️ 必须用 globalThis 标记保证只排一次（2026-10-06 修）。
+//    这句在**模块顶层**，而 JiuLi 热重载会让本模块重新求值（内核给 plugins/ 下每个模块
+//    追加 `?jiuli_reload=<代数>`，见 lib/core/reload-hooks.js 的 stamp()）——
+//    于是每热重载一代就**多排一个 60 秒定时器**。实测（/tmp/probe15.mjs）：
+//      同一文件分别以 ?jiuli_reload=2 / =3 import，顶层 setTimeout 各执行 1 次；
+//      而同 URL 再 import（命中 ESM 缓存）执行 0 次 —— 证明是「重新求值」而非缓存。
+//    当前危害被 `runNotify` 里 `state.lastNotifiedVersion === version` 的幂等判断挡住了
+//    （不会重复发提醒），但多个定时器并存本身就是状态泄漏：版本一变，
+//    几个定时器会同时醒来各发一条。所以按「全局唯一」处理。
+const BOOT_TIMER_KEY = '__gokShareNotifyBootTimer'
+if (!globalThis[BOOT_TIMER_KEY]) {
+  const bootTimer = setTimeout(() => runNotify().catch(() => {}), FIRST_RUN_DELAY_MS)
+  bootTimer.unref?.()
+  globalThis[BOOT_TIMER_KEY] = bootTimer
+}

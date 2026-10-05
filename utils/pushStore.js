@@ -28,6 +28,8 @@ import { readYamlFile, writeYamlFile } from './yamlUtils.js'
 import { quarantineCorrupt } from './safeStore.js'
 import ApiService from './api.js'
 import cache from './cache.js'
+// 批内待落盘队列必须跨热重载共享，否则热重载会吞掉旧实例攒下的 patch（见 utils/hotState.js）
+import { hotBox } from './hotState.js'
 import { archiveBattles } from './battleArchive.js'
 // 营地昵称里常有私有区图标和不可见字符，直接拼进文案会显示成豆腐块或整段空白，
 // 清洗规则和排行榜是同一套，复用 rankStore 的实现。
@@ -155,8 +157,19 @@ export function savePushList (pushList) {
 /**
  * 批内待落盘的 patch。null = 当前不在批里。
  * 见 beginSubBatch / endSubBatch。
+ *
+ * ⚠️ 跨热重载共享（`hotBox`，2026-10-06 修）。这是本轮唯一一处**真数据丢失**的模块级状态：
+ *    `checkOne` 的结构是 `beginSubBatch()` → `await checkOneInner(...)` → `finally endSubBatch()`。
+ *    热重载若正好落在那段 `await` 中间，模块重新求值 → `pendingPatches` 变成新的 `null`；
+ *    等旧实例的 `finally` 跑到 `endSubBatch()` 时，它操作的是**新实例的** `pendingPatches`（null），
+ *    于是 `return 0` —— **旧实例攒下的那一批 patch 直接丢掉**：
+ *    战绩游标、上下线基准、退避计数、开播提示全没写盘。
+ *    退避计数丢了后果最重（注释里写过：漏了就永远停在原地，等于把自适应节流整个关掉，
+ *    每个离线号每轮都真查一次，正是 -30107 的来源）。
+ *
+ * 对照：同文件的 `listCache` 是**纯缓存**，热重载丢它只是重新读一次盘，无害，故不锚。
  */
-let pendingPatches = null
+const S = hotBox('pushStore.pendingPatches', { pendingPatches: null })
 
 /**
  * 开始一个「订阅写批」。
@@ -172,8 +185,8 @@ let pendingPatches = null
  * @returns {boolean} 是否成功开批（false = 已经在批里）
  */
 export function beginSubBatch () {
-  if (pendingPatches) return false
-  pendingPatches = []
+  if (S.pendingPatches) return false
+  S.pendingPatches = []
   return true
 }
 
@@ -182,8 +195,8 @@ export function beginSubBatch () {
  * @returns {number} 实际写入的条数（订阅已被删掉的会跳过，不计入）
  */
 export function endSubBatch () {
-  const patches = pendingPatches
-  pendingPatches = null
+  const patches = S.pendingPatches
+  S.pendingPatches = null
   if (!patches?.length) return 0
   return mergeSubStates(patches)
 }
@@ -203,8 +216,8 @@ export function endSubBatch () {
 export function mergeSubState (qq, patch) {
   const key = String(qq)
   // 在批里：只攒不写，批结束时统一落盘
-  if (pendingPatches) {
-    pendingPatches.push([key, patch])
+  if (S.pendingPatches) {
+    S.pendingPatches.push([key, patch])
     return true
   }
 

@@ -70,15 +70,32 @@ import {
 } from '../utils/pushStore.js'
 import { fetchBattleDetail, renderBattleDetail } from '../utils/battleDetailImage.js'
 import { fetchRoleNames } from '../utils/roleName.js'
+// 锁 / 游标 / 退避 / 安静期 / 盯梢闸必须跨热重载共享，否则会被热重载架空（见 utils/hotState.js）
+import { hotBox } from '../utils/hotState.js'
 import { getAllBindings } from '../utils/rankStore.js'
 import { getCurrentId, getLocalImage, Button, shouldQuote, pickGroupSafe, resolveMemberName, isBlackUser, ApiService, isProfileHidden } from '#utils'
 import { Config } from '#components'
 
 /**
  * 轮询并发锁。订阅多时一轮要几十秒，cron 设得短就会出现上一轮没跑完下一轮又启动，
- * 同一场战绩被两轮同时读到、各推一次。模块级变量足够——一个进程里只有一个 task 实例。
+ * 同一场战绩被两轮同时读到、各推一次。
+ *
+ * ⚠️ 「模块级变量足够——一个进程里只有一个 task 实例」这句**在热重载下不成立**
+ *    （2026-10-06 修）：JiuLi 热重载会让本模块重新求值，`let running` 变成**新变量**，
+ *    而旧实例那一轮（几十秒）还在跑 → 新实例看到 `false` 就并发再跑一轮。
+ *    实测（`utils/hotState.js` 里有可复现实验）：热重载后新实例看到 `running:false, cursor:0`。
+ *    所以这里连同下面的游标 / 退避 / 安静期 / 盯梢闸 / 日志节流**一起锚进 hotBox**。
  */
-let running = false
+const S = hotBox('gameRecordPush.state', {
+  running: false,
+  cursor: 0,
+  recoverRounds: 0,
+  quietUntil: 0,
+  hintRunning: false,
+  lastFriendNullLogAt: 0,
+  lastWaitLogAt: 0,
+  lastTargetsLogAt: 0
+})
 
 /**
  * 一轮最多真发几次请求。
@@ -115,14 +132,14 @@ const RATE_LIMIT_QUIET_MS = 15 * 60 * 1000
 /**
  * 轮询游标：上一轮被预算挡下的位置。没有它的话每轮都从头遍历，
  * 排在后面的订阅永远轮不到（前面的每次都用光预算）。
+ *
+ * ⚠️ 跨热重载共享（`S`）：模块级 `let` 热重载后归零，会让刚被预算挡下的那批订阅
+ *    重新从下标 0 开始排 —— 又是「后面的永远轮不到」。
  */
-let cursor = 0
 
-/** 频控恢复期还剩几轮，> 0 时每轮只放一个请求探路 */
-let recoverRounds = 0
+/** 频控恢复期还剩几轮，> 0 时每轮只放一个请求探路（跨热重载共享，见 S） */
 
-/** 命中频控后的安静期截止时刻（ms），0 = 不在安静期 */
-let quietUntil = 0
+/** 命中频控后的安静期截止时刻（ms），0 = 不在安静期（跨热重载共享，见 S） */
 
 /**
  * 盯梢轮询的重入闸。
@@ -131,17 +148,18 @@ let quietUntil = 0
  *    一轮要打营地接口、可能慢到几秒；没有这道闸的话下一轮会叠上来，
  *    请求量翻倍往上叠，而营地频控命中要静默 12 小时。
  *    和 server/watch-server.js 的 `tickRunning` 是同一个套路。
+ *
+ * ⚠️ 更要跨热重载共享（`S`）：setInterval **不会**被热重载清掉（它属于旧的模块实例），
+ *    而闸门若跟着模块重新求值就变回 false —— 旧定时器 + 新实例，闸门形同不存在。
  */
-let hintRunning = false
 
 /** 「查不到好友关系」日志的上次打印时刻（ms）。服务真挂了时这个分支每 15 秒走一次，不节流会刷屏 */
-let lastFriendNullLogAt = 0
 
 /** 「盯梢等待」日志的上次打印时刻（ms）。同理，盯梢 15 秒一轮，不节流会刷屏 */
-let lastWaitLogAt = 0
 
 /** 「本轮挑到 N 个」日志的上次打印时刻（ms）。同上 */
-let lastTargetsLogAt = 0
+// 上面三个日志节流也跨热重载共享（`S`）—— 归零只是多打一行日志，无害，但顺手一起锚住，
+// 免得这个文件的「模块级可变状态」还剩一半在外面，下次审计又要重新判一遍。
 
 /**
  * 盯梢最长盯多久。上线后一直不进对局（在大厅挂着、开着客户端没打）的，
@@ -629,7 +647,7 @@ export class GameRecordPush extends plugin {
 
     if (!entries.length) return
 
-    if (running) {
+    if (S.running) {
       logger.warn(`[王者推送] 上一轮还在跑，本轮跳过（${entries.length} 个订阅，间隔可能设得太短）`)
       return
     }
@@ -642,18 +660,18 @@ export class GameRecordPush extends plugin {
       return
     }
 
-    if (Date.now() < quietUntil) {
-      logger.debug(`[王者推送] 频控安静期内（还剩 ${Math.ceil((quietUntil - Date.now()) / 1000)} 秒），本轮 ${entries.length} 个订阅都不查`)
+    if (Date.now() < S.quietUntil) {
+      logger.debug(`[王者推送] 频控安静期内（还剩 ${Math.ceil((S.quietUntil - Date.now()) / 1000)} 秒），本轮 ${entries.length} 个订阅都不查`)
       return
     }
 
-    running = true
+    S.running = true
     const roundStart = Date.now()
     const heroMap = await getHeroNameMap()
     // 恢复期每轮只放一个请求：冷却刚过时营地多半还在惩罚期内，发满预算等于立刻再吃一发
-    const budget = recoverRounds > 0 ? 1 : MAX_REQUESTS_PER_ROUND
+    const budget = S.recoverRounds > 0 ? 1 : MAX_REQUESTS_PER_ROUND
     const total = entries.length
-    const from = cursor % total
+    const from = S.cursor % total
     let sent = 0
     // 下一轮从哪个下标接着查，空串 = 本轮所有人都轮过了、下轮从头开始
     let next = ''
@@ -707,15 +725,15 @@ export class GameRecordPush extends plugin {
           logger.error(`[王者推送] 写退避计数失败: ${error.message}`)
         }
       }
-      running = false
-      cursor = next === '' ? 0 : next
+      S.running = false
+      S.cursor = next === '' ? 0 : next
       // 命中就闭嘴一段时间再探（探测期会自己延长到营地真放行为止）；没命中才把恢复期倒数掉
       if (ApiService.lastRateLimitAt() > roundStart) {
-        quietUntil = Date.now() + RATE_LIMIT_QUIET_MS
-        recoverRounds = RECOVER_PROBE_ROUNDS
+        S.quietUntil = Date.now() + RATE_LIMIT_QUIET_MS
+        S.recoverRounds = RECOVER_PROBE_ROUNDS
         logger.warn(`[王者推送] 命中营地频控：安静 ${Math.round(RATE_LIMIT_QUIET_MS / 60000)} 分钟，之后 ${RECOVER_PROBE_ROUNDS} 轮每轮只探一个订阅`)
-      } else if (recoverRounds > 0) {
-        recoverRounds -= 1
+      } else if (S.recoverRounds > 0) {
+        S.recoverRounds -= 1
       }
     }
   }
@@ -1078,8 +1096,8 @@ export class GameRecordPush extends plugin {
    * 命中 -30107 会抛到这里，跳过本轮即可（api.js 已经做了账号级冷却）。
    */
   async hintTick () {
-    if (hintRunning) return
-    hintRunning = true
+    if (S.hintRunning) return
+    S.hintRunning = true
     try {
       if (readConfig().watchHintEnabled === false) return
 
@@ -1137,8 +1155,8 @@ export class GameRecordPush extends plugin {
       // ⭐ 这一轮挑到了谁 —— 盯梢「到底有没有在挑人」的唯一直接证据。
       // 挑人判据只看本地快照（lastGaming / hintGamingStart），一条日志就能分清
       // 「没挑到人（快照没更新）」和「挑到了但发不出去（后面几环卡住）」。
-      if (targets.length && now - lastTargetsLogAt > 5 * 60 * 1000) {
-        lastTargetsLogAt = now
+      if (targets.length && now - S.lastTargetsLogAt > 5 * 60 * 1000) {
+        S.lastTargetsLogAt = now
         logger.mark(`[王者推送] 盯梢本轮挑到 ${targets.length} 个：${targets.map(([q]) => q).join('、')}`)
       }
 
@@ -1157,8 +1175,8 @@ export class GameRecordPush extends plugin {
         // 但这条路径原先一声不吭，盯满 15 分钟超时后用户只看到「没提示」、日志里也查不到原因
         // （2026-09-20 主人反馈周五一整天没提示，就是靠这条查出来的）。按 3 分钟节流打一条。
         if (action === 'wait') {
-          if (now - lastWaitLogAt > 3 * 60 * 1000) {
-            lastWaitLogAt = now
+          if (now - S.lastWaitLogAt > 3 * 60 * 1000) {
+            S.lastWaitLogAt = now
             logger.mark(`[王者推送] ${qq} 盯梢等待：${reason}（isGaming=${data ? Boolean(data.isGaming) : '接口没返回'} gaming=${data?.gaming ? '有' : '无'}）`)
           }
           continue
@@ -1196,8 +1214,8 @@ export class GameRecordPush extends plugin {
         // ⚠️ 顺手把坐标带出来给 sendHint（同上，少了 owners 那边会裸查整个账号池）
         const friend = await this.findFriend(sub.campId)
         if (friend === null) {
-          if (now - lastFriendNullLogAt > 5 * 60 * 1000) {
-            lastFriendNullLogAt = now
+          if (now - S.lastFriendNullLogAt > 5 * 60 * 1000) {
+            S.lastFriendNullLogAt = now
             logger.mark(`[王者推送] 查不到 ${qq} 的好友关系（观战服务没起？），仍照发提示`)
           }
         } else if (friend === false) {
@@ -1217,7 +1235,7 @@ export class GameRecordPush extends plugin {
       // 定时器里绝不能把异常抛出去
       logger.error(`[王者推送] 盯梢轮询出错：${error.message}`)
     } finally {
-      hintRunning = false
+      S.hintRunning = false
     }
   }
 

@@ -109,14 +109,29 @@ export class PeakPerformance extends plugin {
     const ri = seasonData?.behavior?.rankInfo || {}
     const archived = buildDailyTrend(loadArchive(campId), Math.floor(Date.now() / 1000) - 30 * 86400)
     const useArchive = archived.length >= 3
+    // ⚠️⚠️ 回落路径必须按赛季时间窗过滤（2026-10-06 修，与 apps/seasonPage.js 同源同因）。
+    //    `ri.gameTrend` 是**跨赛季**的快照，不按赛季截断。实测真实数据
+    //    （campId 1580886057 / roleId 1185348788，S45 起于 2026-09-23）：
+    //      共 11 点，**5 点在赛季外**（09-08~09-22，S44 的 `score` 1769~1942）。
+    //    而**巅峰分每赛季重置**，所以不过滤的话曲线会从 1930 垂直掉到 1350 ——
+    //    把「赛季重置」画成「掉分」，用户会以为分被扣了。
+    //    窗口取不到时不过滤，保持原行为（宁可不错截断）。
+    const trendStart = Number(history[0]?.startTime) || 0
+    const trendEnd = Number(history[0]?.endTime) || 0
     const trend = useArchive
       ? archived
-      : (ri.gameTrend || []).slice().reverse().map(t => ({
-          score: Number(t.score) || 0,
-          jobName: t.jobName || '',
-          jobColor: t.jobColor || '#f5d76e',
-          time: t.time
-        }))
+      : (ri.gameTrend || []).slice().reverse()
+          .filter(t => {
+            if (!trendStart || !trendEnd) return true
+            const ts = Number(t.time) || 0
+            return ts >= trendStart && ts <= trendEnd
+          })
+          .map(t => ({
+            score: Number(t.score) || 0,
+            jobName: t.jobName || '',
+            jobColor: t.jobColor || '#f5d76e',
+            time: t.time
+          }))
     // 归档覆盖天数由推送轮询跑了多久决定，不是固定的 30 天，如实标出来
     const trendNote = useArchive ? `逐日 · 覆盖 ${archived.length} 天` : '按段位变化'
 

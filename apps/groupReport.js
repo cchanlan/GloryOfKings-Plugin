@@ -27,6 +27,8 @@ import {
 } from '../utils/groupReportStore.js'
 import { loadPushList, subGroups, sleep, REQUEST_INTERVAL } from '../utils/pushStore.js'
 import { estimateRequestSeconds } from '../utils/api.js'
+// 并发锁跨热重载共享：模块级 `let` 在热重载后是新变量，锁会被架空（见 utils/hotState.js）
+import { hotBox } from '../utils/hotState.js'
 import { getImgType, shouldQuote, Button, getGroupAvatar, pickGroupSafe } from '#utils'
 import { Config } from '#components'
 
@@ -51,8 +53,13 @@ const CRON_KEY = {
 /** 榜单最多列几个人。和 #排位排名 的群榜一样是 10 上下，太长图会非常高 */
 const MAX_ROWS = 15
 
-/** 出图并发锁，三路 task 共用一把：群报要扫几十个号，撞在一起会把频控和 puppeteer 一起拖垮 */
-let pushing = false
+/**
+ * 出图并发锁，三路 task 共用一把：群报要扫几十个号，撞在一起会把频控和 puppeteer 一起拖垮。
+ *
+ * ⚠️ 必须跨热重载共享（见 `utils/hotState.js`）：模块级 `let` 热重载后是新变量，
+ *    旧实例那轮还在扫号，新实例看到 `false` 就并发再来一轮 —— 请求量翻倍、更容易吃频控。
+ */
+const S = hotBox('groupReport.pushing', { pushing: false })
 
 export class GroupReport extends plugin {
   constructor () {
@@ -302,12 +309,12 @@ export class GroupReport extends plugin {
     const subs = listGroupSubs(kind)
     if (!subs.length) return
 
-    if (pushing) {
+    if (S.pushing) {
       logger.warn(`[王者群${label}] 上一轮推送还在跑，本轮跳过`)
       return
     }
 
-    pushing = true
+    S.pushing = true
     try {
       for (const { groupId, sub } of subs) {
         try {
@@ -318,7 +325,7 @@ export class GroupReport extends plugin {
         await sleep(REQUEST_INTERVAL)
       }
     } finally {
-      pushing = false
+      S.pushing = false
     }
   }
 

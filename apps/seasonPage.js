@@ -198,13 +198,37 @@ export class SeasonPage extends plugin {
     // 单调星数 = totalRankStar（跨段累计，星耀IV=80…最强王者=100，每段+5，但到王者封顶100）
     //          + stars（当前段位内累计：星耀段0~5，王者段无小段则一路累加）。
     // 两者相加才是全局单调递增的真实星数，既能画出钻石→王者的跨段爬升，王者段内涨星也有起伏。
-    const trend = (ri.gameTrend || []).slice().reverse().map(t => ({
-      star: (Number(t.totalRankStar) || 0) + (Number(t.stars) || 0),
-      stars: t.stars,
-      jobName: t.jobName,
-      jobColor: t.jobColor || '#f5d76e',
-      time: t.time
-    }))
+    //
+    // ⚠️⚠️ **必须按赛季时间窗过滤**（2026-10-06 修）。
+    //    `ri.gameTrend` 是**跨赛季**的段位快照，不是本赛季的 —— 营地按「段位或星数有变化」
+    //    记点，不按赛季截断。实测真实数据（campId 1580886057 / roleId 1185348788，S45）：
+    //      共 11 点，其中 **5 点落在 S45 开赛日 2026-09-23 之前**（09-08 ~ 09-22），
+    //      那 5 点是 **S44 的王者数据**（最强王者 stars 63~76，sum 163~176）。
+    //    不过滤的后果（三处，全是用户直接看到的）：
+    //      1. Y 轴顶部标签取 `trend[maxIdx]`，会写 **「王者 76星」** ——
+    //         而本赛季真实最高只有「星耀III 5星」（sum 90），文字与数据不符；
+    //      2. X 轴起点比本赛季开赛日**早约两周**（9-08 vs 9-23）；
+    //      3. 曲线在赛季边界出现 **-95 星**的垂直断崖，把「赛季段位重置」画成「掉分」。
+    //    `#排位表现` 与 `#赛季表现` 共用本方法，两条指令都受影响。
+    //
+    // 注意只对**当前赛季**生效：历史赛季服务端返回空 gameTrend（实测 S44/S43 均为 0 点），
+    // 过滤不影响它们。窗口取不到（startTime/endTime 缺失）时不过滤，保持原行为 ——
+    // 宁可不截断，也不能因为字段缺失把整条曲线清空。
+    const trendStart = Number(target.startTime) || 0
+    const trendEnd = Number(target.endTime) || 0
+    const trend = (ri.gameTrend || []).slice().reverse()
+      .filter(t => {
+        if (!trendStart || !trendEnd) return true
+        const ts = Number(t.time) || 0
+        return ts >= trendStart && ts <= trendEnd
+      })
+      .map(t => ({
+        star: (Number(t.totalRankStar) || 0) + (Number(t.stars) || 0),
+        stars: t.stars,
+        jobName: t.jobName,
+        jobColor: t.jobColor || '#f5d76e',
+        time: t.time
+      }))
 
     const honor = isCurrent
       ? [

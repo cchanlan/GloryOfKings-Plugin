@@ -27,6 +27,8 @@ import apiService from '../utils/api.js'
 import { LANES, MODE_NAME, matchLane, pickBattles } from '../utils/masterPool.js'
 import { reportRemoteAccounts } from '../utils/remoteAccounts.js'
 import { readQuoted } from '../utils/quoted.js'
+// 待确认请求表要跨热重载共享，否则热重载会把用户还没点的确认吞掉（见 utils/hotState.js）
+import { hotBox } from '../utils/hotState.js'
 
 /**
  * 待确认的「中断上一路、开这一路」请求。
@@ -38,8 +40,15 @@ import { readQuoted } from '../utils/quoted.js'
  *    确认时原样重发 + `replace: true` —— 不用让用户重新报一遍编号。
  *
  * key = `<群号>:<QQ>`，一人一份、互不干扰；TTL 见 PENDING_TTL_MS。
+ *
+ * ⚠️ 跨热重载共享（`hotBox`，2026-10-06 修）：模块级 `const pendingReplace = new Map()`
+ *    在热重载后会是一个**全新的空 Map**，用户之前点开的「要不要中断上一路？」待确认请求
+ *    就此消失 —— 他再点「确认中断」只会得到「没有等你确认的开播」，得从头 `#营地观战`
+ *    重新选一遍人。而这个待确认窗口本身就有 5 分钟，撞上热重载的概率不低。
+ *    （同一个坑本轮在 7 处地方都踩过，根因族见 utils/hotState.js。）
  */
-const pendingReplace = new Map()
+const S = hotBox('watchBattle.pendingReplace', { pendingReplace: new Map() })
+const pendingReplace = S.pendingReplace
 /** 待确认请求活多久。开播提示本身 40 分钟过期，这里给 5 分钟够点按钮了 */
 const PENDING_TTL_MS = 5 * 60 * 1000
 
