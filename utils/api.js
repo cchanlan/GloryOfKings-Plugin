@@ -61,6 +61,12 @@ const CODE_SUCCESS = 0
 /** 营地频控错误码：操作频繁 */
 const CODE_RATE_LIMITED = -30107
 
+/**
+ * 营地确定性「账号登录态失效」错误码（实测闲置 29 天的号回的就是它）。
+ * 只有这类确定性信号才允许给账号打 authInvalid 标记，见 isDefiniteAuthFailure。
+ */
+const CODE_ACCOUNT_INVALID = -30003
+
 /** 对方隐藏了主页：数据永远拿不到，标注后 24 小时内不再主动查（见 utils/hiddenProfiles.js） */
 const CODE_PROFILE_HIDDEN = -10107
 
@@ -183,6 +189,22 @@ class AuthConfigError extends CampError {
   constructor (message) {
     super(message)
     this.name = 'AuthConfigError'
+  }
+}
+
+/**
+ * 「确实是**这个账号**的登录态失效了」专用错误，用来和 AuthConfigError 分家。
+ *
+ * ⚠️ 候选账号循环**只按 AuthAccountError 给账号打 authInvalid 标记**。
+ *    AuthConfigError 是配置/系统级问题（典型：encryptParamErr = 营地不认
+ *    硬编码的 cClientVersionCode，和账号无关），拿它去标记会把全池一锅端——
+ *    cClientVersionCode 一旦失效，N 个账号挨个撞同一个 encryptParamErr，
+ *    换号逻辑一路标下来一轮全灭，而每个号本身都是好的。
+ */
+class AuthAccountError extends AuthConfigError {
+  constructor (message) {
+    super(message)
+    this.name = 'AuthAccountError'
   }
 }
 
@@ -321,26 +343,49 @@ function classifyBusinessCode (code) {
 }
 
 /**
- * 响应文案像不像「登录失效」。营地各端点的失效文案不统一（有的干脆只给错误码），
- * 所以调用方还会拿错误码字符串再判一次。
+ * 「确定是这个号的登录态失效」的**精确短语**清单。
+ *
+ * ⚠️ 刻意**不含**「登录 / token / 鉴权 / 安全参数 / 权限」这类宽泛词：
+ *    旧正则 `/登录|登录态|token|鉴权|安全参数|重新登录|权限/i` 会把任意业务错误文案
+ *    （「该用户无权限查看」「操作频繁，请稍后重试」这类）都判成登录失效，
+ *    于是健康账号被误标 authInvalid 还私信主人轰炸。判定失效只认确定性信号。
  */
-function isAuthFailureResponse (data) {
+const ACCOUNT_INVALID_MESSAGE_RE = /-30003|登录态失效|登录已失效|登录状态已经失效|请重新登录/
+
+/** 宽泛的疑似鉴权关键词——**只进日志**，绝不作为给账号打标记的依据 */
+const SUSPECTED_AUTH_KEYWORD_RE = /登录|登录态|token|鉴权|安全参数|重新登录|权限/i
+
+/**
+ * 响应是不是「确定这个账号的登录态失效了」。
+ *
+ * 判据只有两个确定性信号，命中其一才算：
+ *   1. returnCode 是 -30003（营地明确的登录态失效码）
+ *   2. 文案精确含「登录态失效 / 登录已失效 / 请重新登录」这类短语
+ *
+ * （取代旧的 isAuthFailureResponse —— 名字改了是因为语义整个反过来了：
+ *   旧的是「宁可错杀」，新的是「宁可不标」；误标的代价是全池团灭，见 AuthAccountError。）
+ */
+function isDefiniteAuthFailure (data) {
+  if (Number(data?.returnCode) === CODE_ACCOUNT_INVALID) {
+    return true
+  }
+
   const returnMsg = toText(data?.returnMsg || data?.message || data?.msg)
   if (!returnMsg) {
     return false
   }
 
-  return /登录|登录态|token|鉴权|安全参数|重新登录|权限/i.test(returnMsg)
+  return ACCOUNT_INVALID_MESSAGE_RE.test(returnMsg)
 }
 
-/** 这个错误该不该走「换下一个账号」那条路 */
-function isAuthRelatedError (error) {
-  if (error instanceof AuthConfigError) {
-    return true
+/** 响应文案只是**疑似**和鉴权沾边（宽泛关键词）。只用来决定要不要多打一条日志 */
+function isSuspectedAuthFailure (data) {
+  const returnMsg = toText(data?.returnMsg || data?.message || data?.msg)
+  if (!returnMsg) {
+    return false
   }
 
-  const message = error?.message || ''
-  return /encryptparamerr|安全参数|鉴权|token|encodeRes|userKey/i.test(message)
+  return SUSPECTED_AUTH_KEYWORD_RE.test(returnMsg)
 }
 
 /** 造一个大写 UUID */
@@ -661,15 +706,27 @@ class CampRequestSigner {
       return null
     }
 
-    const decrypted = crypto.publicDecrypt(
-      {
-        key: buildPublicKeyPem(auth.publicKey),
-        padding: crypto.constants.RSA_PKCS1_PADDING
-      },
-      Buffer.from(auth.encodeRes, 'base64')
-    )
+    let decrypted
+    try {
+      decrypted = crypto.publicDecrypt(
+        {
+          key: buildPublicKeyPem(auth.publicKey),
+          padding: crypto.constants.RSA_PKCS1_PADDING
+        },
+        Buffer.from(auth.encodeRes, 'base64')
+      )
+    } catch (error) {
+      // 坏 base64 / 坏 RSA 数据时，原生报错是 OpenSSL 的 `bad decrypt` 原文——
+      // 既看不懂，也不会被当成鉴权问题换号，账号就卡在这一个错上反复撞。
+      // 包成 AuthAccountError：这是「这个号的 encodeRes 本身有问题」，可标记、可换号。
+      throw new AuthAccountError(`encodeRes 无法解密（公钥解 RSA 失败: ${error.message}），请重新登录该账号`)
+    }
 
-    return JSON.parse(decrypted.toString('utf8'))
+    try {
+      return JSON.parse(decrypted.toString('utf8'))
+    } catch (error) {
+      throw new AuthAccountError(`encodeRes 无法解密（解出的内容不是 JSON: ${error.message}），请重新登录该账号`)
+    }
   }
 
   /**
@@ -1417,7 +1474,9 @@ class CampTransport {
   /**
    * 候选账号循环的公共骨架。
    *
-   * 依次用候选账号发请求：鉴权类失败就标记该账号并回退到下一个，全部失败则抛出最后一个错误。
+   * 依次用候选账号发请求：账号级登录失效（AuthAccountError）就标记该账号并回退到下一个，
+   * 全部失败则抛出最后一个错误；配置/系统级的 AuthConfigError（如 encryptParamErr）
+   * 直接抛，不标记任何账号——换号对这种错没有意义，见 AuthAccountError 的注释。
    * 真正有差异的只有两件事——**怎么发请求**、**业务错误码怎么判定**，分别由 execute 和
    * onBusinessCode 注入；循环骨架、鉴权失败回退、频控冷却、成功后的状态更新两处完全一致。
    *
@@ -1443,6 +1502,14 @@ class CampTransport {
   async #runWithCandidates ({ url, candidates, context = {}, execute, onBusinessCode, errorLogExtra = {} }) {
     const { endpoint, method, targetUserId = '', requesterBotUserId = '' } = context
     let lastError = null
+    // 本轮给哪些账号打过失效标记（{ userId, message }），
+    // 给循环结束后的「全候选同错 → 判定系统性问题、撤销标记」保险用。
+    const markedFailures = []
+
+    const markCandidateFailure = (candidate, message) => {
+      markedFailures.push({ userId: toText(candidate?.auth?.userId), message: toText(message) })
+      this.#auth.markFailure(candidate, message)
+    }
 
     for (let index = 0; index < candidates.length; index += 1) {
       const candidate = candidates[index]
@@ -1510,7 +1577,7 @@ class CampTransport {
           lastError = decision.error
 
           if (decision.mark) {
-            this.#auth.markFailure(candidate, decision.error.message)
+            markCandidateFailure(candidate, decision.error.message)
           }
 
           logger.warn(`[王者接口] ${candidate.label} ${decision.reason || '鉴权异常'}，${isLast ? '且没有更多可回退账号' : '尝试回退到下一个账号'}`, {
@@ -1563,9 +1630,13 @@ class CampTransport {
           continue
         }
 
-        if (!isLast && isAuthRelatedError(error)) {
-          this.#auth.markFailure(candidate, error.message)
-          logger.warn(`[王者接口] ${candidate.label} 请求失败，尝试回退到下一个账号`, {
+        // 只有「确实是这个账号的登录态失效」（AuthAccountError）才标记并换号。
+        // AuthConfigError 一类的配置/系统错误（如 encryptParamErr = 营地不认客户端
+        // 版本号）换多少个号都是同样的错，直接抛给上层，一个账号都不标——
+        // 否则 cClientVersionCode 失效一次，全池账号会挨个被撞下来团灭。
+        if (!isLast && error instanceof AuthAccountError) {
+          markCandidateFailure(candidate, error.message)
+          logger.warn(`[王者接口] ${candidate.label} 登录态失效，尝试回退到下一个账号`, {
             endpoint,
             targetUserId,
             requesterBotUserId,
@@ -1574,11 +1645,37 @@ class CampTransport {
           continue
         }
 
-        if (isAuthRelatedError(error)) {
-          this.#auth.markFailure(candidate, error.message)
+        if (error instanceof AuthAccountError) {
+          markCandidateFailure(candidate, error.message)
         }
 
         break
+      }
+    }
+
+    // 保险：本轮打过失效标记的账号不止一个，且**所有**候选都以（去掉账号 ID 等
+    // 数字后）相同的原因失败——这种形状基本是配置/系统问题（比如客户端参数失效
+    // 在每个号上表现一致），而不是一排账号恰好同时失效。
+    // 把本轮新标掉的 authInvalid 撤回来，免得同一类系统错分批团灭全池。
+    // ⚠️ 例外：如果共同原因就是确定性的「登录态失效」（-30003 / 精确短语），
+    //    那是一排 token 真的都死了，标记该留。
+    if (markedFailures.length > 1 && markedFailures.length >= candidates.length) {
+      const normalized = markedFailures.map(failure => failure.message.replace(/\d+/g, ''))
+      const uniform = normalized.every(text => text === normalized[0])
+      const isDefinite = ACCOUNT_INVALID_MESSAGE_RE.test(markedFailures[0].message)
+
+      if (uniform && !isDefinite) {
+        logger.error('[王者接口] 全部候选账号以相同原因失败，判定为配置/系统问题，已撤销本轮失效标记', {
+          endpoint,
+          targetUserId: toText(targetUserId),
+          requesterBotUserId: toText(requesterBotUserId),
+          message: markedFailures[0].message,
+          markedUserIds: markedFailures.map(failure => failure.userId)
+        })
+
+        for (const failure of markedFailures) {
+          authStore.unmarkAuthFailure(failure.userId, failure.message)
+        }
       }
     }
 
@@ -1651,19 +1748,36 @@ class CampTransport {
         const kind = classifyBusinessCode(businessCode)
 
         // 频控必须**最先**判。它的 returnMsg 有时也带「登录」「操作频繁」这类字样，
-        // 若排在 isAuthFailureResponse 后面，就会被误判成登录失效，
+        // 若排在失效判定后面，就会被误判成登录失效，
         // 把这个该进冷却的号错标成 authInvalid。
         if (kind === BUSINESS_CODE.RATE_LIMITED) {
           return { action: 'rate-limit' }
         }
 
-        // 疑似登录失效响应：标记这个号后换下一个
-        if (isAuthFailureResponse(data)) {
+        // 确定性登录失效（-30003 / 精确短语）：标记这个号后换下一个
+        if (isDefiniteAuthFailure(data)) {
           return {
             action: 'retry',
             mark: true,
-            reason: '疑似失效',
-            error: new AuthConfigError(`${candidate.label} 返回疑似登录失效响应: ${data.returnMsg || data.message || data.msg}`)
+            reason: '登录态失效',
+            error: new AuthAccountError(`${candidate.label} 登录态失效(returnCode=${businessCode}): ${data.returnMsg || data.message || data.msg || ''}`.trim())
+          }
+        }
+
+        // 只是文案疑似和鉴权沾边（含 token/鉴权/权限 等宽泛词）：**不标记账号**——
+        // 账号多半是好的，只是这句文案撞了关键词；只记日志，换下一个号试试。
+        if (isSuspectedAuthFailure(data)) {
+          logger.warn(`[王者接口] ${candidate.label} 返回疑似鉴权相关文案（不标记账号）: ${data.returnMsg || data.message || data.msg || ''}`.trim(), {
+            endpoint,
+            targetUserId: toText(targetUserId),
+            requesterBotUserId: toText(requesterBotUserId),
+            returnCode: businessCode
+          })
+          return {
+            action: 'retry',
+            mark: false,
+            reason: '疑似鉴权相关文案（未标记）',
+            error: new AuthConfigError(`${candidate.label} 返回疑似鉴权相关响应: ${data.returnMsg || data.message || data.msg}`)
           }
         }
 
@@ -1768,12 +1882,25 @@ class CampTransport {
           return { action: 'rate-limit' }
         }
 
-        // 皮肤墙的错误响应没有统一的「登录失效」文案，所以额外拿错误码本身当 returnMsg 再判一次
+        // 皮肤墙这类错误响应没有统一的「登录失效」文案，只靠 returnCode 判：
+        // -30003 走确定性标记；其余文案就算疑似（含 token/鉴权 等词）也只记日志不标记。
+        const isDefinite = isDefiniteAuthFailure(data)
+        if (!isDefinite && isSuspectedAuthFailure(data)) {
+          logger.warn(`[王者接口] ${candidate.label} 游戏侧返回疑似鉴权相关文案（不标记账号）: ${data.returnMsg || data.message || ''}`.trim(), {
+            endpoint,
+            targetUserId: toText(targetUserId),
+            requesterBotUserId: toText(requesterBotUserId),
+            returnCode
+          })
+        }
+
         return {
           action: 'retry',
-          reason: '皮肤墙请求返回错误码',
-          error: new AuthConfigError(`${candidate.label} 返回错误码 ${returnCode}: ${data.returnMsg || data.message || ''}`.trim()),
-          mark: isAuthFailureResponse(data) || isAuthFailureResponse({ returnMsg: String(returnCode) })
+          reason: isDefinite ? '登录态失效' : '皮肤墙请求返回错误码',
+          error: isDefinite
+            ? new AuthAccountError(`${candidate.label} 登录态失效(returnCode=${returnCode}): ${data.returnMsg || data.message || ''}`.trim())
+            : new AuthConfigError(`${candidate.label} 返回错误码 ${returnCode}: ${data.returnMsg || data.message || ''}`.trim()),
+          mark: isDefinite
         }
       }
     })

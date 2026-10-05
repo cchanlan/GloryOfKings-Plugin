@@ -58,6 +58,13 @@ const EMPTY_USER_DATA = {}
 /** 没写 priority 的账号默认排在这一档（数字越小越先试） */
 const DEFAULT_PRIORITY = 100
 
+/**
+ * 健康账号的 `lastSuccessAt` 最少隔多久才落盘一次。
+ * 它只剩锅巴面板展示这一个消费方（见 markAuthSuccess 的注释），
+ * 10 分钟的颗粒度足够「看看这个号最近活没活」。
+ */
+const LAST_SUCCESS_FLUSH_MS = 10 * 60 * 1000
+
 // ────────────────────────────────────────────────────────────────────────
 // 基础转换
 // ────────────────────────────────────────────────────────────────────────
@@ -366,8 +373,10 @@ class AuthStore {
   /**
    * 「找到账号 → 打补丁 → 落盘」的公共骨架。
    *
-   * `markAuthFailure` / `markAuthSuccess` 的流程一模一样（空 userId 给 null、
-   * 账号不存在给 null、归一化、写回、存盘），差别只在补丁内容，所以骨架收在这里。
+   * `markAuthFailure` / `markAuthSuccess` / `unmarkAuthFailure` 的补丁+落盘部分
+   * 一模一样（空 userId 给 null、账号不存在给 null、归一化、写回、存盘），
+   * 差别只在补丁内容与各自的前置判据（markAuthSuccess 有「无事早退」节流，
+   * 见它自己的注释），所以骨架收在这里。
    *
    * 补丁用**回调**而不是现成对象：`authErrorCount` 要拿池里的旧值 +1，
    * 调用方必须先看到旧值才能算出来。
@@ -492,9 +501,48 @@ class AuthStore {
     }
   }
 
-  /** 登录成功：清掉失效标记和错误计数，记下成功时间 */
+  /**
+   * 登录成功：清掉失效标记和错误计数，记下成功时间。
+   *
+   * ⚠️ **无事早退**：账号本来就健康（没标 authInvalid、没有错误计数、没有
+   *    lastAuthErrorAt/Message）时，一次成功请求没有任何**状态**要纠正，
+   *    只读不写。这条路径原先是每个成功请求都全量重写 AuthPool.json
+   *    （一天数千次磁盘放大，还把全池 updatedAt 刷成一样，审计意义归零）。
+   *    读盘这一步省不掉：AuthPool 是唯一事实源，锅巴/手工随时会改它，
+   *    不能加内存缓存假装没这回事——省掉的是写，不是读。
+   *
+   * ⚠️ `lastSuccessAt` 剩余的唯一语义是「大概最后一次成功」（锅巴面板展示用，
+   *    grep 过全仓库没有任何逻辑消费它的新鲜度，campRenew 的注释也明确告诫
+   *    别拿它当覆盖率指标），所以**节流写盘**：距上次落盘不足
+   *    `LAST_SUCCESS_FLUSH_MS` 就只在内存里攒着，到点随下一次成功一起写。
+   */
   markAuthSuccess (userId) {
-    const patched = this.#patchAccount(userId, () => ({
+    const normalizedUserId = toText(userId)
+    if (!normalizedUserId) {
+      return null
+    }
+
+    const account = this.getAccount(normalizedUserId)
+    if (!account) {
+      return null
+    }
+
+    const now = Date.now()
+
+    const isHealthy = !account.authInvalid &&
+      !Number(account.authErrorCount || 0) &&
+      !toText(account.lastAuthErrorAt) &&
+      !toText(account.lastAuthErrorMessage)
+
+    // 健康账号：唯一的变化是 lastSuccessAt，节流——距上次落盘未到点就不写
+    if (isHealthy) {
+      const lastFlushedAt = Date.parse(toText(account.lastSuccessAt)) || 0
+      if (now - lastFlushedAt < LAST_SUCCESS_FLUSH_MS) {
+        return account
+      }
+    }
+
+    const patched = this.#patchAccount(normalizedUserId, () => ({
       authInvalid: false,
       authErrorCount: 0,
       lastAuthErrorAt: '',
@@ -503,6 +551,49 @@ class AuthStore {
     }))
 
     return patched ? patched.next : null
+  }
+
+  /**
+   * 撤销一轮「误判的失效标记」——给 api.js 候选循环末尾的
+   * 「全部候选以相同原因失败 → 判定为配置/系统问题」保险用。
+   *
+   * ⚠️ `expectedMessage` 必须与该账号池里**当前**的 lastAuthErrorMessage 一致
+   *    才撤销：并发请求可能刚用别的原因标过这个号，那种标记不归本轮管，
+   *    撤了就是把别的事故现场抹掉。
+   */
+  unmarkAuthFailure (userId, expectedMessage = '') {
+    const normalizedUserId = toText(userId)
+    if (!normalizedUserId) {
+      return null
+    }
+
+    const account = this.getAccount(normalizedUserId)
+    if (!account || !account.authInvalid) {
+      return null
+    }
+
+    if (toText(account.lastAuthErrorMessage) !== toText(expectedMessage)) {
+      return null
+    }
+
+    const patched = this.#patchAccount(normalizedUserId, previous => ({
+      authInvalid: false,
+      // 错误计数本轮 +1 过了，撤回时也减回来（不到 0 以下），保持「计数 ≈ 真实失效次数」
+      authErrorCount: Math.max(0, Number(previous.authErrorCount || 0) - 1),
+      lastAuthErrorAt: '',
+      lastAuthErrorMessage: ''
+    }))
+
+    if (patched) {
+      logger.warn(`${LOG_TAG} 已撤销账号登录态失效标记（判定为系统/配置问题）`, {
+        userId: patched.next.userId,
+        ownerBotUserId: patched.next.ownerBotUserId,
+        isGlobalDefault: patched.next.isGlobalDefault
+      })
+      return patched.next
+    }
+
+    return null
   }
 
   /**
