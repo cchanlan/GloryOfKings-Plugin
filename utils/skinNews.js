@@ -165,6 +165,20 @@ export function setSkinNewsSub (groupId, enable, extra = {}) {
  * 都按皮肤 ID 去重，`pushed` 里有的不再推。**首次运行不会把历史皮肤全推一遍**：
  * 判据是「上线日期 >= 今天」，历史皮肤天然不入选。
  *
+ * ⚠️⚠️ 去重键**必须区分「预告过」和「上线推过」**（2026-10-06 修）。
+ *    原先 `pushed` 只是一个裸 id 集合，两种推送共用一个名额，于是：
+ *    某张皮肤先以「即将上线」被预告过一次 → 它上线**当天**落进 `todayList`，
+ *    又被 `!pushed.has(skin.id)` 滤掉 → **最该推的那天一条都不出**。
+ *    实测纯函数复现：第 1 轮推 `['TODAY1','FUTURE1']`；
+ *    第 2 轮（FUTURE1 上线当天）实际只推 `['TODAY2']`，FUTURE1 静默消失，
+ *    而期望是 `['FUTURE1','TODAY2']`。
+ *    补充：`splitCalendar(list, 0)` 的 `upcoming` **没有上限**（`recentLimit` 只约束
+ *    `recent`），所以任何未上线皮肤第一次进清单时都会被预告掉，撞上的概率不低。
+ *
+ *    现在键分两种：预告记 `${id}@upcoming`、上线推记 `${id}@online`。
+ *    上线那天只查 `@online`，预告过不影响；反过来预告过之后不会再重复预告。
+ *    读旧数据时裸 id（历史写法）仍按「上线推过」认，保持兼容。
+ *
  * @returns {Promise<{items: object[], store: object}>} items 为空表示这轮没什么可推
  */
 export async function collectSkinNews () {
@@ -173,16 +187,21 @@ export async function collectSkinNews () {
   const { upcoming, todayList } = splitCalendar(list, 0)
   const pushed = new Set(store.pushed)
 
+  // 历史裸 id 一律当「上线推过」，兼容旧存档
+  const pushedOnline = id => pushed.has(`${id}@online`) || pushed.has(String(id))
+  const pushedUpcoming = id => pushed.has(`${id}@upcoming`)
+
+  const now = today()
   const items = [...todayList, ...upcoming]
-    .filter(skin => !pushed.has(skin.id))
-    .map(skin => ({ ...skin, isToday: skin.online === today() }))
+    .filter(skin => (skin.online === now ? !pushedOnline(skin.id) : !pushedUpcoming(skin.id)))
+    .map(skin => ({ ...skin, isToday: skin.online === now }))
 
   return { items, store }
 }
 
-/** 把这批皮肤记进已推列表 */
+/** 把这批皮肤记进已推列表（按 `isToday` 分键，见 collectSkinNews 的说明） */
 export function markSkinNewsPushed (store, items) {
-  const ids = items.map(s => String(s.id))
-  store.pushed = [...store.pushed.filter(id => !ids.includes(id)), ...ids]
+  const keys = items.map(s => `${s.id}${s.isToday ? '@online' : '@upcoming'}`)
+  store.pushed = [...store.pushed.filter(k => !keys.includes(k)), ...keys]
   saveSkinNewsStore(store)
 }

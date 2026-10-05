@@ -324,9 +324,16 @@ export function pm2 (args = [], { timeout = 120000, env } = {}) {
 
   let r
   if (l.shell) {
+    // ⚠️ 校验**原始参数**，不能校验拼接后的整条命令行：`quote()` 会给含空格的参数
+    //    套上双引号，而那对引号自己就命中 `"` 判据 —— 于是「路径里带空格」这个
+    //    Windows 上再正常不过的情况（`C:\Program Files\...`、用户名带空格）会让
+    //    pm2 start/restart/delete/save 全部失败，报的还是「包含不支持的字符」，
+    //    完全指不出真正原因。逐项校验原始参数，自己加的那层引号不参与判断。
+    //    `%` 必须拦：Windows 的 cmd.exe 会把它当变量展开。
+    if ([l.cmd, ...args].some(a => /[%"\r\n]/.test(String(a)))) {
+      return { ok: false, out: '', err: '命令参数包含不支持的字符', missing: false }
+    }
     const line = [l.cmd, ...args].map(quote).join(' ')
-    // shell 拼接模式下这些字符会让命令跑歪，宁可失败也别乱跑
-    if (/[%!"\r\n]/.test(line)) return { ok: false, out: '', err: '命令参数包含不支持的字符', missing: false }
     r = spawnSync(line, { ...common, shell: true })
   } else {
     r = spawnSync(l.cmd, [...l.pre, ...args], common)
@@ -458,17 +465,29 @@ export function launcherInfo () {
  * 所以要看它跑的是不是我们 server 目录下的入口，cwd 和脚本路径任一命中才算。
  * （这个教训是从 meme 插件的卸载逻辑里带过来的。）
  *
+ * ⚠️ 必须按**路径段**比，不能裸 `startsWith`：本插件的默认布局里
+ *    `server/`（观战）和 `server-im/`（营地消息）是并排的两个目录，
+ *    `'/…/server-im'.startsWith('/…/server')` 是 **true** —— 于是观战侧的
+ *    「这个进程是不是我的」判定会把 IM 进程认成自己的。查进程又恰好按**名字**查
+ *    （`PROC_NAME` = gok-watch / gok-im），所以只要名字被改动或两边配混，
+ *    观战部署就可能去 restart/delete 掉消息服务。反向同理。
+ *    补上分隔符后 `/…/server-im` 不再匹配 `/…/server`。
+ *
  * @param {object|null} proc pm2Proc 的返回值
  * @param {string} serverDir 服务端目录绝对路径
  */
 export function isOurProcess (proc, serverDir) {
   if (!proc) return false
 
-  const norm = p => String(p || '').replace(/\\/g, '/').toLowerCase()
+  const norm = p => String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
   const want = norm(serverDir)
+  if (!want) return false
 
-  const cwd = norm(proc.pm2_env?.pm_cwd || proc.pm2_env?.cwd)
-  const script = norm(proc.pm2_env?.pm_exec_path)
+  // 命中判据：路径等于该目录，或落在该目录**之内**（`want + '/'`）
+  const inside = p => {
+    const v = norm(p)
+    return Boolean(v) && (v === want || v.startsWith(`${want}/`))
+  }
 
-  return cwd.startsWith(want) || script.startsWith(want)
+  return inside(proc.pm2_env?.pm_cwd || proc.pm2_env?.cwd) || inside(proc.pm2_env?.pm_exec_path)
 }

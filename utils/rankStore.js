@@ -348,8 +348,34 @@ function keepOld(entries, snapshot, campId) {
  * @param {string[]} [options.campIds] 只保留这些营地ID（本群排名用）
  * @param {object}   [options.ownerMap] campId -> botUserId，用于回显归属
  */
+/**
+ * 把快照条目拼成排行榜。
+ *
+ * `ownerMap` 的取值有两种形态（都支持）：
+ *   · `{ [campId]: 'qq' }`            —— 老写法，一个营地号只记一个绑定人
+ *   · `{ [campId]: ['qq', 'qq2'] }`   —— **同一个营地号被多人绑定时必须用这种**
+ *
+ * ⚠️⚠️ 为什么必须支持多绑定（2026-10-06 修）：
+ *    `apps/rankList.js` 原先用 `if (!ownerMap[campId]) ownerMap[campId] = botUserId`
+ *    只留**第一个**绑定人，然后靠 `botUserId === selfId` 找「查询者自己那一行」。
+ *    同一个营地号被两个人绑定时，第二个人的 `botUserId` 是空串 →
+ *    `selfEntry` 为 null → **他掉出前 N 名时看不到自己那行**（排行榜里自己凭空消失）。
+ *    实测线上 `RankSnapshot.json`：campId `1807995411` 被 `3220564986` 和
+ *    `3667259455` 同时绑定；以后者身份查询时 rank #18 那行不显示（前者身份正常）。
+ *
+ * 所以每个条目同时给出：
+ *   · `botUserId`  —— 首个绑定人（头像、归属回显用，保持老语义）
+ *   · `botUserIds` —— **全部**绑定人（判断「这行是不是我」必须用它）
+ */
 export function buildRankList(entries, type, { campIds = null, ownerMap = {} } = {}) {
   const allow = campIds ? new Set(campIds.map(String)) : null
+
+  const ownersOf = (campId) => {
+    const raw = ownerMap[String(campId)]
+    if (raw == null) return []
+    const list = Array.isArray(raw) ? raw : [raw]
+    return list.map(String).filter(Boolean)
+  }
 
   const list = Object.values(entries || {})
     .filter(item => !allow || allow.has(String(item.campId)))
@@ -364,10 +390,14 @@ export function buildRankList(entries, type, { campIds = null, ownerMap = {} } =
       ? b.peakScore - a.peakScore
       : b.rankSort - a.rankSort))
 
-  return list.map((item, index) => ({
-    ...item,
-    index: index + 1,
-    botUserId: ownerMap[String(item.campId)] || '',
-    value: type === 'peak' ? String(item.peakScore) : `${item.rankName} ${item.rankStar}星`
-  }))
+  return list.map((item, index) => {
+    const owners = ownersOf(item.campId)
+    return {
+      ...item,
+      index: index + 1,
+      botUserId: owners[0] || '',
+      botUserIds: owners,
+      value: type === 'peak' ? String(item.peakScore) : `${item.rankName} ${item.rankStar}星`
+    }
+  })
 }

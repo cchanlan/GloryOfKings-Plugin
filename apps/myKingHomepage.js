@@ -124,8 +124,19 @@ function buildHomepageData (profileData, roleData, headData) {
   } = roleData
 
   const gameOnline = ONLINE_TEXT[onlineCode]
-  const onlineTime = moment(onlineTimestamp * 1000).locale('zh-cn').calendar()
-  const offlineTime = moment(offlineTimestamp * 1000).locale('zh-cn').calendar()
+  // ⚠️⚠️ 时间戳为 0 / 缺失时必须给「—」，不能让 moment 去格式化（2026-10-06 修）。
+  //    `moment(0)` 是**合法**的（= 1970-01-01 UTC），`.calendar()` 于是渲染出
+  //    「1970/01/01」—— 看起来像真数据，用户会以为这人 1970 年上过线。
+  //    实测线上 24 个账号里有 2 个（52334903、1781746532）字段就是 0。
+  //    `Number('')` 也是 0，所以空串同样走这条路。
+  const fmtCalendar = (ts) => {
+    const sec = Number(ts)
+    // 小于等于 0 一律当「没有」，另外挡住明显不是秒级时间戳的脏值
+    if (!Number.isFinite(sec) || sec <= 0) return '—'
+    return moment(sec * 1000).locale('zh-cn').calendar()
+  }
+  const onlineTime = fmtCalendar(onlineTimestamp)
+  const offlineTime = fmtCalendar(offlineTimestamp)
 
   const mode10v10 = mods.find(mod => mod.modId === MOD_ID.rank10v10)
   const mode5v5 = mods.find(mod => mod.modId === MOD_ID.rank5v5)

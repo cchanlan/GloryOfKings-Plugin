@@ -25,7 +25,7 @@ import {
   GROUP_SUB_FLAGS,
   MAX_MEMBERS
 } from '../utils/groupReportStore.js'
-import { loadPushList, sleep, REQUEST_INTERVAL } from '../utils/pushStore.js'
+import { loadPushList, subGroups, sleep, REQUEST_INTERVAL } from '../utils/pushStore.js'
 import { estimateRequestSeconds } from '../utils/api.js'
 import { getImgType, shouldQuote, Button, getGroupAvatar, pickGroupSafe } from '#utils'
 import { Config } from '#components'
@@ -135,8 +135,16 @@ export class GroupReport extends plugin {
    * 群成员列表。
    *
    * 官方机器人（user_id 是 appid:openid 形态）常拿不到群成员列表，这时降级成
-   * 「订阅表里记着 group 是本群的那些人」——不能退回「全部绑定用户」，
+   * 「订阅表里记着本群的那些人」——不能退回「全部绑定用户」，
    * 那会把别的群的人算进本群榜里。
+   *
+   * ⚠️⚠️ 降级那份**必须认全 `subGroups()`**（2026-10-06 修）。原先只看单值
+   *    `sub.group`，而多群订阅的人主群在 `group`、其余在 `groups[]` 里 ——
+   *    于是「只出现在 `groups[]` 里的群」会拼出**空名单**。空名单本身不危险，
+   *    危险的是它接着被 `resolveGroupTargets` 当成「不过滤」（那边的旧判据），
+   *    结果整张群报统计的是全服绑定（跨群泄露）。现在两边都堵上了：
+   *    这里认全订阅群，那边空名单直接谁都不匹配。
+   *    实测：群 `972915804` 正好只出现在某个号的 `groups[]` 里，旧写法下名单为空。
    *
    * @returns {Promise<{memberIds:Array<string>, degraded:boolean}>}
    */
@@ -150,7 +158,7 @@ export class GroupReport extends plugin {
     }
 
     const ids = Object.entries(loadPushList())
-      .filter(([, sub]) => String(sub?.group || '') === String(groupId))
+      .filter(([, sub]) => subGroups(sub).includes(String(groupId)))
       .map(([qq]) => String(qq))
 
     return { memberIds: ids, degraded: true }

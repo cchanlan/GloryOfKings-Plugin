@@ -29,7 +29,7 @@ import { AT_HEAD, AT_TAIL, pickAtText, stripAtText, resolveTargetUserId } from '
 import { getPvpSkinCover, getPvpHeroSkins } from './pvpSkinImage.js'
 import {
   getCampSkinConf, getCampHeroSkins, isClassicSkin,
-  SZ_ORDER, TIER_PRIORITY, tierRank, pickTierText, QUALITY_STATS, countQuality
+  SZ_ORDER, normalizeSzClass, TIER_PRIORITY, tierRank, pickTierText, QUALITY_STATS, countQuality
 } from './skinCatalog.js'
 import {
   createWechatLoginSession,
@@ -92,6 +92,7 @@ export {
   getCampHeroSkins,
   isClassicSkin,
   SZ_ORDER,
+  normalizeSzClass,
   TIER_PRIORITY,
   tierRank,
   pickTierText,

@@ -289,6 +289,9 @@ export async function collectBattles (campId, qq, fromSec, { maxPages = 12, toSe
   let fetched = 0
   let truncated = false
   let pendingFlush = false
+  // 拉取失败过（抛错 / 非 0 业务码）就是「这次没能补上」，跟「确实翻到底了」必须分开。
+  // 见下面返回值处 `incomplete` 的说明。
+  let failed = false
 
   for (let page = 0; page < maxPages; page += 1) {
     let res
@@ -296,11 +299,13 @@ export async function collectBattles (campId, qq, fromSec, { maxPages = 12, toSe
       res = await ApiService.getMoreBattleList(key, String(qq), { option: 0, lastTime })
     } catch (error) {
       logger.debug(`[战绩归档] ${key} 第 ${page + 1} 页拉取失败: ${error.message}`)
+      failed = true
       break
     }
 
     if (Number(res?.returnCode || 0) !== 0) {
       logger.debug(`[战绩归档] ${key} 第 ${page + 1} 页返回异常码 ${res?.returnCode}`)
+      failed = true
       break
     }
 
@@ -345,10 +350,30 @@ export async function collectBattles (campId, qq, fromSec, { maxPages = 12, toSe
 
   const finalMark = getWatermark(key)
 
+  // ⚠️⚠️ `incomplete`：这次**没能确认**覆盖到请求的起点（2026-10-06 修）。
+  //
+  // 原先三种情况（抛错 / 非 0 业务码 / 空 list）都只是 `break`，而
+  // `coveredFrom` 在没拿到水位时会**默认等于调用方请求的 `from`** ——
+  // 于是「一页都没拉到」和「真的翻到了 from」返回值一模一样，调用方无从分辨。
+  // 下游 `reportStore` 只在 `truncated && coveredFrom > fromSec` 时才写
+  // 「数据覆盖自…」，所以拉取失败时图上**一个覆盖不足的标注都没有**，
+  // 用户看到的是「今天还没有对局记录」这种确定性结论（其实是没拉到）。
+  // 返回的 `fetched` 全仓也无人读取（grep 确认），等于失败被彻底吞掉。
+  //
+  // 实测：模拟 `-30107` 抛错 / `-10107` / 空列表三种失败，
+  // 修复前输出完全相同的 `{truncated:false, fetched:0, coveredFrom:<请求的 from>}`。
+  //
+  // 判据：请求了 from（说明要这段历史）却一页都没成功拉回来 → 覆盖不足。
+  // 空 list 不算 failed（那是「确实没有更早的了」，第 335 行已把 reached 定成 from）。
+  const incomplete = from > 0 && fetched === 0
+
   return {
     battles: inRange(loadArchive(key)),
     coveredFrom: finalMark > 0 ? Math.max(finalMark, from) : from,
     truncated,
-    fetched
+    fetched,
+    // 拉取失败 or 一页都没拿到：让调用方能给出「数据可能不全」的降级文案
+    incomplete,
+    failed
   }
 }

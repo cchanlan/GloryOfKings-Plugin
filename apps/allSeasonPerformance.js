@@ -9,6 +9,11 @@ import { privacyScope } from '../utils/seasonFallback.js'
 const SEASON_LIMIT = 3
 const SEASON_LIMIT_MAX = 30
 
+// 巅峰赛**起始分**。接口给每个赛季都回一个 masterScore，没打过的赛季就是 1200 ——
+// 所以「masterScore > 0」不能用来判断「这个赛季打过巅峰赛」，必须用 > 1200。
+// 真实数据（402082480）：11 个「场次 0」的赛季里 10 个是 1200 的纯噪音，只有 S45 1254 是真的。
+const PEAK_BASE_SCORE = 1200
+
 // 段位配色。roleJob 是段位 ID 不是等级（17=荣耀黄金IV 却比 16=最强王者 大），只能按段位名判断
 const JOB_COLORS = [
   [/王者/, '#f5d76e'],
@@ -100,7 +105,26 @@ export class AllSeasonPerformance extends plugin {
 
     const currentSeasonId = history[0].seasonId
     const all = history.map(s => this.buildSeason(s, mode, currentSeasonId)).filter(Boolean)
-    const played = all.filter(s => s.games > 0)
+    // ⚠️⚠️ 巅峰模式的判据：`games > 0 || 真的有巅峰战绩`（2026-10-06 修，两轮才定下来）
+    //
+    //    【第一轮的错误结论，必须记下来】原先只看 `games > 0`，会把「有巅峰分、场次 0」
+    //    的赛季整条丢掉。当时想改成 `masterScore > 0`，但**那是错的** ——
+    //    `masterScore = 1200` 是**巅峰赛起始分**，接口给每个赛季都回一个 1200，
+    //    包括从没打过的赛季。放宽成 `> 0` 会把「没打过」的赛季全塞进图里（实测 3 个号
+    //    能多出 22 个这样的赛季，其中 20 个是 1200 的纯噪音），
+    //    用户会看到一堆「0 场 0 胜 1200 分」的空赛季 —— 那不是修复是倒退。
+    //
+    //    【真实数据给出的正确判据】1200 分 0 场的赛季，`heros` 是**空数组**、
+    //    `maxContinuousWinCnt` / `averageScore` / `goldCnt` 全是 0，原始字段就长这样：
+    //      { masterScore: 1200, totalCnt: 0, totalWinCnt: 0, maxContinuousWinCnt: 0,
+    //        winRate: 0, averageScore: 0, goldCnt: 0, silverCnt: 0, heros: [] }
+    //    而真正打过、只是 `totalCnt` 没回对的赛季（如 S45 1254 分）带着
+    //    `maxContinuousWinCnt: 2` 和 **2 个英雄**（含 winCnt/gameCnt/heroFightPower）。
+    //    所以「场次 0 但有分」里要**排除掉纯 1200 起始分**那批，用 `masterScore > 1200`
+    //    正好把它们滤掉（实测 402082480：11 个「有分无场次」里只有 S45 1254 是真的，
+    //    另外 10 个都是 1200）。
+    const played = all.filter(s => s.games > 0 ||
+      (mode === '巅峰' && Number(s.masterScore) > PEAK_BASE_SCORE))
 
     if (!played.length) {
       await e.reply(mode === '巅峰' ? '暂无巅峰赛数据（没打过或对方隐藏了）' : '暂无排位赛数据')
@@ -156,9 +180,12 @@ export class AllSeasonPerformance extends plugin {
 
     const games = Number(info.totalCnt) || 0
     const wins = Number(info.totalWinCnt) || 0
+    // ⚠️ 场次为 0 时**不能**报「0%」胜率（2026-10-06 修）。
+    //    这类赛季是被上面 `played` 的放宽条件放进来的（有巅峰分、没场次），
+    //    0 场 0 胜说成「胜率 0%」是凭空给用户扣了个最差战绩。给「—」表示无数据。
     const winRate = info.winRate
       ? `${Math.round(info.winRate * 100)}%`
-      : (games ? `${Math.round((wins / games) * 100)}%` : '0%')
+      : (games ? `${Math.round((wins / games) * 100)}%` : '—')
 
     return {
       seasonId: season.seasonId,

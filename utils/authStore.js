@@ -342,10 +342,29 @@ class AuthStore {
         continue
       }
 
+      // ⚠️⚠️ 必须把**原账号**当 `existing` 传进去（2026-10-06 修）。
+      //    原先漏了这第三个参数，`#normalizeAccount(account, existing = {})` 于是拿到空对象，
+      //    `FIELD_RESOLVERS.created` 里的 `existing[key]` 恒为 undefined →
+      //    每次都走 `|| timestamp` 分支 → **`createdAt` 每次落盘都被刷成当前时间**。
+      //    `#patchAccount`（另一条路径）是传了 `previous` 的，所以两条路径行为不一致，
+      //    这个不一致正是它能长期藏住的原因。
+      //
+      //    实测：两个账号 createdAt 分别是 2026-01-01 / 2026-02-02，
+      //    过一次 `#savePool` 后**都变成 2026-03-03**；
+      //    对照组走 `#patchAccount` 的旧值原样保留。
+      //    线上 `data/AuthPool.json` 5 个账号的 `createdAt` **完全相同**、
+      //    `updatedAt` 也完全相同，而 `lastLoginAt` 各不相同 —— 只有这两个被抹平了。
+      //
+      //    影响：代码里明确写着「出事后只能靠翻 createdAt 反推」，这个字段的用途
+      //    就是事后追查；它恒等于「最后一次落盘时间」等于追查能力没了。
+      //    ⚠️ 循环里先读后写：`pool.accounts[normalizedUserId]` 此时还是旧值
+      //    （我们写的是新建的 `accounts`，不碰 `sourceAccounts`）。
+      const existing = sourceAccounts[normalizedUserId] || {}
+
       accounts[normalizedUserId] = this.#normalizeAccount({
         ...account,
         userId: normalizedUserId
-      })
+      }, existing)
     }
 
     return { accounts }

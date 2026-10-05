@@ -39,30 +39,52 @@ const REF_MAX = 500
 const SEEN_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const SEEN_MAX = 1000
 
-let cache = null
+/**
+ * ⚠️⚠️ `cache` 锚在 `globalThis` 上，**必须**（2026-10-06 修）。
+ *
+ * 原因：JiuLi 的热重载会给 `plugins/` 下**每个**模块追加 `?jiuli_reload=<代数>`
+ * 查询串（`lib/core/reload-hooks.js`），把整张模块图重新求值一遍 —— 模块顶层
+ * 每重载一次就跑一次。模块级的 `let cache = null` 于是每次都变成**新变量**，
+ * 同一个进程里会并存**多份** `campImStore` 实例，各有各的内存状态。后果：
+ *
+ *   · 去重键互相抹：A 写盘后 B 再写，B 内存里没有 A 刚加的那些 `seen` 键，
+ *     盘上就丢了 → 同一条营地消息下次补拉时判定「没见过」→ **重复推送**。
+ *     （实测复现：A 标 1111、B 标 2222、A 再标 3333，最终盘上只剩 1111 和 3333。）
+ *   · 游标回退：`setCursor` 的 `n <= c.cursor` 守卫只看**本实例内存**，
+ *     旧实例会把盘上已推进的游标往回写 → 已推消息被重新拉出来再推一遍。
+ *     （实测复现：D 推到 5000 后，C 从内存里的 1000 推到 4000，盘上变成 4000。）
+ *
+ * 锚定后进程内只剩一份权威内存，`save()` 就能安心整份覆盖 ——
+ * 这也**保住了 TTL/上限裁剪**：裁剪是「改内存里那份、再整份写下去」，
+ * 若在 save 里做「与盘上合并」，刚被裁掉的过期键会被从盘上原样捞回来，
+ * `refs`/`seen` 就永远不会缩小、文件无限涨。
+ */
+const CACHE_KEY = '__gokCampImStoreCache'
+const state = (globalThis[CACHE_KEY] ||= { cache: null })
 
 function load () {
-  if (cache) return cache
+  if (state.cache) return state.cache
   let raw = {}
   try {
     raw = readYamlFile(FILE) || {}
   } catch {
     raw = {}
   }
-  cache = {
+  state.cache = {
     cursor: Number(raw.cursor) || 0,
     refs: (raw.refs && typeof raw.refs === 'object') ? { ...raw.refs } : {},
     seen: (raw.seen && typeof raw.seen === 'object') ? { ...raw.seen } : {},
     accounts: (raw.accounts && typeof raw.accounts === 'object') ? { ...raw.accounts } : {},
     friendLists: (raw.friendLists && typeof raw.friendLists === 'object') ? { ...raw.friendLists } : {}
   }
-  return cache
+  return state.cache
 }
 
+/** 写盘。整份覆盖是**正确**的：内存那份是进程内唯一权威（见 CACHE_KEY 的注释） */
 function save () {
-  if (!cache) return
+  if (!state.cache) return
   try {
-    writeYamlFile(FILE, cache)
+    writeYamlFile(FILE, state.cache)
   } catch (e) {
     logger.error(`[营地消息] 写 ${FILE} 失败：${e.message}`)
   }
@@ -311,7 +333,7 @@ export function getFriendByIndex (owner, selfUserId, idx) {
 
 /** 丢弃缓存（锅巴页面改完文件后，让插件重读） */
 export function invalidate () {
-  cache = null
+  state.cache = null
 }
 
 /**

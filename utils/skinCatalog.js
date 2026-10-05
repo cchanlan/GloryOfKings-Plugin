@@ -115,7 +115,32 @@ export async function getCampHeroSkins (heroName, opts = {}) {
 
 // 营地评级 szClass 的价值序（下标越小越高）。注意它和「品质名」是两套口径，
 // 评级里 SR 会盖过 S++ 的荣耀典藏，所以排序主键得用下面的 tierRank，评级只当次级键。
-export const SZ_ORDER = ['SR', 'S++', 'S+', 'S', 'A', 'B', 'C', 'D']
+//
+// ⚠️ 消费方**必须先过 `normalizeSzClass()`**（2026-10-06 修）。
+//    营地真实返回里存在 `" A"`（**前导空格**）、`SSR`、`SP` 三种写法，
+//    而原先两边都拿原始值直接 `indexOf`：
+//      · `skinWall` 只做了全角加号替换、**没 trim** → `" A"` 匹配不上 → 落到末尾（=D 档）
+//      · `skinMissing.valueRank` 未命中时返回 `SZ_ORDER.length` → 同样排到最后
+//    实测（全量配置表 968 条真实分布）：
+//      S×291 / A×257 / B×221 / S+×148 / S++×20 / SR×15 / SSR×13 / SP×2 / " A"×1
+//    那唯一一张 `" A"` 是**径山谋武（孙权，skinId 15101，勇者品质，488 点券）**，
+//    在 1580886057 的 62 张已拥有皮肤里从应有的 **33/62** 掉到 **62/62（最后一名）**，
+//    邻居从「克喵(A,488) / 锦麟游梦(A,488)」变成「激情绿茵(B,288) / 归虚梦演(B,0)」。
+//    `SSR` / `SP` 当前各自独占一个 tier 组，暂无可见错位，但同组一旦混入别的评级就会暴露。
+//    这里把 `SSR`（高于 SR）和 `SP` 显式补进序里，并统一由 normalizeSzClass 归一。
+export const SZ_ORDER = ['SSR', 'SR', 'SP', 'S++', 'S+', 'S', 'A', 'B', 'C', 'D']
+
+/**
+ * 把营地评级归一化到 `SZ_ORDER` 的写法：去空白、全角转半角、转大写。
+ * 消费方（skinWall / skinMissing）都必须先过它，别再各自 `replace('＋','+')`。
+ */
+export function normalizeSzClass (value) {
+  return String(value ?? '')
+    .replace(/[\uFF01-\uFF5E]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+    .replace(/\u3000/g, ' ')
+    .trim()
+    .toUpperCase()
+}
 
 // 高价值品质优先级(下标越小价值越高)，对齐营地“皮肤价值”口径。
 // 这些顶级品质(如荣耀典藏)的综合估值 skin_worth 常为 0，无法靠 worth 排序，故用显式优先级置顶。

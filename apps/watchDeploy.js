@@ -49,10 +49,32 @@ const PKG_NAME = 'watch'
 const PROC_NAME = 'gok-watch'
 /** 配置里抠不到端口时的回退：服务地址指的是**控制面**（8898），公网播放面（8899）插件不直接用 */
 const DEFAULT_PORT = 8898
+/** 播放面端口（公网那个）。服务端默认 8899，可用 GOK_WATCH_PORT 覆盖 */
+const PLAYBACK_PORT = 8899
 
+/**
+ * 起服务端时注入的环境变量。
+ *
+ * ⚠️ **控制面端口必须跟着配置一起注入**（2026-10-06 修）：
+ *    插件按 `watchApiUrl` 里的端口去探健康检查（`serverPort()` → `waitControlPort`），
+ *    而服务端的控制面端口来自 `GOK_WATCH_CTRL_PORT`（默认 8898）。原先这里只注入
+ *    `GOK_WATCH_CDN_HTTPS`，于是主人**刻意把控制面开在别的端口**时
+ *    （`healApiUrl` 的注释明确承认这是合法场景），配置与运行态就对不上：
+ *    插件去探自定义端口 → 必然超时 → 部署报「进程起了但控制面接口没通」，
+ *    而进程其实好端端在跑，报错文案还把用户指向错误方向。
+ *
+ * ⚠️ 排除播放面端口：配置万一还指着播放面（`watchApiUrl` = `…:8899`），
+ *    注入它会让控制面**撞上播放面端口起不来** —— 那是引入新故障。
+ *    这种配置交给 `healApiUrl()` 掰回 8898，这里保持服务端默认。
+ */
 function watchEnv () {
   const url = String(cfg().watchCdnHttps || '').trim().replace(/\/+$/, '')
-  return { GOK_WATCH_CDN_HTTPS: url }
+  const env = { GOK_WATCH_CDN_HTTPS: url }
+
+  const port = serverPort()
+  if (port && port !== PLAYBACK_PORT) env.GOK_WATCH_CTRL_PORT = String(port)
+
+  return env
 }
 
 /**
@@ -108,9 +130,6 @@ function serverPort () {
   const m = String(cfg().watchApiUrl || '').match(/:(\d+)/)
   return m ? Number(m[1]) : DEFAULT_PORT
 }
-
-/** 播放面端口（公网那个）。服务端默认 8899，可用 GOK_WATCH_PORT 覆盖 */
-const PLAYBACK_PORT = 8899
 
 /**
  * ⭐ **把「指向播放面」的旧配置自动掰回控制面**。

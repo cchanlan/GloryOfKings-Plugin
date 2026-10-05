@@ -69,7 +69,13 @@ export function flattenMsg (r) {
   return arr.map(seg => {
     if (!seg) return ''
     if (typeof seg === 'string') return seg
-    if (seg.type === 'text') return seg.text ?? seg.data?.text ?? ''
+    // ⚠️ 用 `||` 而不是 `??`：两者在「`seg.text` 是 undefined」时行为一致，
+    //    但适配器若给出自相矛盾的段（`text: ''` 且 `data.text` 有内容），
+    //    `??` 会停在空串上、把真正的内容丢掉。空串对文本段从来不是有用内容，
+    //    所以取第一个非空值更稳。
+    //    （防御性加固，未在真实适配器上复现过 —— 标准 OneBot 的 `get_msg` 给的是
+    //      `{type:'text', data:{text}}`，没有顶层 text 字段，`??` 本来也能穿透。）
+    if (seg.type === 'text') return seg.text || seg.data?.text || ''
     return ''
   }).join('')
 }

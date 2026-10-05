@@ -39,24 +39,49 @@ function splitHeroName(rawName) {
   return { name: text, sub: '' }
 }
 
+/**
+ * 在一张「别名表」里挑命中的那一项。
+ *
+ * ⚠️⚠️ 必须**按别名长度降序**挑，不能按表的声明顺序「遇到第一个就 break」（2026-10-06 修）。
+ *    原先是 `for (const item of MAP) if (names.some(n => msg.includes(n))) break`，
+ *    于是**短别名会抢在长别名前面**把整句话吃掉：
+ *      · 对抗路的别名里有单字 `'单'`，而它排在**中路（别名含 `'中单'`）之前** ——
+ *        `#英雄梯度 中单` 被判成**对抗路**。
+ *        实测 22 个输入里 5 个中招：「中单」「中单 巅峰赛」「所有段位 中单」
+ *        「顶端排位 中单」「中单 打野」全部落到 position 1（对抗路）。
+ *      · 同理 `'野'`（打野）与 `'游'`（游走）这类单字别名，也会抢掉更具体的说法。
+ *    改成「收集所有命中的别名、取最长的那条」后长别名天然优先；
+ *    长度相同时保留**先声明**的那项，确定性不变。
+ *
+ *    注：`'单'` 本身仍留在对抗路表里（历史别名，`#英雄梯度 单` 是有人用的写法），
+ *    只是它再也抢不到「中单」—— 长度 2 > 长度 1。`'下单'` 同理归发育路。
+ *    ⚠️ `'下单'` 目前**不在**任何一张表的别名里（只写了 `'下路'`），
+ *    所以 `#英雄梯度 下单` 仍会被 `'单'` 判成对抗路；这是**别名表的取舍**，
+ *    不是本次修复的回归 —— 真要支持「下单」得往发育路表里补一个别名。
+ *
+ * @param {string} msg 用户原话
+ * @param {Array<{names: string[]}>} map 别名表
+ * @returns {object|null} 命中的那一项；都没命中返回 null
+ */
+function pickByLongestAlias(msg, map) {
+  let best = null
+  let bestLen = 0
+  for (const item of map) {
+    for (const name of item.names) {
+      if (name && msg.includes(name) && name.length > bestLen) {
+        best = item
+        bestLen = name.length
+      }
+    }
+  }
+  return best
+}
+
 // 从指令里解析出段位与分路（默认 巅峰赛1350+ / 全部分路）
 function parseFilter(msg) {
-  let segment = 3
-  let position = 0
-
-  for (const item of SEGMENT_MAP) {
-    if (item.names.some(n => msg.includes(n))) {
-      segment = item.seg
-      break
-    }
-  }
-  for (const item of POSITION_MAP) {
-    if (item.names.some(n => msg.includes(n))) {
-      position = item.pos
-      break
-    }
-  }
-  return { segment, position }
+  const seg = pickByLongestAlias(msg, SEGMENT_MAP)
+  const pos = pickByLongestAlias(msg, POSITION_MAP)
+  return { segment: seg ? seg.seg : 3, position: pos ? pos.pos : 0 }
 }
 
 // 把 updateTime(20260724) 格式化成 2026-07-24

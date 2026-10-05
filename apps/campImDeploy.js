@@ -432,7 +432,13 @@ export class CampImDeploy extends plugin {
       const clients = status.clients || []
       const online = clients.filter(c => c.state === 'online').length
       lines.push(`账号：${online}/${clients.length} 在线`)
-      if (status.queue) lines.push(`待处理：${status.queue.lastId || 0} 条`)
+      // ⚠️ 待处理条数用 `queue.length`，**不是** `queue.lastId`。
+      //    lastId 是服务端的消息序号（从毫秒时间戳起步、每条 ++），跟条数不是一个量纲：
+      //    实测队列空着时 lastId 是 1791220064781，照它显示就是「有 1.7 万亿条待处理」。
+      //    apps/campIm.js 的面板早就改用 queue.length 了（那里注释记过这个坑），
+      //    这条是同一处逻辑的另一份拷贝，漏改了 —— 两处必须保持一致。
+      const pending = Number(status.queue?.length || 0)
+      if (pending > 0) lines.push(`待处理：${pending} 条`)
     }
 
     return e.reply(lines, shouldQuote())

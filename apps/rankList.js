@@ -108,10 +108,20 @@ export class RankList extends plugin {
       return
     }
 
-    // campId -> botUserId，同一个ID被多人绑定时取第一个，用于回显归属
+    // campId -> [botUserId, ...]，同一个ID被多人绑定时**全部记下**（用于回显归属 + 认自己）
+    //
+    // ⚠️⚠️ 不能只留第一个（2026-10-06 修）。原先 `if (!ownerMap[campId]) ownerMap[campId] = qq`
+    //    只留首个绑定人，而下面「找自己那行」靠 `botUserId === selfId` ——
+    //    第二个绑定人的 botUserId 是空串，他掉出前 N 名时就**看不到自己那行**。
+    //    实测线上 campId 1807995411 被 3220564986 / 3667259455 同时绑定：
+    //    以后者身份查询，rank #18 那行不显示；前者正常。
     const ownerMap = {}
     for (const item of bindings) {
-      if (!ownerMap[item.campId]) ownerMap[item.campId] = item.botUserId
+      const key = String(item.campId)
+      if (!ownerMap[key]) ownerMap[key] = []
+      if (item.botUserId && !ownerMap[key].includes(String(item.botUserId))) {
+        ownerMap[key].push(String(item.botUserId))
+      }
     }
 
     const full = buildRankList(snapshot.entries, type, {
@@ -129,9 +139,10 @@ export class RankList extends plugin {
     const maxRows = isGlobal ? MAX_ROWS_GLOBAL : MAX_ROWS_GROUP
     const list = full.slice(0, maxRows)
 
-    // 查询者自己的名次：即使掉出前 N 也单独显示一行
+    // 查询者自己的名次：即使掉出前 N 也单独显示一行。
+    // 用 `botUserIds`（全部绑定人）判断，一个营地号被多人绑定时每个人都能认出自己那行
     const selfId = String(e.user_id)
-    const selfEntry = full.find(item => item.botUserId === selfId)
+    const selfEntry = full.find(item => (item.botUserIds || [item.botUserId]).includes(selfId))
     const self = selfEntry && selfEntry.index > maxRows ? selfEntry : null
 
     // 前三名取 QQ 头像做展示，取不到就回落到营地头像

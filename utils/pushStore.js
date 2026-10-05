@@ -384,6 +384,14 @@ export function disableSubFlag (qq, key) {
 export function subGroups (sub) {
   const out = []
   const push = value => {
+    // ⚠️ 排除 0 / 非正数：`String(0)` 得 `"0"`，是个**像群号的假值**，
+    //    会让 `if (id)` 成立、往名单里塞一个永远不会存在的群 `"0"`。
+    //    （实测 `subGroups({group:0, groups:[1,2]})` 曾返回 `["0","1","2"]`。）
+    //    后果：send 会对 `"0"` 调 pickGroupSafe 白拿一次群（多一条 warn），
+    //    且 `isJunkSub` 会因为 groups 非空而不判它是空壳订阅。
+    const n = Number(value)
+    if (Number.isFinite(n) && n <= 0) return
+
     const id = String(value ?? '').trim()
     if (id && !out.includes(id)) out.push(id)
   }
@@ -1046,6 +1054,32 @@ export function pickNewBattles (list = [], sub = {}) {
   // 最新一场就是上次推过的那场，没有新战绩，最常见的情况，直接短路
   if (lastSeq && String(list[0]?.gameSeq || '') === lastSeq) return []
 
+  // ⚠️⚠️ `lastGameTime` 缺失时**不能只靠时间条件**（2026-10-06 修）。
+  //    `toInt('')` 得 0，而 `dtEventTime > 0` 恒真 —— 去重只剩 gameSeq 一条，
+  //    于是只要游标指向的不是最新那场（比如指向中间某场），**整页 30 场**都会被
+  //    当成新战绩推出去（刷屏）。实测：`{lastGameSeq:'1010', lastGameTime:''}`
+  //    → `fresh.length = 30`（期望 10）。
+  //
+  //    缺口来自 `toggleOnline`（只写在线字段、不写战绩游标）和手工编辑存档，
+  //    所以这种记录是可能存在的。时间条件失效时退回**按 seq 定位**：
+  //    找到游标那一场，只取它**之前**（更新）的场次，语义与时间条件一致。
+  const bySeqFallback = () => {
+    if (!lastSeq) return null
+    const idx = list.findIndex(item => String(item?.gameSeq || '') === lastSeq)
+    // 游标那场已经翻出列表了（列表太短）：保守地认为「都是新的」，
+    // 不能返回 [] —— 那会把真新战绩也吞掉，比多推更糟
+    if (idx < 0) return list.slice()
+    return list.slice(0, idx)
+  }
+
+  if (!lastTime) {
+    const fallback = bySeqFallback()
+    // 定位不到游标（lastSeq 为空，但前面已保证 lastSeq/lastTime 至少有一个）
+    // 或列表里没有它时，返回整页是唯一不丢数据的选择
+    if (fallback === null) return list.slice().reverse()
+    return fallback.reverse()
+  }
+
   const fresh = list.filter(item => {
     if (String(item?.gameSeq || '') === lastSeq) return false
     return toInt(item?.dtEventTime) > lastTime
@@ -1459,7 +1493,32 @@ export function formatStarChange (session = {}) {
   if (!jobTo || !jobFrom) return null
 
   if (jobFrom !== jobTo) {
-    return { text: `段位 ${jobFrom} → ${jobTo}（${starTo}星）`, icon: '📈', tone: 'up' }
+    // ⚠️⚠️ **必须比大段位层级，不能无条件写 `up`**（2026-10-06 修）。
+    //
+    // 段位名不同只说明「跨了大段」，**方向要另判**。原先这里把 `icon:'📈', tone:'up'`
+    // 写死，于是掉段也报「升」。真实归档全量复算（`BattleArchive.json` 22 个账号）：
+    //   daily 230 窗口 / 12 次段位变化 → 判错 2
+    //   weekly 230 / 47 → **判错 18**（全是掉大段）
+    //   monthly 230 / 75 → **判错 43**
+    // 样本：`绝世王者 → 永恒钻石II`（王者 → 钻石）输出「📈 段位 绝世王者 → 永恒钻石II」。
+    //
+    // 危害不止文案：`reportStore.js` 的 `pickProgress` 拿 `tone === 'up'` 当升段闸门，
+    // 群报的「升段之星」会**颁给掉段的人**（实测 2026-09 月报：`荣耀王者 → 至尊星耀III`
+    // 当选，真正升段的 `至尊星耀II → 最强王者` 落选）；模板按 tone 配色，
+    // 掉段还会渲染成金色喜报色。
+    const bandFrom = rankBand(jobFrom)
+    const bandTo = rankBand(jobTo)
+
+    if (bandTo > bandFrom) {
+      return { text: `段位 ${jobFrom} → ${jobTo}（${starTo}星）`, icon: '📈', tone: 'up' }
+    }
+    if (bandTo < bandFrom && bandTo > 0) {
+      return { text: `段位 ${jobFrom} → ${jobTo}（${starTo}星）`, icon: '📉', tone: 'down' }
+    }
+
+    // 两边层级相同（同名大段的不同写法，如「最强王者」→「荣耀王者」）或认不出来（band 0）：
+    // 方向无法判定，标 flat 让下游别把它当升段。宁可少报一次喜，不能把掉段报成升段
+    return { text: `段位 ${jobFrom} → ${jobTo}（${starTo}星）`, icon: '', tone: 'flat' }
   }
 
   // 同名段但 roleJob 小编号变了（旧体系 5 星一小段）：起止星数不可比，按编号报升降段。
@@ -1725,12 +1784,29 @@ function observeSnapshot (state, data, nowMs, prev = {}) {
   else if (gaming) patch.lastGameEndAt = ''
 
   // 同一局的开始时刻：dtEventTime 一局之内恒定，是「一局」的唯一标识。
-  // 只在开局那一轮（或换了局的轮次）写，避免退避轮拿旧时间戳反复刷新。
+  //
+  // ⚠️⚠️ **只写 `lastGamingStartSnap`，绝不写 `lastGamingStart`**（2026-10-06 修）。
+  //    `lastGamingStart` 是**战绩推送的游标**（`checkBattle` 的 `needGaming` 拿它判
+  //    「这一局提醒过没有」，只在**发送成功**后推进 —— 见那里的注释
+  //    「发送失败时一个游标都不动，下一轮整条消息重试」）。
+  //    而本函数是**纯观测**，两条路（常驻轮询 + `#谁在打游戏` 现刷）共用，
+  //    原先在这里无条件推进游标，等于把「发送失败不推进」这条规矩从背后捅穿：
+  //
+  //      连打排位时「上一局已结算 + 下一局已开局」会在**同一轮**读到
+  //      （checkBattle 的注释自己说明这「几乎总是发生」），此时若 `send` 失败：
+  //        · checkBattle 正确地一个游标都不写
+  //        · 但收尾 `mergeSubState(qq, {...patch})` 把本函数算好的游标合并进去了
+  //        · 下一轮 `pickNewBattles` 见到 `lastGameSeq` 已相等 → 直接短路
+  //        · **那一局战绩永久丢失**，且开局提醒（比的是同一个字段）一起被吞
+  //      实测复现：第 N 轮 `pickNewBattles → [1001]`（正确），
+  //      收尾合并后第 N+1 轮 `→ []`，B1 再也不出现。
+  //
+  //    拆成独立字段后两边各归各的：推送游标由 checkBattle 独占，
+  //    展示/盯梢用 `lastGamingStartSnap`（由本函数每轮照常刷新）。
+  //    `lastGameSeq` 在快照里**干脆不写** —— 没有任何展示方读它，写了只有害处。
   const start = gaming ? String(data?.gaming?.dtEventTime || '') : ''
   if (startingNewGame(start, prev)) {
-    patch.lastGamingStart = start
-    // 换局就把「已经打了多久」的起点也一起换掉，否则会显示成上一局的时长
-    patch.lastGameSeq = String(data?.list?.[0]?.gameSeq || '')
+    patch.lastGamingStartSnap = start
   }
 
   // 段位顺手记一份：#谁在打游戏 要显示段位徽章，而它自己不发请求。
@@ -1753,14 +1829,18 @@ function observeSnapshot (state, data, nowMs, prev = {}) {
  * `dtEventTime` 一局之内恒定，所以它变了就是新的一局；从没记过（历史订阅没这个字段）
  * 也算新的一局，好让第一轮就把起点写上。
  *
+ * ⚠️ 比的是 `lastGamingStartSnap`（**快照专用**字段），不是推送游标 `lastGamingStart` ——
+ *    两者语义不同，见 observeSnapshot 里的说明。历史订阅项两个都没有时也算新局，
+ *    会自然地把 `lastGamingStartSnap` 补上。
+ *
  * @param {string} start 本轮拿到的一局开始时刻（不在对局时是空串）
  * @param {object} prev 上一轮的订阅项
  * @returns {boolean}
  */
 function startingNewGame (start, prev) {
   if (!start) return false
-  // prev.lastGamingStart 可能是数字（早期写法）或字符串，统一成字符串比
-  return String(prev?.lastGamingStart ?? '') !== start
+  // 可能是数字（早期写法）或字符串，统一成字符串比
+  return String(prev?.lastGamingStartSnap ?? '') !== start
 }
 
 /**

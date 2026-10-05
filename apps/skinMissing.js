@@ -26,7 +26,7 @@ import {
   getImgType,
   ApiService, resolveCurrentId, readYamlFile, Button, shouldQuote,
   AT_HEAD, stripAtText, resolveTargetUserId, resolveMemberName, getUserAvatar,
-  isClassicSkin, SZ_ORDER, tierRank, pickTierText, QUALITY_STATS
+  isClassicSkin, SZ_ORDER, normalizeSzClass, tierRank, pickTierText, QUALITY_STATS
 } from '#utils'
 import { PluginData } from '#components'
 import { loadPushList } from '../utils/pushStore.js'
@@ -207,10 +207,18 @@ function valueRank (a, b) {
   const ta = tierRank(a.classTypeName)
   const tb = tierRank(b.classTypeName)
   if (ta !== tb) return ta - tb
-  const sa = SZ_ORDER.includes(a.szClass) ? SZ_ORDER.indexOf(a.szClass) : SZ_ORDER.length
-  const sb = SZ_ORDER.includes(b.szClass) ? SZ_ORDER.indexOf(b.szClass) : SZ_ORDER.length
+  // ⚠️ 评级先归一化再查序：营地会返回 `" A"`（前导空格）这类写法，
+  //    不归一化就查不到 → 掉到最后（见 utils/skinCatalog.js 的说明）
+  const sa = szLevel(a.szClass)
+  const sb = szLevel(b.szClass)
   if (sa !== sb) return sa - sb
   return Number(b.iPrice || 0) - Number(a.iPrice || 0)
+}
+
+/** 评级 → 价值序下标；认不出排到所有已知评级之后 */
+function szLevel (value) {
+  const cls = normalizeSzClass(value)
+  return SZ_ORDER.includes(cls) ? SZ_ORDER.indexOf(cls) : SZ_ORDER.length
 }
 
 /** 展示名：推送轮询顺手缓存的营地昵称优先，其次群名片，都没有就用 QQ 号。都不额外发请求 */

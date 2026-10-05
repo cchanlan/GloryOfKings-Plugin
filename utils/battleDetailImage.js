@@ -274,15 +274,51 @@ export async function renderBattleDetail ({ head, battle, redTeam, blueTeam, red
   const [myTeam, enemyTeam] = isBlue ? [blueTeam, redTeam] : [redTeam, blueTeam]
   const [myRoles, enemyRoles] = isBlue ? [blueRoles, redRoles] : [redRoles, blueRoles]
 
+  // ⚠️⚠️ 先把每个玩家的字段骨架补齐，**再**做下面的后处理（2026-10-06 修）。
+  //
+  // 模板 `QueryGameRecordDetails.html` 对每个玩家是**裸访问**：`item.basicInfo.isMe`、
+  // `item.battleStats.gradeGame`、`item.battleRecords.usedHero.heroIcon`、
+  // `item.battleRecords.skill.skillIcon`、`item.battleRecords.finalEquips`……
+  // 而 art-template 访问**缺失的中间层**会直接抛 RuntimeError，**整张图崩掉**
+  // （不是渲染成空 —— 实测 `{{a.b.c}}` 在 a 或 b 缺失时必抛；只有 `c` 本身是
+  // undefined 而 `b` 在时才渲染成空串）。
+  //
+  // 而详情接口确实会返回字段不全的玩家：接口偶尔缺人（隐私设置，实测出现过
+  // 我方 1 人、敌方 4 人的排位局），下面那个 `if (!bs) continue` 就是为它写的 ——
+  // 但那个 `continue` 只跳过后处理，role 本身照样原样透传给模板，于是照样崩。
+  // 所以这里统一补骨架：缺的对象给空对象、缺的数组给空数组，模板拿到的形状恒定。
+  //
+  // 红绿实证：拿真实 `data/BattleDetails.json` 删掉一个玩家的 `battleStats`，
+  // 直接渲染该模板 → `RuntimeError: Cannot read properties of undefined (reading 'gradeGame')`；
+  // 补骨架后同样输入正常渲染。
+  const normalizeRole = role => {
+    if (!role || typeof role !== 'object') return role
+    if (!role.basicInfo || typeof role.basicInfo !== 'object') role.basicInfo = {}
+    if (!role.battleStats || typeof role.battleStats !== 'object') role.battleStats = {}
+    if (!role.battleRecords || typeof role.battleRecords !== 'object') role.battleRecords = {}
+
+    const br = role.battleRecords
+    if (!br.usedHero || typeof br.usedHero !== 'object') br.usedHero = {}
+    if (!br.skill || typeof br.skill !== 'object') br.skill = {}
+    if (!Array.isArray(br.finalEquips)) br.finalEquips = []
+    // `usedSkin` 不用补：模板自己用 `!usedSkin ? 英雄 : 皮肤` 三元判过，
+    // 缺省（undefined）走英雄分支，是正确行为
+    return role
+  }
+
+  const myRolesSafe = (myRoles || []).map(normalizeRole)
+  const enemyRolesSafe = (enemyRoles || []).map(normalizeRole)
+
   // 为每个玩家补上评价图标。详情接口的 mvp 只是布尔值，没给图，按胜负自己挑 MVP / SVP
   const myWin = !!head.gameResult
-  for (const [roles, win] of [[myRoles, myWin], [enemyRoles, !myWin]]) {
+  for (const [roles, win] of [[myRolesSafe, myWin], [enemyRolesSafe, !myWin]]) {
     // 输出占比的分母用本队「实际返回的玩家」之和，而不是按满员 5 人写死：
     // 接口偶尔缺人（隐私设置，实测出现过我方 1 人、敌方 4 人的排位局），
     // 用返回的这几个人求和，跟图上真正列出来的卡片对得上，占比加起来正好 100%
     const teamHurt = roles.reduce((sum, r) => sum + (Number(r.battleStats?.totalHeroHurtCnt) || 0), 0)
     for (const role of roles) {
       const bs = role.battleStats
+      // normalizeRole 已保证 battleStats 存在，这里只是兜底，正常不会命中
       if (!bs) continue
       const { label, icon } = resolveEvaluate([bs.evaluateIconV3, bs.evaluateIconV2, bs.evaluateIcon])
       bs.evalTag = label
@@ -311,8 +347,10 @@ export async function renderBattleDetail ({ head, battle, redTeam, blueTeam, red
     gameResultEn: head.gameResult ? 'VICTORY' : 'DEFEAT',
     myTeamColor: isBlue ? '蓝' : '红',
     enemyTeamColor: isBlue ? '红' : '蓝',
-    ...getTeamData(myTeam, enemyTeam, myRoles, enemyRoles, head, battle),
-    ...getMeData(myRoles, head)
+    // ⚠️ 必须传**补过骨架**的那两份（myRolesSafe / enemyRolesSafe），
+    //    不能传原始的 myRoles / enemyRoles —— 骨架就是给模板用的
+    ...getTeamData(myTeam, enemyTeam, myRolesSafe, enemyRolesSafe, head, battle),
+    ...getMeData(myRolesSafe, head)
   })
 }
 

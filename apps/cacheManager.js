@@ -41,6 +41,21 @@ const fmtAge = ms => {
 }
 
 export class CacheManager extends plugin {
+  /**
+   * 卸载 / 热重载时清掉启动清理定时器。
+   *
+   * 框架支持这个钩子（`lib/core/loader.js` 的 `unloadPlugin` 会取实例的 `onUnload`
+   * 并 await），本插件原先一个都没实现。定时器已锚在 globalThis（见文件末尾），
+   * 这里再显式清一次，保证「卸载即停」。
+   *
+   * ⚠️ 必须写在**这个已有的类**里 —— 插件 `index.js` 每个文件只取第一个导出
+   *    （`moduleExports[Object.keys(moduleExports)[0]]`），再单开一个类会被静默丢掉。
+   */
+  async onUnload () {
+    if (cleanState.bootTimer) clearTimeout(cleanState.bootTimer)
+    cleanState.bootTimer = null
+  }
+
   constructor () {
     super({
       name: '王者图片缓存治理',
@@ -112,4 +127,19 @@ function runClean (scene) {
 // 启动清理。放在模块顶层而不是 constructor 里：Yunzai 的 loader 每收到一条消息
 // 都会给每个 plugin 类 new 一个实例，写在 constructor 里等于每条消息都排一个定时器。
 // 延后 30 秒且不 await —— 这是同步 IO 扫目录，不该挤在 Bot 启动的关键路径上。
-setTimeout(() => runClean('启动'), 30 * 1000).unref?.()
+//
+// ⚠️ 定时器锚在 `globalThis` 上：JiuLi 的热重载会给 plugins 下每个模块追加
+//    `?jiuli_reload=<代数>` 重新求值一遍，模块级变量会重置，不锚的话每重载一次
+//    就多排一个（日志里「启动清理」15 次 vs「迟到就绪」119 次就是这个现象）。
+//    这个清理本身幂等、无共享状态，多跑一次只是白扫一遍目录，所以危害远小于
+//    campIm 的轮询链；但既然有 onUnload 可用，就顺手一起收干净。
+const CLEAN_STATE_KEY = '__gokCacheCleanState'
+const cleanState = (globalThis[CLEAN_STATE_KEY] ||= { bootTimer: null })
+
+if (!cleanState.bootTimer) {
+  cleanState.bootTimer = setTimeout(() => {
+    cleanState.bootTimer = null
+    runClean('启动')
+  }, 30 * 1000)
+  cleanState.bootTimer.unref?.()
+}

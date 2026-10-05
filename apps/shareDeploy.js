@@ -356,8 +356,22 @@ export class ShareDeploy extends plugin {
     return e.reply(lines.join('\n'), shouldQuote())
   }
 
-  /** 吊销。对方那边的机器人再请求会直接连不上（403） */  async revoke (e) {
-    const id = Number(e.msg.match(/^#营地共享库吊销\s*(\d+)$/)?.[1])
+  /** 吊销。对方那边的机器人再请求会直接连不上（403） */
+  async revoke (e) {
+    // ⚠️⚠️ 这里的正则必须和 `rule` 里那条**逐字一致**（2026-10-06 修）。
+    //    rule 是 `^#营地共享库?吊销\s*(\d+)$`（`库` 可选），而这里原来写的是
+    //    `^#营地共享库吊销\s*(\d+)$`（`库` 必填）—— 于是用户少打一个「库」字时：
+    //      · rule 放行（`库?` 匹配空）→ 真的进了这个函数
+    //      · 这里匹配不上 → `?.[1]` 是 undefined → `Number(undefined)` = **NaN**
+    //      · 请求打到 `DELETE .../api/v1/admin/tokens/NaN`
+    //    实测：`#营地共享吊销 3` 与 `#营地共享吊销3` 都取到 id=NaN，
+    //    而 `#营地共享库吊销 3` / `#营地共享库吊销3` 取到 3（正常）。
+    //    后果是「删不掉想删的令牌 + 打无效请求」，不会误删别人（服务端找不到 NaN）。
+    //    所以正则带上 `库?`，并显式挡住非整数（防御：将来 rule 再改也不会漏出 NaN）。
+    const id = Number(e.msg.match(/^#营地共享库?吊销\s*(\d+)$/)?.[1])
+    if (!Number.isInteger(id)) {
+      return e.reply('请写明要吊销的序号，例如：#营地共享库吊销 3', shouldQuote())
+    }
 
     const server = this.readServerEnv()
     if (!server) {

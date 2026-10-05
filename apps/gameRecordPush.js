@@ -270,6 +270,8 @@ export class GameRecordPush extends plugin {
       lastGameTime: String(latest.dtEventTime || ''),
       // 订阅时正在打的那局不提醒，否则一开启就收到一条「开打了」
       lastGamingStart: String(data.gaming?.dtEventTime || ''),
+      // 快照那份也一起种上：盯梢/出图读的是它（见 pushStore.observeSnapshot）
+      lastGamingStartSnap: String(data.gaming?.dtEventTime || ''),
       // 连胜里程碑也从零开始，别拿上次订阅期间攒下的键把第一个里程碑吞掉
       lastStreakKey: '',
       // 清掉可能残留的退避档位：这里是就地合并，上次关订阅前攒下的 skipTicks
@@ -862,6 +864,8 @@ export class GameRecordPush extends plugin {
         lastGameSeq: String(latest.gameSeq || ''),
         lastGameTime: String(latest.dtEventTime || ''),
         lastGamingStart: String(data.gaming?.dtEventTime || ''),
+        // 快照那份同步重置，否则新号开局时会拿旧号的开始时刻算时长
+        lastGamingStartSnap: String(data.gaming?.dtEventTime || ''),
         // 在线状态也一起重置，新号的在线状态和旧号无关
         lastOnlineState: '',
         onlineSince: '',
@@ -1102,7 +1106,7 @@ export class GameRecordPush extends plugin {
         if (isBlackUser(qq) || !isFlagOn(sub, 'online')) continue
         // 一个群都没有的（退群了）：`send` 会直接返回 false，留着就是每轮白查一次
         if (!subGroups(sub).length) continue
-        const gamingStart = String(sub.lastGamingStart || '')
+        const gamingStart = String(sub.lastGamingStartSnap || sub.lastGamingStart || '')
         const inGame = String(sub.lastGaming || '') === '1'
         const watching = sub.hintWatching === '1'
         // 既没在盯、又没在打 → 没事
@@ -1161,7 +1165,7 @@ export class GameRecordPush extends plugin {
         }
 
         // 这一局的去重键：优先用**实时值**（比快照准）；隐私号拿不到 gaming，退回快照值
-        const gameKey = String(data?.gaming?.dtEventTime || sub.lastGamingStart || '')
+        const gameKey = String(data?.gaming?.dtEventTime || sub.lastGamingStartSnap || sub.lastGamingStart || '')
 
         if (action === 'drop') {
           logger.mark(`[王者推送] ${qq} 盯梢放弃：${reason}`)

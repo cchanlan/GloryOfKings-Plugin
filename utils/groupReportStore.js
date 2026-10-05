@@ -132,19 +132,36 @@ export function listGroupSubs (kind) {
  * 3. 超过 MAX_MEMBERS 时按「归档库里最新一场的时间」倒序裁剪：库里有数据说明这人
  *    最近在打，优先统计他。没库的排后面（时间算 0），但仍参与——否则新人永远进不了榜。
  *
+ * ⚠️⚠️ **空 `memberIds` = 谁也不匹配，不是「不过滤」**（2026-10-06 修）。
+ *    原先判据是 `if (memberSet.size && !memberSet.has(...))`，空集合时整个条件为假、
+ *    等于**放行全部绑定**（上限 MAX_MEMBERS=25）。这是跨群数据泄露：
+ *    `apps/groupReport.js` 的 `resolveMembers` 在 `group.getMemberMap()` 拿不到时
+ *    （官方机器人常态）会降级用订阅表里的单值 `group` 字段拼名单，
+ *    而多群订阅的人只把主群写在 `group`、其余在 `groups[]` 里 —— 于是
+ *    **某个群可能拼出空名单**，接着 `resolveGroupTargets([])` 返回全服 25 个绑定，
+ *    群报照常出图并推送一张「本群榜」，里面全是别的群的人。
+ *    实测：群 `972915804` 的降级名单正好是空的（它只在某个号的 `groups[]` 里），
+ *    且 `resolveGroupTargets([])` 返回 `bound=26, targets.length=25`。
+ *
+ *    现在空数组自然「谁都不匹配」，调用方原有的 `if (!targets.length) 跳过` 正好接住
+ *    （四个调用点都是这么写的，没有一处依赖旧的「空=全部」语义）。
+ *    真要「不过滤」时**显式**传 `{ noFilter: true }`，别再靠传空数组表达。
+ *
  * @param {Array<string>} memberIds 群成员的 bot user_id 列表
  * @param {object} [options]
  * @param {number} [options.limit=MAX_MEMBERS]
+ * @param {boolean} [options.noFilter=false] 显式表示「不过滤」（只在确实要全服榜时用）
  * @returns {{targets:Array<{campId:string, qq:string}>, bound:number}}
  *   bound 是裁剪前的账号数，用于提示「只统计了前 N 个」
  */
-export function resolveGroupTargets (memberIds = [], { limit = MAX_MEMBERS } = {}) {
+export function resolveGroupTargets (memberIds = [], { limit = MAX_MEMBERS, noFilter = false } = {}) {
   const memberSet = new Set(memberIds.map(String))
   const byCamp = new Map()
 
   for (const item of getAllBindings()) {
     if (!item.isCurrent) continue
-    if (memberSet.size && !memberSet.has(item.botUserId)) continue
+    // `noFilter` 是唯一「不过滤」的入口；否则名单里没有他就不算他
+    if (!noFilter && !memberSet.has(item.botUserId)) continue
     if (byCamp.has(item.campId)) continue
     byCamp.set(item.campId, item.botUserId)
   }

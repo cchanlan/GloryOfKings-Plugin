@@ -143,11 +143,16 @@ export class AccountManager extends plugin {
     const filePath = path.join(PluginData, USER_DATA_FILE)
     const userData = readYamlFile(filePath) || {}
 
-    if (!userData[userId]) {
-      userData[userId] = {
-        ids: [],
-        current: 0
-      }
+    // ⚠️ 判据是「条目存在**且 ids 是数组**」，不是「条目存在」（2026-10-06 修）。
+    //    空对象 `{}` 是 truthy，`!userData[userId]` 为 false → 不补默认值 →
+    //    紧接着 `userData[userId].ids.length` 抛 TypeError。
+    //    触发面：手改 YAML、备份还原、旧版本写坏（`{}` / `{current:0}` / `{ids:null}`）。
+    //    实测三种脏形态都抛 `Cannot read properties of undefined/null (reading 'length')`，
+    //    而完全没这个键的新用户反而正常（走补默认值那条）。
+    //    `authStore.bindCampUserId` 早就是这么写的，这里对齐它的口径。
+    const entry = userData[userId]
+    if (!entry || !Array.isArray(entry.ids)) {
+      userData[userId] = { ...(entry || {}), ids: [], current: 0 }
     }
 
     return { userData, filePath }
@@ -198,10 +203,29 @@ export class AccountManager extends plugin {
     const userId = await this.#resolveReplyUserId(e)
     if (!userId) return null
 
-    const index = parseInt(stripAtText(e.msg).replace(prefixRe, '')) - 1
+    // ⚠️⚠️ 序号必须**先判是不是整数**，再拿去算下标（2026-10-06 修）。
+    //    `parseInt('')` / `parseInt('abc')` / `parseInt('１')`（全角）**都返回 NaN**，
+    //    而 `NaN < 0` 和 `NaN >= len` **都是 false** —— 下面那道越界拦截整个失效。
+    //    接着 `ids.splice(NaN, 1)`：JS 把 NaN 当 0 → **静默删掉第一个营地号**。
+    //    实测（逐字复刻本函数，真实 ids 三个）：
+    //      `#删除营地`     → index=NaN 拦截=false → 删掉第一个 ❌
+    //      `#删除营地abc`  → index=NaN 拦截=false → 删掉第一个 ❌
+    //      `#删除营地１`   → index=NaN 拦截=false → 删掉第一个 ❌
+    //      `#删除营地0`    → index=-1  拦截=true  → 正确拦住 ✅
+    //    同一条路也服务 `#切换营地`，NaN 落盘后 YAML 会写成 `current: .nan`，
+    //    下游 `ids[NaN]` 直接给用户 `undefined`。
+    //    另：`parseInt` 要显式带基数 10（`parseInt('0x10')` 在无基数时是 16）。
+    const parsed = parseInt(stripAtText(e.msg).replace(prefixRe, ''), 10)
+    if (!Number.isInteger(parsed)) {
+      await e.reply(INVALID_INDEX_HINT)
+      return null
+    }
+    const index = parsed - 1
+
     const { userData, filePath } = this.#loadUserData(userId)
 
-    if (!userData[userId].ids.length) {
+    // 条目的 ids 兜底见 #loadUserData；这里再挡一道，防手改/还原出来的脏数据
+    if (!userData[userId]?.ids?.length) {
       await e.reply(emptyReply)
       return null
     }
@@ -543,9 +567,21 @@ export class AccountManager extends plugin {
     const { userId, index, userData, filePath } = target
 
     const deletedId = userData[userId].ids[index]
+    const wasCurrent = Number(userData[userId].current) || 0
     userData[userId].ids.splice(index, 1)
 
-    // 调整current索引
+    // 调整current索引。
+    //
+    // ⚠️⚠️ 删掉的下标**严格小于** current 时，current 必须跟着左移一位（2026-10-06 修）。
+    //    `splice` 之后后面所有元素整体前移，但 current 只是个下标、不会自己动，
+    //    于是「当前选中的号」**静默换成了后一个**。实测（ids=[A,B,C]）：
+    //      current=1(选中B) 删第 1 个 → current 仍 1 → 选中变成 C ❌
+    //      current=0(选中A) 删第 1 个 → current 仍 0 → 选中变成 B ❌
+    //      current=2(选中C) 删第 1 个 → current=1 → 选中仍是 C ✅（那是夹位公式碰巧对了）
+    //    第 3 行这种「碰巧对」正是这个 bug 一直没被发现的原因 —— 只在删**低序号**时暴露。
+    if (index < wasCurrent) userData[userId].current = wasCurrent - 1
+
+    // 再夹一次边界：删的是当前号、或删完只剩更少条目时，current 不能越界
     if (userData[userId].current >= userData[userId].ids.length) {
       userData[userId].current = Math.max(0, userData[userId].ids.length - 1)
     }

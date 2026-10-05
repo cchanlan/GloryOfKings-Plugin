@@ -15,7 +15,7 @@ import path from 'node:path'
 import { PluginData } from '#components'
 import { readYamlFile, writeYamlFile } from './yamlUtils.js'
 import { getBoundIds, getCurrentId } from './localBind.js'
-import { pushBind, revokeBind, isShareReady, isKnownShared, dropAdoptedBind } from './shareStore.js'
+import { pushBind, revokeBind, isShareReady, isKnownShared, dropAdoptedBind, forgetKnownShared } from './shareStore.js'
 
 const USERS_FILE = path.join(PluginData, 'share', 'users.yaml')
 const USERS_SCHEMA = 1
@@ -39,6 +39,12 @@ export function getUserShareState (userId) {
     const entry = data.users?.[qq]
     return {
       enabled: entry?.enabled === true,
+      // ⚠️ 这个字段目前是**只写不读**的（2026-10-06 审计结论，暂不改动）：
+      //    写它的地方有三处（:101 开共享、:160 同步成功、setUserShareState），
+      //    读它的只有本函数，而 `getUserShareState(...).campIds` 在全插件**没有消费方**
+      //    （`isUserSharing` 只取 `.enabled`）。
+      //    保留是有道理的：它是「上次上传的是哪几个号」的留档，排查时有用；
+      //    删掉会让 users.yaml 少一列、也不影响任何行为。留着不动。
       campIds: Array.isArray(entry?.campIds) ? entry.campIds.map(String) : [],
       updatedAt: Number(entry?.updatedAt) || 0
     }
@@ -124,6 +130,16 @@ export async function disableSharing (userId) {
   // 顺带把之前从库里落到本机的那份清掉 —— 用户都说不要共享了，
   // 本机还留着一份「来自共享库」的绑定说不过去
   dropAdoptedBind(qq)
+
+  // ⚠️⚠️ **必须同时抹掉「他开过共享」这个本地镜像**（2026-10-06 修）。
+  //    上面 `syncUserBind` 的判据是「本机开关开着 **或** 库里有他的记录」，
+  //    而 `knownShared` 原先唯一的清理点在 shareStore 的网络分支（查询 404 才删），
+  //    `revokeBind` 走不到那儿。于是用户关了共享、`knownShared` 还是 true，
+  //    下次他绑一个号时第二个判据继续成立 → 绕过开关判断 → 重新 PUT 上传，
+  //    开关自己弹回 `enabled: true`。用户明确 opt-out 过，这绝不能复活。
+  //    实测：关闭后 knownShared 仍为 true，再发 `#绑定营地` 真的发出了
+  //    `PUT /api/v1/bind`，共享开关变回 true（期望 skipped=not-sharing、什么都不发）。
+  forgetKnownShared(qq)
 
   setUserShareState(qq, { enabled: false })
   return { ok: true }

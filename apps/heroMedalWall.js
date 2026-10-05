@@ -232,8 +232,9 @@ function buildWallView ({ name, picked, medals, scanned, total }) {
     noneCount: none.length,
     noneList: none,
     groups: groups.map(group => ({
-      // 小范围榜（TitleType 1）不带地名，标成「小范围榜」而不是「本区榜」，免得和市级榜混
-      title: group.area ? `${group.area}榜` : '小范围榜',
+      // 小范围榜（TitleType 1）不带地名，标成「小范围榜」而不是「本区榜」，免得和市级榜混。
+      // 和文字兜底 renderWall 共用 groupTitle，两处必须一致
+      title: groupTitle(group),
       tip: group.area ? '营地默认展示的就是这条' : '范围更小，名次数字也更小',
       rows: group.rows
     })),
@@ -243,6 +244,20 @@ function buildWallView ({ name, picked, medals, scanned, total }) {
 }
 
 /* ---------------------------------------------------------- 文案（出图失败时的兜底） */
+
+/**
+ * 一个分组的展示名。**出图和文字兜底必须共用它**（2026-10-06 修）。
+ *
+ * ⚠️⚠️ 原先两处各写一份、结果不一致：
+ *    · 出图（上面 `groups` 的 `title`）写的是 `group.area ? area+'榜' : '小范围榜'`
+ *    · 文字兜底（`renderWall`）写的是 `group.area || '本区'` + '榜'
+ *    于是**同一个分组**在图上叫「小范围榜」、在文字里叫「本区榜」——
+ *    出图失败（puppeteer 起不来）时用户看到的和图上说的不是一个东西。
+ *    现在两处都走这里，改名只改一处。
+ */
+function groupTitle (group) {
+  return group?.area ? `${group.area}榜` : '小范围榜'
+}
 
 function renderWall ({ name, picked, medals, scanned, total }) {
   const { groups, none } = groupMedals(picked, medals)
@@ -255,7 +270,7 @@ function renderWall ({ name, picked, medals, scanned, total }) {
   }
 
   for (const group of groups) {
-    lines.push('', `📍 ${group.area || '本区'}榜（${group.rows.length}）`)
+    lines.push('', `📍 ${groupTitle(group)}（${group.rows.length}）`)
     for (const row of group.rows) {
       lines.push(`· 第 ${row.rank} ${row.hero}${row.power ? `　战力 ${row.power}` : ''}`)
     }

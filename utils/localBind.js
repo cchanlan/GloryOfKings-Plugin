@@ -43,27 +43,44 @@ const deepCopy = typeof structuredClone === 'function'
   : (value) => JSON.parse(JSON.stringify(value))
 
 /**
- * 解析结果缓存：`{ mtimeNs, size, data }`。data 是整张表
+ * 解析结果缓存：`{ mtimeNs, size, ino, ctimeNs, data }`。data 是整张表
  */
 let cache = null
 
 /**
  * 取文件的指纹。文件不存在或 stat 失败时返回 null。
  *
- * 用 `bigint: true` 拿**纳秒级**的 mtimeNs，而不是毫秒级的 mtimeMs：
+ * 用 `bigint: true` 拿 `mtimeNs`，而不是毫秒级的 mtimeMs：
  * 毫秒精度下同一毫秒内的两次写会得到同一个值，只能靠 size 兜底，而「改了个等长的值」
  * （比如把营地号 123 换成 456）size 也不变 —— 那就漏判了。
- * 纳秒精度下这个窗口小到可以忽略。
  *
- * ⚠️ 纳秒精度的**上限取决于文件系统**（ext4 是纳秒，NTFS 约 100 纳秒，FAT 只有 2 秒），
- *    所以它不是绝对保证。真正的保证来自写入方：插件自己的写入路径（savePushList 之类）
- *    写完会主动把缓存对齐过去，不依赖指纹；指纹只用来接住「用户手改了文件」这种外部改动，
- *    那种场景不可能和上一次读落在同一瞬间。
+ * ⚠️⚠️ **但 `mtimeNs` 在真实文件系统上并不是纳秒**（2026-10-06 修）。
+ *    实测本机（`/dev/nvme0n1p2`，ext4 + relatime）：`mtimeNs` 的最小非零增量是
+ *    **3999744 ns = 3.999744 ms**，也就是内核给的是 **4ms 粒度**。
+ *    于是「同一 4ms 内的两次等长写」指纹完全相同，缓存命中旧值 ——
+ *    而缓存**不会自愈**（`cache.mtimeNs` 是建立缓存那一刻的值，只有 miss 才刷新），
+ *    撞上之后会一直返回旧表，直到文件再被写一次并跨过 tick、或者进程重启。
+ *    实测：300 次同尺寸改写里，相邻两次指纹相同的有 **256 次（85.3%）**；
+ *    相隔 0/1/2/5ms 的两次写，碰撞率分别是 58% / 57% / 23% / **0%**（5ms 跨过粒度边界）。
+ *
+ *    危险形态：`shareStore.adoptSharedBind` / `dropAdoptedBind` 是
+ *    「`readUserData()` 拿整表 → 改一处 → **整表覆盖写回**」。一旦读的那次命中旧缓存，
+ *    写回时会把**缓存建立之后**别人对 `UserData.yaml` 的所有改动整片抹掉。
+ *
+ *    所以指纹必须再带上两个**同一次 stat 就能拿到、且等长改写也会变**的量：
+ *      · `ino`   —— 插件所有写都走 `writeFileAtomic`（tmp + rename），**必然换 inode**，
+ *                   这条最有效：等长改写也一定判得出
+ *      · `ctimeNs` —— inode 元数据变更时间，rename 覆盖后同样会变
+ *    三者任一不同就判失效。`size` 仍留着：它挡的是「原子写被跳过」的极端情况。
+ *
+ *    ⚠️ 残留风险（诚实标注）：若某平台既不换 inode、`ctimeNs` 也是同样的粗粒度，
+ *    理论上仍可能撞车。真正的根治是让 `UserData.yaml` 的读改写收口到单一 store
+ *    （像 pushStore 那样），本轮没做那么大改动。
  */
 function fingerprint () {
   try {
     const stat = fs.statSync(USER_DATA_FILE, { bigint: true })
-    return { mtimeNs: stat.mtimeNs, size: stat.size }
+    return { mtimeNs: stat.mtimeNs, size: stat.size, ino: stat.ino, ctimeNs: stat.ctimeNs }
   } catch {
     return null
   }
@@ -83,11 +100,19 @@ function currentData () {
     return {}
   }
 
-  if (cache && cache.mtimeNs === fp.mtimeNs && cache.size === fp.size) return cache.data
+  // 四个量全一致才算没变。`ino` 挡的是「原子写换 inode」、`ctimeNs` 挡元数据变更，
+  // 单靠 `mtimeNs`（真实粒度 4ms）会漏判等长改写 —— 见 fingerprint 的说明。
+  if (
+    cache &&
+    cache.mtimeNs === fp.mtimeNs &&
+    cache.size === fp.size &&
+    cache.ino === fp.ino &&
+    cache.ctimeNs === fp.ctimeNs
+  ) return cache.data
 
   try {
     const data = readYamlFile(USER_DATA_FILE) || {}
-    cache = { mtimeNs: fp.mtimeNs, size: fp.size, data }
+    cache = { mtimeNs: fp.mtimeNs, size: fp.size, ino: fp.ino, ctimeNs: fp.ctimeNs, data }
     return data
   } catch {
     // 解析失败按空表处理（调用方各自决定怎么表达「没有」），但**不缓存**
