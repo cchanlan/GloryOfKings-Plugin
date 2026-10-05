@@ -35,6 +35,37 @@ export const HIDDEN_TTL_MS = 24 * 60 * 60 * 1000
  */
 let cacheEntries = null
 
+/**
+ * 缓存里**最早**的到期时间戳。
+ *
+ * ⚠️⚠️ 这个字段是 2026-10-06 补的，修的是一个**标注永远不解除**的真 bug：
+ *   过期判定原先只在「构建缓存」那一次做（`if (hiddenUntil <= now) continue`），
+ *   而缓存一旦建好就再没人碰过它。于是进程只要不重启，
+ *   **24 小时到期后 isProfileHidden 照样返回 true**，标注等于永久的。
+ *
+ *   实测复现：写一条 1.2 秒后过期的标注 → 立刻查 true ✅ → 等 1.5 秒再查，
+ *   仍是 true ❌（期望 false），盘上那条也照样留着。
+ *
+ *   用户侧的表现是「清了又回来 / 明明是临时的却一直跳过」——
+ *   云崽是长跑进程（实测已连续在线 100+ 分钟且不会自动重启），
+ *   所以这个 bug 在真实环境里**必定触发**，不是理论边界。
+ *
+ * 有了它就能兼顾「不反复读盘」和「到期立即失效」：
+ *   `now < cacheNextExpiry` → 缓存里不可能有过期项，直接返回（零遍历）
+ *   否则才走一次剔除。空缓存时它是 Infinity，短路判断恒成立。
+ */
+let cacheNextExpiry = Infinity
+
+/** 重算最早到期时间；空集合记 Infinity（表示「永远不需要再剔除」） */
+function refreshNextExpiry (entries) {
+  let min = Infinity
+  for (const item of Object.values(entries)) {
+    const at = Number(item?.hiddenUntil) || 0
+    if (at < min) min = at
+  }
+  cacheNextExpiry = min
+}
+
 /** 营地ID 一律按纯数字串归一，认不出来的一律当没有 */
 const normalizeId = value => {
   const text = String(value ?? '').trim()
@@ -43,7 +74,28 @@ const normalizeId = value => {
 
 /** 读取全部标注，顺带剔除已过期的（惰性清理，不搞定时器） */
 function loadEntries () {
+  const now = Date.now()
+
   if (cacheEntries) {
+    // 缓存里最早到期的还没到 → 一个过期的都没有，直接返回，省掉整轮遍历
+    if (now < cacheNextExpiry) {
+      return cacheEntries
+    }
+
+    // 有过期的：**就地剔除内存副本**。
+    // ⚠️ 这里刻意不写盘 —— isProfileHidden 是纯读、会在几十次循环里被调，
+    //    让它产生写副作用不值当。盘上的过期项留着无害（下次读盘照样被过滤），
+    //    而且任何一次 mark/clear 都会把剔除后的结果整体写回，自然就清干净了。
+    let dropped = false
+    for (const [id, item] of Object.entries(cacheEntries)) {
+      if ((Number(item?.hiddenUntil) || 0) <= now) {
+        delete cacheEntries[id]
+        dropped = true
+      }
+    }
+    if (dropped) {
+      refreshNextExpiry(cacheEntries)
+    }
     return cacheEntries
   }
 
@@ -58,7 +110,6 @@ function loadEntries () {
   }
 
   const source = raw.entries && typeof raw.entries === 'object' ? raw.entries : {}
-  const now = Date.now()
   const entries = {}
 
   for (const [campId, item] of Object.entries(source)) {
@@ -76,11 +127,13 @@ function loadEntries () {
   }
 
   cacheEntries = entries
+  refreshNextExpiry(entries)
   return entries
 }
 
 function saveEntries (entries) {
   cacheEntries = entries
+  refreshNextExpiry(entries)
   writeJsonFile(HIDDEN_FILE, { updatedAt: Date.now(), entries })
 }
 

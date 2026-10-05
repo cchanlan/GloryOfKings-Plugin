@@ -50,7 +50,12 @@ const COPY_FILES = [
   // 营地消息的本地状态（test/campImDedup.test.mjs 用）
   'utils/campImStore.js',
   // 出图格式（test/imageType.test.mjs 用）
-  'utils/imageType.js'
+  'utils/imageType.js',
+  // 「隐藏主页」标注的有效期（test/hiddenProfilesTtl.test.mjs 用）。
+  // hiddenProfiles 依赖 fileUtils 的 readJsonFile/writeJsonFile 与 safeStore 的 quarantineCorrupt，
+  // 两个都必须在清单里，少一个就是 ERR_MODULE_NOT_FOUND。
+  'utils/hiddenProfiles.js',
+  'utils/fileUtils.js'
 ]
 
 /** 测试用的假配置。地址/令牌都是假的，绝不碰真凭证 */
