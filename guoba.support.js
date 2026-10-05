@@ -44,10 +44,13 @@ function maskAccountsForGuoba (accounts) {
 /**
  * 面板存回来时的反向操作：把「没改过的掩码值」换回库里的原文。
  *
- * 判定只认「提交值 === mask(当前库里值）」这一条等值比较，不做「带 ... 就当掩码」的猜测 ——
+ * 判定第一看「提交值 === mask(当前库里值）」这一条等值比较 ——
  * 主人真去手改了一格的话，提交值必然不等于 mask（原文），会按新值正常写入；
  * 库里本来就是短值（mask 会原样返回）的字段，换回原文也等价不动。
  * 库里查不到这个 userId 的条目（面板新加的号）原样放行 —— 新号本来就是手填的明文。
+ *
+ * 等值比较失配但提交值里带 `...` 的：不当新值写回（那是面板打开期间凭证被后台换过、
+ * 表单里残留的旧掩码串），保留库值并告警，见函数内注释（2026-10-05 修）。
  */
 function restoreMaskedAccounts (accounts) {
   const stored = new Map(
@@ -61,6 +64,15 @@ function restoreMaskedAccounts (accounts) {
       // ⚠️ `item[field]` 也会随表单缺字段变 undefined，等值比较天然挡掉（undefined !== 任何串）
       if (item[field] && item[field] === maskSecret(original[field])) {
         restored[field] = original[field]
+        continue
+      }
+      // ⚠️ 提交值里带 `...` 却又对不上库值的掩码：这是「面板打开期间凭证被后台换过」
+      //    （campRenew 换 token、扫码换 userSig）—— 表单里还是打开那一刻的旧掩码串，
+      //    等值比较自然失配。把它当真值写回会把凭证整个覆写成一串掩码、账号当场报废。
+      //    这种保留库里的现值并告警；只有不带省略号的真正手填新值才会走到下面放行。
+      if (typeof item[field] === 'string' && item[field].includes('...') && item[field] !== original[field]) {
+        restored[field] = original[field]
+        logger.warn(`[王者锅巴] 账号 ${item.userId} 的 ${field} 提交值是过期掩码串（面板打开期间凭证可能已被后台更换），已保留库中现值`)
       }
     }
     return restored
