@@ -1,0 +1,92 @@
+#!/bin/sh
+# ⚠️ 服务端代码禁止进公开仓 —— 最后一道闸（2026-10-05 事故后加）
+#
+# 【为什么需要它】
+# `remote.pushdefault` 只约束「裸 git push」，拦不住显式指定远端的写法：
+#     git push both im-server        ← both 挂着三个公开仓的 pushurl
+#     git push origin <服务端分支>    ← origin 也是 gitcode 公开仓
+#     git push https://gitcode.com/... <服务端分支>
+# 2026-10-05 22:40 装上 pushdefault 护栏、干跑全绿之后，22:53 依然泄露了一次
+# （主工作区 98ff996/0a900d1 与 im-server 54db78f 三个 commit 时间戳完全相同，
+#   是同一次批量操作里显式指定远端推的）。所以 pushdefault 不够，必须在这一层拦。
+#
+# 【它怎么拦】
+# git 在建立连接之前调用 pre-push，参数里带**真实的目标 URL**（不是 remote 名），
+# stdin 逐个列出待推的 ref。所以不管是 remote 名、直接写 URL、还是 --mirror/--all，
+# 都能看到，也都能拦。这是唯一覆盖全部推送路径的位置。
+#
+# 【放行什么】
+#   - 私库 gok-server（服务端代码本来就该去那儿）
+#   - 公开仓上的 master（插件端）
+#   - 删除远端分支（清理动作，不是泄露）
+
+set -u
+
+remote_name="${1:-}"
+remote_url="${2:-}"
+
+# 只有这三个公开仓要拦；其余（私库、临时远端）一律放行
+case "$remote_url" in
+  *gitcode.com/ccxhan/GloryOfKings-Plugin*|\
+  *github.com/cchanlan/GloryOfKings-Plugin*|\
+  *gitee.com/longhengmu/GloryOfKings-Plugin*)
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+
+# 服务端分支名（含历史存档名）
+is_server_branch() {
+  case "$1" in
+    refs/heads/watch-server|refs/heads/im-server|refs/heads/server|\
+    refs/heads/server-github|refs/heads/dist)
+      return 0 ;;
+    *)
+      return 1 ;;
+  esac
+}
+
+# 服务端分支根目录下的专属文件：就算改了分支名，内容也会露馅
+SERVER_MARKERS="watch-server.js camp-im-server.js"
+
+reject() {
+  echo "" >&2
+  echo "✋ 拒绝推送：$1" >&2
+  echo "   目标仓库：$remote_url" >&2
+  echo "   服务端代码一律推私库，例如：" >&2
+  echo "     git push gokserver $remote_ref" >&2
+  echo "   （公开仓只放插件端 master；服务端走 gok-server 私库）" >&2
+  echo "" >&2
+  exit 1
+}
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  # 删除远端分支（local_sha 全 0）是清理动作，放行
+  case "$local_sha" in
+    0000000000000000000000000000000000000000) continue ;;
+  esac
+
+  # 只看分支和标签，其他 ref 不拦
+  case "$remote_ref" in
+    refs/heads/*|refs/tags/*) ;;
+    *) continue ;;
+  esac
+
+  # 1) 分支名在黑名单 → 拦
+  if is_server_branch "$remote_ref"; then
+    reject "$remote_ref 是服务端分支，不能进公开仓"
+  fi
+
+  # 2) 名字不在黑名单，就看内容：根目录有服务端专属文件 → 拦
+  top="$(git ls-tree --name-only "$local_sha" 2>/dev/null || true)"
+  if [ -n "$top" ]; then
+    for marker in $SERVER_MARKERS; do
+      case "$top" in
+        *"$marker"*) reject "$remote_ref 的内容是服务端代码（发现 $marker），不能进公开仓" ;;
+      esac
+    done
+  fi
+done
+
+exit 0
