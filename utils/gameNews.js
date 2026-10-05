@@ -332,10 +332,17 @@ export function sanitizeNewsContent (raw) {
   // ⚠️ 必须跳过 img：上面刚把图片重建成 `<img src="...">`，这条正则若也作用在它身上
   // 会把 src 一起丢掉 —— 图全变成空标签、一张都不显示，而且**页面照样渲得出来**，
   // 只是体积虚低（实测踩过：4 张官方长图的页面 naturalWidth 全是 0）。
+  // ⚠️⚠️ `em` 也必须放行（2026-10-06 修）：上面第 314 行刚把官网的红色 `<span>`
+  // 换成 `<em class="hl">`，而这条正则会把属性一律重建掉 → `class="hl"` 被吃成裸 `<em>`。
+  // 模板 `resources/html/GameNewsDetail.html:117` 的选择器是 `.content em.hl`，
+  // **永远匹配不上**，作者在 298-299 行写的设计意图（深色底上把纯红换成浅红 `.hl`）
+  // 自上线以来从未生效过 —— 实测 10 条真实公告共 55 个 `<em>`，带 class 的 **0 个**。
+  // 所以这里和 img 一样放行原标签（em 只有这一种用法，属性不会被外部注入）。
   html = html.replace(/<\/?([a-z][a-z0-9]*)\b[^>]*>/gi, (tag, name) => {
     const lower = name.toLowerCase()
     if (!KEEP_TAGS.has(lower)) return ''
     if (lower === 'img') return tag
+    if (lower === 'em') return tag.startsWith('</') ? '</em>' : '<em class="hl">'
     return tag.startsWith('</') ? `</${lower}>` : `<${lower}>`
   })
 

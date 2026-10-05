@@ -225,9 +225,29 @@ export function rankPoint (item) {
  *
  * - 大段跨 2 级以上：一晚上从钻石打到王者不可能，是切角色或赛季重置
  * - 同一大段内编号跳 JUMP_TOLERANCE 以上：实测 1630945798 的 12 ↔ 20（文件头第 4 点）
+ * - **大段降 1 级 + 编号反而大涨**：赛季重置（2026-10-06 补，原来漏了这一类）
  *
  * 「星耀 → 王者」是 band 6→7、差 1，不断开——那正是最该连起来报喜的一段。
  * 编号只在两边都有值时才比：一边取不到编号（0）时硬减会把 0 ↔ 20 当成跳 20 段。
+ *
+ * ## ⚠️⚠️ 为什么必须单独处理 `bandGap === 1`（2026-10-06 修，原来这条是漏的）
+ *
+ * 旧写法是 `if (bandGap !== 0) return false` —— 只要大段差 1 就**直接放行，编号压根不看**。
+ * 而**赛季重置的真实形态恰好就是大段差 1**：S45 于 2026-09-23 开赛，
+ * 上个赛季的荣耀王者会掉回至尊星耀。实测真实归档（22 个账号、874 对排位相邻点）：
+ *
+ *   荣耀王者(b7/j16) → 至尊星耀V(b6/j22)   大段降 1、编号涨 6
+ *   荣耀王者(b7/j16) → 至尊星耀IV(b6/j23)  大段降 1、编号涨 7
+ *   荣耀王者(b7/j16) → 至尊星耀III(b6/j24) 大段降 1、编号涨 8
+ *
+ * 一共 **6 处** `bandGap === 1`，旧判据 **0 处断开**。后果是用户在图上看到
+ * **「王者 → 星耀」红色 down** —— 一个荣耀王者被告知「你掉到星耀了」，而这其实是赛季重置；
+ * 逐日战况那一行同样标红，`segNote`（作者专门为这个场景写的「赛季重置」提示）还是空的，
+ * `countSteps` 的降段计数也会多算一次。
+ *
+ * 判据用「方向相反」：大段在**降**、编号却在**涨**，这只能是重置（真降段编号会跟着降）。
+ * 反向的「大段升 + 编号降」（如 星耀25 → 王者16）**不**断，仍然连起来报喜 ——
+ * 王者段编号恒 16，比星耀的 22~25 小，那是最该连起来的一段（见上面那句）。
  *
  * 折线在这里断开，单场推送的段位文案也在这里放弃比较
  * （pushStore.formatScoreChange）——同一个判据只该有一份。
@@ -239,9 +259,17 @@ export function isRankJump (prev, next) {
   if (!prev || !next) return false
   const bandGap = Math.abs(next.band - prev.band)
   if (bandGap >= 2) return true
-  if (bandGap !== 0) return false
+
+  if (bandGap === 0) {
+    if (!prev.jobNum || !next.jobNum) return false
+    return Math.abs(next.jobNum - prev.jobNum) >= JUMP_TOLERANCE
+  }
+
+  // bandGap === 1：大段降 1 级 + 编号反而大涨 = 赛季重置
   if (!prev.jobNum || !next.jobNum) return false
-  return Math.abs(next.jobNum - prev.jobNum) >= JUMP_TOLERANCE
+  return next.band < prev.band &&
+    next.jobNum > prev.jobNum &&
+    (next.jobNum - prev.jobNum) >= JUMP_TOLERANCE
 }
 
 /**

@@ -1508,6 +1508,21 @@ class CampTransport {
     // 撤销保险只看它：确定性的标记不撤，非确定性的（如 encodeRes 本地解密失败）可撤。
     const markedFailures = []
 
+    // ⚠️⚠️ 本轮**因频控冷却被跳过**的候选数（2026-10-06 修）。
+    //    下面那个「全候选同错 → 撤销失效标记」的保险，判据原来是
+    //    `markedFailures.length >= candidates.length`，而冷却分支只 warn + continue/break，
+    //    **不往 markedFailures 里写**。于是只要池里有**任意一个**号还在冷却里
+    //    （`RATE_LIMIT_SILENCE_MS` 是 12 小时，被 -30107 打中的号会留在候选池里整整半天，
+    //    所以「池里至少一个号在冷却」在线上是常态），判据就恒为 false，**整段保险是死代码**。
+    //    线上日志 `grep -c '撤销本轮失效标记'` 两个流都是 0，上线以来一次都没执行过。
+    //    后果：整池账号因同一个系统性原因失败时（注释点名的 encodeRes 导坏场景），
+    //    保险不会执行，全池被误标 authInvalid，**所有用户的查询一起失败**。
+    //
+    //    修法：把被冷却跳过的候选也算进「本轮参与判定的候选」。
+    //    **不能**往 markedFailures 里 push 占位记录 —— 冷却文案与失败文案不同，
+    //    会破坏下面 `uniform`（同因）的判定。
+    let skippedByCooldown = 0
+
     const markCandidateFailure = (candidate, message, definite = false) => {
       markedFailures.push({ userId: toText(candidate?.auth?.userId), message: toText(message), definite: Boolean(definite) })
       this.#auth.markFailure(candidate, message)
@@ -1525,6 +1540,9 @@ class CampTransport {
       if (cooldownLeft > 0) {
         lastError = new RateLimitError(`营地接口暂时被限流，约 ${describeWait(cooldownLeft)}后恢复，请稍后再试`)
         logger.warn(`[王者接口] ${candidate.label} 仍在频控冷却中，暂时跳过它`)
+
+        // 记进「被跳过」计数，撤销保险的判据要把它算上（见上面的说明）
+        skippedByCooldown += 1
 
         if (!isLast) {
           continue
@@ -1671,7 +1689,12 @@ class CampTransport {
     //    和 encodeRes 解密失败（「请重新登录该账号」）的文案都自带触发词，
     //    用文案匹配恒为 true、撤销永不执行（旧实现就是这个死代码）；必须用打标记时
     //    记下的 definite 布尔。
-    if (markedFailures.length > 1 && markedFailures.length >= candidates.length) {
+    // ⚠️⚠️ 判据必须把 `skippedByCooldown` 算上（2026-10-06 修）：
+    //    被冷却跳过的候选不写 markedFailures，只算 markedFailures.length 的话，
+    //    池里只要有一个号在冷却（线上常态），这条保险就恒不成立、永远是死代码。
+    //    加上之后，只有当「失败数 + 跳过数」覆盖了全部候选时才会判定同因。
+    const consideredCount = markedFailures.length + skippedByCooldown
+    if (markedFailures.length > 1 && consideredCount >= candidates.length) {
       const normalized = markedFailures.map(failure => failure.message.replace(/\d+/g, ''))
       const uniform = normalized.every(text => text === normalized[0])
       const anyDefinite = markedFailures.some(failure => failure.definite)
@@ -1682,6 +1705,7 @@ class CampTransport {
           targetUserId: toText(targetUserId),
           requesterBotUserId: toText(requesterBotUserId),
           message: markedFailures[0].message,
+          skippedByCooldown,
           markedUserIds: markedFailures.map(failure => failure.userId)
         })
 

@@ -321,8 +321,22 @@ function flushNow () {
  * 用 'exit' 而不是 SIGINT/SIGTERM：宿主 Yunzai 自己也在监听这两个信号，
  * 多挂一个监听器会让「默认退出行为」失效——两边都不 exit 的话进程就停不下来了。
  * 'exit' 只是被通知，不改变退出流程，而且这里做的全是同步写盘，正好合规。
+ *
+ * ⚠️⚠️ **必须用 globalThis 标记保证只注册一次**（2026-10-06 修）。
+ *    这个模块的顶层语句在 JiuLi 热重载时会**重新求值**（内核给 plugins/ 下每个模块
+ *    追加 `?jiuli_reload=<代数>`，见 STATE_KEY 的注释），于是 `process.once` 每热重载
+ *    一代就多挂一个监听器 —— 实测线上已经报出
+ *    `MaxListenersExceededWarning: Possible EventEmitter memory leak detected.
+ *     11 exit listeners added to [process]. MaxListeners is 10.`
+ *    超过 10 个之后 Node 还会开始丢弃告警，泄漏就彻底隐身了。
+ *    注意 `process.once` 的 once 是「触发一次就摘掉」，**不是**「只注册一次」——
+ *    进程不退出的话它会一直累积。所以判据要挂在一个跟模块实例无关的地方。
  */
-process.once('exit', flushNow)
+const EXIT_HOOK_KEY = '__gokShareStoreExitHook'
+if (!globalThis[EXIT_HOOK_KEY]) {
+  globalThis[EXIT_HOOK_KEY] = true
+  process.once('exit', flushNow)
+}
 
 /* --------------------------------------------------------------- 缓存读写 */
 
