@@ -235,12 +235,24 @@ export function buildSpecialEncodeParam (publicKey = CAMP_PUBLIC_KEY) {
 
 /** 统一发请求并返回 { ok, status, headers, json, text }，json 解析失败时退回 { raw } */
 async function fetchJson (url, { method = 'GET', headers = {}, body = null } = {}) {
-  const response = await fetch(url, {
-    method,
-    headers,
-    body,
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
-  })
+  let response
+  try {
+    response = await fetch(url, {
+      method,
+      headers,
+      body,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    })
+  } catch (error) {
+    // ⚠️ 超时表到期时 fetch 抛的是 DOMException（AbortError/TimeoutError），
+    //    message 是英文原文（'The operation was aborted.'），顺着调用链原样冒到
+    //    群回复里没法看。归一成中文，err.code（ABORT_ERR=20 / TIMEOUT_ERR=23）
+    //    留在文案里方便排查；其它网络错误（DNS、RST 之类）保持原样不动。
+    if (error?.name === 'AbortError' || error?.name === 'TimeoutError') {
+      throw new Error(`营地接口无响应，请稍后重试（${error.name}, code=${error.code}）`)
+    }
+    throw error
+  }
   const text = await response.text()
   let json = null
 
