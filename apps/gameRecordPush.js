@@ -768,9 +768,33 @@ export class GameRecordPush extends plugin {
     // 这个号的玩家隐藏了主页：24 小时内主动取数一律跳过（见 utils/hiddenProfiles.js）。
     // 不发请求，state/data 保持 null，效果等同于「这轮什么都没拿到」，
     // 但省掉一个注定返回 -10107 的请求。
+    //
+    // ⚠️⚠️ **但一定要留下痕迹**（2026-10-05 修）：原来这里只有一句 `logger.debug` 就
+    //    `return` 了，后果是**整条订阅彻底静默**——
+    //      · `logger.debug` 默认不输出 → 日志里一个字都没有
+    //      · `return` 在 `mergeSubState` 之前 → `lastSeenAt` / `lastError` 全都不更新
+    //      · 订阅表里看起来**一切正常**（开关开着、没退避、群也在）
+    //    主人实测撞上：他的推送用的营地号被标了隐藏，于是 20 小时一条推送都没有，
+    //    而任何地方都查不出为什么 —— 只能靠「我自己发现推送没了」。
+    //    现在每轮都写 `lastSkipReason` + `lastSkipAt`，并且**按小时节流**打一条 mark 日志，
+    //    这样 `#隐藏主页名单` 和日志都能直接回答「这个号为什么没推」。
     if (isProfileHidden(campId)) {
-      logger.debug(`[王者推送] ${qq} 的营地 ${campId} 已标注隐藏主页，本轮跳过`)
+      const nowSkip = Date.now()
+      const lastAt = Number(sub?.lastSkipAt) || 0
+      // 落盘：让指令侧和订阅表都能看出「这一路是被跳过的，不是没跑」
+      mergeSubState(qq, {
+        lastSkipReason: `营地号 ${campId} 被标注隐藏主页`,
+        lastSkipAt: String(nowSkip)
+      })
+      // 日志按小时节流：每轮都打会把日志刷爆，但一声不吭就没法排查
+      if (nowSkip - lastAt > 60 * 60 * 1000) {
+        logger.mark(`[王者推送] ${qq} 的营地 ${campId} 被标注「隐藏主页」，本轮跳过（发 #隐藏主页名单 可看，发 #清除隐藏主页 ${campId} 可解除）`)
+      }
       return
+    }
+    // 这一轮真的查了 → 把「上次跳过」的痕迹清掉，下次跳过时才能重新打日志
+    if (sub?.lastSkipReason) {
+      mergeSubState(qq, { lastSkipReason: '', lastSkipAt: '0' })
     }
 
     // 老订阅没有 battle 字段，按开着算（向后兼容首个版本写下的订阅）
@@ -780,7 +804,19 @@ export class GameRecordPush extends plugin {
     // 采快照：先拉 profile，needBattleList 判为值得时再补一次战绩列表。
     // 这一步的口径与 #谁在打游戏 的现刷**同源**（都在 pushStore.collectSnapshot），
     // 这儿只管拿结果去决定播报什么。
-    const { state, data, patch } = await collectSnapshot(qq, campId, sub)
+    //
+    // ⚠️ `unavailable` = 营地**明确**说这个号取不到数据（隐藏主页 / 用户不存在）。
+    //    和「这轮请求失败」不是一回事：那种重试就好，这种重试一万次也一样，
+    //    得让主人能看出来（订阅项里写 lastUnavailableReason，出图/日志都能读）。
+    const { state, data, patch, unavailable } = await collectSnapshot(qq, campId, sub)
+
+    // 营地明确取不到 → 按小时节流说一声，别让主人对着「什么都没发生」干等
+    if (unavailable) {
+      const lastAt = Number(sub?.lastUnavailableAt) || 0
+      if (Date.now() - lastAt > 60 * 60 * 1000) {
+        logger.mark(`[王者推送] ${qq} 的营地 ${campId} 营地侧取不到数据（隐藏主页/用户不存在），这一路暂时推不了`)
+      }
+    }
 
     if (battleOn && data) {
       const handled = await this.checkBattle(qq, sub, campId, data, heroMap)

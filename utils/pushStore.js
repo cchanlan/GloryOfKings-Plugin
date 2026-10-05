@@ -255,6 +255,15 @@ export const REQUEST_INTERVAL = 800
 /** 对方隐藏了主页，这类账号永远拿不到战绩，不必重试 */
 const CODE_PROFILE_HIDDEN = -10107
 
+/**
+ * `-30032 用户不存在`：这个营地号在营地侧取不到数据。
+ *
+ * ⚠️ 和 -10107 是**同一件事的两个码**（实测同一时刻 profile 端点回 -10107、
+ *    战绩端点回 -30032），别只管一个 —— 原来漏了它，导致这类号永远在「每轮失败」
+ *    却什么都不报（见 fetchLatest 的注释）。
+ */
+const CODE_USER_NOT_EXIST = -30032
+
 /** fetchLatest 的特殊返回：账号隐藏了战绩 */
 export const FETCH_HIDDEN = Symbol('hidden')
 
@@ -858,7 +867,23 @@ export async function fetchLatest (campId, qq) {
     const res = await ApiService.getMoreBattleList(String(campId), String(qq), { option: 0, lastTime: 0 })
     const code = Number(res?.returnCode || 0)
 
-    if (code === CODE_PROFILE_HIDDEN) return FETCH_HIDDEN
+    /**
+     * ⚠️⚠️ 「这个营地号在营地侧取不到数据」有两个码，**必须都认**（2026-10-05 修）。
+     *
+     * 实测同一时刻：`getProfile` 回 `-10107 隐藏主页`，`getMoreBattleList` 却回
+     * `-30032 用户不存在` —— 两个端点给的码不一样，说的却是同一件事。
+     * 原来这里只判 -10107，于是 -30032 掉进下面的 `code !== 0` → `return null`
+     * （= 当成**临时失败**）→ 轮询每轮照发请求、每轮都失败、**永远不收敛**，
+     * 而且因为 null 被当成「这轮没拿到数据」，订阅表里连个错都看不出来。
+     * 主人实测就撞在这个上：推送用的营地号被隐藏，20 小时一条推送都没有，
+     * 而任何地方都说不出为什么。
+     *
+     * 两个码统一按「拿不到」处理（`FETCH_HIDDEN`），让上层能把这件事记进订阅项、进日志。
+     */
+    if (code === CODE_PROFILE_HIDDEN || code === CODE_USER_NOT_EXIST) {
+      logger.debug(`[王者推送] ${campId} 营地侧取不到数据（${code}: ${res?.returnMsg || ''}）`)
+      return FETCH_HIDDEN
+    }
 
     if (code !== 0) {
       logger.debug(`[王者推送] ${campId} 返回异常码 ${code}: ${res?.returnMsg || ''}`)
@@ -948,7 +973,9 @@ export async function fetchOnlineState (campId, qq) {
     const res = await ApiService.getProfile(String(campId), String(qq))
     const code = Number(res?.returnCode || 0)
 
-    if (code === CODE_PROFILE_HIDDEN) return FETCH_HIDDEN
+    // ⚠️ 和 fetchLatest 同一口径：两个码都表示「这个号在营地侧取不到数据」
+    //    （实测 profile 端点回 -10107、战绩端点回 -30032，是同一件事）
+    if (code === CODE_PROFILE_HIDDEN || code === CODE_USER_NOT_EXIST) return FETCH_HIDDEN
 
     if (code !== 0) return null
 
@@ -1769,13 +1796,18 @@ export async function collectSnapshot (qq, campId, sub, nowMs = Date.now(), { sn
 
   let state = null
   let onlineSignalMissing = false
+  /**
+   * 营地**明确**说这个号取不到数据（-10107 隐藏主页 / -30032 用户不存在）。
+   * ⚠️ 和「这轮请求失败」是两回事：前者重试一万次也一样，必须让上层知道。
+   */
+  let unavailable = false
   // 本轮 profile 拿到的游戏昵称，独立于 state 存活：营地可能不给在线状态，
   // 但昵称照样给（见下面的分支），所以不能挂在 state 上一起被丢弃
   let roleNameFromState = ''
 
   if (snapshotOn) {
     state = await fetchOnlineState(campId, qq)
-    if (state === FETCH_HIDDEN) state = null
+    if (state === FETCH_HIDDEN) { unavailable = true; state = null }
     // 营地只关了「在线状态」授权的号，三个字段全给 0（判据见 hasOnlineSignal）。
     // 这不是离线而是「没告诉你」，当成没拿到，调用方就不会拿它报上下线、
     // observeSnapshot 也不会把 lastOnlineState 记成 0；战绩那一路照旧走
@@ -1798,11 +1830,25 @@ export async function collectSnapshot (qq, campId, sub, nowMs = Date.now(), { sn
   // 注意传的是 battleOn 而不是 snapshotOn：只采集时不拉战绩列表，
   // profile 里的 gameOnline 已经够填快照了，省下的请求量正好抵掉扩量的开销
   let data = null
+  /**
+   * ⚠️⚠️ 「营地明确说这个号取不到」和「这轮请求失败」必须分开（2026-10-05 修）。
+   *
+   * 原来两条路都只写 `data = null`，上层完全分不出：
+   *   · 临时失败（网络抖动 / 频控）→ 下一轮重试就好
+   *   · 营地明确回 -10107 / -30032 → **重试一万次也一样**，该标注、该让用户知道
+   * 于是主人那个被隐藏的营地号：每轮都发请求、每轮都失败、订阅表里
+   * `lastSeenAt` 一动不动，而**任何地方都说不出为什么**（他 20 小时没收到推送）。
+   *
+   * 所以这里把 -10107/-30032 归一成 `unavailable` 带出去，让上层写进订阅项、
+   * 进日志、能被指令查到。
+   */
+  let fetched = null
   if (needBattleList({ battleOn, onlineOn: snapshotOn, state, sub })) {
     // profile 刚打过，两个端点的请求别贴在一起
     if (snapshotOn) await sleep(REQUEST_INTERVAL)
-    data = await fetchLatest(campId, qq)
-    if (data === FETCH_HIDDEN) data = null
+    fetched = await fetchLatest(campId, qq)
+    if (fetched === FETCH_HIDDEN) { unavailable = true; fetched = null }
+    data = fetched
   }
 
   const patch = {
@@ -1812,8 +1858,13 @@ export async function collectSnapshot (qq, campId, sub, nowMs = Date.now(), { sn
     ...(roleNameFromState ? { roleName: roleNameFromState } : {}),
     // 营地这轮没给在线状态：把可能留着的旧值清成空串，让 #谁在打游戏 归到
     // 「还没采集到状态」而不是谎报离线（空串和真的 '0' 语义不同）
-    ...(onlineSignalMissing ? { lastOnlineState: '' } : {})
+    ...(onlineSignalMissing ? { lastOnlineState: '' } : {}),
+    // ⭐ 把「营地明确说这个号取不到」写进订阅项 —— 这是主人排查
+    //    「我的推送怎么没了」时唯一能看到的东西
+    ...(unavailable
+      ? { lastUnavailableAt: String(nowMs), lastUnavailableReason: `营地号 ${campId} 取不到数据（隐藏主页/用户不存在）` }
+      : {})
   }
 
-  return { state, data, patch }
+  return { state, data, patch, unavailable }
 }
