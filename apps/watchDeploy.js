@@ -25,6 +25,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { spawnSync } from 'node:child_process'
 import { PluginPath, PluginName, Config } from '#components'
 import { shouldQuote } from '#utils'
 import { pm2, pm2Proc, resetPm2Cache, isOurProcess, pm2ForeignProc, launcherInfo } from '../utils/pm2.js'
@@ -46,7 +47,8 @@ const ENTRY_FILE = path.join(SERVER_DIR, 'watch-server.js')
 const PKG_NAME = 'watch'
 
 const PROC_NAME = 'gok-watch'
-const DEFAULT_PORT = 8899
+/** 配置里抠不到端口时的回退：服务地址指的是**控制面**（8898），公网播放面（8899）插件不直接用 */
+const DEFAULT_PORT = 8898
 
 function watchEnv () {
   const url = String(cfg().watchCdnHttps || '').trim().replace(/\/+$/, '')
@@ -114,7 +116,7 @@ function publicUrlHintLines () {
     '',
     '⚠️ 直播间对外地址还没配 —— 现在发出去的链接只有本机能开，群友点了是白屏。',
     '去锅巴面板把「直播间对外地址」填成外网能访问的（域名或公网 IP + 端口），',
-    `比如 http://你的域名:${serverPort()}`
+    '⚠️ 对外地址指的是**播放面**端口（默认 8899），不是服务地址的控制面（8898）'
   ]
 }
 
@@ -278,7 +280,7 @@ export class WatchDeploy extends plugin {
     }
 
     // 老版本部署的进程可能还挂在**机器原本的 pm2** 上（本插件现在跑自己的，见 utils/pm2.js）。
-    // 直接起新的会撞端口（8899 被它占着、新进程起来就退出），所以先认出来、让主人切一下，
+    // 直接起新的会撞端口（8899/8898 都被它占着、新进程起来就退出），所以先认出来、让主人切一下，
     // 不静默去停它 —— 它这会儿可能正在给人看观战。
     const outside = pm2ForeignProc(PROC_NAME)
     if (!running && outside && isOurProcess(outside, SERVER_DIR)) {
@@ -357,6 +359,24 @@ export class WatchDeploy extends plugin {
       const saved = pm2(['save'], { timeout: 30000 })
       if (!saved.ok) logger.warn(`[${PluginName}] pm2 save 失败，开机自启可能没生效：${saved.err || saved.out}`)
 
+      // ⚠️ pm2 save 只管「daemon 记得起哪些进程」，**机器重启后要真起来**还得 systemd 里的
+      //    pm2-<用户> 单元是 enabled —— 那是 `pm2 startup` 装的，两条是独立的东西。
+      //    没装的话服务器一重启观战服务就静默没了，群里的现象是「观战服务没在跑」。
+      //    只在 Linux 上查（Windows 没有 systemd；lpm2 那边也用不到这层）。
+      if (process.platform !== 'win32') {
+        try {
+          const user = String(process.env.USER || process.env.LOGNAME || 'root')
+          const r = spawnSync('systemctl', ['is-enabled', `pm2-${user}`], { encoding: 'utf-8', timeout: 10000 })
+          const out = String(r.stdout || '').trim()
+          if (out !== 'enabled') {
+            logger.warn(`[${PluginName}] systemctl is-enabled pm2-${user} = ${out || r.stderr || '查不到'}，` +
+              '服务器重启后观战服务不会自启 —— 请在服务器执行 pm2 startup，并按提示粘贴它给出的那条 sudo 命令')
+          }
+        } catch (error) {
+          logger.debug(`[${PluginName}] 查 pm2 开机自启状态失败（不影响部署）：${error?.message || error}`)
+        }
+      }
+
       const port = serverPort()
       const status = await waitStatus(port)
       if (!status) {
@@ -375,7 +395,7 @@ export class WatchDeploy extends plugin {
         `✅ 观战服务${restarting ? '已更新' : '部署好了'}`,
         '',
         `进程：${PROC_NAME}（pm2 托管，开机自启）`,
-        `端口：${port}`,
+        `端口：控制面 127.0.0.1:${port}（公网播放面默认 8899,GOK_WATCH_PORT 可调）`,
         `账号：${status.accounts ?? 0} 个，还能开 ${status.free ?? 0} 路`
       ]
 
@@ -431,7 +451,7 @@ export class WatchDeploy extends plugin {
     const uptime = state === 'online' ? Date.now() - Number(proc.pm2_env?.pm_uptime || 0) : 0
     lines.push(`进程：${state === 'online' ? '运行中' : state}${uptime ? `（已跑 ${fmtUptime(uptime)}）` : ''}`)
     lines.push(`进程管理：${launcher.kind === 'lpm2' ? 'lpm2（独立运行，不占系统 pm2）' : '系统 pm2'}`)
-    lines.push(`端口：${port}`)
+    lines.push(`端口：控制面 127.0.0.1:${port}（公网播放面默认 8899）`)
 
     const restarts = Number(proc.pm2_env?.restart_time || 0)
     if (restarts > 0) lines.push(`重启次数：${restarts}${restarts > 5 ? '（有点多，看看 pm2 日志）' : ''}`)

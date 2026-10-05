@@ -1446,7 +1446,9 @@ function readConfig () {
  *    服务没起时**抛异常**，由调用方兜住 —— 盯梢只是锦上添花，不该因此报错刷屏。
  */
 async function callWatchApi (path, { method = 'GET', body = null, timeout = 15000 } = {}) {
-  const base = String(readConfig().watchApiUrl || 'http://127.0.0.1:8899').replace(/\/+$/, '')
+  // ⚠️ 控制面地址：好友名单 / 开播提示这些接口只在本机回环 8898 上监听，
+  //    公网的 8899 播放面不再受理（2026-10-05 起）
+  const base = String(readConfig().watchApiUrl || 'http://127.0.0.1:8898').replace(/\/+$/, '')
   const ctl = new AbortController()
   const timer = setTimeout(() => ctl.abort(), timeout)
   try {

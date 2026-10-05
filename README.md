@@ -144,6 +144,8 @@ cd ./plugins/GloryOfKings-Plugin && pnpm install
 
 自己部署时还要把**直播间对外地址**填成外网能访问的（域名或公网 IP）并放行 `8899` 端口，不然群友点开是白屏。
 
+> 端口分工：`8899` 是**播放面**（公网，播放页/直播流/聊天/只读状态），插件的 `watchApiUrl` 指的是**控制面** `127.0.0.1:8898`（开播/停止/好友名单等敏感接口只绑本机回环，**不要把 8898 放行到公网**）。可用 `GOK_WATCH_PORT` / `GOK_WATCH_CTRL_PORT`（和对应 `*_HOST`）覆盖，`GOK_WATCH_MAX_ROOMS` 限制同时在播路数（默认 16）。
+
 服务端接入配置（锅巴「王者荣耀 → 服务端接入」；`watchCdnHttps` 在「营地观战」）：
 
 在锅巴填写分发服务地址和接入令牌并保存，再发 `#营地观战部署` 或 `#营地消息部署`。
@@ -154,7 +156,7 @@ cd ./plugins/GloryOfKings-Plugin && pnpm install
 | `dependencyRegistry` | `https://registry.npmmirror.com` | 自动安装依赖使用的 npm 镜像 |
 | `dependencyProxy` | 空 | npm / ffmpeg 依赖安装使用的 HTTP(S) 代理 |
 | `watchCdnHttps` | 空 | 按 `server/README-CDN-HTTPS.md` 部署 HTTPS CDN Worker 后填写；修改或清空后保存，再发 `#营地观战部署` 生效。留空时 HTTPS 观众使用本机转发，HTTP 观众仍直连 CDN |
-| `watchApiUrl` | `http://127.0.0.1:8899` | 观战服务地址。自己部署填本机；**用别人部署好的就填对方的**（`#营地观战连接 <地址>` 会写这里） |
+| `watchApiUrl` | `http://127.0.0.1:8898` | 观战服务地址（**控制面**，只绑本机回环）。自己部署填本机；**用别人部署好的就填对方的**（`#营地观战连接 <地址>` 会写这里） |
 | `campImApiUrl` | `http://127.0.0.1:8900` | 营地消息服务地址，同上 |
 
 > 连别人的服务端时，插件每次调用前会把自己扫码登录的账号递给对方（**只进对方内存、不在对方机器落盘**）——

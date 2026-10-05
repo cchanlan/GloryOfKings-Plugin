@@ -78,9 +78,15 @@ function cfg () {
   }
 }
 
-/** 服务地址（本机调） */
+/**
+ * 服务地址（本机调）。
+ *
+ * ⚠️ 这是**控制面**地址（127.0.0.1:8898）：开播/停止/好友名单这些「能动的」接口
+ *    只在本机回环上听着（2026-10-05 起），公网的 8899 播放面不再受理它们。
+ *    连**别人部署的**服务时这个地址指对方机器，照旧走 watchApiUrl。
+ */
 function apiBase () {
-  return String(cfg().watchApiUrl || 'http://127.0.0.1:8899').replace(/\/+$/, '')
+  return String(cfg().watchApiUrl || 'http://127.0.0.1:8898').replace(/\/+$/, '')
 }
 
 /**
@@ -701,6 +707,42 @@ export class WatchBattle extends plugin {
     }
     const still = (now?.playing || []).find(p => String(p.battleId) === String(hint.battleID))
     if (!still) {
+      // ⚠️⚠️ 「复查查不到」≠「打完了」（2026-10-05 修）。现象：刚推完「开局 4 分钟」的
+      //    提示，群友立刻发 #营地开播，却被回「这一局已经打完了」——4 分钟的排位不可能
+      //    秒结束，是假阴性。来源有两个：① 复查这一发里相关账号的查询当场失败
+      //    （接口抖动 / 频控），数据里其实缺了那个号；② 行被「隐私/模式」预筛摘掉了。
+      //    两种情况都要给**能区分的文案**，让人重试，别一口咬死「打完了」。
+      const scopeStr = scope.map(String)
+      const failed = (Array.isArray(now?.bad) ? now.bad : []).map(String)
+      if (failed.length && scopeStr.some(id => failed.includes(id))) {
+        logger.mark(`[营地观战] 复查时账号 ${failed.join('、')} 查好友名单失败，先不算打完（hint ${hint.battleID}）`)
+        return e.reply(
+          '营地接口刚才抽风了，没能确认这一局还在不在（不一定是打完了）\n稍等十几秒重发一次 #营地开播',
+          shouldQuote()
+        )
+      }
+      // 提示里那一场被预筛摘掉了 → 营地当前说「看不了」（隐私 / 非排位巅峰 / 接口抽风）
+      const dropped = Array.isArray(now?.dropped) ? now.dropped : []
+      const dropHit = dropped.find(d =>
+        (hint.roleId && String(d.roleId) === String(hint.roleId)) ||
+        (hint.nick && String(d.nick || '') === String(hint.nick)))
+      if (dropHit) {
+        logger.mark(`[营地观战] 复查时那一局被预筛摘掉（${dropHit.reason}），去流里决定（hint ${hint.battleID}）`)
+        return e.reply(
+          '营地这会儿说这一局「看不了」（可能是开了战绩隐私，也可能是接口抽风）\n稍等重发 #营地开播，或发 #营地观战 看看其它对局',
+          shouldQuote()
+        )
+      }
+      // TA 还在打、只是已经换了一局（秒开下一把 / 提示太旧）→ 给句实话，别让人以为提示是假的
+      const next = (now?.playing || []).find(p =>
+        (hint.roleId && String(p.roleId) === String(hint.roleId)) ||
+        (hint.nick && (String(p.nick || '') === String(hint.nick) || String(p.campNick || '') === String(hint.nick))))
+      if (next) {
+        return e.reply(
+          `刚才那一局已经打完了，TA 现在开了新的一局\n发 #营地观战 列表 选「${next.nick || next.campNick || hint.nick}」开播，或等新的开播提示`,
+          shouldQuote()
+        )
+      }
       return e.reply('这一局已经打完了\n发送 #营地观战 看看最新名单', shouldQuote())
     }
 
