@@ -84,6 +84,11 @@ export class CampRenew extends plugin {
 
   /** 指令入口：`#营地续期` —— 立刻保活一遍，顺手把失效的 QQ 号救回来 */
   async renewNow (e) {
+    // ⚠️ 先测锁再回话：上一轮还在跑时直接交给 renew 回「还在跑」，
+    //    不能先回「正在保活」又改口「还在跑」，两条回复自相矛盾
+    if (this.#renewRunning) {
+      return await this.renew({ e })
+    }
     await e.reply('正在保活（每个号戳一下，顺便抢救失效的 QQ 号）…', shouldQuote())
     return await this.renew({ e })
   }
