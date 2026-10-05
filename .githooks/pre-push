@@ -1,31 +1,56 @@
 #!/bin/sh
-# ⚠️ 服务端代码禁止进公开仓 —— 最后一道闸（2026-10-05 事故后加）
+# ⚠️ 服务端代码禁止进公开仓 —— 最后一道闸
+# （2026-10-05 事故后加，2026-10-06 加固：黑名单 → 白名单）
 #
 # 【为什么需要它】
 # `remote.pushdefault` 只约束「裸 git push」，拦不住显式指定远端的写法：
 #     git push both im-server        ← both 挂着三个公开仓的 pushurl
 #     git push origin <服务端分支>    ← origin 也是 gitcode 公开仓
 #     git push https://gitcode.com/... <服务端分支>
-# 2026-10-05 22:40 装上 pushdefault 护栏、干跑全绿之后，22:53 依然泄露了一次
-# （主工作区 98ff996/0a900d1 与 im-server 54db78f 三个 commit 时间戳完全相同，
-#   是同一次批量操作里显式指定远端推的）。所以 pushdefault 不够，必须在这一层拦。
+#
+# 2026-10-05 22:40 装上 pushdefault 护栏之后，22:53 依然泄露了一次：
+#   主工作区 9f2495e / fdc76b2 / 98ff996 / 0a900d1 + im-server 54db78f，
+#   五个 commit 的时间戳**完全相同**（22:53:10），是同一次批量操作里
+#   显式指定远端推的 —— pushdefault 对这条路完全无效。
+#   ⚠️ 当时这个 pre-push 文件**还不存在**（00:36 才落地、00:39 才提交），
+#      所以那次是「pushdefault 拦不住显式远端」+「尚无内容闸」共同造成的。
 #
 # 【它怎么拦】
 # git 在建立连接之前调用 pre-push，参数里带**真实的目标 URL**（不是 remote 名），
 # stdin 逐个列出待推的 ref。所以不管是 remote 名、直接写 URL、还是 --mirror/--all，
 # 都能看到，也都能拦。这是唯一覆盖全部推送路径的位置。
 #
+# 【2026-10-06 加固：为什么从黑名单改成白名单】
+# 初版是「分支名黑名单 + 树根找 watch-server.js / camp-im-server.js」，实测四个洞：
+#   ① dist / server 两个服务端分支的树根**没有任何标记文件**
+#      （只有 src/ bin/ config/），改叫 dist-v2 / server-v2 就照推不误
+#   ② 同一份内容打成 tag 推（refs/tags/...）也绕得过去
+#   ③ `git push --force <公开仓URL> dist:master` 能过 ——
+#      分支名 master 在黑名单之外、dist 树根又没标记文件，
+#      结果是**整个 master 被服务端代码覆盖**（实测确认）
+#   ④ 黑名单天生不完备：将来再加一个服务端分支（新的 xxx-server.js）就漏了
+#
+# 公开仓本来就只该有 master（服务端一律走 gok-server 私库），所以白名单才拦得完：
+#   · 非 master 的 ref 一律拦（改名分支、tag、任何新分支）
+#   · master 也要验内容（堵住 --force 把服务端内容推成 master）
+# 两层判据合起来，上面四个洞全部封死。
+#
 # 【放行什么】
 #   - 私库 gok-server（服务端代码本来就该去那儿）
-#   - 公开仓上的 master（插件端）
-#   - 删除远端分支（清理动作，不是泄露）
+#   - 公开仓的 master，且树根必须「像插件端」（见下面 CONTENT 判据）
+#   - 删除远端 ref（清理动作，不是泄露）
+#
+# 【逃生口】
+#   确实需要往公开仓推别的分支时，显式声明：
+#     GOK_PUBLIC_BRANCHES="master dev" git push ...
+#   会打印警告放行，避免将来加分支时被这闸卡住却不知怎么开。
 
 set -u
 
 remote_name="${1:-}"
 remote_url="${2:-}"
 
-# 只有这三个公开仓要拦；其余（私库、临时远端）一律放行
+# ── 只有这三个公开仓要守；其余（私库、临时远端）一律放行 ──────────────
 case "$remote_url" in
   *gitcode.com/ccxhan/GloryOfKings-Plugin*|\
   *github.com/cchanlan/GloryOfKings-Plugin*|\
@@ -36,57 +61,82 @@ case "$remote_url" in
     ;;
 esac
 
-# 服务端分支名（含历史存档名）
-is_server_branch() {
-  case "$1" in
-    refs/heads/watch-server|refs/heads/im-server|refs/heads/server|\
-    refs/heads/server-github|refs/heads/dist)
-      return 0 ;;
-    *)
-      return 1 ;;
-  esac
-}
+# 公开仓允许的分支名（空格分隔）。默认只认 master。
+ALLOWED_BRANCHES="${GOK_PUBLIC_BRANCHES:-master}"
 
-# 服务端分支根目录下的专属文件：就算改了分支名，内容也会露馅
-SERVER_MARKERS="watch-server.js camp-im-server.js"
+# 插件端树根**必须全有**的条目 —— 缺任何一个就说明这不是插件端代码。
+# 服务端分支（dist / server / watch-server）都没有 index.js，这一条就能拦下它们。
+PLUGIN_MUST_HAVE="index.js guoba.support.js apps utils"
+
+# 服务端树根**绝不能有**的条目 —— 名字换了、分支名伪装成 master 也照样露馅。
+#   camp-im-server.js / watch-server.js : im-server / watch-server 两个分支的入口
+#   cf-worker-cdn.js                    : watch-server 分支的 CDN worker
+#   plugin-local                        : dist 分支的插件分发目录
+#   src / bin                           : dist / server 两个分支的源码与可执行入口
+SERVER_MUST_NOT_HAVE="camp-im-server.js watch-server.js cf-worker-cdn.js plugin-local src bin"
+
+# 树根里有没有某个条目（整行精确匹配，避免 resources 之类被子串误伤）
+has_entry() {
+  printf '%s\n' "$1" | grep -qxF -- "$2"
+}
 
 reject() {
   echo "" >&2
   echo "✋ 拒绝推送：$1" >&2
   echo "   目标仓库：$remote_url" >&2
   echo "   服务端代码一律推私库，例如：" >&2
-  echo "     git push gokserver $remote_ref" >&2
+  echo "     git push gokserver ${remote_ref:-<ref>}" >&2
   echo "   （公开仓只放插件端 master；服务端走 gok-server 私库）" >&2
   echo "" >&2
   exit 1
 }
 
 while read -r local_ref local_sha remote_ref remote_sha; do
-  # 删除远端分支（local_sha 全 0）是清理动作，放行
+  # 删除远端 ref（local_sha 全 0）是清理动作，放行
   case "$local_sha" in
     0000000000000000000000000000000000000000) continue ;;
   esac
 
-  # 只看分支和标签，其他 ref 不拦
+  # ── 第一层：ref 白名单 ────────────────────────────────────────────
+  # tag 一律不放行：同一份服务端内容打成 tag 就能绕过内容检查，没必要开这个口子
   case "$remote_ref" in
-    refs/heads/*|refs/tags/*) ;;
-    *) continue ;;
+    refs/heads/*) ;;
+    *) reject "$remote_ref 不是分支（公开仓只接受 master 分支）" ;;
   esac
 
-  # 1) 分支名在黑名单 → 拦
-  if is_server_branch "$remote_ref"; then
-    reject "$remote_ref 是服务端分支，不能进公开仓"
+  branch="${remote_ref#refs/heads/}"
+
+  allowed=1
+  for a in $ALLOWED_BRANCHES; do
+    [ "$branch" = "$a" ] && allowed=0
+  done
+  if [ "$allowed" -ne 0 ]; then
+    reject "$remote_ref 不在公开仓白名单（只允许：$ALLOWED_BRANCHES）"
   fi
 
-  # 2) 名字不在黑名单，就看内容：根目录有服务端专属文件 → 拦
-  top="$(git ls-tree --name-only "$local_sha" 2>/dev/null || true)"
-  if [ -n "$top" ]; then
-    for marker in $SERVER_MARKERS; do
-      case "$top" in
-        *"$marker"*) reject "$remote_ref 的内容是服务端代码（发现 $marker），不能进公开仓" ;;
-      esac
-    done
+  # 逃生口用了非默认值就提示一声，避免「悄悄放行了别的分支」没人知道
+  if [ -n "${GOK_PUBLIC_BRANCHES:-}" ]; then
+    echo "⚠️ GOK_PUBLIC_BRANCHES=$GOK_PUBLIC_BRANCHES，本次按该白名单放行 $remote_ref" >&2
   fi
+
+  # ── 第二层：内容必须是插件端 ──────────────────────────────────────
+  # 取不到树就拦：宁可误拦让人来看一眼，也不能放行未知内容
+  top="$(git ls-tree --name-only "$local_sha" 2>/dev/null || true)"
+  if [ -z "$top" ]; then
+    reject "$remote_ref 的树读不出来（local_sha=$local_sha），无法确认是不是插件端"
+  fi
+
+  for m in $SERVER_MUST_NOT_HAVE; do
+    if has_entry "$top" "$m"; then
+      reject "$remote_ref 的内容是服务端代码（树根发现 $m），不能进公开仓"
+    fi
+  done
+
+  for m in $PLUGIN_MUST_HAVE; do
+    if ! has_entry "$top" "$m"; then
+      reject "$remote_ref 的内容不像插件端（树根缺少 $m），不能进公开仓"
+    fi
+  done
 done
 
 exit 0
