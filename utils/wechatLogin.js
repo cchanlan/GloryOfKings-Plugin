@@ -42,6 +42,13 @@ const QRCODE_TTL_MS = 3 * 60 * 1000
 /** 轮询间隔：2 秒一次 */
 const POLL_INTERVAL_MS = 2000
 
+/**
+ * 每一次机房请求的 fetch 超时。fetchJson 是全链路唯一的发请求入口
+ * （取 ticket / 出码 / 轮询 / 换号都过它），不带表的话任一处「连得上但一直不回包」
+ * 都会让 await 永远挂起，「登录任务进行中」再也解不开（同 qqLogin.js 的考虑）。
+ */
+const REQUEST_TIMEOUT_MS = 15000
+
 /** 设备指纹里的占位 MAC / 内存（照抄抓包结果，营地不看真值只看格式） */
 const DEVICE_MAC_PLACEHOLDER = '02:00:00:00:00:00'
 const DEVICE_MEM_BYTES = 12 * 1024 * 1024 * 1024
@@ -231,7 +238,8 @@ async function fetchJson (url, { method = 'GET', headers = {}, body = null } = {
   const response = await fetch(url, {
     method,
     headers,
-    body
+    body,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   })
   const text = await response.text()
   let json = null

@@ -54,10 +54,11 @@ const toInt = value => {
  * 整库的内存缓存。null 表示还没读过盘。
  *
  * 为什么要缓存：这个模块的每个导出函数原来都自己 `loadAll()` 一次，而
- * `collectBattles` 翻一页就要走 `archiveBattles`（读+写）+ `getWatermark`（读），
- * 周报翻 12 页 = 几十次整库 readFileSync/writeFileSync。现在 6 个账号 64KB 还无感，
+ * `collectBattles` 每翻一页就要整库读写一遍，周报翻 12 页 = 几十次整库
+ * readFileSync/writeFileSync。现在 6 个账号 64KB 还无感，
  * 但保留 35 天、订阅涨到 20 个号就是 MB 级，而这些同步 IO 全发生在
  * 2 分钟一次的轮询里，会卡住整个 Bot 的事件循环。
+ * （翻页循环现在也只合并内存、循环结束统一落盘一次，见 collectBattles。）
  *
  * 缓存安全的前提：这个文件**只有本模块写**（全仓库检索确认过没有别处写 ARCHIVE_FILE），
  * 且 Yunzai 是单进程，所以内存里的就是权威副本，不存在别人改了盘而我们不知道的情况。
@@ -166,19 +167,19 @@ function cutoffSec () {
 }
 
 /**
- * 把一批战绩合并进归档。
+ * 把一批战绩合并进**内存缓存**（不落盘）。
  *
- * 幂等：按 gameSeq 去重，同一场重复落库只留一份（轮询每 2 分钟拉的 30 场里
+ * 这是 archiveBattles 去掉 saveAll 的部分。拆出来是给 collectBattles 的翻页循环用：
+ * 原来循环里每页都 archiveBattles → saveAll 整库 writeFileSync 一次，12 页 = 12 次
+ * 整库同步 IO，全卡在事件循环上。拆开后循环内只改内存，结束统一 saveAll 一次；
+ * 单次要落盘的照旧用 archiveBattles（它 = mergeIntoCache + saveAll），语义不变。
+ *
+ * 幂等：按 gameSeq 去重，同一场重复合并只留一份（轮询每 2 分钟拉的 30 场里
  * 绝大多数都是上一轮见过的，全靠这里去重）。
  *
- * @param {string|number} campId 营地ID
- * @param {Array<object>} list 战绩列表项（原始的，函数内部自己裁字段）
  * @returns {number} 本次新增了几场
  */
-export function archiveBattles (campId, list) {
-  const key = String(campId || '')
-  if (!key || !Array.isArray(list) || !list.length) return 0
-
+function mergeIntoCache (key, list) {
   const all = loadAll()
   const existed = all[key]?.battles || []
 
@@ -196,7 +197,6 @@ export function archiveBattles (campId, list) {
   }
 
   const added = bySeq.size - before
-  // 没有新场次就别写文件：轮询每 2 分钟一次，绝大多数轮次都是这种情况
   if (!added) return 0
 
   const cutoff = cutoffSec()
@@ -207,12 +207,31 @@ export function archiveBattles (campId, list) {
   const prevMark = toInt(all[key]?.oldestFetched)
   all[key] = {
     updatedAt: Date.now(),
-    // 水位要跟着写回，别被这次落库覆盖掉；而且裁剪已经把老数据删了，
+    // 水位要跟着写回，别被这次合并覆盖掉；而且裁剪已经把老数据删了，
     // 水位不能还声称覆盖到裁剪线之前
     ...(prevMark > 0 ? { oldestFetched: Math.max(prevMark, cutoff) } : {}),
     battles
   }
-  saveAll(all)
+
+  return added
+}
+
+/**
+ * 把一批战绩合并进归档（含落盘）。
+ *
+ * @param {string|number} campId 营地ID
+ * @param {Array<object>} list 战绩列表项（原始的，函数内部自己裁字段）
+ * @returns {number} 本次新增了几场
+ */
+export function archiveBattles (campId, list) {
+  const key = String(campId || '')
+  if (!key || !Array.isArray(list) || !list.length) return 0
+
+  const added = mergeIntoCache(key, list)
+  // 没有新场次就别写文件：轮询每 2 分钟一次，绝大多数轮次都是这种情况
+  if (!added) return 0
+
+  saveAll(loadAll())
 
   return added
 }
@@ -269,6 +288,7 @@ export async function collectBattles (campId, qq, fromSec, { maxPages = 12, toSe
   let reached = 0
   let fetched = 0
   let truncated = false
+  let pendingFlush = false
 
   for (let page = 0; page < maxPages; page += 1) {
     let res
@@ -289,7 +309,9 @@ export async function collectBattles (campId, qq, fromSec, { maxPages = 12, toSe
     if (!list.length) break
 
     fetched += 1
-    archiveBattles(key, list)
+    // 只攒进内存、不落盘：12 页翻下来每页 saveAll 一次整库同步 IO（全卡在事件循环上），
+    // 循环结束统一 flush 一次就够。中途崩了也就是这轮补的页没存，下轮轮询会再补
+    if (mergeIntoCache(key, list) > 0) pendingFlush = true
     reached = toInt(list[list.length - 1]?.dtEventTime)
 
     // 这一页已经翻过区间起点，够了
@@ -315,6 +337,9 @@ export async function collectBattles (campId, qq, fromSec, { maxPages = 12, toSe
     // 还有页可翻但名额用完了
     if (page === maxPages - 1) truncated = true
   }
+
+  // 循环里攒的合并结果统一落盘（整库一次写，setWatermark 还会再写一次带水位的版本）
+  if (pendingFlush) saveAll(loadAll())
 
   if (reached > 0) setWatermark(key, reached)
 

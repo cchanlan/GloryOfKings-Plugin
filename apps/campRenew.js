@@ -49,6 +49,17 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 const nameOf = acc => `${acc.userId}${acc.userName ? `（${acc.userName}）` : ''}`
 
 export class CampRenew extends plugin {
+  /**
+   * 进程内互斥：一轮保活 30 秒起（2N+2 次请求 × 1.5s 间隔），两轮并发会把
+   * 营地请求量翻倍还在其次，重登环节（reloginQQAccount 会顶掉旧 token）
+   * 两轮交错可能把刚写回的新票又顶成失效。定时任务、手动 `#营地续期` 撞车时挡住。
+   *
+   * （2026-10-05 排查过「日志里两条保活 MARK 只差 116ms」的疑点：那是 10-03 和
+   *   10-04 两个日切日志文件里同一时刻的行，不是同一天双注册；JiuLi 的 loader
+   *   热重载时会 cancel 旧 job，createTask 也按名字去重。这里纯兜底，不为那个。）
+   */
+  #renewRunning = false
+
   constructor () {
     super({
       name: '王者营地登录续期',
@@ -78,13 +89,31 @@ export class CampRenew extends plugin {
   }
 
   /**
-   * 保活的正体。
+   * 统一入口（定时任务和指令都走这里）：先查互斥锁，再把活交给 #renewOnce。
+   * 上一轮没跑完这一轮直接跳过 —— 并发跑的代价见 #renewRunning 的注释。
    *
    * @param {object}  [opts]
    * @param {object}  [opts.e]      有就是指令触发的（结果回群里），没有就是定时任务（私聊主人）
    * @param {boolean} [opts.silent] 定时模式下**一切正常就不打扰主人**（有事才说话）
    */
-  async renew ({ e = null, silent = false } = {}) {
+  async renew (opts = {}) {
+    if (this.#renewRunning) {
+      logger.warn(`[${PluginName}] 上一轮营地保活还没跑完，本轮跳过`)
+      // 手动触发时回一句，免得主人以为指令没生效；定时任务重叠就只在日志里留痕
+      if (opts.e) await opts.e.reply('上一轮保活/续期还在跑，等它结束再试', shouldQuote())
+      return
+    }
+
+    this.#renewRunning = true
+    try {
+      return await this.#renewOnce(opts)
+    } finally {
+      this.#renewRunning = false
+    }
+  }
+
+  /** 保活的正体（参数见 renew）。只在 renew 的互斥锁里调用，别直接调。 */
+  async #renewOnce ({ e = null, silent = false } = {}) {
     let before = []
     try {
       before = authStore.listAccounts() || []

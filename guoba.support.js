@@ -8,6 +8,65 @@ import authStore from './utils/authStore.js'
 import { getAccountSwitches, setAccountEnabled, invalidate, pruneAccounts } from './utils/campImStore.js'
 import { ownerOf } from './utils/campImPush.js'
 
+/**
+ * 出给锅巴面板前要脱敏的账号字段。InputPassword 组件只遮前端输入框的显示，
+ * 「查看已保存的配置」走 HTTP 拿到的仍是原文 —— 不挡的话面板上一个能看到
+ * 插件配置页的人就能把整套营地登录态（token / userKey 能直接发请求）抄走
+ * （2026-10-05 修）。
+ */
+const SECRET_FIELDS = ['token', 'userKey', 'userSig', 'encodeRes', 'accessToken', 'refreshToken']
+
+/**
+ * ⚠️⚠️ 掩码格式必须和 utils/authStore.js 里的 maskSecret **完全一致**（头 6 位 + `...` + 尾 4 位）——
+ * 保存侧靠「提交回来的值 === mask（库里的原文）」认出「主人没碰过这一格」，格式一旦分叉，
+ * 一次锅巴保存把所有凭证覆写成掩码串，整个账号池当场报废。那边是模块私有函数引不进来
+ * （本文件被锅巴用带 query 的动态 import 加载，跨模块依赖已踩过坑，见上面的 import 注释），
+ * 这里照抄一份 —— 谁改那边，必须同步改这里。
+ */
+function maskSecret (value, keepStart = 6, keepEnd = 4) {
+  const text = value === null || typeof value === 'undefined' ? '' : String(value)
+  if (!text) return ''
+  if (text.length <= keepStart + keepEnd) return text
+  return `${text.slice(0, keepStart)}...${text.slice(-keepEnd)}`
+}
+
+/** 快照出面板前把凭证字段打码，其余字段原样透传 */
+function maskAccountsForGuoba (accounts) {
+  return accounts.map(account => {
+    const masked = { ...account }
+    for (const field of SECRET_FIELDS) {
+      masked[field] = maskSecret(account[field])
+    }
+    return masked
+  })
+}
+
+/**
+ * 面板存回来时的反向操作：把「没改过的掩码值」换回库里的原文。
+ *
+ * 判定只认「提交值 === mask(当前库里值）」这一条等值比较，不做「带 ... 就当掩码」的猜测 ——
+ * 主人真去手改了一格的话，提交值必然不等于 mask（原文），会按新值正常写入；
+ * 库里本来就是短值（mask 会原样返回）的字段，换回原文也等价不动。
+ * 库里查不到这个 userId 的条目（面板新加的号）原样放行 —— 新号本来就是手填的明文。
+ */
+function restoreMaskedAccounts (accounts) {
+  const stored = new Map(
+    authStore.getGuobaAccounts().map(account => [String(account.userId), account])
+  )
+  return accounts.map(item => {
+    const original = stored.get(String(item?.userId || ''))
+    if (!original) return item
+    const restored = { ...item }
+    for (const field of SECRET_FIELDS) {
+      // ⚠️ `item[field]` 也会随表单缺字段变 undefined，等值比较天然挡掉（undefined !== 任何串）
+      if (item[field] && item[field] === maskSecret(original[field])) {
+        restored[field] = original[field]
+      }
+    }
+    return restored
+  })
+}
+
 function getAuthPoolSnapshot () {
   const accounts = authStore.getGuobaAccounts().map(account => ({
     ...account,
@@ -300,10 +359,10 @@ export function supportGuoba () {
         {
           field: 'config.watchApiUrl',
           label: '观战服务地址',
-          bottomHelpMessage: '观战要另跑一个后端进程（负责取直播流、录像），插件通过这个地址指挥它。自己部署：先接入分发服务（见上面「服务端接入」），再发 #营地观战部署；用别人部署好的：直接发 #营地观战连接 <地址>，本机什么都不用装。换地址改这里也行，不用重启云崽。',
+          bottomHelpMessage: '观战要另跑一个后端进程（负责取直播流、录像），插件通过这个地址指挥它。填的是**控制面**端口（默认 8898，只绑本机回环）；公网的 8899 播放面不受理开播/停止/名单。自己部署：先接入分发服务（见上面「服务端接入」），再发 #营地观战部署；用别人部署好的：直接发 #营地观战连接 <地址>，本机什么都不用装。换地址改这里也行，不用重启云崽。',
           component: 'Input',
           componentProps: {
-            placeholder: '默认 http://127.0.0.1:8899'
+            placeholder: '默认 http://127.0.0.1:8898'
           }
         },
         {
@@ -587,7 +646,7 @@ export function supportGuoba () {
           field: 'authPool.accounts',
           label: `营地账号列表（共 ${authPoolAccounts.length} 个，可用 ${usableCount} 个，失效 ${invalidCount} 个）`,
           helpMessage: '管理 AuthPool.json 中的完整账号信息。字段名已尽量按实际代码名标注；手动录入时，至少需要 userId、token、userKey 这三个核心字段。',
-          bottomHelpMessage: '删除条目会从账号池移除该账号；敏感字段支持直接编辑；全局账号和优先级都直接在这里维护（“全局账号”可以勾选多个，请求会在它们之间轮询）。',
+          bottomHelpMessage: '删除条目会从账号池移除该账号；敏感字段（Token/UserKey/UserSig 等）展示时已打码，没改过的掩码值保存时会自动还原成原值，要换就直接粘贴新值覆盖；全局账号和优先级都直接在这里维护（“全局账号”可以勾选多个，请求会在它们之间轮询）。',
           component: 'GSubForm',
           componentProps: {
             multiple: true,
@@ -909,7 +968,9 @@ export function supportGuoba () {
         return {
           config: Config.getDefOrConfig('config'),
           auth: Config.getDefOrConfig('auth'),
-          authPool: { accounts },
+          // ⚠️ 凭证字段出面板必须打码（见 SECRET_FIELDS），保存侧会用
+          //    restoreMaskedAccounts 把没改过的掩码值换回原文
+          authPool: { accounts: maskAccountsForGuoba(accounts) },
           campIm: { accounts: campIm.accounts }
         }
       },
@@ -920,8 +981,13 @@ export function supportGuoba () {
         }
 
         if (Object.prototype.hasOwnProperty.call(data, 'authPool.accounts')) {
-          const { accounts: currentAccounts } = getAuthPoolSnapshot()
-          authStore.replaceAccountsFromGuoba(data['authPool.accounts'] || currentAccounts)
+          const payload = data['authPool.accounts']
+          // ⚠️ 快照现在带掩码：payload 缺了/不是数组就**别动池子**。
+          //    原来的 `|| currentAccounts` 兜底在带掩码的世界里等于「把掩码串当真值写回」，
+          //    一次保存报废整个池子。真正的删号是传空数组 []（Array.isArray 过得了）。
+          if (Array.isArray(payload)) {
+            authStore.replaceAccountsFromGuoba(restoreMaskedAccounts(payload))
+          }
         }
 
         // 营地消息的账号开关：写进 data/campIm.yaml（和侧边栏那个页面同一份）

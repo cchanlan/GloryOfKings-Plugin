@@ -30,6 +30,13 @@ const QR_WAIT_TIMEOUT_MS = 60 * 1000
 const SCAN_TIMEOUT_MS = 3 * 60 * 1000
 
 /**
+ * 登录接口的 fetch 超时。这两个请求（ysdk 换三件套、营地 /user/login）不带
+ * AbortSignal：对端一旦「连得上但一直不回包」，await 会永远挂起，「登录任务进行中」
+ * 就再也解不开（api.js 的 REQUEST_TIMEOUT_MS 处理的是同一类坑，这个是登录链路版）。
+ */
+const REQUEST_TIMEOUT_MS = 15000
+
+/**
  * 取宿主渲染器。
  * ⚠️ 必须返回 null 而不是空对象 —— `lib/renderer/loader.js` 的 getRenderer() 在
  * 「配置的渲染后端不是 puppeteer」时返回 `{}`，直接拿它会在 browserInit 上炸成
@@ -130,7 +137,8 @@ async function exchangeCodeForTokens(code) {
       'Auth-Secret-Digest': digest,
       'Auth-Request-Time': timestamp
     },
-    body
+    body,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   })
   const result = await response.json().catch(() => null)
 
@@ -190,7 +198,8 @@ async function loginCampByOpenSdk(tokens) {
       'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
       'x-log-uid': crypto.randomUUID().toUpperCase()
     },
-    body: form.toString()
+    body: form.toString(),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
   })
 
   const data = await response.json().catch(() => null)
