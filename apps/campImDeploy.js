@@ -26,7 +26,9 @@
  *    （认不出是我们的目录）→ 拒绝，让主人自己确认。
  */
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
+import { spawnSync } from 'node:child_process'
 import { PluginPath, PluginName, Config } from '#components'
 import { shouldQuote } from '#utils'
 import { pm2, pm2Proc, resetPm2Cache, isOurProcess, pm2ForeignProc, launcherInfo } from '../utils/pm2.js'
@@ -95,6 +97,29 @@ function distConfig () {
 function serverPort () {
   const m = String(cfg().campImApiUrl || '').match(/:(\d+)/)
   return m ? Number(m[1]) : DEFAULT_PORT
+}
+
+/**
+ * 「pm2 save 了、机器一重启服务却没起来」的兜底检查。
+ *
+ * `pm2 save` 只是把进程写进 dump，机器重启时要靠 systemd 里的 `pm2-<user>` 服务
+ * 去 resurrect —— 那个服务是 `pm2 startup` 打出来的命令装的，没装的话 save 也白搭。
+ * 这里不能替主人跑（要 sudo、提示语还随发行版变），查出来没 enabled 就打 warning 指条路。
+ * Windows（lpm2）没有 systemd 这一层，直接跳过。
+ */
+function warnIfStartupDisabled (procName) {
+  if (process.platform === 'win32') return
+  try {
+    const user = os.userInfo().username || 'root'
+    const r = spawnSync('systemctl', ['is-enabled', `pm2-${user}`], { encoding: 'utf-8', timeout: 10000 })
+    const state = String(r.stdout || '').trim()
+    if (state && state !== 'enabled') {
+      logger.warn(
+        `[${PluginName}] pm2-${user} 服务状态是 ${state}，机器重启后 ${procName} 不会自己起来。` +
+        '在机器人所在设备执行一次：pm2 startup（按提示再跑它打出来的那条 sudo 命令）'
+      )
+    }
+  } catch {}
 }
 
 /* ------------------------------------------------------------ 插件 */
@@ -321,6 +346,8 @@ export class CampImDeploy extends plugin {
 
       const saved = pm2(['save'], { timeout: 30000 })
       if (!saved.ok) logger.warn(`[${PluginName}] pm2 save 失败，开机自启可能没生效：${saved.err || saved.out}`)
+      // save 只写 dump，机器重启还得靠 pm2-<user> 的 systemd 服务 resurrect —— 没装就提醒
+      warnIfStartupDisabled(PROC_NAME)
 
       const port = serverPort()
       const status = await waitStatus(port)
