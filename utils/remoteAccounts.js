@@ -29,19 +29,96 @@
  */
 import authStore, { isUsableAuth } from './authStore.js'
 
-/** 两个服务端都有的状态接口 —— 拿它当「这个地址到底是不是个服务端」的探针 */
+/** 状态接口。⚠️ 它在**两个面上都有**，所以只能证明「这是个服务」，证明不了「控制面在这」 */
 export const STATUS_PATH = '/api/status'
+
+/**
+ * ⭐ **只在控制面存在**的探针接口。
+ *
+ * ⚠️⚠️ 为什么不能再用 `/api/status` 当探针（2026-10-05 修）：服务端从 2026-10-05 起
+ *    把控制面（开播/停止/好友名单/账号）拆到了**本机回环**的 8898，播放面（8899，公网）
+ *    只留下播放页要用的 `/api/status`、`/api/record/*`。
+ *    而 `#营地观战连接` 原来正是拿 `/api/status` 探活 —— 那个接口**在播放面上也通**，
+ *    于是：
+ *      · 用户填的地址是对方的**播放面**（外网唯一能填的）
+ *      · 探测**必定成功** → 插件报「✅ 已连接这个观战服务」并写进配置
+ *      · 之后每一次调用（`/api/friends` `/api/start` …）全是 **404 没有这个接口**
+ *    等于把用户引进一个「连上了但什么都干不了」的死局，而且提示完全看不出来。
+ *
+ *    `/api/rooms` 是控制面独有的**只读、零营地请求**接口，正好当探针：
+ *    它通 = 这个地址确实是可指挥的控制面；它 404 = 那是播放面（或根本不是我们的服务）。
+ */
+export const CONTROL_PATH = '/api/rooms'
+
+/**
+ * 探一下这个地址是不是活着的**控制面**（能开播/能取名单的那个面）。
+ *
+ * 三层判据，为的是把「填错面」和「填错服务」分开说清楚：
+ *   ① `/api/rooms` 通 → 控制面，可用
+ *   ② `/api/rooms` 404 但 `/api/status` 通 → **这是播放面**（或老版本服务端被拆开之后
+ *      只剩播放面）：插件指挥不动它，得换成控制面地址
+ *   ③ 两个都不通 → 根本不是我们的服务（比如填成了分发服务）
+ *
+ * @returns {Promise<{ok: boolean, kind?: 'control'|'playback'|'unknown', status?: object,
+ *                    accounts?: number, message?: string}>}
+ */
+export async function probeControl (base, { timeout = 8000 } = {}) {
+  const url = String(base || '').replace(/\/+$/, '')
+  if (!url) return { ok: false, kind: 'unknown', message: '还没填服务地址' }
+
+  const getJson = async path => {
+    const ctl = new AbortController()
+    const timer = setTimeout(() => ctl.abort(), timeout)
+    try {
+      const r = await fetch(url + path, { signal: ctl.signal })
+      if (r.status === 401) return { status: 401, data: null }
+      const data = await r.json().catch(() => null)
+      return { status: r.status, data }
+    } catch (error) {
+      return { status: 0, data: null, error }
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  // ① 控制面独有的接口
+  const ctrl = await getJson(CONTROL_PATH)
+  if (ctrl.status === 401) {
+    return { ok: false, kind: 'control', message: '这个服务设了口令，插件连不上（让对方去掉服务端口令）' }
+  }
+  if (ctrl.data?.ok) {
+    return { ok: true, kind: 'control', status: ctrl.data, accounts: Number(ctrl.data.accounts || 0) }
+  }
+
+  // ② 退一步看它是不是「播放面」——/api/status 在两个面上都有
+  const play = await getJson(STATUS_PATH)
+  if (play.data?.ok) {
+    return {
+      ok: false,
+      kind: 'playback',
+      message: '这个地址是**播放面**（群友看直播用的那个端口），插件要指挥的是**控制面**' +
+        '（默认 127.0.0.1:8898，只管本机）。要连别人部署的，得让对方把控制面开出来并给你地址；' +
+        '否则就在本机自己部署一套（#营地观战接入）'
+    }
+  }
+
+  // ③ 什么都不是
+  if (ctrl.status === 404 || play.status === 404) {
+    return {
+      ok: false,
+      kind: 'unknown',
+      message: '这个地址不是观战/消息服务（观战和消息各是一个独立服务，不是发代码包的那个分发服务）'
+    }
+  }
+  const timeoutHit = /abort|timeout/i.test(ctrl.error?.message || play.error?.message || '')
+  return { ok: false, kind: 'unknown', message: timeoutHit ? '服务没响应' : '连不上这个地址' }
+}
 
 /**
  * 探一下这个地址是不是活着的观战/消息服务（GET /api/status）。
  *
- * 「连接」指令用它做**先试连再落盘**：地址写错了要当场知道，
- * 而不是等发 `#营地观战` 时才报一句看不懂的错。
- *
- * ⚠️ 顺便拦一类常见坑：**把「分发服务」的地址当成观战服务填**。
- *    分发服务（gok-share，发代码包的那个）也跑在 http 上、也要令牌，
- *    但它的 `/api/status` 是 404 —— 只回一句 `not_found`，
- *    用户完全看不出「我填错服务了」。这里替他把话说清楚。
+ * ⚠️ `#营地消息连接` 那边也用它。⚠️ 它**证明不了控制面**（那个接口两个面都有）——
+ *    要判断「能不能指挥」，用上面的 `probeControl`。
  */
 export async function probeRemoteStatus (base, { timeout = 8000 } = {}) {
   const url = String(base || '').replace(/\/+$/, '')

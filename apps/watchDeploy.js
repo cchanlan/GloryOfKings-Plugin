@@ -30,11 +30,11 @@ import { PluginPath, PluginName, Config } from '#components'
 import { shouldQuote } from '#utils'
 import { pm2, pm2Proc, resetPm2Cache, isOurProcess, pm2ForeignProc, launcherInfo } from '../utils/pm2.js'
 import {
-  installPackage, fetchPackageMeta, probeStatus, waitStatus, fmtUptime,
+  installPackage, fetchPackageMeta, probeStatus, probeControlPort, waitControlPort, fmtUptime,
   normalizeBase, STATE_FILE
 } from '../utils/deploy.js'
 import { ensureDependencies } from '../utils/dependency.js'
-import { probeRemoteStatus, reportRemoteAccounts } from '../utils/remoteAccounts.js'
+import { probeRemoteStatus, probeControl, reportRemoteAccounts } from '../utils/remoteAccounts.js'
 
 /** 云崽根目录（插件住在 `<根>/plugins/<名字>`，往上两级）—— 只为把路径显示得短一点 */
 const YunzaiRoot = path.resolve(PluginPath, '../..')
@@ -109,6 +109,56 @@ function serverPort () {
   return m ? Number(m[1]) : DEFAULT_PORT
 }
 
+/** 播放面端口（公网那个）。服务端默认 8899，可用 GOK_WATCH_PORT 覆盖 */
+const PLAYBACK_PORT = 8899
+
+/**
+ * ⭐ **把「指向播放面」的旧配置自动掰回控制面**。
+ *
+ * ⚠️⚠️ 为什么必须有（2026-10-05 修）：服务端这一天把控制面拆到了 `127.0.0.1:8898`，
+ *    插件默认值也跟着改了。但**已经落盘的旧配置不会自己变** —— 老用户机器上
+ *    `watchApiUrl` 还是 `http://127.0.0.1:8899`（那是播放面）。后果极其隐蔽：
+ *      · `#营地观战服务` / `#营地观战部署` 的健康检查探的是 `/api/status`，
+ *        而**那个接口在播放面上也通** → 面板显示「运行中」、部署报「成功」
+ *      · 可真要用的 `/api/friends` `/api/start` 全是 **404** →「拿不到好友列表」
+ *    自检全绿、功能全废，用户根本无从下手。
+ *
+ *    判据卡得很死，**宁可漏修也不能误改**（用户可能刻意把控制面开在别的端口）：
+ *      ① 必须是**本机回环**地址（远程地址是用户有意填的，动它会把别人的服务顶掉）
+ *      ② 当前地址必须**确实指挥不动**（`/api/rooms` 不通）
+ *      ③ 而且它**确实是播放面**（`/api/status` 通、`/api/rooms` 不通）——
+ *         只是「连不上」不算数：那是服务没起，等它起来就好，不该偷偷换端口
+ *      ④ 同机默认控制面（8898）必须**真的能指挥**
+ *    四条全中才改。这样「服务没起来 / 用户自定义端口 / 远程地址」都不会被误改。
+ *
+ * @returns {Promise<{migrated: boolean, from?: string, to?: string}>}
+ */
+async function healApiUrl () {
+  const cur = normalizeBase(cfg().watchApiUrl || '')
+  // 空配置交给默认值，不用管
+  if (!cur) return { migrated: false }
+  // ① 只修**本机回环**地址
+  if (!/^https?:\/\/(127\.0\.0\.1|localhost|\[::1\]|::1)(:|\/|$)/i.test(cur)) return { migrated: false }
+  const guess = `http://127.0.0.1:${DEFAULT_PORT}`
+  if (cur === guess) return { migrated: false }
+
+  // ② 当前地址真能指挥吗？能就不用改
+  const probe = await probeControl(cur, { timeout: 3000 })
+  if (probe.ok) return { migrated: false }
+  // ③ 必须**明确是播放面**才动手：`/api/status` 通说明那端口上真有我们的服务，
+  //    只是接口对不上（典型就是播放面）。连不上（kind 仍是 unknown 且非 404）
+  //    说明只是服务没起 —— 那种情况换端口是瞎猜，等它起来就行。
+  if (probe.kind !== 'playback') return { migrated: false }
+
+  // ④ 同机默认控制面得真的能指挥
+  const target = await probeControl(guess, { timeout: 3000 })
+  if (!target.ok) return { migrated: false }
+
+  Config.modify('config', 'watchApiUrl', guess)
+  logger.mark(`[${PluginName}] 观战服务地址从 ${cur} 纠正为 ${guess}（原来指的是播放面，指挥不动）`)
+  return { migrated: true, from: cur, to: guess }
+}
+
 /** 「对外地址没配」是部署后最常见的坑：本机能开、群友点了是空的 */
 function publicUrlHintLines () {
   if (String(cfg().watchPublicUrl || '').trim()) return []
@@ -116,7 +166,7 @@ function publicUrlHintLines () {
     '',
     '⚠️ 直播间对外地址还没配 —— 现在发出去的链接只有本机能开，群友点了是白屏。',
     '去锅巴面板把「直播间对外地址」填成外网能访问的（域名或公网 IP + 端口），',
-    '⚠️ 对外地址指的是**播放面**端口（默认 8899），不是服务地址的控制面（8898）'
+    `⚠️ 对外地址指的是**播放面**端口（默认 ${PLAYBACK_PORT}），不是服务地址的控制面（${DEFAULT_PORT}）`
   ]
 }
 
@@ -213,19 +263,27 @@ export class WatchDeploy extends plugin {
       return e.reply('地址要以 http:// 或 https:// 开头', shouldQuote())
     }
 
-    // 先试连再落盘 —— 地址写错了要当场知道
-    const probe = await probeRemoteStatus(url)
+    // ⚠️⚠️ 探的必须是**控制面**，不能用 probeRemoteStatus（2026-10-05 修）。
+    //    那个探针打 `/api/status`，而它在**播放面上也通** —— 用户填了对方的播放面地址
+    //    （外网唯一能填的那个），探测照样成功 → 报「✅ 已连接」并写进配置，
+    //    可之后每次调用全是 404，等于把用户引进死局（实测复现）。
+    //    probeControl 会去问控制面独有的 `/api/rooms`，探不通还会告诉他「你填的是播放面」。
+    const probe = await probeControl(url)
     if (!probe.ok) {
       return e.reply(`${probe.message}\n地址核对一下再发一次`, shouldQuote())
     }
 
     Config.modify('config', 'watchApiUrl', url)
-    // ⚠️ 「直播间对外地址」也得跟着指过去 —— 它才是拼给群友点的那个链接
-    //    （见 watchBattle.js 的 publicBase，空时回退到服务地址）。
-    //    不一起改的话，链接还指着本机/上一个服务：本机根本没在播对方那台机器上的那一场，
-    //    群友点开就是白屏。这是「切了服务端但链接没跟过去」最容易踩的一个坑。
-    Config.modify('config', 'watchPublicUrl', url)
-    logger.mark(`[${PluginName}] 已连接远端观战服务：${url}`)
+    // ⚠️ 「直播间对外地址」得跟着指到**播放面**，不是这个控制面地址 ——
+    //    它才是拼给群友点的那个链接（见 watchBattle.js 的 publicBase）。
+    //    控制面只绑对方本机回环，群友点过去必然连不上。
+    //    只有当用户填的这个地址同时也能当播放面用时（例如对方把两个面开在同一入口、
+    //    或他给的就是公网可访问的那个入口）才顺手写上；否则留空让他自己填，
+    //    并在下面明确提示 —— 比无声写一个打不开的地址强。
+    const playback = await probeRemoteStatus(url)
+    if (playback.ok) Config.modify('config', 'watchPublicUrl', url)
+    else Config.modify('config', 'watchPublicUrl', '')
+    logger.mark(`[${PluginName}] 已连接远端观战控制面：${url}`)
 
     // 把自己的账号递过去：对方池子里还没有它们，不递就是「登录成功却查不到好友」
     const report = await reportRemoteAccounts(url, { force: true })
@@ -238,11 +296,14 @@ export class WatchDeploy extends plugin {
         '让那台机器的主人发一次 #营地观战部署 更新后，再发一遍本条指令'
       )
     }
-    lines.push(
-      '',
-      '⚠️ 直播间链接也跟着指到这个地址了。群友点不开的话，让对方给一个外网能访问的地址，',
-      '填进锅巴「王者荣耀 → 营地观战」里的「直播间对外地址」'
-    )
+    if (!playback.ok) {
+      lines.push(
+        '',
+        '⚠️ 还差一步：上面填的是**控制面**地址（只管指挥），群友点链接要用**播放面**地址。',
+        '去锅巴「王者荣耀 → 营地观战」把「直播间对外地址」填成对方外网能访问的那个，',
+        `例如 http://<对方域名或公网IP>:${PLAYBACK_PORT}`
+      )
+    }
     lines.push('', '看谁在打：发 #营地观战')
     return e.reply(lines.join('\n'), shouldQuote())
   }
@@ -308,6 +369,10 @@ export class WatchDeploy extends plugin {
         : '正在部署观战服务（要从分发服务下载代码），几十秒就好…',
       shouldQuote()
     )
+
+    // ⭐ 先纠正「指向播放面」的旧配置（老用户升级上来的那种），
+    //    否则下面 serverPort() 会去探播放面、waitStatus 照样通过，部署报成功却指挥不动。
+    const healed = await healApiUrl()
 
     try {
       // 老布局遗留：以前是 git 浅克隆，现在不用 git 了，把 .git 清掉免得困惑
@@ -378,11 +443,13 @@ export class WatchDeploy extends plugin {
       }
 
       const port = serverPort()
-      const status = await waitStatus(port)
+      // ⚠️ 探的必须是**控制面独有**的接口：/api/status 两个面都有，拿它当健康检查
+      //    会在「配置指向播放面」时假阳性通过（见 probeControlPort 的注释）
+      const status = await waitControlPort(port)
       if (!status) {
         const logs = pm2(['logs', PROC_NAME, '--lines', '15', '--nostream'], { timeout: 20000 })
-        logger.error(`[${PluginName}] 观战服务起了但状态接口不通：${logs.out || logs.err}`)
-        throw new Error('进程起了但状态接口没通，日志在 pm2 里，先发 #营地观战服务 看看')
+        logger.error(`[${PluginName}] 观战服务起了但控制面接口不通：${logs.out || logs.err}`)
+        throw new Error('进程起了但控制面接口没通，日志在 pm2 里，先发 #营地观战服务 看看')
       }
 
       resetPm2Cache()
@@ -403,6 +470,15 @@ export class WatchDeploy extends plugin {
         lines.push('', '代码本来就是最新的，只重启了一遍。')
       }
 
+      // ⚠️ 纠正过配置就得说出来：不然用户下次看到地址变了会以为是错的
+      if (healed.migrated) {
+        lines.push(
+          '',
+          `⚠️ 顺手把「观战服务地址」从 ${healed.from} 改成了 ${healed.to}`,
+          '（原来那个填的是播放面端口，插件指挥不动它 —— 之前会表现为「拿不到好友列表」）'
+        )
+      }
+
       if (!status.ffmpeg) {
         lines.push('', '⚠️ 这台机器上没找到 ffmpeg，取流会失败。装好之后发一次 #营地观战部署')
       }
@@ -420,10 +496,18 @@ export class WatchDeploy extends plugin {
   /* -------------------------------------------------------- 状态 */
 
   async status (e) {
+    // ⭐ 查状态先顺手纠一次配置：用户遇到「拿不到好友列表」时第一反应就是发这条，
+    //    自愈要发生在**他看到「运行中」之前**，否则面板一切正常、他却什么都干不了。
+    const healed = await healApiUrl()
     const proc = pm2Proc(PROC_NAME)
     const port = serverPort()
     const launcher = launcherInfo()
     const lines = ['🛰 营地观战服务']
+    if (healed.migrated) {
+      lines.push(
+        `⚠️ 服务地址已从 ${healed.from} 纠正为 ${healed.to}（原来填的是播放面，指挥不动）`
+      )
+    }
 
     if (!proc) {
       // 本插件管的进程里没有，但旧进程可能还在系统 pm2 上跑着 —— 说清楚怎么切
@@ -456,9 +540,14 @@ export class WatchDeploy extends plugin {
     const restarts = Number(proc.pm2_env?.restart_time || 0)
     if (restarts > 0) lines.push(`重启次数：${restarts}${restarts > 5 ? '（有点多，看看 pm2 日志）' : ''}`)
 
-    const status = await probeStatus(port)
+    // ⚠️ 探控制面独有接口（/api/rooms），别用 /api/status —— 那个在播放面上也通，
+    //    配置指错面时会假阳性通过，面板显示「运行中」可实际指挥不动（2026-10-05 修）
+    const status = await probeControlPort(port)
     if (!status) {
-      lines.push('状态接口：没响应（进程在但连不上，日志在 pm2 里）')
+      const byStatus = await probeStatus(port)
+      lines.push(byStatus
+        ? `状态接口：${port} 端口上有服务，但它**不接控制接口**（多半是播放面端口）—— 服务地址要填控制面（默认 ${DEFAULT_PORT}）`
+        : '状态接口：没响应（进程在但连不上，日志在 pm2 里）')
       return e.reply(lines.join('\n'), shouldQuote())
     }
 

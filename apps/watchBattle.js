@@ -54,13 +54,32 @@ function rememberPending (e, payload) {
   }
 }
 
-function takePending (e) {
+function takePending (e, { keep = false } = {}) {
   const k = pendingKey(e)
   const v = pendingReplace.get(k)
   if (!v) return null
-  pendingReplace.delete(k)
-  if (Date.now() - (v.at || 0) > PENDING_TTL_MS) return null
+  /**
+   * ⚠️⚠️ `keep: true` = 「先别删，等我用完再说」（2026-10-05 修）。
+   *
+   * 原来是**取出即删**（`delete` 无条件执行），于是「确认中断」这条路一旦失败 ——
+   * 服务端抽风、超时、或者那一路刚好自己结束了 —— 待确认请求就**没了**：
+   * 用户再发一次「确认中断」只会得到「没有等你确认的开播」，得从头 `#营地观战`
+   * 重新选一遍人。而这一步本来就是「上个请求没成功，我想再试一次」。
+   *
+   * 所以：确认失败时不删（`keep`），只有**明确放弃**（继续等/算了/取消）
+   * 或者成功开播之后才清掉。TTL 照旧兜底，不会永久留着。
+   */
+  if (!keep) pendingReplace.delete(k)
+  if (Date.now() - (v.at || 0) > PENDING_TTL_MS) {
+    pendingReplace.delete(k)
+    return null
+  }
   return v
+}
+
+/** 明确放弃待确认请求（用户说「算了」「继续等」时调） */
+function dropPending (e) {
+  pendingReplace.delete(pendingKey(e))
 }
 
 /** 一次开几路。10 是主人的定数（营地池子每次也正好给 10 场） */
@@ -238,11 +257,17 @@ export class WatchBattle extends plugin {
   async watch (e) {
     const arg = stripAtText(e.msg).replace(/^#(?:营地)?观战\s*/, '').trim()
     // 不归本文件管的词，一律放行给别的 rule，别掉进下面的序号解析里报一句「编号不对」：
-    //   · 部署 / 服务 —— apps/watchDeploy.js 的运维指令
+    //   · 部署 / 服务 / 接入 / 连接 —— apps/watchDeploy.js 的运维指令
     //   · 帮助 —— apps/help.js 的 `#营地观战帮助`（子帮助入口）
     // 那两个插件 priority 都是 -1、正常情况抢在前面就拦下了；这里再放行一次是兜底，
     // 万一 priority 语义变了也不会出洋相。`return false` = 不拦截，继续交给后面的 rule
-    if (/^(部署|服务|帮助)$/.test(arg)) return false
+    // ⚠️ 「接入」「连接」**必须在名单里**（2026-10-05 修）：它们各自后面跟着地址/令牌，
+    //    掉进下面会先被 `#(?:营地)?观战\s*(.*)$` 匹配到、arg 变成「接入 http://…」，
+    //    然后落到序号解析里回一句「用法：#营地观战 编号」—— 完全驴唇不对马嘴。
+    // ⚠️ 判据是**前缀**而不是整串相等：`#营地观战接入 <地址> <令牌>` 走到这里时
+    //    arg 已经是 `接入 http://… 令牌`（指令头被上面 replace 掉了），
+    //    写 `^接入$` 永远匹配不上 —— 这正是原来漏掉这两条的原因。
+    if (/^(部署|服务|帮助|接入|连接)(\s|$)/.test(arg)) return false
     // ⚠️「停」「列表」「在播」放在最前判：别让它们掉进序号解析里去。
     // 停止不需要登录态：看的那一路可能是别人开的，谁在看谁就能收自己这一路。
     if (/^(停|停止|关|关闭|stop)$/i.test(arg)) return this.stopMine(e)
@@ -415,6 +440,8 @@ export class WatchBattle extends plugin {
    *
    * @param {object} body `/api/start` 的请求体（不含 owner）
    * @param {object} opts `label` 显示名、`replace` 是否已确认中断、`canWatch` 这一路现在有没有空闲账号
+   * @returns {Promise<boolean>} **真开起来了**返回 true（供 `confirmReplace` 决定要不要清待确认请求）。
+   *   ⚠️ 别改成返回 `e.reply` 的返回值 —— 那是消息段对象，恒为真，失败也会被当成成功。
    */
   async launch (e, body, { label = '', replace = false, canWatch } = {}) {
     const payload = { ...body, owner: String(e.user_id || '') }
@@ -438,14 +465,19 @@ export class WatchBattle extends plugin {
       })
     } catch (error) {
       logger.error(`[营地观战] 开播失败: ${error.message}`)
-      return e.reply(this.serviceDownText(error), shouldQuote())
+      await e.reply(this.serviceDownText(error), shouldQuote())
+      return false
     }
 
     if (!res?.ok) {
       // 账号都占着 → 问一句要不要中断上一路（只有一个登录态时这是唯一的办法）
-      if (res?.code === 'no-account') return this.askReplace(e, payload, res, label)
+      if (res?.code === 'no-account') {
+        await this.askReplace(e, payload, res, label)
+        return false
+      }
       // 其余失败：服务端已经把人话原因带回来了（「这个人现在不能被观战」之类），原样转达
-      return e.reply(`${res?.error || '这局取不到画面'}\n重发 #营地观战 换一个试试`, shouldQuote())
+      await e.reply(`${res?.error || '这局取不到画面'}\n重发 #营地观战 换一个试试`, shouldQuote())
+      return false
     }
 
     // ⭐ 每一路一个**独立网址**（带房间号），两个人可以同时看不同的对局
@@ -456,7 +488,8 @@ export class WatchBattle extends plugin {
     //    （原先没管 reused，用户看到「正在开播…稍等」其实是别人开的那一路，
     //      而且没有 pending 字段、连那句「最长等 1 分钟」都没有 —— 就是这个原因。）
     if (res.reused) {
-      return e.reply(`这一局已经有人在播了，直接看这一路\n${links}`, shouldQuote())
+      await e.reply(`这一局已经有人在播了，直接看这一路\n${links}`, shouldQuote())
+      return true
     }
     await e.reply(
       // ⚠️ 别报「开局约 2 分钟」这种假数 —— 后台只知道「这一刻还没拿到画面」，
@@ -465,6 +498,7 @@ export class WatchBattle extends plugin {
       res.pending ? `${links}\n画面马上就来，最长等 1 分钟左右` : links,
       shouldQuote()
     )
+    return true
   }
 
   /**
@@ -495,15 +529,21 @@ export class WatchBattle extends plugin {
 
   /** 确认/放弃「中断上一路」 */
   async confirmReplace (e, arg) {
-    const pend = takePending(e)
+    // ⚠️ 先**取但不删**（keep）：确认之后要真去开播，失败时得留着让用户能再试一次。
+    //    只有「明确放弃」或者「开播真的成功了」才清 —— 见 takePending 的注释。
+    const pend = takePending(e, { keep: true })
     if (!pend) {
       return e.reply('没有等你确认的开播\n直接发 #营地观战 编号 就行', shouldQuote())
     }
     if (!/^(确认中断|确认)$/.test(arg)) {
+      dropPending(e)   // 用户明确说不要了，这条待确认请求用完就丢
       return e.reply('好，那就不动现在这一路\n发 #营地观战 在播 可以看正在播的', shouldQuote())
     }
     await e.reply(`正在中断上一路、改播「${pend.label || '新的一路'}」…`, shouldQuote())
-    return this.launch(e, pend.payload, { label: pend.label, replace: true })
+    const ok = await this.launch(e, pend.payload, { label: pend.label, replace: true })
+    // 成功了才清；失败（launch 内部已把原因回给用户）保留着，重发「确认中断」能再来一次
+    if (ok) dropPending(e)
+    return ok
   }
 
   /**
@@ -846,8 +886,12 @@ export class WatchBattle extends plugin {
     const hint = /abort|timeout/i.test(error?.message || '')
       ? '观战服务没响应'
       : '观战服务没在跑'
-    return `${hint}\n用别人部署好的：请主人发 #营地观战连接 <地址>（地址找部署方要）；` +
-      '自己装一套：进群 972915804 找主人要部署地址和令牌，请主人发 #营地观战接入 <地址> <令牌>'
+    // ⚠️ 连远端那条路要的是对方的**控制面**地址，而控制面默认只绑对方本机回环 ——
+    //    所以文案里得说清「要对方专门开出来」，不然群友会以为随手填个地址就行
+    //    （2026-10-05 修：原来只说「地址找部署方要」，拿到播放面地址就是死局）
+    return `${hint}\n自己装一套：进群 972915804 找主人要部署地址和令牌，` +
+      '请主人发 #营地观战接入 <地址> <令牌>；' +
+      '用别人跑着的：要对方把**控制面**开出来，再请主人发 #营地观战连接 <控制面地址>'
   }
 
   async shot (view) {
