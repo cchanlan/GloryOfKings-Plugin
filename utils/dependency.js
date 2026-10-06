@@ -101,6 +101,56 @@ function npmEnv (cfg) {
   }
 }
 
+/**
+ * 扫一个目录找 ffmpeg，只往下钻**一层**（认 `<dir>/ffmpeg.exe` 和
+ * `<dir>/bin/ffmpeg.exe` 两种布局）。
+ *
+ * ⚠️⚠️ **为什么必须扫目录**（2026-10-06 修）：用户在 Windows 上「把 ffmpeg 解压到
+ *    某个盘」是最常见的装法 —— 实测主人这台就在 `F:\ffmpeg\bin`，而候选表原先只有
+ *    三个 C 盘的固定落点，于是这里找不到、服务端 `lib/ffmpeg.js` 也找不到、
+ *    `GOK_FFMPEG` 还是空串，部署完报「这台机器上没找到 ffmpeg」。可终端里
+ *    `ffmpeg -version` 明明跑得通 —— 因为那是**新开的**进程拿到了新 PATH，而云崽
+ *    进程的 PATH 停在它启动那一刻（同一个坑见 utils/pm2.js 文件头）。
+ *    所以 PATH 查不到时必须再摸一遍常见安装目录。
+ *
+ * 只钻一层、候选目录十来个，`readdirSync` 的开销可以忽略；不做全盘递归，
+ * 那会在部署路径上卡住。
+ *
+ * @param {string} dir 要扫的目录
+ * @param {string[]} names 认哪些文件名
+ * @returns {string[]} 命中的绝对路径（目录不存在 / 没权限返回空数组）
+ */
+function scanDirFor (dir, names) {
+  if (!dir) return []
+  const hits = []
+  let entries
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return hits // 目录不存在或没权限：都是正常情况，跳过
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name)
+    if (entry.isFile() && names.includes(entry.name)) {
+      hits.push(full)
+    } else if (entry.isDirectory()) {
+      try {
+        for (const sub of fs.readdirSync(full, { withFileTypes: true })) {
+          if (sub.isFile() && names.includes(sub.name)) hits.push(path.join(full, sub.name))
+        }
+      } catch {}
+    }
+  }
+  return hits
+}
+
+/** Windows 上可能放着 ffmpeg 的根目录（手解压常见的几个盘） */
+function winRoots () {
+  const out = []
+  for (const letter of 'CDEFG') out.push(`${letter}:\\`)
+  return out
+}
+
 function ffmpegCandidates () {
   const exe = IS_WIN ? 'ffmpeg.exe' : 'ffmpeg'
   const out = [process.env.GOK_FFMPEG, exe]
@@ -108,19 +158,75 @@ function ffmpegCandidates () {
     const pf = process.env.ProgramFiles || 'C:\\Program Files'
     const la = process.env.LOCALAPPDATA || ''
     out.push(path.join(pf, 'ffmpeg', 'bin', exe), la && path.join(la, 'Microsoft', 'WinGet', 'Links', exe), 'C:\\ffmpeg\\bin\\ffmpeg.exe')
+
+    // ⭐ 手解压落点：靠扫目录猜，而不是把盘符一个个写死
+    for (const root of winRoots()) {
+      out.push(...scanDirFor(path.join(root, 'ffmpeg'), [exe]))
+      out.push(...scanDirFor(root, [exe]))
+    }
+    // winget 实际解压出来的位置（Links 目录可能还没建/没进 PATH）
+    if (la) out.push(...scanDirFor(path.join(la, 'Microsoft', 'WinGet', 'Packages'), [exe]))
+    // scoop / chocolatey 的落点
+    const up = process.env.USERPROFILE || ''
+    if (up) {
+      out.push(...scanDirFor(path.join(up, 'scoop', 'shims'), [exe]))
+      out.push(...scanDirFor(path.join(up, 'scoop', 'apps'), [exe]))
+    }
+    out.push('C:\\ProgramData\\chocolatey\\bin\\ffmpeg.exe')
+    out.push(...scanDirFor('C:\\ProgramData\\chocolatey\\bin', [exe]))
   } else {
     out.push('/usr/local/bin/ffmpeg', '/usr/bin/ffmpeg', '/opt/homebrew/bin/ffmpeg', '/snap/bin/ffmpeg', '/opt/local/bin/ffmpeg')
-    if (process.env.HOME) out.push(path.join(process.env.HOME, '.local', 'bin', exe))
+    if (process.env.HOME) {
+      out.push(path.join(process.env.HOME, '.local', 'bin', exe))
+      out.push(...scanDirFor(path.join(process.env.HOME, 'ffmpeg'), [exe]))
+      out.push(...scanDirFor(path.join(process.env.HOME, 'bin'), [exe]))
+    }
   }
   return [...new Set(out.filter(Boolean))]
 }
 
+/**
+ * 找到能用的 ffmpeg，返回**绝对路径**（找不到返回空串）。
+ *
+ * ⚠️⚠️ **找到之后必须换成绝对路径**（2026-10-06 修）：候选表里第一个命中的往往就是
+ *    裸名 `ffmpeg`（走 PATH）。而它会被当成 `GOK_FFMPEG` 注入给**服务端进程**，
+ *    再看服务端那边的 PATH —— 两边的 PATH 根本不一定一样（服务端从 pm2 的 dump
+ *    复活时用的是**当年存下来的** PATH，云崽后来新装的路径它看不见）。于是插件侧
+ *    `findFfmpeg()` 明明成功了（回的就是 `ffmpeg`），部署照样报「这台机器上没找到
+ *    ffmpeg」，而且报得理直气壮。实测主人这台就是：终端里 `ffmpeg -version` 通、
+ *    `GOK_FFMPEG=ffmpeg` 也确实注进去了，服务端还是找不到。
+ *    换成绝对路径之后，服务端的 PATH 是什么样都不影响。
+ */
 async function findFfmpeg () {
   for (const bin of ffmpegCandidates()) {
     if ((bin.includes('/') || bin.includes('\\')) && !fs.existsSync(bin)) continue
-    if ((await run(bin, ['-version'], { timeout: 8000 })).ok) return bin
+    if ((await run(bin, ['-version'], { timeout: 8000 })).ok) return absoluteFfmpeg(bin)
   }
   return ''
+}
+
+/**
+ * 把裸名/相对路径的 ffmpeg 解析成绝对路径；已经是绝对路径就直接返回。
+ *
+ * 解析手段**不依赖「新开一个进程」**：`where` / `which` 都是外部命令，
+ * 在 PATH 停摆的环境里同样查不到（那正是我们要绕开的问题）。所以自己按
+ * `process.env.PATH` 逐目录拼过去看文件在不在 —— 用的是**云崽进程自己**的 PATH，
+ * 也就是刚才 `run()` 验证成功的那一份，两者必然自洽。
+ */
+function absoluteFfmpeg (bin) {
+  if (path.isAbsolute(bin)) return bin
+  const exe = IS_WIN ? 'ffmpeg.exe' : 'ffmpeg'
+  const dirs = String(process.env.PATH || process.env.Path || '').split(path.delimiter)
+  for (const dir of dirs) {
+    if (!dir) continue
+    // Windows 上 PATH 里可能是不带引号的含空格路径，拼之前先去掉包着的引号
+    const clean = dir.replace(/^"(.*)"$/, '$1')
+    const full = path.join(clean, exe)
+    try {
+      if (fs.existsSync(full)) return full
+    } catch {}
+  }
+  return bin // 实在解析不出来就用原值，别把已经能跑的东西弄坏
 }
 
 async function privilege () {

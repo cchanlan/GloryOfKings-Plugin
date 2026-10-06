@@ -38,6 +38,7 @@ import {
 } from '../utils/deploy.js'
 import { ensureDependencies } from '../utils/dependency.js'
 import { probeRemoteStatus, reportRemoteAccounts } from '../utils/remoteAccounts.js'
+import { fillDefaultShareUrl, migrateLegacyShareToken } from '../utils/shareDefaults.js'
 
 /** 云崽根目录（插件住在 `<根>/plugins/<名字>`，往上两级）—— 只为把路径显示得短一点 */
 const YunzaiRoot = path.resolve(PluginPath, '../..')
@@ -209,6 +210,10 @@ export class CampImDeploy extends plugin {
 
     Config.modify('config', 'distUrl', url)
     Config.modify('config', 'distToken', token)
+    // ⭐ 同 apps/watchDeploy.js：令牌三套共用，接入即补上共享库地址，
+    //    并把老配置里的 `shareToken` 搬进面板认的 `distToken`
+    fillDefaultShareUrl()
+    migrateLegacyShareToken()
     logger.mark(`[${PluginName}] 已接入分发服务：${url}`)
 
     return this.deploy(e, { adopted: true })

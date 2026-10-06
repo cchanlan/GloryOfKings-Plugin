@@ -8,6 +8,8 @@ import authStore from './utils/authStore.js'
 import { getAccountSwitches, setAccountEnabled, invalidate, pruneAccounts } from './utils/campImStore.js'
 import { ownerOf } from './utils/campImPush.js'
 import { listMasterQQ } from './utils/masterMsg.js'
+// 锅巴面板打开时，把「接入那一刻写进配置、但面板还显示为空」的那几格补齐
+import { fillDefaultShareUrl, migrateLegacyShareToken } from './utils/shareDefaults.js'
 
 /**
  * 出给锅巴面板前要脱敏的账号字段。InputPassword 组件只遮前端输入框的显示，
@@ -364,7 +366,8 @@ export function supportGuoba () {
           label: '共享库地址',
           bottomHelpMessage:
             '共享库服务端的地址，要带 http:// 或 https://。留空 = 不接入。' +
-            '等价指令：#营地共享库地址 <地址>。',
+            '等价指令：#营地共享库地址 <地址>。' +
+            '⚠️ 这格留空但上面「分发服务地址」填好了的话，打开本页会自动补上默认地址。',
           component: 'Input',
           componentProps: {
             placeholder: 'https://your-share.example.com'
@@ -1010,6 +1013,20 @@ export function supportGuoba () {
         }
       ],
       getConfigData () {
+        // ⭐ 打开面板时先把手填的那几格补齐（2026-10-06 修）。
+        //
+        // ⚠️⚠️ 为什么非得在**读**的时候自愈：`#营地观战接入 <地址> <令牌>` /
+        //    `#营地消息接入 …` 落盘的是 `distUrl` / `distToken`，而这一页上
+        //    「共享库地址」（`shareApiUrl`）和「接入令牌」（`distToken`）是**另外两格** ——
+        //    用户接完观战回面板一看，令牌那格空的、共享库地址也是空的，只能再找主人
+        //    问一遍地址。令牌本来就三套共用（主人代共享库签的），地址也有模板默认值，
+        //    这两格不该留白。
+        //    放在读侧而不是只放在接入侧，是因为**升级上来的老用户不会重发接入指令**：
+        //    他们的 `shareToken` 里躺着值，而面板认的是 `distToken`，只能靠这里补。
+        //    两个函数都只在目标键**为空**时才写，用户填过的值一律不动。
+        fillDefaultShareUrl()
+        migrateLegacyShareToken()
+
         const { accounts } = getAuthPoolSnapshot()
         const campIm = getCampImSnapshot()
 

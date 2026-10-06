@@ -35,6 +35,7 @@ import {
 } from '../utils/deploy.js'
 import { ensureDependencies } from '../utils/dependency.js'
 import { probeRemoteStatus, probeControl, reportRemoteAccounts } from '../utils/remoteAccounts.js'
+import { fillDefaultShareUrl, migrateLegacyShareToken } from '../utils/shareDefaults.js'
 
 /** 云崽根目录（插件住在 `<根>/plugins/<名字>`，往上两级）—— 只为把路径显示得短一点 */
 const YunzaiRoot = path.resolve(PluginPath, '../..')
@@ -264,6 +265,11 @@ export class WatchDeploy extends plugin {
 
     Config.modify('config', 'distUrl', url)
     Config.modify('config', 'distToken', token)
+    // ⭐ 令牌是主人**代共享库签**的（观战 / 消息 / 共享库三套共用一个），所以接入这一刻
+    //    共享库其实已经能用了，只差锅巴那格地址 —— 顺手补上，用户打开面板就是齐的。
+    //    老配置的令牌可能还躺在 `shareToken` 里（合并前写的那个字段，面板不认），一并搬过来。
+    fillDefaultShareUrl()
+    migrateLegacyShareToken()
     logger.mark(`[${PluginName}] 已接入分发服务：${url}`)
 
     // 落盘成功 → 直接接着部署，群友不用再发一条
