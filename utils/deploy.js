@@ -498,16 +498,35 @@ export async function probeStatus (port, statusPath = '/api/status', timeout = 2
 }
 
 /**
- * 探「这个端口上是不是**控制面**」。
+ * 探「这个端口上是不是**控制面**」，并把完整状态一起带回来。
  *
  * ⚠️⚠️ 为什么不能用 `probeStatus`（2026-10-05 修）：那个探的是 `/api/status`，
  *    而控制面（8898）和播放面（8899）**都有**这个接口 —— 拿它当健康检查，
  *    用户在配置里填了播放面端口时照样一路绿灯，可 `/api/friends` `/api/start`
  *    全是 404：「#营地观战服务」显示运行中、发指令却说拿不到好友列表，无从下手。
  *    这里改探**控制面独有**的 `/api/rooms`（只读、零营地请求），它通才叫「指挥得动」。
+ *
+ * ⚠️⚠️ **但 `/api/rooms` 的返回体很小**（只有 `ok` / `rooms` / `watchers` / `free`），
+ *    2026-10-05 换探针时把取数也一起换掉了，于是面板上 `status.ffmpeg` 和
+ *    `status.accounts` 全是 `undefined` —— 部署完明明服务端日志写着
+ *    `ffmpeg  /usr/local/bin/ffmpeg`，群里却报「这台机器上没找到 ffmpeg」（2026-10-06 修）。
+ *    `?:` 和 `?? 0` 这两个兜底把「字段不存在」和「真的是 0/false」抹成了同一个样子，
+ *    所以错的不是判断表达式，是**取数的来源**。
+ *
+ *    现在：`/api/rooms` 只当**可用性判据**，拿到之后**再问一次 `/api/status`**
+ *    取那份完整状态（`ffmpeg` / `accounts` 都在里面）。多一次本机回环请求，
+ *    换 `ffmpeg`、`accounts`、`recording` 这些字段不再丢。
+ *
+ * @returns {Promise<object|null>} 控制面可用时返回合并后的状态；不可用返回 null
  */
 export async function probeControlPort (port, timeout = 2500) {
-  return probeStatus(port, '/api/rooms', timeout)
+  const control = await probeStatus(port, '/api/rooms', timeout)
+  if (!control?.ok) return null
+  // `/api/rooms` 通了 = 这确实是控制面。完整状态去 `/api/status` 拿
+  const full = await probeStatus(port, '/api/status', timeout)
+  // 拿不到完整状态（极罕见：刚好在这一瞬重启）时退回 rooms 的结果，
+  // 至少 `free` 是对的，别把整个探测判成失败
+  return full?.ok ? { ...control, ...full } : control
 }
 
 /** 等控制面起来（pm2 拉起到真正监听之间有几百毫秒的空窗） */

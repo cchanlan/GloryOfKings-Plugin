@@ -520,7 +520,10 @@ export class WatchDeploy extends plugin {
         )
       }
 
-      if (!status.ffmpeg) {
+      // ⚠️ 只在**明确拿到 false** 时才提示 —— `!status.ffmpeg` 会把
+      //    「服务端没回这个字段」（undefined）也当成没找到，就是 2026-10-06
+      //    那次误报（见 status() 里的同一处注释）
+      if (status.ffmpeg === false) {
         lines.push('', '⚠️ 这台机器上没找到 ffmpeg，取流会失败。装好之后发一次 #营地观战部署')
       }
 
@@ -592,7 +595,15 @@ export class WatchDeploy extends plugin {
       return e.reply(lines.join('\n'), shouldQuote())
     }
 
-    lines.push(`ffmpeg：${status.ffmpeg ? '就绪' : '没找到（装好再发 #营地观战部署）'}`)
+    // ⚠️⚠️ `ffmpeg` / `accounts` 来自 `/api/status`，**不是** `/api/rooms`
+    //    （后者只有 4 个字段）。probeControlPort 现在会把两份合并起来返回，
+    //    所以这里有值。但字段真缺失时要说「查不到」而不是「没找到」——
+    //    2026-10-06 那次误报（面板说没找到 ffmpeg、服务端日志明明写着找到了）
+    //    就是取数来源不对 + `?:` 兜底把「字段不存在」冒充成「真的没有」。
+    const hasFfmpegField = typeof status.ffmpeg === 'boolean'
+    lines.push(`ffmpeg：${hasFfmpegField
+      ? (status.ffmpeg ? '就绪' : '没找到（装好再发 #营地观战部署）')
+      : '查不到（服务端没回这个字段，可能版本较旧）'}`)
     lines.push(`账号：${status.accounts ?? 0} 个，还能开 ${status.free ?? 0} 路`)
     lines.push(`在播：${(status.rooms || []).length} 路${status.recording ? '（有在录）' : ''}`)
 
