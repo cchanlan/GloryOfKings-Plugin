@@ -45,6 +45,9 @@
     .who-meta .dur { color: rgba(245,215,110,0.75); }
     .who-meta .rank { color: rgba(255,255,255,0.55); }
     .who-meta .ended-tag { color: #6fd39b; }
+    /* 「数据较旧」：这条是盘上的旧快照，不是刚刷到的（见 apps/whoIsPlaying.js 的 STALE_MS）。
+       文案回落（:549/:565/:574）一直有这个标记，图上原来漏了 —— 注释三处都写着「图上会带」 */
+    .who-meta .stale-tag { color: rgba(245,180,110,0.85); }
     .who-state {
       font-size: 13px;
       padding: 3px 11px;
@@ -145,6 +148,7 @@
           <div class="who-meta">
             {{if row.gamingFor}}<span class="dur">已打 {{row.gamingFor}}</span>{{/if}}
             {{if row.rankText}}<span class="rank">{{row.rankText}}</span>{{/if}}
+            {{if row.stale}}<span class="stale-tag">{{row.staleAgo}}的数据</span>{{/if}}
           </div>
         </div>
         {{if row.heroName}}
@@ -206,6 +210,7 @@
           <div class="who-name">{{row.name}}</div>
           <div class="who-meta">
             {{if row.rankText}}<span class="rank">{{row.rankText}}</span>{{/if}}
+            {{if row.stale}}<span class="stale-tag">{{row.staleAgo}}</span>{{/if}}
           </div>
         </div>
         <span class="who-state lobby">大厅中</span>
@@ -230,6 +235,7 @@
           <div class="who-meta">
             {{if row.onlineFor}}<span class="dur">在线 {{row.onlineFor}}</span>{{/if}}
             {{if row.rankText}}<span class="rank">{{row.rankText}}</span>{{/if}}
+            {{if row.stale}}<span class="stale-tag">{{row.staleAgo}}</span>{{/if}}
           </div>
         </div>
         <span class="who-state on">{{row.stateText}}</span>

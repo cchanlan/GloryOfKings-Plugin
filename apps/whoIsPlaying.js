@@ -487,6 +487,11 @@ function buildRow (qq, sub, heroMap, now) {
     idleInGame,
     seenAt,
     stale: seenAt > 0 && now - seenAt > STALE_MS,
+    // 图上「数据较旧」标记要的相对时间。模板里没法算（agoText 在 JS 侧），
+    // 所以在这里算好带上；文案回落（renderText）用的是同一个函数、同一份结果。
+    // ⚠️ 原来只有 `stale` 没有这个字段，而模板从头到尾没渲染过 stale ——
+    //    注释三处写着「图上会带标记」，实际图上一直什么都没有（2026-10-06 修）。
+    staleAgo: seenAt > 0 && now - seenAt > STALE_MS ? agoText(seenAt, now) : '',
     // 新增展示字段：对局/在线时长、段位、刚打完
     gamingFor,
     onlineFor,
