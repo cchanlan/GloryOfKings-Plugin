@@ -434,7 +434,7 @@ export function supportGuoba () {
         {
           field: 'config.watchApiUrl',
           label: '观战服务地址',
-          bottomHelpMessage: '观战要另跑一个后端进程（负责取直播流、录像），插件通过这个地址指挥它。填的是**控制面**端口（默认 8898，只绑本机回环）；公网的 8899 播放面不受理开播/停止/名单。自己部署：先接入分发服务（见上面「服务端接入」），再发 #营地观战部署；用别人部署好的：发 #营地观战连接 <对方的控制面地址>（控制面只绑对方本机回环，需要对方专门开出来，否则自己装一套）。换地址改这里也行，不用重启云崽。',
+          bottomHelpMessage: '观战要另跑一个后端进程（负责取直播流、录像），插件通过这个地址指挥它。默认 `http://127.0.0.1:8899` —— 2026-10-06 起服务端在单端口模式下，公网 8899 同时受理开播/停止/好友名单（另保留 127.0.0.1:8898 本机备用）。自己部署：先接入分发服务，再发 #营地观战部署；用别人部署好的：发 #营地观战连接 <对方那个公网地址>（通常就是 8899 那个）。换地址改这里也行，不用重启云崽。',
           component: 'Input',
           componentProps: {
             placeholder: '默认 http://127.0.0.1:8898'
@@ -443,7 +443,7 @@ export function supportGuoba () {
         {
           field: 'config.watchPublicUrl',
           label: '直播间对外地址',
-          bottomHelpMessage: '填写群友能访问的地址（域名或公网 IP）和端口，如 http://abc.com:8899，并放行防火墙/安全组对应端口。使用 https 时先配置 HTTPS 反向代理；需要 CDN 直连时，再配置下方「观战 CDN（https）」。',
+          bottomHelpMessage: '填写群友能访问的地址（域名或公网 IP）和端口，如 http://abc.com:8899，并放行防火墙/安全组对应端口。这个地址就是观战服务的地址（单端口模式下两者是同一扇窗）。使用 https 时先配置 HTTPS 反向代理；需要 CDN 直连时，再配置下方「观战 CDN（https）」。',
           component: 'Input',
           componentProps: {
             placeholder: '留空 = 用上面的地址'

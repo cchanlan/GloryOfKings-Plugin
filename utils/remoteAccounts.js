@@ -91,14 +91,16 @@ export async function probeControl (base, { timeout = 8000 } = {}) {
   }
 
   // ② 退一步看它是不是「播放面」——/api/status 在两个面上都有
+  //    2026-10-06 起 SINGLE_PORT 是常态：8899 同时受理 /api/*（能指挥）。
+  //    只有当 /api/rooms 404 而 /api/status 通 时，才说明对方是老版本
+  //    拆端口部署（/api/* 在本机回环），这时候才提示用户。
   const play = await getJson(STATUS_PATH)
   if (play.data?.ok) {
     return {
       ok: false,
       kind: 'playback',
-      message: '这个地址是**播放面**（群友看直播用的那个端口），插件要指挥的是**控制面**' +
-        '（默认 127.0.0.1:8898，只管本机）。要连别人部署的，得让对方把控制面开出来并给你地址；' +
-        '否则就在本机自己部署一套（#营地观战接入）'
+      message: '这个地址是**播放面**（只能看直播，指挥接口没放开），对方的服务端是老版本拆端口形态。' +
+        '让那台机器的主人发一次 #营地观战部署 更新到最新版，本插件已支持单端口（8899 全量受理）。'
     }
   }
 

@@ -114,7 +114,7 @@ function cfg () {
  *    连**别人部署的**服务时这个地址指对方机器，照旧走 watchApiUrl。
  */
 function apiBase () {
-  return String(cfg().watchApiUrl || 'http://127.0.0.1:8898').replace(/\/+$/, '')
+  return String(cfg().watchApiUrl || 'http://127.0.0.1:8899').replace(/\/+$/, '')
 }
 
 /**

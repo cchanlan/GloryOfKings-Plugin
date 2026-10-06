@@ -48,34 +48,34 @@ const ENTRY_FILE = path.join(SERVER_DIR, 'watch-server.js')
 const PKG_NAME = 'watch'
 
 const PROC_NAME = 'gok-watch'
-/** 配置里抠不到端口时的回退：服务地址指的是**控制面**（8898），公网播放面（8899）插件不直接用 */
-const DEFAULT_PORT = 8898
-/** 播放面端口（公网那个）。服务端默认 8899，可用 GOK_WATCH_PORT 覆盖 */
+/**
+ * 配置里抠不到端口时的回退。默认 8899 —— 2026-10-06 起服务端在
+ * SINGLE_PORT 模式下**播放面也受理 /api/***`、`#营地观战连接 指 8899` 就能用，
+ * 不再区分播放面/控制面。控制面 8898 仍在监听（本机回环，备用），
+ * 老配置里写着 8898 的也能继续用（healApiUrl 不会反向纠正）。
+ */
+const DEFAULT_PORT = 8899
+/** 播放面端口的历史常量。SINGLE_PORT 起插件就指这个，不再需要单独区分 */
 const PLAYBACK_PORT = 8899
 
 /**
- * 起服务端时注入的环境变量。
+ * 起服务端时注入的环境变量（2026-10-06 主人拍板）。
  *
- * ⚠️ **控制面端口必须跟着配置一起注入**（2026-10-06 修）：
- *    插件按 `watchApiUrl` 里的端口去探健康检查（`serverPort()` → `waitControlPort`），
- *    而服务端的控制面端口来自 `GOK_WATCH_CTRL_PORT`（默认 8898）。原先这里只注入
- *    `GOK_WATCH_CDN_HTTPS`，于是主人**刻意把控制面开在别的端口**时
- *    （`healApiUrl` 的注释明确承认这是合法场景），配置与运行态就对不上：
- *    插件去探自定义端口 → 必然超时 → 部署报「进程起了但控制面接口没通」，
- *    而进程其实好端端在跑，报错文案还把用户指向错误方向。
+ * **GOK_WATCH_SINGLE_PORT=1 默认开**：播放面（公网 8899）同时受理 /api/*，
+ * 别人 `#营地观战连接 指 8899` 就能用，不用再让对方专门开控制面。
+ * 设了 GOK_WATCH_TOKEN 时播放面仍放行，只是控制面（8898 本机回环）那层要口令。
+ * /rec DELETE 中间档：真控制面永远过；播放面 + 无口令 → 403；播放面 + 有口令 → 过。
  *
- * ⚠️ 排除播放面端口：配置万一还指着播放面（`watchApiUrl` = `…:8899`），
- *    注入它会让控制面**撞上播放面端口起不来** —— 那是引入新故障。
- *    这种配置交给 `healApiUrl()` 掰回 8898，这里保持服务端默认。
+ * ⚠️ 控制面端口**不主动注入**：SINGLE_PORT 开的时候，8898 只在服务端自己机器上听
+ *    回环就够了，不需要对外。如果配置里写了自定义 GOK_WATCH_CTRL_PORT，由用户在
+ *    pm2 里手动注入（罕见场景，不再包办）。
  */
 function watchEnv () {
   const url = String(cfg().watchCdnHttps || '').trim().replace(/\/+$/, '')
-  const env = { GOK_WATCH_CDN_HTTPS: url }
-
-  const port = serverPort()
-  if (port && port !== PLAYBACK_PORT) env.GOK_WATCH_CTRL_PORT = String(port)
-
-  return env
+  return {
+    GOK_WATCH_CDN_HTTPS: url,
+    GOK_WATCH_SINGLE_PORT: '1'
+  }
 }
 
 /**
@@ -140,7 +140,7 @@ function serverPort () {
   const raw = String(cfg().watchApiUrl || '').trim()
   if (raw) {
     try {
-      // 容错：用户可能只写了 `127.0.0.1:8898` 这种没协议的（normalizeBase 会补 http://）
+      // 容错：用户可能只写了 `127.0.0.1:8899` 这种没协议的（normalizeBase 会补 http://）
       const port = Number(new URL(/^[a-z]+:\/\//i.test(raw) ? raw : `http://${raw}`).port)
       if (port >= 1 && port <= 65535) return port
     } catch {}
@@ -149,50 +149,18 @@ function serverPort () {
 }
 
 /**
- * ⭐ **把「指向播放面」的旧配置自动掰回控制面**。
+ * ⭐ **旧「指向播放面」的遗留配置的清理函数**（2026-10-06 弱化）。
  *
- * ⚠️⚠️ 为什么必须有（2026-10-05 修）：服务端这一天把控制面拆到了 `127.0.0.1:8898`，
- *    插件默认值也跟着改了。但**已经落盘的旧配置不会自己变** —— 老用户机器上
- *    `watchApiUrl` 还是 `http://127.0.0.1:8899`（那是播放面）。后果极其隐蔽：
- *      · `#营地观战服务` / `#营地观战部署` 的健康检查探的是 `/api/status`，
- *        而**那个接口在播放面上也通** → 面板显示「运行中」、部署报「成功」
- *      · 可真要用的 `/api/friends` `/api/start` 全是 **404** →「拿不到好友列表」
- *    自检全绿、功能全废，用户根本无从下手。
+ * 现在拆端口的历史包袱已经反过来：SINGLE_PORT 起插件**默认就该指 8899**，
+ * 老配置写着 8898 也能用（控制面仍监听），所以**不再反向纠正**，
+ * 留着这个函数只是为了不炸其它地方的调用 —— 直接返回「不用改」。
  *
- *    判据卡得很死，**宁可漏修也不能误改**（用户可能刻意把控制面开在别的端口）：
- *      ① 必须是**本机回环**地址（远程地址是用户有意填的，动它会把别人的服务顶掉）
- *      ② 当前地址必须**确实指挥不动**（`/api/rooms` 不通）
- *      ③ 而且它**确实是播放面**（`/api/status` 通、`/api/rooms` 不通）——
- *         只是「连不上」不算数：那是服务没起，等它起来就好，不该偷偷换端口
- *      ④ 同机默认控制面（8898）必须**真的能指挥**
- *    四条全中才改。这样「服务没起来 / 用户自定义端口 / 远程地址」都不会被误改。
- *
- * @returns {Promise<{migrated: boolean, from?: string, to?: string}>}
+ * 历史：2026-10-05 服务端拆「播放面 8899 / 控制面 8898」时，
+ *      写死 8899 的旧配置会变成「自检全绿、接口全 404」，于是当时要把它掰回 8898；
+ *      2026-10-06 主人拍板单端口放开后，8899 反而又是正确形态了，掰回去反而是错。
  */
 async function healApiUrl () {
-  const cur = normalizeBase(cfg().watchApiUrl || '')
-  // 空配置交给默认值，不用管
-  if (!cur) return { migrated: false }
-  // ① 只修**本机回环**地址
-  if (!/^https?:\/\/(127\.0\.0\.1|localhost|\[::1\]|::1)(:|\/|$)/i.test(cur)) return { migrated: false }
-  const guess = `http://127.0.0.1:${DEFAULT_PORT}`
-  if (cur === guess) return { migrated: false }
-
-  // ② 当前地址真能指挥吗？能就不用改
-  const probe = await probeControl(cur, { timeout: 3000 })
-  if (probe.ok) return { migrated: false }
-  // ③ 必须**明确是播放面**才动手：`/api/status` 通说明那端口上真有我们的服务，
-  //    只是接口对不上（典型就是播放面）。连不上（kind 仍是 unknown 且非 404）
-  //    说明只是服务没起 —— 那种情况换端口是瞎猜，等它起来就行。
-  if (probe.kind !== 'playback') return { migrated: false }
-
-  // ④ 同机默认控制面得真的能指挥
-  const target = await probeControl(guess, { timeout: 3000 })
-  if (!target.ok) return { migrated: false }
-
-  Config.modify('config', 'watchApiUrl', guess)
-  logger.mark(`[${PluginName}] 观战服务地址从 ${cur} 纠正为 ${guess}（原来指的是播放面，指挥不动）`)
-  return { migrated: true, from: cur, to: guess }
+  return { migrated: false }
 }
 
 /** 「对外地址没配」是部署后最常见的坑：本机能开、群友点了是空的 */
@@ -202,7 +170,7 @@ function publicUrlHintLines () {
     '',
     '⚠️ 直播间对外地址还没配 —— 现在发出去的链接只有本机能开，群友点了是白屏。',
     '去锅巴面板把「直播间对外地址」填成外网能访问的（域名或公网 IP + 端口），',
-    `⚠️ 对外地址指的是**播放面**端口（默认 ${PLAYBACK_PORT}），不是服务地址的控制面（${DEFAULT_PORT}）`
+    `⚠️ 填的就是群友发链接能点开的那个端口（默认 ${PLAYBACK_PORT}）`
   ]
 }
 
@@ -289,6 +257,10 @@ export class WatchDeploy extends plugin {
    *    取流、轮询、转码全在对方那台机器上跑（代价是画面要经对方中转，且对方能看到
    *    你的营地账号 —— 只连信得过的部署方）。
    *
+   * ⚠️ 填的就是**群友点链接那个地址**（默认 8899）。2026-10-06 起服务端在
+   *    SINGLE_PORT 模式下 8899 同时受理 /api/*，不再区分播放面/控制面 ——
+   *    不需要对方专门开第二扇窗，也**不要**填对方本机回环的 8898（那个只在他自己机器上）。
+   *
    * ⚠️ 对方的服务端必须能**收下你的账号**：观战取流认的是「加了这个好友的那个号」，
    *    而登录态只在**你这台机器**上（对方的 AuthPool.json 里没有）。
    *    所以这里会把你的全局账号递过去（只进对方内存、**不在对方落盘**）。
@@ -304,27 +276,23 @@ export class WatchDeploy extends plugin {
       return e.reply('地址要以 http:// 或 https:// 开头', shouldQuote())
     }
 
-    // ⚠️⚠️ 探的必须是**控制面**，不能用 probeRemoteStatus（2026-10-05 修）。
-    //    那个探针打 `/api/status`，而它在**播放面上也通** —— 用户填了对方的播放面地址
-    //    （外网唯一能填的那个），探测照样成功 → 报「✅ 已连接」并写进配置，
-    //    可之后每次调用全是 404，等于把用户引进死局（实测复现）。
-    //    probeControl 会去问控制面独有的 `/api/rooms`，探不通还会告诉他「你填的是播放面」。
+    // ⚠️ 为什么不能只看 /api/status：那接口两个面都通，证明不了能不能指挥。
+    //    probeControl 会打 /api/rooms —— 这是指挥接口，对方是 2026-10-06 之后的
+    //    服务端（SINGLE_PORT）或者把控制面开到了这个地址，returns 200 就算能指挥；
+    //    老版本只放行播放页的会拿到 404，明确提示「你填的是播放面（老版本）」。
     const probe = await probeControl(url)
     if (!probe.ok) {
       return e.reply(`${probe.message}\n地址核对一下再发一次`, shouldQuote())
     }
 
     Config.modify('config', 'watchApiUrl', url)
-    // ⚠️ 「直播间对外地址」得跟着指到**播放面**，不是这个控制面地址 ——
-    //    它才是拼给群友点的那个链接（见 watchBattle.js 的 publicBase）。
-    //    控制面只绑对方本机回环，群友点过去必然连不上。
-    //    只有当用户填的这个地址同时也能当播放面用时（例如对方把两个面开在同一入口、
-    //    或他给的就是公网可访问的那个入口）才顺手写上；否则留空让他自己填，
-    //    并在下面明确提示 —— 比无声写一个打不开的地址强。
+    // 2026-10-06 起对端就是 SINGLE_PORT —— 同一个 8899 既是指挥口也是播放口，
+    // 「直播间对外地址」就写这个。如果对方还是老版本拆端口形态，probeRemoteStatus
+    // 探不通 /api/status 时（理论上不会，但兜底）就留空让他自己填。
     const playback = await probeRemoteStatus(url)
     if (playback.ok) Config.modify('config', 'watchPublicUrl', url)
     else Config.modify('config', 'watchPublicUrl', '')
-    logger.mark(`[${PluginName}] 已连接远端观战控制面：${url}`)
+    logger.mark(`[${PluginName}] 已连接远端观战服务：${url}`)
 
     // 把自己的账号递过去：对方池子里还没有它们，不递就是「登录成功却查不到好友」
     const report = await reportRemoteAccounts(url, { force: true })
@@ -340,9 +308,9 @@ export class WatchDeploy extends plugin {
     if (!playback.ok) {
       lines.push(
         '',
-        '⚠️ 还差一步：上面填的是**控制面**地址（只管指挥），群友点链接要用**播放面**地址。',
-        '去锅巴「王者荣耀 → 营地观战」把「直播间对外地址」填成对方外网能访问的那个，',
-        `例如 http://<对方域名或公网IP>:${PLAYBACK_PORT}`
+        '⚠️ 对方的播放页探不通（但指挥接口通的）。',
+        '去锅巴「王者荣耀 → 营地观战」把「直播间对外地址」填成群友能点开的那个，',
+        `通常也是 http://<对方域名或公网IP>:${PLAYBACK_PORT}`
       )
     }
     lines.push('', '看谁在打：发 #营地观战')
@@ -503,7 +471,7 @@ export class WatchDeploy extends plugin {
         `✅ 观战服务${restarting ? '已更新' : '部署好了'}`,
         '',
         `进程：${PROC_NAME}（pm2 托管，开机自启）`,
-        `端口：控制面 127.0.0.1:${port}（公网播放面默认 8899,GOK_WATCH_PORT 可调）`,
+        `端口：默认 8899 公网全量（播放页+开播/好友名单同口），另有 127.0.0.1:8898 本机备用`,
         `账号：${status.accounts ?? 0} 个，还能开 ${status.free ?? 0} 路`
       ]
 
@@ -511,12 +479,12 @@ export class WatchDeploy extends plugin {
         lines.push('', '代码本来就是最新的，只重启了一遍。')
       }
 
-      // ⚠️ 纠正过配置就得说出来：不然用户下次看到地址变了会以为是错的
+      // ⚠️ 2026-10-06 起 healApiUrl 永远返回 migrated: false（地址不再反向纠正）；
+      //    留着这段只是为了万一以后又加了纠正逻辑，提示文案也得写出来。
       if (healed.migrated) {
         lines.push(
           '',
-          `⚠️ 顺手把「观战服务地址」从 ${healed.from} 改成了 ${healed.to}`,
-          '（原来那个填的是播放面端口，插件指挥不动它 —— 之前会表现为「拿不到好友列表」）'
+          `⚠️ 顺手把「观战服务地址」从 ${healed.from} 改成了 ${healed.to}`
         )
       }
 
