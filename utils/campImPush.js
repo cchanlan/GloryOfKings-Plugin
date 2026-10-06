@@ -212,7 +212,12 @@ function rememberLastPush (owner, msg) {
     fromRoleId: String(msg.raw?.toRoleId || ''),
     // ⚠️ 名字一定要存：退路取到的可能是**别人的**推送（同一个营地号下不同好友，
     //    或者两个号互相串），光靠 id 认不出来，得拿被引用原文里的发信人名核对。
-    nick: String(msg.fromRoleName || ''),
+    // ⚠️ 必须和写进 caption 的 title 用**同一个截断函数**（2026-10-06 修）：
+    //    apps/campIm.js 的 tryQuote 是拿 `quotedText.includes(ref.nick)` 做兜底校验的，
+    //    而 caption 里是 clip(…, 16) 截断后的名字。角色名 length > 16 时原文里只有
+    //    「前 16 字 + …」，includes(完整名字) 恒为 false → 误判「认不出收件人」并拒绝转发，
+    //    而用户引用的正是刚刚收到的最新那条推送。
+    nick: clip(msg.fromRoleName, 16),
     at: Date.now()
   }
   setLastPush(owner, info)

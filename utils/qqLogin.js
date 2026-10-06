@@ -283,7 +283,24 @@ export async function createQQLoginSession(e) {
   }
   const { browser, owned: ownBrowser } = acquired
 
-  const page = await browser.newPage()
+  // ⚠️ newPage 必须纳入 owned 浏览器的清理范围（2026-10-06 修）：下面的 close() 是唯一的
+  //    清理入口，而它只在 314 行开始的 try/catch 里被调用；newPage 在这个 try 之外，
+  //    一旦它抛错（浏览器刚起来就崩、连接断开、进程数不足），异常直接冒泡出去，
+  //    close() 永远不执行 —— 而 ownBrowser 为 true 时（配置的渲染后端不是 puppeteer，
+  //    resolveRenderer 返回 null → acquireBrowser 走 launchOwnBrowser）每次重试都会漏一个
+  //    chromium 进程，吃满内存。第 305 行的注释正是要防这个。
+  let page
+  try {
+    page = await browser.newPage()
+  } catch (error) {
+    if (ownBrowser) {
+      try {
+        await browser.close()
+      } catch {}
+    }
+    logger.error(`[营地QQ登录] 创建页面失败: ${error.message}`)
+    throw error
+  }
   let closed = false
   let codeValue = ''
   let codeResolve = null

@@ -70,7 +70,11 @@ function restoreMaskedAccounts (accounts) {
       //    （campRenew 换 token、扫码换 userSig）—— 表单里还是打开那一刻的旧掩码串，
       //    等值比较自然失配。把它当真值写回会把凭证整个覆写成一串掩码、账号当场报废。
       //    这种保留库里的现值并告警；只有不带省略号的真正手填新值才会走到下面放行。
-      if (typeof item[field] === 'string' && item[field].includes('...') && item[field] !== original[field]) {
+      //    ⚠️ 还要求**库里有值**（maskSecret 非空）：库里是空串时 maskSecret 也是空串，
+      //       这个条件会退化成「只要提交值带省略号就保留库值」，把用户手填的新值静默丢掉，
+      //       而打出的告警文案（「面板打开期间凭证被换过」）还是错的（2026-10-06 修）。
+      if (typeof item[field] === 'string' && item[field].includes('...') &&
+          maskSecret(original[field]) !== '' && item[field] !== original[field]) {
         restored[field] = original[field]
         logger.warn(`[王者锅巴] 账号 ${item.userId} 的 ${field} 提交值是过期掩码串（面板打开期间凭证可能已被后台更换），已保留库中现值`)
       }
@@ -104,12 +108,23 @@ function getAuthPoolSnapshot () {
  *    这里放一份是为了让主人不用切页面，在「插件配置」里就能顺手开关。
  */
 function getCampImSnapshot () {
-  const all = authStore.listAccounts().filter(a => a?.userId && a?.userSig)
+  // ⚠️⚠️ 「账号池里的号」和「能收营地消息的号」是**两个集合**，必须分开（2026-10-06 修）：
+  //    · pool —— 池子里**所有**有 userId 的号。这是 pruneAccounts 的 keep 集合，
+  //      语义是「在不在池子里」。
+  //    · all  —— 池子里**能收营地消息**的号（有 userSig，微信区那条路）。这是
+  //      「＋新增」下拉的候选集合。
+  //    原先两处共用 `filter(a => a?.userId && a?.userSig)`，等于拿「有 userSig 的号」
+  //    去喂删除语义的 pruneAccounts —— 营地消息是微信区走 userSig，QQ 区的号可能只有
+  //    token/userKey，这类号只要进过名单，主人打开一次锅巴「插件配置」页就会被
+  //    **从 campIm.yaml 里真删掉**，而保存侧同样过滤了 userSig、在面板上也加不回来。
+  //    实测线上 5 个号都有 userSig，所以目前不触发；但这是「传错集合」而非有意取舍。
+  const pool = authStore.listAccounts().filter(a => a?.userId)
+  const all = pool.filter(a => a?.userSig)
   // ⚠️⚠️ **先跟账号池对账，再读名单**（2026-10-05 修）。原先直接
   //    `Object.keys(switches).map(...)` 遍历白名单，池子里查不到就退回空对象、
   //    条目照样列出来 —— 「账号管理页 1 个号、收消息名单 4 个」就是这么来的。
   //    详见 utils/campImStore.js 的 pruneAccounts。
-  pruneAccounts(all.map(a => a.userId))
+  pruneAccounts(pool.map(a => a.userId))
   const switches = getAccountSwitches()
   const infoOf = new Map(all.map(a => [String(a.userId), a]))
 
@@ -127,14 +142,21 @@ function getCampImSnapshot () {
       return {
         userId: String(uid),
         nickname: a.nickname || a.userName || '',
-        enable: true
+        // ⚠️ 照实反映名单里的值，不要硬编码 true（2026-10-06 修）：
+        //    `false` 也是「不在名单」的合法写法（老数据 / 手工编辑过 campIm.yaml），
+        //    硬编码 true 会让面板把它显示成「收消息」，而用户随便点一次保存
+        //    就会经 setConfigData 把它真的刷回收消息、挂上 ws 推私信。
+        enable: switches[uid] === true
       }
     })
 
   // ⭐ 「＋新增」下拉里能挑的号：登录过、但还没进收消息名单的。
   //    ⚠️ 不给人手填 —— 谁记得住营地号那一串数字（2026-09-20 主人吐槽）。
   const available = all
-    .filter(a => !switches[String(a.userId)])
+    // ⚠️ 判据必须与 isAccountEnabled / setAccountEnabled 一致（严格等于 true）：
+    //    用 `!switches[uid]` 的话，残留的 `false` 会让**同一个号既出现在名单里、
+    //    又出现在「＋新增」下拉里**（2026-10-06 修）。
+    .filter(a => switches[String(a.userId)] !== true)
     .map(a => {
       const uid = String(a.userId)
       const nick = a.nickname || a.userName || '未命名'
@@ -1004,12 +1026,29 @@ export function supportGuoba () {
 
         // 营地消息的账号开关：写进 data/campIm.yaml（和侧边栏那个页面同一份）
         if (Object.prototype.hasOwnProperty.call(data, 'campIm.accounts')) {
-          for (const item of (data['campIm.accounts'] || [])) {
-            const userId = String(item?.userId || '').trim()
-            if (!userId) continue
-            setAccountEnabled(userId, item.enable === true)
+          const payload = data['campIm.accounts']
+          // ⚠️⚠️ 前端是**全量提交**当前名单的，删掉一行 = 那一项压根不出现在 payload 里。
+          //    只逐个 set 的话，被删掉的那一行从来没被遍历到，于是永远留在名单里 ——
+          //    而 apps/campIm.js 照样给它挂长连接、照样往归属人推私信（2026-10-06 修）。
+          //    正确做法见同仓库 guoba/index.js 的 /gok-camp-im/accounts：先做差集移出，再加入。
+          // ⚠️ 同时补 Array.isArray 守卫（照上面 authPool 那半边的写法）：payload 不是数组就
+          //    **别动名单** —— `|| []` 兜不住普通对象，`for...of` 抛 TypeError 会把后面
+          //    config / auth 的写回整批带崩，用户看到的是「点了保存但什么都没变」。
+          if (Array.isArray(payload)) {
+            const wanted = new Set(
+              payload
+                .filter(item => item?.enable === true)
+                .map(item => String(item?.userId || '').trim())
+                .filter(Boolean)
+            )
+            // 先移出：名单里有、但这次没提交的
+            for (const uid of Object.keys(getAccountSwitches())) {
+              if (!wanted.has(uid)) setAccountEnabled(uid, false)
+            }
+            // 再加入
+            for (const uid of wanted) setAccountEnabled(uid, true)
+            invalidate()
           }
-          invalidate()
         }
 
         for (const key in data) {

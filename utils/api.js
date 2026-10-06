@@ -5,6 +5,7 @@ import { decrypt as xxteaDecrypt, encrypt as xxteaEncrypt } from './xxtea.js'
 import authStore, { isUsableAuth } from './authStore.js'
 import { notifyAccountRateLimited } from './rateLimitNotice.js'
 import { markProfileHidden } from './hiddenProfiles.js'
+import { sendMaster } from './masterMsg.js'
 
 /**
  * 王者营地接口客户端。
@@ -310,9 +311,42 @@ function buildRequestDebugInfo (method, url, headers, body, context = {}) {
     attemptIndex: Number(context.attemptIndex || 0),
     targetUserId: context.targetUserId || '',
     requesterBotUserId: context.requesterBotUserId || '',
-    headers,
-    body
+    headers: maskDebugHeaders(headers),
+    body: maskDebugBody(body)
   }
+}
+
+/** 日志里必须打码的键名（token / 账号标识 / 签名，全部是明文凭证或可冒用的东西） */
+const DEBUG_SECRET_KEY_RE = /^(token|userid|user_id|openid|open_id|gameopenid|game_openid|gameroleid|game_roleid|gameserverid|game_serverid|encodeparam|specialencodeparam|usersig)$/i
+
+/**
+ * 调试日志用的 header 脱敏。
+ *
+ * ⚠️⚠️ 为什么必须有（2026-10-06 修）：请求头是 `CampRequestSigner.authHeaders()` /
+ *    `gameFormHeaders()` 的返回值，里面 token / userid / encodeParam **全是明文**。
+ *    原先 buildRequestDebugInfo 把它们原样交给 logger.debug —— 只要框架日志级别调到
+ *    debug（排障时基本一定会调），日志文件里就落下完整 token；而云崽的日志经常被整份
+ *    导出 / 贴群里 / 发给作者排障，等于把全局账号交出去（营地 token 无固定过期时间，用则续命）。
+ *    同文件的 `#debugInfo` 与 authStore 都约定「令牌进日志前都要打码」，这里是唯一漏网的一处。
+ */
+function maskDebugHeaders (headers) {
+  if (!headers || typeof headers !== 'object') return headers
+  return Object.fromEntries(Object.entries(headers).map(([key, value]) => [
+    key,
+    DEBUG_SECRET_KEY_RE.test(key) ? maskValue(value) : value
+  ]))
+}
+
+/**
+ * 调试日志用的表单体脱敏（`gameFormBody` 拼出来的是 URLSearchParams 字符串）。
+ * 见 maskDebugHeaders 的注释。
+ */
+function maskDebugBody (body) {
+  if (typeof body !== 'string' || !body) return body
+  return body.replace(
+    /(^|&)(token|userId|openId|gameOpenId|gameRoleId|gameServerId|userSig|encodeParam)=([^&]*)/gi,
+    (_, sep, key, value) => `${sep}${key}=${maskValue(value)}`
+  )
 }
 
 /** 这个业务码算不算「非 0 的业务错误」（频控不在此列，它单独处理） */
@@ -1327,25 +1361,27 @@ class CampAuthSession {
 
   /** 私信主人「某个全局账号挂了」（原 `#notifyGlobalAuthInvalid`） */
   async #notifyGlobalAuthInvalid (message = '', candidate = null) {
-    try {
-      if (typeof Bot !== 'object' || typeof Bot.sendMasterMsg !== 'function') {
-        return
-      }
+    // 全局账号可能有好几个（轮询池），通知必须点明是哪一个挂了，
+    // 否则主人收到「某个全局账号失效」也不知道该重扫哪个码。
+    const label = candidate?.label || '全局账号'
+    const sanitizedMessage = this.#sanitizeAuthMessage(message)
+    const lines = [
+      `王者插件的${label} 登录态已失效，后续请求会自动跳过该账号。`,
+      sanitizedMessage ? `失效原因：${sanitizedMessage}` : '',
+      '池子里还有其它可用全局账号的话，请求会继续用它们。',
+      '可使用【#营地wx全局登录】或【#营地QQ全局登录】重新扫码更新全局 token。'
+    ].filter(Boolean)
 
-      // 全局账号可能有好几个（轮询池），通知必须点明是哪一个挂了，
-      // 否则主人收到「某个全局账号失效」也不知道该重扫哪个码。
-      const label = candidate?.label || '全局账号'
-      const sanitizedMessage = this.#sanitizeAuthMessage(message)
-      const lines = [
-        `王者插件的${label} 登录态已失效，后续请求会自动跳过该账号。`,
-        sanitizedMessage ? `失效原因：${sanitizedMessage}` : '',
-        '池子里还有其它可用全局账号的话，请求会继续用它们。',
-        '可使用【#营地wx全局登录】或【#营地QQ全局登录】重新扫码更新全局 token。'
-      ].filter(Boolean)
-
-      await Bot.sendMasterMsg(lines.join('\n'), Bot.uin, 0)
-    } catch (error) {
-      logger.warn(`[王者接口] 发送全局账号失效提醒失败: ${error.message}`)
+    // ⚠️⚠️ 必须走 utils/masterMsg.js 的 sendMaster，**不能**直接 await Bot.sendMasterMsg
+    //    （2026-10-06 修）。`Bot.sendMasterMsg` 全失败也会 resolve 成功 —— 它内部塞进
+    //    返回值里的 `ret[bot_id][user_id]` 是**没 await 的 promise**，外面那层 allSettled
+    //    对它无效。直接 await 的话，「主人没加机器人好友」会表现为「日志里一片正常、
+    //    主人什么都没收到」，正是 masterMsg.js 注释点名的「最难查的那类问题」；
+    //    那些没人接管的 promise 一旦 reject 还会变成 unhandledRejection。
+    //    同文件的另一条私信路径（markRateLimited → notifyAccountRateLimited）走的就是 sendMaster。
+    const delivered = await sendMaster(lines.join('\n'))
+    if (!delivered) {
+      logger.warn('[王者接口] 全局账号失效提醒未能送达主人（检查机器人好友关系 / 适配器连接）')
     }
   }
 

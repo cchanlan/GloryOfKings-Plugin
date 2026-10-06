@@ -149,6 +149,13 @@ export function getAllBindings() {
 
     const ids = info.ids
     const current = Number(info?.current ?? 0)
+    // ⚠️⚠️ `current` 是**下标**，而 ids 里可能混着空串（线上实测有 `ids: [""]` 的记录），
+    //    也可能越界。那种情况下按 `index === current` 比，没有任何一条会拿到 isCurrent，
+    //    而 utils/groupReportStore.js 是 `if (!item.isCurrent) continue` ——
+    //    这个人会**整条从群日报/周报/月报里消失**，连「本群绑定 N 个账号」也跟着偏小。
+    //    兜底到第一个有效绑定的下标，保证每个人最多有一个 isCurrent（2026-10-06 修）。
+    const validAt = index => Boolean(String(ids[index] ?? '').trim())
+    const currentIndex = validAt(current) ? current : ids.findIndex(v => String(v ?? '').trim())
 
     ids.forEach((campId, index) => {
       const id = String(campId ?? '').trim()
@@ -159,7 +166,7 @@ export function getAllBindings() {
       list.push({
         botUserId: String(botUserId),
         campId: id,
-        isCurrent: index === current
+        isCurrent: index === currentIndex
       })
     })
   }

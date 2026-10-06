@@ -278,11 +278,20 @@ export class GameRecordPush extends plugin {
     }
 
     const latest = (data.list || [])[0] || {}
+    // ⚠️⚠️ **必须在这里重新读一遍表**（2026-10-06 修）。上面那次 fetchLatest 是真实 HTTP
+    //    请求，网络抖动 / 频控换号时能挂几秒；而第 246 行读到的 list 是那一刻的快照。
+    //    拿旧快照整表 savePushList 写回，会把这段时间里**别人**的改动全部抹掉：
+    //      · 别人刚发的 #开启战绩推送 → 记录被覆盖，他收到「已开启」但订阅实际不存在；
+    //      · 别人刚发的 #关闭战绩推送 → 记录被恢复，表现成「刚关了又自己开回来」。
+    //    pushStore.js 的 mergeSubState 就是为了避免这种整表覆盖才存在的。
+    const fresh = loadPushList()
+    const base = fresh[qq] || existed
+    const merged = withSubGroup(base, e.group_id)
     list[qq] = {
-      ...existed,
+      ...base,
       battle: true,
-      groups,
-      group,
+      groups: merged.groups,
+      group: merged.group,
       campId: String(campId),
       lastGameSeq: String(latest.gameSeq || ''),
       lastGameTime: String(latest.dtEventTime || ''),
@@ -413,13 +422,21 @@ export class GameRecordPush extends plugin {
     }
 
     const nowSec = Math.floor(Date.now() / 1000)
+    // ⚠️⚠️ 同 toggle：上面那次 fetchOnlineState 是真实 HTTP 请求，挂起期间别人可能改过订阅表，
+    //    拿第 373 行的旧快照整表写回会把他们的改动抹掉（2026-10-06 修）。
+    const fresh = loadPushList()
+    const base = fresh[qq] || existed
+    const merged = withSubGroup(base, e.group_id)
     list[qq] = {
-      ...existed,
+      ...base,
       online: true,
-      // 只开上下线提醒时也要有 group/campId，且不能顺手把战绩推送打开
-      battle: existed.battle === true,
-      groups,
-      group,
+      // 只开上下线提醒时也要有 group/campId，且不能顺手把战绩推送打开。
+      // ⚠️ 判据必须是「不是显式 false」而不是「=== true」：`battle` 是后加的字段，
+      //    老订阅里压根没有它，而全仓口径都是「缺字段算开着」（见 isFlagOn、checkBattle
+      //    的 `sub.battle !== false`）。写成 `=== true` 等于顺手把老订阅的战绩推送关掉。
+      battle: base.battle !== false,
+      groups: merged.groups,
+      group: merged.group,
       campId: String(campId),
       lastOnlineState: String(state.gameOnline),
       // 主页接口是玩家名的来源之一，缓存给不 @ 的那几条文案用

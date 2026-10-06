@@ -65,8 +65,17 @@ const QR_TIMEOUT_HINT = '营地登录等待超时，请重新发起'
 /** 两条扫码登录共用的后半段引导（只有开头那句要不要点明「手机 QQ」不一样） */
 const SCAN_LOGIN_TAIL = '\n登录成功后会自动保存登录态并绑定这个营地号，发 #营地观战 就能看你营地好友里谁在打。'
 
-/** 进行中的扫码登录任务：botUserId → { taskId, qrMessageId, ... }。只活在进程内存里 */
-const pendingWechatLoginMap = new Map()
+/**
+ * 进行中的扫码登录任务：botUserId → { taskId, qrMessageId, ... }。只活在进程内存里。
+ *
+ * ⚠️⚠️ 必须锚在 `globalThis` 上（2026-10-06 修）：它同时是「同一人别重复发起」的并发锁
+ *    （见 #beginScanLogin 的 `#pendingLogin(botUserId)` 判据），而 JiuLi 的热重载会给
+ *    plugins/ 下每个模块追加 `?jiuli_reload=<代数>` 重新求值（见 utils/hotState.js）——
+ *    模块级 Map 每代都变成新的空 Map，锁被架空：同一个人可以再发一条指令、两个扫码
+ *    登录并行，各自往同一个人身上 upsert 账号，用户看到的回执与最终生效的号可能不是同一个。
+ *    同仓的 campRenew / campIm / watchBattle / pushStore 都按这个约定锚了 globalThis。
+ */
+const pendingWechatLoginMap = (globalThis.__gokPendingWechatLoginMap ||= new Map())
 
 export class AccountManager extends plugin {
   // ══════════════════════════ 指令注册 ══════════════════════════
@@ -244,7 +253,11 @@ export class AccountManager extends plugin {
   async #renderAccountManageCard(type, wzryId, idList, wzryName = '') {
     const parsedFuncs = [
       { cmd: '#绑定营地', example: '示例: #绑定营地 123' },
-      { cmd: '#营地ID / #王者ID / #我的ID / #我的王者ID', example: '示例: #我的王者ID' },
+      // ⚠️ 这里列的必须是正则真支持的（2026-10-06 修）：规则是
+      //    `#(?:营地|我的(?:王者|荣耀|农药)|(?:王者|荣耀|农药))ID`，「我的」后面必须跟限定词，
+      //    裸的 `#我的ID` 匹配不上任何规则 —— 用户照着发会石沉大海。
+      //    与 README / 帮助图保持一致（那两处也只列三个）。
+      { cmd: '#营地ID / #王者ID / #我的王者ID', example: '示例: #我的王者ID' },
       { cmd: '#切换营地', example: '示例: #切换营地2' },
       { cmd: '#删除营地', example: '示例: #删除营地2' },
       { cmd: '#营地wx全局登录 / #营地QQ全局登录', example: '示例: #营地wx全局登录' },
@@ -849,7 +862,11 @@ export class AccountManager extends plugin {
     try {
       const result = await waitFor(session, {
         onStatusChange: (status) => {
+          // ⚠️ 回调是**同步**调的，里面 `#onLoginStatusChange` 又有 `await e.reply(...)`，
+          //    不接住的话回复失败（适配器报错 / 风控 / 发送超时）就是未捕获 rejection
+          //    （Node 15+ 默认 throw）。同文件另外两处 void 都挂了 .finally，这里是遗漏。
           void this.#onLoginStatusChange(e, botUserId, taskId, status)
+            .catch(error => logger.warn(`[营地登录] 处理扫码状态回调失败: ${error?.message || error}`))
         }
       })
       if (this.#pendingLogin(botUserId)?.taskId !== taskId) {

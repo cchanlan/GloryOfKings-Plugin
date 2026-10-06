@@ -17,6 +17,8 @@ import {
 } from '#utils'
 import { enableSharing, disableSharing, getUserShareState } from '../utils/shareUsers.js'
 import { markDeclined, clearDeclined } from '../utils/shareNotifyState.js'
+// 面板要做一次**真实探活**：getShareStatus() 只读本机熔断标志，不联网（见 masterPanel 的注释）
+import { probeAdmin } from './shareDeploy.js'
 
 /** 展示用：08-27 21:43 */
 const fmtTime = ts => {
@@ -166,7 +168,15 @@ export class ShareBind extends plugin {
 
     if (ready) {
       lines.push(`本机缓存：${runtime.cachedCount} 条`)
-      lines.push(`连通性：${runtime.circuitOpen ? '暂时不可用（自动重试中）' : '正常'}`)
+      // ⚠️⚠️ 这一行原先直接拿 `runtime.circuitOpen` 说成「连通性」，而那个标志全程只读本机状态
+      //    （circuit.openUntil 初值就是 0，只有连续失败 3 次才会被写成未来时间戳）——
+      //    刚装好、刚重启、熔断窗口过了，它都会显示「正常」，哪怕库早就下线。
+      //    而这一行正是主人判断「库是不是活着」的唯一入口，会给出错误的安全感。
+      //    改成真的去打一次 /api/v1/admin/stats（probeAdmin 就是为此写的，5 秒超时）。
+      const stats = cfg.adminSecret ? await probeAdmin(cfg.apiUrl, cfg.adminSecret) : null
+      lines.push(stats
+        ? '库：可达'
+        : `库：这次没连上${cfg.adminSecret ? '' : '（没配远程管理密钥，探不了）'}`)
     }
 
     lines.push(

@@ -354,24 +354,35 @@ export async function renderBattleDetail ({ head, battle, redTeam, blueTeam, red
   })
 }
 
-const getTeamData = (myTeam, enemyTeam, myRoles, enemyRoles, head, battle) => ({
-  tips: head.tips,
-  mapName: head.mapName,
-  startTime: battle.startTime,
-  usedTime: ~~(battle.usedTime / 60),
-  matchDesc: head.matchDesc,
-  myEconomyRate: (myTeam.money / (myTeam.money + enemyTeam.money)) * 100,
-  myMoney: formatMoney(myTeam.money),
-  myTowerCnt: myTeam.towerCnt,
-  enemyMoney: formatMoney(enemyTeam.money),
-  enemyTowerCnt: enemyTeam.towerCnt,
-  myKillDeadAssistCnt: `${myTeam.killCnt}/${myTeam.deadCnt}/${myTeam.assistCnt}`,
-  enemyKillDeadAssistCnt: `${enemyTeam.killCnt}/${enemyTeam.deadCnt}/${enemyTeam.assistCnt}`,
-  myRoles,
-  enemyRoles,
-  ...getBanData(myTeam, enemyTeam),
-  ...getDragonStats(myTeam, enemyTeam)
-})
+const getTeamData = (myTeam, enemyTeam, myRoles, enemyRoles, head, battle) => {
+  // ⚠️⚠️ 经济占比要防零除（2026-10-06 修）：两队 money 同时为 0，或字段缺失导致
+  //    `undefined + undefined`，原式都得 NaN —— 模板把它当 CSS 数值直接写进
+  //    `style="width: {{myEconomyRate}}%"`，CSS 丢弃该声明，整条经济对比条消失。
+  //    同文件其它比率（heroHurtRate / joinRate）都做了守卫，只有这一处裸算。
+  //    出图前的门槛只校验了 `detail.head.acntCamp`，不校验 team.money，残缺详情会一路走到这里。
+  const myMoneyNum = Number(myTeam?.money || 0)
+  const enemyMoneyNum = Number(enemyTeam?.money || 0)
+  const totalMoney = myMoneyNum + enemyMoneyNum
+
+  return {
+    tips: head.tips,
+    mapName: head.mapName,
+    startTime: battle.startTime,
+    usedTime: ~~(battle.usedTime / 60),
+    matchDesc: head.matchDesc,
+    myEconomyRate: totalMoney > 0 ? (myMoneyNum / totalMoney) * 100 : 0,
+    myMoney: formatMoney(myTeam.money),
+    myTowerCnt: myTeam.towerCnt,
+    enemyMoney: formatMoney(enemyTeam.money),
+    enemyTowerCnt: enemyTeam.towerCnt,
+    myKillDeadAssistCnt: `${myTeam.killCnt}/${myTeam.deadCnt}/${myTeam.assistCnt}`,
+    enemyKillDeadAssistCnt: `${enemyTeam.killCnt}/${enemyTeam.deadCnt}/${enemyTeam.assistCnt}`,
+    myRoles,
+    enemyRoles,
+    ...getBanData(myTeam, enemyTeam),
+    ...getDragonStats(myTeam, enemyTeam)
+  }
+}
 
 /**
  * 禁用英雄（BP 的 ban 那半）。

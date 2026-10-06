@@ -239,7 +239,14 @@ export function buildTrendView (picked = [], { heroMap = {}, iconOf = () => '', 
     const row = heroMapStat.get(id)
     row.count += 1
     if (toInt(item.gameresult) === 1) row.win += 1
-    row.net += toInt(item.newMasterMatchScore) - toInt(item.oldMasterMatchScore)
+    // ⚠️ old 缺 key / 为 0 时退回 new（该场净分为 0），别把**绝对巅峰分**当净得分累加
+    //    （2026-10-06 修）。同文件另两处算涨跌都做了这个兜底：第 172 行 `|| scores[0]`、
+    //    第 197 行 `|| toInt(list[0].newMasterMatchScore)`。battleArchive 的 slim() 对
+    //    undefined/null 字段直接不落库，读到就是 undefined —— 单场能虚增一千多分，
+    //    而「带分英雄」正是按 net 降序排、把 net 显示成 netText，整块结论会反过来。
+    const newScore = toInt(item.newMasterMatchScore)
+    const oldScore = toInt(item.oldMasterMatchScore) || newScore
+    row.net += newScore - oldScore
   }
   const heroRows = [...heroMapStat.values()]
     .sort((a, b) => b.net - a.net || b.count - a.count)

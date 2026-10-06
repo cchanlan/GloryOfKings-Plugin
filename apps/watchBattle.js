@@ -527,13 +527,21 @@ export class WatchBattle extends plugin {
     rememberPending(e, { payload, label })
     const who = occupied.map(o => `「${o.nick || o.rid}」`).join('、')
     const name = label || payload.nick || '这一路'
+    // ⚠️ `e.reply(msg, quote, data)` —— 按钮段必须和文本拼成**一个数组**放在第一个参数里，
+    //    第二个参数只能放 quote 布尔。早先这里把按钮写在了第二个位置，结果：
+    //      · 按钮段被当成 quote 丢掉，QQBot 上「中断/继续」两颗按钮永远发不出来；
+    //      · 布尔落进第三个参数 data，解构取默认值，不报错但静默失效；
+    //      · 更糟的是 quote 收到对象恒为真值，**无视用户的 quoteReply: false 强制引用**。
     return e.reply([
-      `账号都在忙，现在在播的有 ${who}`,
-      `要中断上面那一路、改播「${name}」吗？`,
-      '',
-      '确认中断：发 #营地观战 确认中断',
-      '算了继续看：发 #营地观战 继续等'
-    ].join('\n'), Button.watchReplace(), shouldQuote())
+      [
+        `账号都在忙，现在在播的有 ${who}`,
+        `要中断上面那一路、改播「${name}」吗？`,
+        '',
+        '确认中断：发 #营地观战 确认中断',
+        '算了继续看：发 #营地观战 继续等'
+      ].join('\n'),
+      Button.watchReplace()
+    ], shouldQuote())
   }
 
   /** 确认/放弃「中断上一路」 */

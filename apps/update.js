@@ -55,7 +55,11 @@ export class GloryOfKingsUpdate extends plugin {
     updater.e = this.e
     updater.reply = this.reply
 
-    if (updater.getPlugin(PluginName)) {
+    // ⚠️⚠️ `getPlugin` 是 **async**（云崽 / TRSS / JiuLi 三家的 plugins/other|system/update.js
+    //    都是），漏 await 拿到的是 Promise —— 恒为 truthy，这个「插件目录不存在就跳过」的
+    //    守卫直接失效（2026-10-06 修）。同文件 48-50 行的 `up.update()` 写法是对的，
+    //    这里漏了。改完之后返回 false（目录不存在）时安静退出，不再回一句无意义的报错。
+    if (await updater.getPlugin(PluginName)) {
       this.e.reply(await updater.getLog(PluginName))
     }
     return true

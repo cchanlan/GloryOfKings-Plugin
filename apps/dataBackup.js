@@ -86,7 +86,9 @@ export class DataBackup extends plugin {
       result = await createBackup()
     } catch (err) {
       logger.error(`[王者插件] 备份打包失败：${err?.stack || err}`)
-      return e.reply(`❌ 打包失败：${err?.message || err}`)
+      // ⚠️ 补 shouldQuote()（2026-10-06 修）：同文件 79/82/112/119 行都传了，只有这条漏了，
+      //    于是「正在打包…」引用而「打包失败…」不引用，同一功能的观感断裂。
+      return e.reply(`❌ 打包失败：${err?.message || err}`, shouldQuote())
     }
 
     const sent = await sendBackupFile(e, result.file, result.name)

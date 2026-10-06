@@ -271,6 +271,14 @@ async function fetchJson (url, { method = 'GET', headers = {}, body = null } = {
   }
 }
 
+/**
+ * 把服务端响应体压成一行短文本，**只用于日志**。
+ * 直接把它拼进用户可见的错误消息会刷屏，也可能带出内部报文。
+ */
+function brief (text) {
+  return String(text || '').replace(/\s+/g, ' ').slice(0, 200)
+}
+
 /** 取微信扫码用的 SDK ticket，后面出码要用它签名 */
 async function fetchWxSdkTicket (xLogUid) {
   const result = await fetchJson(`${CAMP_API_BASE}/a/getwxsdkticket`, {
@@ -282,7 +290,13 @@ async function fetchWxSdkTicket (xLogUid) {
   })
 
   if (!result.ok || result.json?.returnCode !== 0 || !result.json?.data?.sdkTicket) {
-    throw new Error(`获取登录 SDK Ticket 失败: ${result.text}`)
+    // ⚠️ 不能把**未截断的完整响应体**拼进 error.message（2026-10-06 修）：调用方
+    //    apps/accountManager.js 的 qrFailReply 会把 error.message 原样 e.reply 到群里，
+    //    营地网关回 HTML 错误页 / 带内部字段的 JSON 时，整段报文就进群了（刷屏 + 风控风险
+    //    + 把服务端内部报文暴露给普通群友）。完整响应体只进日志，与 utils/dependency.js
+    //    的 redact(...).slice(-500) 同一口径。
+    logger.warn(`[营地登录] 获取 SDK Ticket 异常（HTTP ${result.status}）：${brief(result.text)}`)
+    throw new Error(`获取登录 SDK Ticket 失败（HTTP ${result.status}），稍后再试`)
   }
 
   return result.json.data.sdkTicket
@@ -311,7 +325,8 @@ async function fetchWechatQrCode (ticket) {
   const uuid = result.json?.uuid
 
   if (!result.ok || result.json?.errcode !== 0 || !qrcodeBase64 || !uuid) {
-    throw new Error(`获取登录二维码失败: ${result.text}`)
+    logger.warn(`[营地登录] 获取二维码异常（HTTP ${result.status}）：${brief(result.text)}`)
+    throw new Error(`获取登录二维码失败（HTTP ${result.status}），稍后再试`)
   }
 
   return {
@@ -361,7 +376,8 @@ async function loginWithWechatAuthCode (code, xLogUid, publicKey = CAMP_PUBLIC_K
   })
 
   if (!result.ok || result.json?.returnCode !== 0 || !result.json?.data?.userId || !result.json?.data?.token) {
-    throw new Error(`营地登录失败: ${result.text}`)
+    logger.warn(`[营地登录] 登录接口返回异常（HTTP ${result.status}）：${brief(result.text)}`)
+    throw new Error(`营地登录失败（HTTP ${result.status}），稍后再试`)
   }
 
   return result.json

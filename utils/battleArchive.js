@@ -50,6 +50,17 @@ const toInt = value => {
   return Number.isFinite(num) ? Math.trunc(num) : 0
 }
 
+/** 保留小数的数值字段用这个。⚠️ 别拿 toInt 顶：`gradeGame` 是 `11.1` 这种一位小数评分，截成 11 就失真了 */
+const toNum = value => {
+  const num = Number(value)
+  return Number.isFinite(num) ? num : 0
+}
+
+/** 规整成整数的字段 */
+const INT_FIELDS = /^(dtEventTime|gameresult|heroId|mvpcnt|losemvp|usedTime|killcnt|deadcnt|assistcnt|roleJob|stars|oldMasterMatchScore|newMasterMatchScore)$/
+/** 规整成数值但**保留小数**的字段 */
+const FLOAT_FIELDS = /^gradeGame$/
+
 /**
  * 整库的内存缓存。null 表示还没读过盘。
  *
@@ -105,9 +116,15 @@ function slim (item) {
   for (const key of KEEP_FIELDS) {
     const value = item?.[key]
     if (value === undefined || value === null) continue
-    out[key] = typeof value === 'number' || /^(dtEventTime|gameresult|heroId|mvpcnt|losemvp|usedTime|killcnt|deadcnt|assistcnt|roleJob|stars|oldMasterMatchScore|newMasterMatchScore)$/.test(key)
+    // ⚠️ gradeGame 是数值字段（评分），原来不在这个正则里 → 被 String() 存成字符串，
+    //    与同批次的 stars / usedTime 等类型不一致，还留下 `'9.1' > 10 === false` 这种字符串比较陷阱。
+    //    实测线上归档 1859 场里 gradeGame 全是字符串（"11.1"、"9.2"），
+    //    目前每个消费点都各自补了 Number() 所以没出故障（2026-10-06 修）。
+    out[key] = typeof value === 'number' || INT_FIELDS.test(key)
       ? toInt(value)
-      : String(value)
+      : FLOAT_FIELDS.test(key)
+        ? toNum(value)
+        : String(value)
   }
   return out
 }

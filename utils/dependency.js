@@ -46,6 +46,8 @@ async function run (bin, args, { env, timeout = 10 * 60 * 1000 } = {}) {
       const c = command(bin, args)
       const child = spawn(c.bin, c.args, {
         shell: c.shell, windowsHide: true,
+        // POSIX 下建独立进程组，超时才能用 kill(-pid) 把整棵进程树带走（见下面的 timer）
+        detached: !IS_WIN,
         env: { ...process.env, ...(env || {}) }, stdio: ['ignore', 'pipe', 'pipe']
       })
       let done = false
@@ -59,7 +61,18 @@ async function run (bin, args, { env, timeout = 10 * 60 * 1000 } = {}) {
       child.stderr.on('data', data => { err = (err + data).slice(-65536) })
       child.on('error', error => finish(false, error.message))
       child.on('close', code => finish(code === 0))
-      timer = setTimeout(() => { child.kill(); finish(false, '安装命令超时') }, timeout)
+      // ⚠️⚠️ 超时必须**连子进程一起杀**（2026-10-06 修）。走 shell 那条路（见上面的 command()）
+      //    时 `child` 是 cmd.exe 而不是安装器本身，Windows 的 TerminateProcess 不级联子进程、
+      //    POSIX 侧这里也没建进程组，所以 winget / choco 会变成孤儿继续跑：用户看到
+      //    「安装失败，请手动执行 …」并照做，于是两个安装器并发改同一份包状态。
+      timer = setTimeout(() => {
+        try {
+          if (IS_WIN) spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' })
+          else process.kill(-child.pid, 'SIGKILL')
+        } catch {}
+        child.kill()
+        finish(false, '安装命令超时')
+      }, timeout)
     } catch (error) { resolve({ ok: false, out, err: error.message }) }
   })
 }

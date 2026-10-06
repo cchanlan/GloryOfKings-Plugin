@@ -21,7 +21,6 @@
  * 和收工总结同一套判据 —— 那里面的坑（小编号回绕、赛季切换、0 星是真实值）已经踩平了。
  */
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import path from 'path'
 import { collectBattles } from '../utils/battleArchive.js'
 import {
   summarizeReport,
@@ -36,10 +35,10 @@ import { fetchRoleNames } from '../utils/roleName.js'
 import { hotBox } from '../utils/hotState.js'
 import {
   getImgType,
-  resolveCurrentId, getCurrentId, getUserAvatar, Button, shouldQuote, readYamlFile, parsePerfArgs,
+  resolveCurrentId, getCurrentId, getBoundIds, getUserAvatar, Button, shouldQuote, parsePerfArgs,
   AT_HEAD, stripAtText, resolveTargetUserId, pickGroupSafe, isBlackUser
 } from '#utils'
-import { Config, PluginData } from '#components'
+import { Config } from '#components'
 
 /**
  * 补页上限。日报只要盖住今天（实测单日最多 28 场，30+10+10=50 场足够）；
@@ -128,7 +127,11 @@ export class BattleReport extends plugin {
 
     if (!campId && args.count) {
       // 指定序号：#王者日报 2 看第 2 个绑定的号。getCurrentId 只认「当前号」，序号得自己查
-      const ids = (readYamlFile(path.join(PluginData, 'UserData.yaml')) || {})[userId]?.ids || []
+      // ⚠️ 走 getBoundIds 而不是裸读 YAML（2026-10-06 修）：readYamlFile 的契约是
+      //    「文件不存在 / 内容坏了**原样抛错**」，`|| {}` 拦不住 throw —— 手工编辑坏
+      //    UserData.yaml 之后 `#王者日报 2` 会整条抛异常、连一句回复都没有。
+      //    getBoundIds 读的就是同一个文件（带指纹缓存），读失败按空表处理。
+      const ids = getBoundIds(userId)
       campId = ids[args.count - 1] || ''
       if (!campId) {
         return e.reply(`你没有第 ${args.count} 个绑定的营地ID，发送 #营地ID 看看列表`, shouldQuote())
@@ -153,11 +156,15 @@ export class BattleReport extends plugin {
 
     const view = await this.buildView(String(campId), String(userId), kind, { qq: userId, e })
 
-    if (!view) {
+    // ⚠️ 拉取失败时**不能**说「没有对局记录」（2026-10-06 修）：那是把「没拉到」
+    //    讲成了「你没打」，用户会当成事实。degraded 是 buildView 专门为这种情况回的标记。
+    if (!view || view.degraded) {
       return e.reply(
-        isPrev
-          ? `${scopeText}没有对局记录`
-          : { daily: '今天还没有对局记录', weekly: '本周还没有对局记录', monthly: '本月还没有对局记录' }[kind],
+        view?.degraded
+          ? '这次没拉到完整战绩，暂时出不了这张报告，稍后再试'
+          : isPrev
+            ? `${scopeText}没有对局记录`
+            : { daily: '今天还没有对局记录', weekly: '本周还没有对局记录', monthly: '本月还没有对局记录' }[kind],
         shouldQuote()
       )
     }
@@ -170,7 +177,9 @@ export class BattleReport extends plugin {
 
   /**
    * 组装一份报告的模板数据。
-   * @returns {Promise<object|null>} 区间内没有对局时返回 null（不出空图）
+   * @returns {Promise<object|null|{degraded:true}>} 区间内没有对局时返回 null（不出空图）；
+   *          战绩**没拉全**时返回 `{ degraded: true }` —— 与「确实没打」必须分开，
+   *          否则用户拿到的是「今天还没有对局记录」这种确定性结论（见下方 collectBattles 处注释）
    */
   async buildView (campId, qq, kind, { roleName = '', qq: ownerQQ = '', e = null } = {}) {
     const nowMs = Date.now()
@@ -182,6 +191,17 @@ export class BattleReport extends plugin {
     } catch (error) {
       logger.error(`[王者${LABEL[kind]}] ${campId} 取战绩失败: ${error.message}`)
       return null
+    }
+
+    // ⚠️⚠️ 拉取失败要和「确实没打」分开（2026-10-06 修）：collectBattles 内部把接口
+    //    异常自己 catch 掉了（不向外抛），失败时 battles 就是空数组 —— 跟「今天真没打」
+    //    返回值一模一样。于是用户看到的是「今天还没有对局记录」这种**确定性结论**，
+    //    而真实原因是「这次没拉到」。battleArchive 已经为这件事返回了 incomplete / failed，
+    //    但全仓没有调用方读它，注释里承诺的降级文案一直没落地。
+    if (collected.incomplete || collected.failed) {
+      logger.warn(`[王者${LABEL[kind]}] ${campId} 战绩拉取不完整（failed=${collected.failed} fetched=${collected.fetched}），按数据不全处理`)
+      // 用明确的标记对象回给调用方：`null` 已经被「区间内没对局」占用了
+      return { degraded: true }
     }
 
     if (!collected.battles.length) return null
@@ -301,7 +321,21 @@ export class BattleReport extends plugin {
     }
 
     const alreadyOn = list[qq][kind] === true
-    mergeSubState(qq, { [kind]: true, groups, group, campId: String(campId) })
+
+    // 营地ID旁边带上昵称，用户才认得出推的是哪个号。
+    // ⚠️⚠️ 这一步要**提前到这里并顺手落表**（2026-10-06 修）：原来它在 alreadyOn 的
+    //    提前 return 之后，昵称只用在回复文案里 —— 而推送路径（pushOne → buildView）
+    //    只从订阅表的 `sub.roleName` 读昵称。于是「只开日报/周报/月报、没开战绩推送」
+    //    的用户表里永远没有 roleName，图上玩家名固定落到模板兜底的「召唤师」，
+    //    而这一刻其实已经把真名查到手了，等于查了不用。
+    const roleName = (await fetchRoleNames([campId], qq))[campId] || ''
+    mergeSubState(qq, {
+      [kind]: true,
+      groups,
+      group,
+      campId: String(campId),
+      ...(roleName ? { roleName } : {})
+    })
 
     // 已经开着、只是换个群再开一次：说清楚现在推几个群就行，别再重复一遍完整说明
     if (alreadyOn) {
@@ -317,8 +351,6 @@ export class BattleReport extends plugin {
     const period = { daily: '每天', weekly: '每周', monthly: '每月' }[kind]
     const unit = { daily: '天', weekly: '周', monthly: '月' }[kind]
     const scope = { daily: '当日', weekly: '整周', monthly: '本月' }[kind]
-    // 营地ID旁边带上昵称，用户才认得出推的是哪个号
-    const roleName = (await fetchRoleNames([campId], qq))[campId] || ''
 
     return e.reply([
       [
@@ -411,8 +443,11 @@ export class BattleReport extends plugin {
     })
 
     // 这段时间没打就不发。推一张「0 场」的图纯属刷屏
-    if (!view) {
-      logger.debug(`[王者${label}] ${qq} ${resolveRange(kind).scopeText}无对局，跳过`)
+    // ⚠️ degraded（拉取不全）同样不发 —— 但日志要跟「真没打」分开，否则排查时
+    //    只看到一句「无对局」，会以为是用户没上线（2026-10-06 修）
+    if (!view || view.degraded) {
+      if (view?.degraded) logger.warn(`[王者${label}] ${qq} 战绩拉取不完整，本轮跳过`)
+      else logger.debug(`[王者${label}] ${qq} ${resolveRange(kind).scopeText}无对局，跳过`)
       return
     }
 

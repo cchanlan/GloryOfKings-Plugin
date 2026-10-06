@@ -345,21 +345,26 @@ export class MyKingHomepage extends plugin {
       // 频控（-30107）走不到这里：getProfile 命中频控时是抛错的，
       // 已被上面的 catch 接走，由 formatUserFacingError 转成对用户友好的提示。
 
-      if (profileData.returnCode === -10107) {
-        if (IDs.length === 1) {
-          await e.reply(`ID: ${ID},召唤师隐藏了主页信息，无法查看`)
-        } else {
-          pushFailure(ID, '召唤师隐藏了主页信息，无法查看')
-        }
-        continue
-      }
-
+      // ⚠️ 判空必须排在解引用之前（2026-10-06 修）：下面那句 `profileData.returnCode` 先执行的话，
+      //    getProfile 真给出 null/undefined 时这里抛 TypeError，而此时上面的 try/catch 已结束、
+      //    下面第 367 行的 try 还没开始 —— 异常直接冒泡出 replyHomepages：单 ID 场景用户
+      //    一条回复都收不到，多 ID 场景（#全部主页）后面几个账号也一个都不查，
+      //    而函数头承诺的正是「多账号时逐个报错、不中断」。
       if (!profileData || !profileData.data || !profileData.data.roleList) {
         logger.debug(`[王者主页] ${ID} 返回结构异常: ${JSON.stringify(profileData)?.slice(0, 500)}`)
         if (IDs.length === 1) {
           await e.reply('获取数据失败,请稍后重试')
         } else {
           pushFailure(ID, '获取数据失败,请稍后重试')
+        }
+        continue
+      }
+
+      if (profileData.returnCode === -10107) {
+        if (IDs.length === 1) {
+          await e.reply(`ID: ${ID},召唤师隐藏了主页信息，无法查看`)
+        } else {
+          pushFailure(ID, '召唤师隐藏了主页信息，无法查看')
         }
         continue
       }

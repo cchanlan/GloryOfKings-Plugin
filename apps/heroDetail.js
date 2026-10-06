@@ -62,7 +62,14 @@ export class HeroDetail extends plugin {
       heroId = hit.heroId
       matchedName = hit.matchedName
     } catch (err) {
-      await e.reply(err.message)
+      // ⚠️ 按来源分流（2026-10-06 修）：resolveHero 自己抛的两条是给人看的，
+      //    但它第一行 `ApiService.getHeroList()` 没包装，官网 5xx/超时时抛的是 api 层的
+      //    技术文案（「…失败。错误: HTTP 503…」）—— 原样转发就把后者也发给群友了。
+      //    本文件其余异常都规规矩矩走 formatUserFacingError。
+      const friendly = /未找到英雄|请输入英雄名称/.test(String(err?.message || ''))
+      await e.reply(friendly
+        ? err.message
+        : ApiService.formatUserFacingError(err, { isMaster: Boolean(e.isMaster), scene: '英雄详情查询异常' }))
       return
     }
 

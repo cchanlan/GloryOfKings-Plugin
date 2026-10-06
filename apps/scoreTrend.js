@@ -84,10 +84,14 @@ export class ScoreTrend extends plugin {
     }
 
     if (picked.length < 2) {
+      // ⚠️ 同 rankTrend：relaxed=true 表示上面已经翻到归档最早，再说「近 N 天」就与数据矛盾，
+      //    而「试试更长的区间」必然无效（2026-10-06 修）。第 105 行的图头早就分了这两种口径。
       return e.reply([
-        `近 ${days} 天只找到 ${picked.length} 场巅峰赛，画不出趋势。\n` +
+        `${relaxed ? '本地存档里' : `近 ${days} 天`}只找到 ${picked.length} 场巅峰赛，画不出趋势。\n` +
         '· 排位赛不算：排位不影响巅峰分\n' +
-        `· 试试更长的区间，比如 #巅峰趋势 ${Math.min(days * 2, ARCHIVE_KEEP_DAYS)}\n` +
+        (relaxed
+          ? '· 已经翻到存档最早，攒几天再来\n'
+          : `· 试试更长的区间，比如 #巅峰趋势 ${Math.min(days * 2, ARCHIVE_KEEP_DAYS)}\n`) +
         '· 开了 #开启战绩推送 之后每天的对局会自动存档，往后趋势会越来越全',
         Button.push()
       ], shouldQuote())
@@ -148,7 +152,9 @@ async function displayName (e, userId) {
   const cached = String(loadPushList()[String(userId)]?.roleName || '').trim()
   if (cached) return cached
   try {
-    return await resolveMemberName(e, userId) || String(userId)
+    // ⚠️ 第一个形参是**群对象**（utils/adapter.js 里是 `group?.pickMember?.(uid)`），传消息事件 e
+    //    取不到群名片、静默退化成 QQ 号（2026-10-06 修）。同仓其余 5 处调用传的都是 e.group。
+    return await resolveMemberName(e.group, userId) || String(userId)
   } catch {
     return String(userId)
   }

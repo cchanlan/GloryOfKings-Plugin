@@ -177,11 +177,23 @@ export class CampRenew extends plugin {
     const deadQqFailed = []
 
     for (const acc of dead) {
-      const isQQ = String(acc.loginPlatform) === 'qq'
-      const hasTokens = acc.accessToken && (acc.appOpenid || acc.openId)
-      if (!isQQ || !hasTokens) {
-        if (String(acc.loginPlatform) === 'wechat') deadWx.push(nameOf(acc))
-        else deadQqFailed.push(`${nameOf(acc)}（没有三件套，救不了）`)
+      // ⚠️ 拆开判断（2026-10-06 修）：原先 `!isQQ || !hasTokens` 把「平台不是 qq」和
+      //    「三件套不齐」合并成一条，于是 loginPlatform 缺失（手工补录 / 锅巴导入 / 早期版本
+      //    写进去的空值）的失效 QQ 号既不尝试重登，又被报成「没有三件套，救不了」——
+      //    把主人往错误方向带。
+      const platform = String(acc.loginPlatform || '')
+      const hasTokens = Boolean(acc.accessToken && (acc.appOpenid || acc.openId))
+
+      if (platform === 'wechat') {
+        deadWx.push(nameOf(acc))
+        continue
+      }
+      if (platform !== 'qq') {
+        deadQqFailed.push(`${nameOf(acc)}（平台未知：${platform || '空'}，没按 QQ 重登）`)
+        continue
+      }
+      if (!hasTokens) {
+        deadQqFailed.push(`${nameOf(acc)}（没有三件套，救不了）`)
         continue
       }
       try {

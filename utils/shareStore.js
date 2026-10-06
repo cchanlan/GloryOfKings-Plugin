@@ -29,7 +29,7 @@ import { PluginData, Config } from '#components'
 import { readYamlFile, writeYamlFile } from './yamlUtils.js'
 import { quarantineCorrupt } from './safeStore.js'
 import { getCurrentId, getBoundIds, readUserData } from './localBind.js'
-import authStore from './authStore.js'
+import authStore, { isUsableAuth } from './authStore.js'
 
 const CACHE_FILE = path.join(PluginData, 'share', 'idcache.yaml')
 const CACHE_SCHEMA = 1
@@ -43,8 +43,16 @@ const CACHE_SCHEMA = 1
  */
 export const maskToken = token => {
   const text = String(token || '')
-  if (text.length <= 10) return text ? '已配置' : '未配置'
-  return `${text.slice(0, 6)}…${text.slice(-4)}`
+  if (!text) return '未配置'
+  // ⚠️⚠️ 阈值必须**覆盖截取宽度**（2026-10-06 修）。截出来是 6 + 1 + 4 = 11 个字符，
+  //    原先阈值写成 `<= 10`：长度 11 的令牌输出 10 个原文字符（比输入还长一位），
+  //    长度 12~15 时也会把大半串贴出去。而这些调用点全是**群内回显**
+  //    （shareBind 的 `#营地共享库`、local/distDeploy 的管理密钥），等于把密钥发进群里。
+  //    短到没法安全截取的（≤12）一律只说「已配置」。
+  if (text.length <= 12) return '已配置'
+  const keepStart = Math.min(6, Math.floor(text.length / 3))
+  const keepEnd = Math.min(4, Math.floor(text.length / 4))
+  return `${text.slice(0, keepStart)}…${text.slice(-keepEnd)}`
 }
 
 /**
@@ -222,7 +230,14 @@ export function isShareReady () {
  */
 function hasUsableGlobalAccount () {
   try {
-    return authStore.listAccounts().some(account => account.isGlobalDefault && !account.authInvalid)
+    // ⚠️⚠️ 判据必须与 authStore.isUsableAuth 一致（2026-10-06 修）。
+    //    原先只判 `isGlobalDefault && !authInvalid`，少了「凭证是否齐全」这一层：
+    //    锅巴面板上建一个只有 userId + 全局开关、凭证留空的号，这里就判「有可用账号」，
+    //    于是共享库下发的营地ID 被认成可用、返回 source:'shared' 并写进本机 UserData.yaml；
+    //    而 api.js 侧的候选池是空的、请求注定失败，用户既拿不到 degraded 提示也恢复不了
+    //    （fromShare 绑定因本地优先会长期压住共享值）。
+    return authStore.listAccounts().some(account =>
+      account.isGlobalDefault && isUsableAuth(account))
   } catch {
     return false
   }

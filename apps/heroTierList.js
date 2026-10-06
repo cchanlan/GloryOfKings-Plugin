@@ -1,6 +1,6 @@
 // 英雄梯度榜：数据来自官方营地 getdetailranklistbyid 接口，实时拉取
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { getImgType, ApiService, Button, shouldQuote } from '#utils'
+import { getImgType, ApiService, Button, shouldQuote, AT_HEAD, stripAtText } from '#utils'
 
 // 段位筛选：文字 → segment（对应接口 tabFilter 下标）
 const SEGMENT_MAP = [
@@ -108,7 +108,8 @@ export class HeroTierList extends plugin {
       priority: 5,
       rule: [
         {
-          reg: '^#(王者)?(英雄梯度|梯度|强度)\\s*(.*)$',
+          // AT_HEAD 替掉 ^：允许指令前面挂一段纯文本 @昵称（见 utils/atTarget.js）
+          reg: `${AT_HEAD}#(王者)?(英雄梯度|梯度|强度)\\s*(.*)$`,
           fnc: 'heroTierList'
         }
       ]
@@ -116,7 +117,7 @@ export class HeroTierList extends plugin {
   }
 
   async heroTierList(e) {
-    const msg = e.msg.replace(/^#(王者)?(英雄梯度|梯度|强度)\s*/, '').trim()
+    const msg = stripAtText(e.msg).replace(/^#(王者)?(英雄梯度|梯度|强度)\s*/, '').trim()
     const { segment, position } = parseFilter(msg)
 
     let res

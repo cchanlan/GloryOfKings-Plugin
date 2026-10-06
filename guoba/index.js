@@ -30,12 +30,16 @@ import { ownerOf } from '../utils/campImPush.js'
  * 没进名单的号放在 `available` 里，页面上用「＋ 添加」挑。
  */
 function snapshot () {
-  const all = authStore.listAccounts().filter(a => a?.userId && a?.userSig)
+  // ⚠️⚠️ 同 guoba.support.js：prune 的 keep 集合是「池子里所有有 userId 的号」（pool），
+  //    「＋添加」的候选才是「能收营地消息的号」（all，有 userSig）。
+  //    共用一份会把只有 token 的 QQ 区号当僵尸号从收消息名单里真删掉（2026-10-06 修）。
+  const pool = authStore.listAccounts().filter(a => a?.userId)
+  const all = pool.filter(a => a?.userSig)
   // ⚠️⚠️ **先跟账号池对账，再读名单**（2026-10-05 修）。
   //    收消息名单是独立白名单，号从账号池删掉之后白名单里那条不会自己走 ——
   //    不对账的话下面就会把池子里根本不存在的号也列出来，开关还是开的。
   //    详见 utils/campImStore.js 的 pruneAccounts。
-  store.pruneAccounts(all.map(a => a.userId))
+  store.pruneAccounts(pool.map(a => a.userId))
   const switches = store.getAccountSwitches()          // { userId: true }
   const infoOf = new Map(all.map(a => [String(a.userId), a]))
 
@@ -56,11 +60,13 @@ function snapshot () {
   //    万一哪天 prune 没跑到，宁可少列也不能把不存在的号显示成「在收消息」
   const accounts = Object.keys(switches)
     .filter(uid => infoOf.has(String(uid)))
-    .map(uid => build(uid, true))
+    // ⚠️ 照实反映名单里的值（与 isAccountEnabled 同一判据），别硬编码 true（2026-10-06 修）
+    .map(uid => build(uid, switches[uid] === true))
 
   // 登录过、但还没进收消息名单的号（给「＋ 添加」用）
   const available = all
-    .filter(a => !switches[String(a.userId)])
+    // ⚠️ 与 isAccountEnabled 同一判据：残留的 `false` 不该让同一个号既在名单又在候选里
+    .filter(a => switches[String(a.userId)] !== true)
     .map(a => ({
       userId: String(a.userId),
       nickname: a.nickname || a.userName || '',

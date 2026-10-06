@@ -1,3 +1,4 @@
+import { AT_HEAD } from '#utils'
 import { runHeroGuide } from './heroGuide.js'
 
 /**
@@ -17,7 +18,8 @@ export class HeroGuideAlias extends plugin {
       priority: 5000,
       rule: [
         {
-          reg: '^#(英雄攻略|攻略|出装|克制|铭文出装|铭文)\\s*(.*)$',
+          // 同 heroGuide.js：AT_HEAD 替掉 ^，否则前面挂一段纯文本 @昵称 就匹配不上
+          reg: `${AT_HEAD}#(英雄攻略|攻略|出装|克制|铭文出装|铭文)\\s*(.*)$`,
           fnc: 'guide'
         }
       ]

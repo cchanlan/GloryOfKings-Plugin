@@ -36,10 +36,21 @@ export const DEFAULT_CACHE_MAX_MB = 200
  * 两处各读一遍配置很容易对「上限」理解不一致，而超限判据只该有一个来源。
  */
 export function resolveCacheMaxBytes () {
-  let mb = NaN
+  let raw
   try {
-    mb = Number(Config.getDefOrConfig('config')?.imgCacheMaxMB)
+    raw = Config.getDefOrConfig('config')?.imgCacheMaxMB
   } catch {}
+  // ⚠️⚠️ 「没填」和「显式填 0」是两种意图，别被 Number() 合并成一个（2026-10-06 修）：
+  //    YAML 里写成 `imgCacheMaxMB:`（空值）→ getDefOrConfig 给 null；锅巴输入框清空保存 → ''；
+  //    而 `Number(null) === 0`、`Number('') === 0` 都是**有限数**，会被下面那句
+  //    `Number.isFinite(mb) ? mb : 默认值` 采信成 0，再被 `value > 0` 判成「不限量」。
+  //    于是配置一被清空就**静默**丢掉 200MB 上限与体积削减兜底（`cleanImageCache` 只剩按时间过期），
+  //    而 `#王者缓存状态` 还会显示「未设上限」让人以为是正常配置。
+  //    只有 undefined（字段压根不存在）才走得到原来那条默认值分支，null/'' 都漏了。
+  if (raw === null || raw === undefined || String(raw).trim() === '') {
+    return DEFAULT_CACHE_MAX_MB * 1024 * 1024
+  }
+  const mb = Number(raw)
   const value = Number.isFinite(mb) ? mb : DEFAULT_CACHE_MAX_MB
   return value > 0 ? value * 1024 * 1024 : 0
 }

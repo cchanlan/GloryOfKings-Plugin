@@ -1777,8 +1777,22 @@ function observeSnapshot (state, data, nowMs, prev = {}) {
   const gaming = data ? Boolean(data.isGaming) : false
   const prevGaming = String(prev?.lastGaming || '') === '1'
 
-  patch.lastGaming = gaming ? '1' : ''
-  patch.lastGamingHero = gaming ? String(data?.gaming?.heroId || '') : ''
+  // ⚠️⚠️ `data` 为 null 有**两种截然不同**的原因，只有其中一种能断言「他不在对局」：
+  //      (a) needBattleList 判否 —— 这轮压根没拉列表 → 玩家确实不在对局，清空是对的；
+  //      (b) 拉了但失败 —— fetchLatest 返回 null（异常码 / 抛错 / 全池频控冷却）
+  //          或 FETCH_HIDDEN → 什么都没观测到，**必须保留上一轮的值**。
+  //    原先这里无条件写空，于是频控/抖动那一轮会被当成「他不在对局」落盘，两个下游立刻误判：
+  //      · apps/whoIsPlaying.js 把他从「正在对局」组挪进「在线」组，英雄格一起变空；
+  //      · apps/gameRecordPush.js 的 hintTick 挑不到他（`lastGaming === '1'` 不成立），
+  //        **开播提示漏发**，失败持续到这一局结束就彻底没了。
+  //    下面的 lastGameEndAt 早就加了 `data &&` 守卫，这里属于同源疏漏（2026-10-06 补）。
+  //    gameOnline 只用来决定「能不能下结论」，不用来判定「在对局」——判定仍只信 isGaming，
+  //    免得又回到「正在对局却没有英雄」那条老路。
+  const canJudgeIdle = Boolean(data) || toInt(state?.gameOnline) !== 2
+  if (canJudgeIdle) {
+    patch.lastGaming = gaming ? '1' : ''
+    patch.lastGamingHero = gaming ? String(data?.gaming?.heroId || '') : ''
+  }
   // 营地给了 isGaming 却没给 heroId：没见过的组合，留一条痕迹方便回查，但不影响出图
   if (gaming && !data?.gaming?.heroId) {
     logger.debug(`[王者推送] ${prev.campId || ''} isGaming=true 但没给 heroId，本轮英雄留空`)

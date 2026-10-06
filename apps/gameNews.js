@@ -223,6 +223,12 @@ export class GameNews extends plugin {
       pushMode: false,
       list: list.slice(0, MAX_ITEMS)
     })
+    // ⚠️⚠️ 出图失败必须在这里拦住（2026-10-06 修）：`puppeteer.screenshot` 渲染失败时返回
+    //    **false**（renderers/puppeteer/lib/puppeteer.js：`if (ret.length === 0 || !ret[0]) return false`），
+    //    而适配器的 makeMsg 会把非对象元素包成文本段 —— 群里收到的是一条内容为 `false` 的消息，
+    //    不是任何可读的失败提示。同文件 latest() 对同类失败有兜底
+    //    （`if (!imgList.length) return e.reply('公告出图失败…')`），这里是唯一漏掉的分支。
+    if (!img) return e.reply('公告列表出图失败，稍后再试', shouldQuote())
 
     const subscribed = Boolean(loadGameNewsStore().pushList[String(e.group_id || '')])
     await e.reply([img, Button.gameNews(subscribed)], shouldQuote())

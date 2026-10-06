@@ -125,10 +125,26 @@ function distConfig () {
   }
 }
 
-/** 服务端在哪个端口：从配置的服务地址里抠，抠不到按默认 */
+/**
+ * 服务端在哪个端口：从配置的服务地址里解析，解析不出来按默认。
+ *
+ * ⚠️⚠️ 必须走 URL 解析，**不能用 `/: (\d+)/` 抠**（2026-10-06 修）：那个正则取的是整串里
+ *    第一个「冒号+数字」，而 IPv6 字面量本身就带冒号 —— `'http://[::1]:8898'` 会被抠成 **1**。
+ *    而本文件的 `healApiUrl()` 明确把 `[::1]` 当作合法的本机回环地址（承认用户可以这么填）。
+ *    一旦抠成 1，`watchEnv()` 就会把 `GOK_WATCH_CTRL_PORT=1` 注入给 pm2（非 root 绑特权端口
+ *    直接起不来、root 则真的绑到 1），健康检查再去探配置里的 8898 必然超时，报出「进程起了但
+ *    控制面接口没通」这种指向错误方向的假失败；重启路径上更会把一个本来正常的服务主动踢走。
+ */
 function serverPort () {
-  const m = String(cfg().watchApiUrl || '').match(/:(\d+)/)
-  return m ? Number(m[1]) : DEFAULT_PORT
+  const raw = String(cfg().watchApiUrl || '').trim()
+  if (raw) {
+    try {
+      // 容错：用户可能只写了 `127.0.0.1:8898` 这种没协议的（normalizeBase 会补 http://）
+      const port = Number(new URL(/^[a-z]+:\/\//i.test(raw) ? raw : `http://${raw}`).port)
+      if (port >= 1 && port <= 65535) return port
+    } catch {}
+  }
+  return DEFAULT_PORT
 }
 
 /**

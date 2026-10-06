@@ -879,7 +879,10 @@ class AuthStore {
       userId: account.userId,
       ownerBotUserId: account.ownerBotUserId,
       isGlobalDefault: Boolean(account.isGlobalDefault),
-      priority: Number(account.priority || DEFAULT_PRIORITY),
+      // ⚠️ 用 `??` 而不是 `||`（2026-10-06 修）：`priority: 0` 是**合法值**（数值越小越优先），
+      //    `||` 会把它吞成 DEFAULT_PRIORITY，而这个函数的输出正是锅巴表单契约 ——
+      //    于是「手工把优先级设成 0」的账号在面板上显示 100、保存一次就被静默降级。
+      priority: Number(account.priority ?? DEFAULT_PRIORITY),
       authInvalid: Boolean(account.authInvalid),
       authErrorCount: Number(account.authErrorCount || 0),
       nickname: account.nickname || account.userName || '',
@@ -975,7 +978,15 @@ class AuthStore {
         ownerBotUserId: toText(item.ownerBotUserId),
         isGlobalDefault,
         priority: toNumber(item.priority ?? existing.priority ?? DEFAULT_PRIORITY, DEFAULT_PRIORITY),
-        authInvalid: rescued ? false : Boolean(item.authInvalid),
+        // ⚠️ 与上面的 isGlobalDefault 同一套语义（2026-10-06 修）：payload 里**没带**这个字段
+        //    （undefined）时沿用池中现值，只有显式布尔才改。写成 `Boolean(item.authInvalid)`
+        //    会把缺字段静默算成 false —— 一个已被标记失效的账号被改回「健康」，
+        //    重新进入 getAuthCandidates 的候选池，每个请求都先拿它试一次并再次标记失效，
+        //    主人从面板上看到的状态也在「正常/失效」之间来回跳。
+        //    这也与本函数里 rescued 的设计意图冲突：只有凭证被换成新值才允许清掉标记。
+        authInvalid: rescued
+          ? false
+          : (typeof item.authInvalid === 'boolean' ? item.authInvalid : Boolean(existing.authInvalid)),
         authErrorCount: rescued ? 0 : Number(item.authErrorCount ?? existing.authErrorCount ?? 0),
         // ⚠️ 这里用 `??` 而不是 `||`（2026-10-05 修）：`||` 分不出
         //    「表单压根没带这个字段」和「表单明确把昵称清空了」——

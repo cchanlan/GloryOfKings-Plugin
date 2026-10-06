@@ -1,6 +1,6 @@
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import api from '../utils/api.js'
-import { getImgType, Button, shouldQuote } from '#utils'
+import { getImgType, Button, shouldQuote, AT_HEAD, stripAtText } from '#utils'
 
 /**
  * `#查战力` —— 英雄在各省市/国服的**最低**战力线。
@@ -64,7 +64,9 @@ export class HeroFightingCapacity extends plugin {
       priority: 5000,
       rule: [
         {
-          reg: /^#查战力.*/,
+          // 原来是无前缀锚定的字面量正则，@ 一下机器人整条消息就匹配不上；
+          // 改成 AT_HEAD 前缀的 RegExp 构造（loader 只要求 reg 是 RegExp 或可 new RegExp 的串）
+          reg: new RegExp(`${AT_HEAD}#查战力[\\s\\S]*$`),
           fnc: 'checkHeroFightingCapacity'
         }
       ]
@@ -72,7 +74,7 @@ export class HeroFightingCapacity extends plugin {
   }
 
   async checkHeroFightingCapacity (e) {
-    const heroName = e.msg.replace(/#|查战力|\s+|\n+/g, '').trim()
+    const heroName = stripAtText(e.msg).replace(/#|查战力|\s+|\n+/g, '').trim()
     if (!heroName) {
       await e.reply(['请输入要查询的英雄名称', Button.hero()])
       return

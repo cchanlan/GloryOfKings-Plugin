@@ -30,6 +30,7 @@
  * 两者不重叠，怎么更新都碰不到。
  */
 
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import zlib from 'node:zlib'
@@ -416,6 +417,24 @@ export async function installPackage ({
 
   const down = await downloadPackage({ name, sha: meta.sha, url, token, logger })
   if (!down.ok) return { ok: false, message: down.message }
+
+  // ⚠️⚠️ 下载完**必须校验一次**（2026-10-06 修）。服务端其实已经把两份校验材料都给过来了
+  //    （`fetchPackageMeta` 的 `sha256`、下载响应头 `x-gok-sha`），原先取了却没有任何消费点，
+  //    解压前唯一的判据是下面那句「文件数不为 0」—— 而 gzip 的 CRC 只能发现传输损坏，
+  //    发现不了内容被换过。这条链是**明文 HTTP**（见 local/distDeploy 的说明），
+  //    下下来的又是直接落盘、随后被 pm2 执行的 JS，等于把「装哪一份」完全交给网络路径。
+  if (meta.sha256) {
+    const got = crypto.createHash('sha256').update(down.buffer).digest('hex')
+    if (got !== String(meta.sha256).toLowerCase()) {
+      logger?.warn?.(`[deploy] ${name} 校验不过：期望 ${String(meta.sha256).slice(0, 12)}，实际 ${got.slice(0, 12)}`)
+      return { ok: false, message: '下载的包校验没过（传输中可能损坏或被替换），重试一次' }
+    }
+  }
+  // 响应头回的版本也必须就是我们要的那一版，否则是缓存串了包
+  if (down.sha && meta.sha && String(down.sha) !== String(meta.sha)) {
+    logger?.warn?.(`[deploy] ${name} 版本不一致：要 ${String(meta.sha).slice(0, 8)}，服务器给的 ${String(down.sha).slice(0, 8)}`)
+    return { ok: false, message: '服务器给的包版本和要的不一致，重试一次' }
+  }
 
   let result
   try {

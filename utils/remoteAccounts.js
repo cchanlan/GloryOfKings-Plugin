@@ -175,12 +175,23 @@ function usableGlobalAccounts () {
 }
 
 /**
- * 指纹：id + 登录态最后更新时间。
- * 重新扫码会刷新 updatedAt —— 那一变就必须立刻重报，不能等节流窗口过去。
+ * 指纹：id + 该号的 token 尾部。
+ * 重新扫码会换 token —— 那一变就必须立刻重报，不能等节流窗口过去。
+ * （⚠️ 曾经用 updatedAt，但它在每次读池时都被刷成当前时间，节流因此永久失效，见下。）
  */
 function fingerprint (accounts) {
   return Object.keys(accounts).sort()
-    .map(id => `${id}:${accounts[id].updatedAt || ''}`)
+    // ⚠️⚠️ **不能用 updatedAt**（2026-10-06 修）：authStore 的 `#normalizeAccount` 里
+    //    `updated: (key, account, existing, timestamp) => timestamp`，而 `getPool()` /
+    //    `listAccounts()` 没有任何缓存、每次现读盘现归一化 —— 于是 updatedAt 恒等于
+    //    「本次调用时刻」，两次调用只要不在同一毫秒就必然不同，`prev.fp === fp`
+    //    永远为 false，下面那道 60 秒节流**一次都不会生效**。
+    //    连远端服务端时（isRemoteBase 为真，正是本模块存在的意义）营地的消息轮询
+    //    每 3 秒一轮、每轮都调本函数，等于每 3 秒把本机全部全局账号（含 token /
+    //    userKey / encodeRes）POST 给对方一次。
+    //    改用 token：重新扫码会换 token（指纹变 → 立刻上报，正是注释想要的语义），
+    //    不重扫则恒定（指纹不变 → 正常节流）。只取尾部 8 位，别把完整凭证拼进常驻内存的长字符串。
+    .map(id => `${id}:${String(accounts[id].token || '').slice(-8)}`)
     .join('|')
 }
 
