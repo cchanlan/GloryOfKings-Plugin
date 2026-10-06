@@ -17,6 +17,7 @@
 import path from 'node:path'
 import { writeYamlFile } from './utils/yamlUtils.js'
 import { guardApps } from './utils/blackList.js'
+import { fillDefaultShareUrl, migrateLegacyShareToken } from './utils/shareDefaults.js'
 import { PluginName, PluginData } from './components/Path.js'
 import fs from 'node:fs/promises'
 import chalk from 'chalk'
@@ -151,6 +152,33 @@ async function loadModules () {
 }
 
 await checkAndCreatePaths()
+
+/**
+ * ⭐ **升级上来的老用户，第一次启动就把共享库地址补上**（2026-10-06 修）。
+ *
+ * ⚠️⚠️ 为什么非得放在**启动**这一步：模板里加了默认值（`config/default_config/
+ *    config.yaml` 的 `shareApiUrl`）**救不了老用户** —— 他们的 `config/config/
+ *    config.yaml` 是当年从**旧模板**复制出来的，里面明明白白写着 `shareApiUrl: ''`，
+ *    而配置合并规则是「用户值优先」（空串也是合法值），于是模板的新默认值被这个空串
+ *    盖掉，永远轮不到它生效。
+ *
+ *    原先只在两个地方补：① 重发接入指令时 ② 打开锅巴配置页时。
+ *    ① 老用户不会做（他早接好了）；② 他不打开就永远补不上 ——
+ *    现象就是「别的用户锅巴上地址一片空白」，正是主人 2026-10-06 指出的那条。
+ *    放到启动时补，覆盖所有老用户，且不依赖他去点任何东西。
+ *
+ * 只写**空**的那格，用户自己填过的地址一律不动（见 utils/shareDefaults.js）。
+ * 失败不能影响启动：配置写不进去最多是这一格空着，插件本身照常用。
+ */
+try {
+  const filled = fillDefaultShareUrl()
+  const moved = migrateLegacyShareToken()
+  if (filled) logger.info(`[${PluginName}] 已补上共享库地址（老配置里那格是空的）`)
+  if (moved) logger.info(`[${PluginName}] 已把旧配置里的接入令牌搬到锅巴认的那一格`)
+} catch (error) {
+  logger.warn(`[${PluginName}] 补共享库默认值失败（不影响使用）：${error?.message || error}`)
+}
+
 await loadModules()
 
 // 黑名单闸门：给所有 app 的方法统一套一层，名单里的人发王者指令一律不响应。

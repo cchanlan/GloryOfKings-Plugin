@@ -220,8 +220,17 @@ export function supportGuoba () {
           field: 'config.masterNotify',
           label: '主人通知收件人',
           bottomHelpMessage: '插件私聊主人的运维提醒（全局账号登录态失效、账号被营地限流、营地消息推不出去、保活结果、共享库接入提醒）默认只发给第一个主人，不会群发所有主人。想换人或几个人一起收，在这里勾（可多选）。留空 = 只发第一个主人。勾了的人被移出主人列表时会自动回落到第一个主人，不会把提醒静默丢掉。',
-          component: 'GTags',
+          // ⚠️ 用 `Select` 而不是 `GTags`（2026-10-06 修）：锅巴把 GTags 归进
+          //    BLOCK_COMPONENTS（「整行大组件」），label 会改成**竖排**、说明文字
+          //    （bottomHelpMessage）跟着顶到表单最左边 —— 实测左边缘 24px，
+          //    而别的项是 184px（让开 label 的 160px），这一段明显突出来一截。
+          //    而 GTags 在**有 options 时内部渲染的就是这个 Select**
+          //    （mode="multiple"），所以换过来行为完全一样，只是 label 回了横排、
+          //    宽度也跟着回到表单统一的 900px（GTags 自己另写了 560px 上限）。
+          component: 'Select',
           componentProps: {
+            mode: 'multiple',
+            allowClear: true,
             options: masterOptions,
             placeholder: '留空 = 只发给第一个主人'
           }
@@ -498,6 +507,20 @@ export function supportGuoba () {
           componentProps: {
             multiple: true,
             modalProps: { title: '营地号' },
+            // ⚠️ 把表格右移，让它跟别的项**左边缘对齐**（2026-10-06 修）。
+            //    锅巴把 GSubForm 归进 BLOCK_COMPONENTS（「整行大组件」），这一项的
+            //    label 会改成竖排独占一行，表格就顶到了表单最左边（实测 24px），
+            //    而别的项都在 184px（让开 label 那 160px）—— 表格突出来一截很难看。
+            //    componentProps 会透传到 GSubForm 的根元素，所以这一条能把表格挪回去。
+            //
+            // ⚠️ 160px 是**硬编码**的，对应锅巴 SchemaForm 的 labelWidth 默认值
+            //    （web/src/components/schema-form/SchemaForm.vue 的 `labelWidth: 160`）。
+            //    那个值插件侧读不到，锅巴也没开放给 schema 指定，只能照着写。
+            //    将来锅巴改了默认 labelWidth，这里要跟着改。
+            //
+            // ⚠️ 只挪得了表格本身：下面那段说明文字（bottomHelpMessage）挂在 FormItem
+            //    上、不在组件里，够不着，仍会留在最左边。
+            style: 'margin-left: 160px',
             schemas: [
               {
                 field: 'userId',
@@ -643,11 +666,18 @@ export function supportGuoba () {
           label: '插件黑名单',
           helpMessage: '命令：#王者拉黑@某人 / #王者取消拉黑@某人 / #王者黑名单',
           bottomHelpMessage: '填 QQ 号，可以填多个。名单里的人发任何王者指令都不会有回应，之前订阅的战绩推送、上下线提醒、日报周报月报也不再推，群报和排行榜里也不统计他。订阅和绑定数据都不会被删，从名单里移出去就自动恢复。主人不受影响。',
-          component: 'GTags',
+          // ⚠️ 用 Select 的 tags 模式而不是 GTags（2026-10-06 修）：锅巴把 GTags 归进
+          //    BLOCK_COMPONENTS（「整行大组件」），label 会改成**竖排**，于是控件和
+          //    下面的说明文字一起顶到表单最左边 —— 实测左边缘 22px，而别的项是 184px
+          //    （让开 label 那 160px），这一段明显突出来一截。
+          //    Select 不在那个名单里，label 回到横排，控件和说明就自动对齐了。
+          //    功能完全等价：tags 模式照样能一条一条加/删，数据也都是字符串数组。
+          component: 'Select',
           componentProps: {
-            placeholder: '请输入要拉黑的 QQ 号',
-            allowAdd: true,
-            allowDel: true
+            mode: 'tags',
+            placeholder: '输入 QQ 号后回车',
+            tokenSeparators: [',', '，', ' '],
+            allowClear: true
           }
         },
         {
