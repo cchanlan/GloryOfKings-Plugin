@@ -16,7 +16,7 @@
  */
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import common from '../../../lib/common/common.js'
-import { getImgType, Button, shouldQuote, pickGroupSafe } from '#utils'
+import { getImgType, Button, shouldQuote, pickGroupSafe, AT_HEAD } from '#utils'
 import { Config } from '#components'
 import {
   getNewsList, getNewsDetail, loadGameNewsStore, setGameNewsSub,
@@ -151,10 +151,14 @@ export class GameNews extends plugin {
       // 同 skinNews / whoIsPlaying：完整锚定的短指令要抢在 queryGameStats 的宽匹配前面
       priority: 0,
       rule: [
-        { reg: '^#王者(公告|资讯)列表$', fnc: 'list' },
-        { reg: '^#王者(公告|资讯)$', fnc: 'latest' },
+        // ⚠️⚠️ 三条都要用 AT_HEAD 替掉硬 `^`（2026-10-06 修）：手打/粘贴出来的
+        //    「@昵称」到 Bot 这边**只是纯文本**（真 at 段不会进 e.msg），它顶在指令前面时
+        //    硬 `^#` 匹配不上，规则直接 continue —— 用户发出去**一句回应都没有**。
+        //    同插件 heroList / myHeroList / heroDetail / skinWall / skinMissing 都已用 AT_HEAD。
+        { reg: `${AT_HEAD}#王者(公告|资讯)列表$`, fnc: 'list' },
+        { reg: `${AT_HEAD}#王者(公告|资讯)$`, fnc: 'latest' },
         {
-          reg: '^#(开启|关闭)王者公告推送$',
+          reg: `${AT_HEAD}#(开启|关闭)王者公告推送$`,
           fnc: 'toggle',
           // admin 会自动放行主人，群里则要求管理员
           permission: 'admin'
@@ -176,8 +180,11 @@ export class GameNews extends plugin {
     try {
       list = await getNewsList()
     } catch (error) {
+      // ⚠️ 原始 error.message 不甩给用户（2026-10-06 修）：这条数据源是官网资讯接口
+      //    （零鉴权、不占营地配额），失败原因基本只有网络/对方改版两种，原文对用户没有
+      //    可操作性；而 message 里可能带完整 URL 与内部字段名。
       logger.error(`[王者公告] 获取失败: ${error.message}`)
-      return e.reply(`获取公告失败：${error.message}`, shouldQuote())
+      return e.reply('官网公告拉取失败，稍后再试试', shouldQuote())
     }
 
     if (!list.length) {
@@ -188,8 +195,10 @@ export class GameNews extends plugin {
     try {
       detail = await getNewsDetail(list[0])
     } catch (error) {
+      // ⚠️ 同上：给用户「怎么办」而不是 error.message（2026-10-06 修）。
+      //    原文链接是已知的、也是唯一有用的出路，保留。
       logger.error(`[王者公告] 取正文失败: ${error.message}`)
-      return e.reply(`取公告正文失败：${error.message}\n原文：${list[0].url}`, shouldQuote())
+      return e.reply(`取公告正文失败，可以直接看原文：${list[0].url}`, shouldQuote())
     }
 
     await e.reply(`正在生成《${detail.title}》${detail.pageCount > 1 ? `，共 ${detail.pageCount} 页` : ''}...`, shouldQuote())
@@ -210,7 +219,7 @@ export class GameNews extends plugin {
       list = await getNewsList()
     } catch (error) {
       logger.error(`[王者公告] 获取失败: ${error.message}`)
-      return e.reply(`获取公告失败：${error.message}`, shouldQuote())
+      return e.reply('官网公告拉取失败，稍后再试试', shouldQuote())
     }
 
     if (!list.length) {

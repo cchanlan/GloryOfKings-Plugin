@@ -383,7 +383,22 @@ export class MyKingHomepage extends plugin {
         }
 
         const data = buildHomepageData(profileData, roleData, headData)
-        imgBuffers.push(await puppeteer.screenshot('myKingHomepage', data))
+        // ⚠️ 只收真图（2026-10-06 修）：screenshot 渲染失败是**返回 false 而不抛错**
+        //    （renderers/puppeteer/lib/puppeteer.js 末尾 `if (ret.length === 0 || !ret[0]) return false`），
+        //    而原来无条件 push 进 imgBuffers —— 下面 `e.reply([...imgBuffers, button])` 会把
+        //    false 当文本段发进群（适配器把非对象元素包成 {type:'text', data:{text:false}}）。
+        //    这个 catch 接不到它，所以必须自己判。
+        const shot = await puppeteer.screenshot('myKingHomepage', data)
+        if (!shot) {
+          logger.error(`[王者主页] ${ID} 出图失败`)
+          if (IDs.length === 1) {
+            await e.reply(`ID: ${ID}，主页出图失败，稍后再试`)
+          } else {
+            pushFailure(ID, '主页出图失败，已跳过')
+          }
+          continue
+        }
+        imgBuffers.push(shot)
       } catch (error) {
         logger.error(`[王者主页] 渲染 ${ID} 失败: ${error.message}`)
         if (IDs.length === 1) {

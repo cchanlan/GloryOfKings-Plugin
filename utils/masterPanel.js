@@ -126,5 +126,7 @@ export async function renderMasterPanel (e) {
     ...buildMasterPanelData()
   })
 
-  await e.reply(panelImage)
+  // ⚠️ screenshot 失败返回 false 而不抛错（2026-10-06 修）：不判空会把 false 当文本段
+  //    发给主人，而「面板出图失败」正是最该给一句人话的时候（主人只会看到一条 false）。
+  if (!panelImage) return e.reply('面板出图失败，稍后再试')
 }

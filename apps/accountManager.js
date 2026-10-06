@@ -298,6 +298,12 @@ export class AccountManager extends plugin {
   async #replyIdCard(e, type, currentId, userInfo, nameMap, tailButton) {
     const idList = this.#formatIdList(userInfo, nameMap)
     const html = await this.#renderAccountManageCard(type, currentId, idList, nameMap[currentId])
+    // ⚠️ 出图失败必须显式判空（2026-10-06 修）：`puppeteer.screenshot` 渲染失败时
+    //    **返回 false 而不抛异常**（renderers/puppeteer/lib/puppeteer.js 末尾
+    //    `if (ret.length === 0 || !ret[0]) return false`），而适配器把非对象元素
+    //    包成文本段（plugins/adapter/OneBotv11.js:60）—— 不拦的话群里收到的是一条
+    //    内容为 `false` 的消息，而不是任何可读的失败提示。
+    if (!html) return e.reply('账号卡片出图失败，稍后再试', shouldQuote())
     await e.reply([html, tailButton()])
   }
 
@@ -971,6 +977,11 @@ export class AccountManager extends plugin {
 
     try {
       const img = await this.#renderAuthPoolOverview(overviewData)
+      // ⚠️ 手动抛出让下面的 catch 接住（2026-10-06 修）：screenshot 失败是**返回 false**
+      //    不是抛错，所以这个 catch 原本永远不生效 —— 面板渲染不出来时主人收到的是
+      //    一条内容为 `false` 的消息，而不是下面这段精心写的文本摘要回落。
+      //    同 help.js 的 `if (!inventoryImage) throw new Error('截图返回空')` 是同一手法。
+      if (!img) throw new Error('截图返回空')
       await e.reply(img, shouldQuote())
     } catch (error) {
       logger.error(`[王者用户统计] 渲染统计面板失败: ${error.message}`)

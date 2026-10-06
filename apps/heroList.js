@@ -151,6 +151,8 @@ export class HeroList extends plugin {
       heroes
     })
 
+    // ⚠️ screenshot 失败返回 false 而不抛错，不判空会把 false 当文本发进群（2026-10-06 修）
+    if (!img) return e.reply('常用英雄出图失败，稍后再试', shouldQuote())
     await e.reply([img, Button.heroList(msg ? ID : '')], shouldQuote())
   }
 

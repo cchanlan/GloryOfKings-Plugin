@@ -9,7 +9,7 @@
  * 留空 = 不自动推送，只保留指令。改完需重启（cron 在 constructor 注册）。
  */
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { getImgType, Button, shouldQuote, pickGroupSafe } from '#utils'
+import { getImgType, Button, shouldQuote, pickGroupSafe, AT_HEAD } from '#utils'
 import { Config } from '#components'
 import {
   getSkinCalendar, splitCalendar, formatDate, today, QUALITY_COLOR,
@@ -54,9 +54,11 @@ export class SkinNews extends plugin {
       // 同 whoIsPlaying / heroGuide：完整锚定的短指令要抢在 queryGameStats 的宽匹配前面
       priority: 0,
       rule: [
-        { reg: '^#(王者)?(皮肤上新|新皮肤|皮肤日历)$', fnc: 'calendar' },
+        // ⚠️ 用 AT_HEAD 替掉硬 `^`（2026-10-06 修，同 gameNews）：纯文本形态的
+        //    「@昵称」顶在指令前面时，硬 `^#` 匹配不上 → 整条指令静默无响应。
+        { reg: `${AT_HEAD}#(王者)?(皮肤上新|新皮肤|皮肤日历)$`, fnc: 'calendar' },
         {
-          reg: '^#(开启|关闭)(王者)?皮肤上新推送$',
+          reg: `${AT_HEAD}#(开启|关闭)(王者)?皮肤上新推送$`,
           fnc: 'toggle',
           // admin 会自动放行主人（同群报），群里则要求管理员
           permission: 'admin'
@@ -93,6 +95,8 @@ export class SkinNews extends plugin {
       recent: recent.map(decorate)
     })
 
+    // ⚠️ screenshot 失败返回 false 而不抛错，不判空会把 false 当文本发进群（2026-10-06 修）
+    if (!img) return e.reply('皮肤日历出图失败，稍后再试', shouldQuote())
     await e.reply([img, Button.skinNews(Boolean(loadSkinNewsStore().pushList[String(e.group_id || '')]))], shouldQuote())
   }
 
@@ -162,6 +166,14 @@ export class SkinNews extends plugin {
       })
     } catch (error) {
       logger.error(`[皮肤上新] 出图失败: ${error.message}`)
+      return
+    }
+
+    // ⚠️ 这个 catch 接不到「渲染失败」（2026-10-06 修）：screenshot 失败是**返回 false**
+    //    不是抛错，所以原来 img 为 false 时会继续往下走，`group.sendMsg([文案, false])`
+    //    把 false 当文本段发进**每一个订阅群**。推送路径影响面比指令大得多，必须单独拦。
+    if (!img) {
+      logger.error('[皮肤上新] 出图失败，本轮推送跳过')
       return
     }
 

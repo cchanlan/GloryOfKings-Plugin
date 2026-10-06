@@ -170,6 +170,8 @@ export class AllSeasonPerformance extends plugin {
       trendJson: JSON.stringify(trend)
     })
 
+    // ⚠️ screenshot 失败返回 false 而不抛错，不判空会把 false 当文本发进群（2026-10-06 修）
+    if (!img) return e.reply('全赛季表现出图失败，稍后再试', shouldQuote())
     await e.reply([img, Button.allPerformance(campId, mode)], shouldQuote())
   }
 

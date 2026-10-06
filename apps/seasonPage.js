@@ -105,6 +105,9 @@ export class SeasonPage extends plugin {
           ...fallback,
           titleLabel: `${mode}表现`
         })
+        // ⚠️ screenshot 失败返回 false 而不抛错（2026-10-06 修）：不判空就会把 false
+        //    当文本段发进群，而且这条是**降级路径**、本来最需要给用户一句人话。
+        if (!img) return e.reply('赛季表现出图失败，稍后再试', shouldQuote())
         // 降级时拿不到赛季列表，历史赛季按钮没有可跳的赛季号
         await e.reply([img, Button.performance(campId, mode, '')], shouldQuote())
         return
@@ -296,6 +299,8 @@ export class SeasonPage extends plugin {
       lanesJson: JSON.stringify(lanes)
     })
 
+    // ⚠️ screenshot 失败返回 false 而不抛错，不判空会把 false 当文本发进群（2026-10-06 修）
+    if (!img) return e.reply('赛季表现出图失败，稍后再试', shouldQuote())
     // 上一个赛季（history 是从新到旧），给按钮做历史赛季入口
     const prevSeason = seasonNo(history[history.indexOf(target) + 1]?.seasonName) || ''
     await e.reply([img, Button.performance(campId, mode, prevSeason)], shouldQuote())

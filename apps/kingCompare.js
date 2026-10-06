@@ -248,7 +248,14 @@ export class KingCompare extends plugin {
 
   async nameOf (e, userId) {
     try {
-      return await resolveMemberName(e, userId) || String(userId)
+      // ⚠️⚠️ 第一个形参是**群对象**，不是消息事件（2026-10-06 修）。
+      //    `resolveMemberName(group, userId, fallback)` 内部是 `group?.pickMember?.(uid)`
+      //    （utils/adapter.js:74），而 `e` 上**没有** pickMember（框架只给 e.bot / e.group /
+      //    e.member / e.sender），可选链静默跳过 → 一路落到兜底 `isQQNumber(uid) ? String(uid)
+      //    : '召唤师'`。触发点是下面那句「X 还没绑定营地ID」—— 被 @ 的人没绑定时，
+      //    提示语里的名字会退化成裸 QQ 号（官 bot 的 openid 场景退化成「召唤师」），
+      //    而正确行为是显示群名片。同仓 5 处调用点传的都是 e.group。
+      return await resolveMemberName(e.group, userId) || String(userId)
     } catch {
       return String(userId)
     }

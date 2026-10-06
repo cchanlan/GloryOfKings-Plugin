@@ -21,14 +21,12 @@
  * 品质口径（tierRank / pickTierText / QUALITY_STATS）与皮肤墙共用一份。
  */
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import path from 'path'
 import {
   getImgType,
-  ApiService, resolveCurrentId, readYamlFile, Button, shouldQuote,
+  ApiService, resolveCurrentId, getBoundIds, Button, shouldQuote,
   AT_HEAD, stripAtText, resolveTargetUserId, resolveMemberName, getUserAvatar,
   isClassicSkin, SZ_ORDER, normalizeSzClass, tierRank, pickTierText, QUALITY_STATS
 } from '#utils'
-import { PluginData } from '#components'
 import { loadPushList } from '../utils/pushStore.js'
 
 /** 概况里「高价值缺失」列几条 */
@@ -63,7 +61,12 @@ export class SkinMissing extends plugin {
 
     let campId = args.campId
     if (!campId && args.index) {
-      const ids = (readYamlFile(path.join(PluginData, 'UserData.yaml')) || {})[userId]?.ids || []
+      // ⚠️ 走 getBoundIds 而不是裸读 YAML（2026-10-06 修）：readYamlFile 的契约是
+      //    「文件不存在 / 内容坏了**原样抛错**」，`|| {}` 拦不住 throw —— 手工编辑坏
+      //    UserData.yaml 之后 `#缺皮肤 1` 会整条抛异常，而异常被 loader 的 catch 吃掉，
+      //    用户**一句提示都收不到**。getBoundIds 读的就是同一个文件（带指纹缓存），
+      //    读失败按空表处理。同族修复见 apps/battleReport.js 的 `#王者日报 2` 分支。
+      const ids = getBoundIds(userId)
       campId = ids[args.index - 1] || ''
       if (!campId) {
         return e.reply(`你没有第 ${args.index} 个绑定的营地ID，发送 #营地ID 看看列表`, shouldQuote())
@@ -83,8 +86,15 @@ export class SkinMissing extends plugin {
       const res = await ApiService.getSkinList(String(campId), String(userId))
       data = res?.data || res
     } catch (error) {
+      // ⚠️ 不能把 error.message 原样甩给用户（2026-10-06 修）：getSkinList 走的是
+      //    `gameFormWithCandidates`（营地鉴权接口），鉴权类错误的消息里带账号/令牌字段，
+      //    而且非主人用户看到「令牌过期」这类文案也不知道该做什么。
+      //    同批 skinWall / heroList / heroTierList / heroDetail 都走 formatUserFacingError。
       logger.error(`[王者缺皮肤] ${campId} 取皮肤列表失败: ${error.message}`)
-      return e.reply(`查询失败：${error.message}`, shouldQuote())
+      return e.reply(ApiService.formatUserFacingError(error, {
+        isMaster: Boolean(e.isMaster),
+        scene: '缺皮肤查询异常'
+      }), shouldQuote())
     }
 
     const conf = Object.values(data?.heroSkinConfList || {}).filter(item => !isClassicSkin(item))
@@ -226,7 +236,10 @@ async function displayName (e, userId) {
   const cached = String(loadPushList()[String(userId)]?.roleName || '').trim()
   if (cached) return cached
   try {
-    return await resolveMemberName(e, userId) || String(userId)
+    // ⚠️ 第一个形参是**群对象**（2026-10-06 修）：resolveMemberName 内部走
+    //    `group?.pickMember?.(uid)`，而 `e` 上没有 pickMember → 可选链静默跳过，
+    //    群名片永远取不到，一路退化成裸 QQ 号（openid 场景是「召唤师」）。
+    return await resolveMemberName(e.group, userId) || String(userId)
   } catch {
     return String(userId)
   }

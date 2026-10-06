@@ -233,6 +233,8 @@ export class QueryGameStats extends plugin {
         emptyDescription: `ID: ${ID} 近期战绩中没有使用过 ${matchedName}`,
         heroLabel: matchedName
       })
+      // ⚠️ screenshot 失败返回 false 而不抛错，不判空会把 false 当文本发进群（2026-10-06 修）
+      if (!emptyImg) return e.reply('战绩列表出图失败，稍后再试', shouldQuote())
       await e.reply([emptyImg, Button.heroStats(matchedName)], shouldQuote())
       return
     }
@@ -257,6 +259,8 @@ export class QueryGameStats extends plugin {
       winningStreak: this.calculateWinningStreak(processedData.map(d => d.gameResult))
     })
 
+    // ⚠️ screenshot 失败返回 false 而不抛错，不判空会把 false 当文本发进群（2026-10-06 修）
+    if (!listImg) return e.reply('战绩列表出图失败，稍后再试', shouldQuote())
     await e.reply([listImg, Button.heroStats(matchedName, ID)], shouldQuote())
   }
 
@@ -339,6 +343,8 @@ export class QueryGameStats extends plugin {
           : (battleList?.invisDes || `ID: ${ID} 当前没有可展示的战绩数据`),
         modeLabel: mode ? mode.key : ''
       })
+      // ⚠️ screenshot 失败返回 false 而不抛错，不判空会把 false 当文本发进群（2026-10-06 修）
+      if (!emptyImg) return e.reply('战绩列表出图失败，稍后再试', shouldQuote())
       await e.reply([emptyImg, Button.gameStats(ID, 0, mode ? mode.key : '')], shouldQuote())
       return
     }
@@ -379,6 +385,8 @@ export class QueryGameStats extends plugin {
       winningStreak: this.calculateWinningStreak(processedData.map(d => d.gameResult))
     })
 
+    // ⚠️ screenshot 失败返回 false 而不抛错，不判空会把 false 当文本发进群（2026-10-06 修）
+    if (!listImg) return e.reply('战绩列表出图失败，稍后再试', shouldQuote())
     await e.reply([listImg, Button.gameStats(ID, processedData.length, mode ? mode.key : '')], shouldQuote())
   }
 
@@ -464,7 +472,11 @@ export class QueryGameStats extends plugin {
       logger.debug(`用户 ${userId} 未绑定ID`)
       return null
     }
-    return userInfo.ids[userInfo.current]
+    // ⚠️ `current` 缺失/越界时要兜到第一个（2026-10-06 修）：`ids[undefined]` 是 undefined，
+    //    调用方拿它判空就会回「营地ID获取」教程图 —— 明明有绑定却说没绑。
+    //    同仓读绑定的地方都写了兜底（accountManager.js:389 / :642 都是 `|| ids[0]`）。
+    //    实测线上 31 条 UserData 全都带 current，所以是潜在缺陷、当前不触发。
+    return userInfo.ids[userInfo.current] ?? userInfo.ids[0] ?? null
   }
 
   /** 把营地返回的战绩字段换成列表模板认的名字 */

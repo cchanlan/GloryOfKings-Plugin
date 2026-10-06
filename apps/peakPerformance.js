@@ -217,6 +217,8 @@ export class PeakPerformance extends plugin {
       heros
     })
 
+    // ⚠️ screenshot 失败返回 false 而不抛错，不判空会把 false 当文本发进群（2026-10-06 修）
+    if (!img) return e.reply('巅峰表现出图失败，稍后再试', shouldQuote())
     // 近30天口径下把上一赛季（history[1]）作为历史赛季入口
     await e.reply([img, Button.performance(campId, '巅峰', seasonNo(history[1]?.seasonName) || '')], shouldQuote())
   }
@@ -344,6 +346,8 @@ export class PeakPerformance extends plugin {
       heros
     })
 
+    // ⚠️ screenshot 失败返回 false 而不抛错（2026-10-06 修）
+    if (!img) return e.reply('巅峰表现出图失败，稍后再试', shouldQuote())
     const prevSeason = seasonNo(history[history.indexOf(target) + 1]?.seasonName) || ''
     await e.reply([img, Button.performance(campId, '巅峰', prevSeason)], shouldQuote())
   }

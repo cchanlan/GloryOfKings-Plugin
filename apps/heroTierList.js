@@ -182,6 +182,8 @@ export class HeroTierList extends plugin {
       groups
     })
 
+    // ⚠️ screenshot 失败返回 false 而不抛错，不判空会把 false 当文本发进群（2026-10-06 修）
+    if (!img) return e.reply('英雄梯度榜出图失败，稍后再试', shouldQuote())
     // 注意：本函数内 segment 被 parseFilter 的返回值遮蔽，按钮统一在 Button 里构造
     await e.reply([img, Button.heroTier()], shouldQuote())
   }

@@ -105,6 +105,9 @@ export class HeroFightingCapacity extends plugin {
         minStats: pickMinPowers(heroFightingCapacity)
       })
 
+      // ⚠️ screenshot 失败返回 false 而不抛错（2026-10-06 修）：外面那个 catch 接不到它，
+      //    不判空就会把 false 当文本段发进群。
+      if (!img) return e.reply('英雄战力出图失败，稍后再试', shouldQuote())
       // 英雄名认不出来时（接口没给 name）按钮退回用户输入的原词
       await e.reply([img, Button.hero(displayName || heroName)], shouldQuote())
     } catch (err) {
