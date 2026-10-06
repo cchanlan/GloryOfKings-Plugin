@@ -7,6 +7,7 @@ import authStore from './utils/authStore.js'
 //    （2026-09-20 实测：锅巴「插件配置」页里那一堆开关全没了）。用具名导入没有这个问题。
 import { getAccountSwitches, setAccountEnabled, invalidate, pruneAccounts } from './utils/campImStore.js'
 import { ownerOf } from './utils/campImPush.js'
+import { listMasterQQ } from './utils/masterMsg.js'
 
 /**
  * 出给锅巴面板前要脱敏的账号字段。InputPassword 组件只遮前端输入框的显示，
@@ -180,6 +181,9 @@ export function supportGuoba () {
   } = getAuthPoolSnapshot()
   const campIm = getCampImSnapshot()
 
+  // 主人通知收件人的下拉候选：就是主人列表（锅巴里勾谁，运维提醒就只发给谁）
+  const masterOptions = listMasterQQ().map(qq => ({ label: qq, value: qq }))
+
   return {
     pluginInfo: {
       name: '王者插件',
@@ -209,6 +213,16 @@ export function supportGuoba () {
           label: '引用触发消息',
           bottomHelpMessage: '默认开启。开启时回复会引用触发指令那条消息；关闭后直接发送，不带引用。',
           component: 'Switch'
+        },
+        {
+          field: 'config.masterNotify',
+          label: '主人通知收件人',
+          bottomHelpMessage: '插件私聊主人的运维提醒（全局账号登录态失效、账号被营地限流、营地消息推不出去、保活结果、共享库接入提醒）默认只发给第一个主人，不会群发所有主人。想换人或几个人一起收，在这里勾（可多选）。留空 = 只发第一个主人。勾了的人被移出主人列表时会自动回落到第一个主人，不会把提醒静默丢掉。',
+          component: 'GTags',
+          componentProps: {
+            options: masterOptions,
+            placeholder: '留空 = 只发给第一个主人'
+          }
         },
         {
           field: 'config.battleResultCron',
