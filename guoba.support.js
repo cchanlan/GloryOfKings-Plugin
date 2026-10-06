@@ -496,13 +496,22 @@ export function supportGuoba () {
         {
           field: 'campIm.accounts',
           label: `哪些营地号收消息（共 ${campIm.accounts.length} 个）`,
-          helpMessage: '只对「有归属人」的号生效 —— 没有归属人的号一律不推，加了也没用。',
-          bottomHelpMessage:
+          // ⚠️ 这两段解释**必须放在问号里**，不能留 bottomHelpMessage（2026-10-06 修）。
+          //    锅巴把 GSubForm 归进 BLOCK_COMPONENTS（「整行大组件」），这一项的
+          //    label 竖排独占一行 —— 于是 bottomHelpMessage 会被渲染到表单**最左边**
+          //    （实测 24px），而别的项都在 184px，突出来一截很难看。
+          //    偏偏那段文字挂在锅巴的 FormItem 上、**不在组件内部**，componentProps
+          //    够不着它（只有控件本身挪得动，见下面 componentProps.style）。
+          //    收进 helpMessage 就没有这个位置问题了：它渲染在 label 旁边的问号里。
+          //    锅巴的 helpMessage 支持数组，两段会分行显示，信息一条不丢。
+          helpMessage: [
+            '只对「有归属人」的号生效 —— 没有归属人的号一律不推，加了也没用。',
             '⚠️ 这是**收消息专用**的名单，跟查询/推送轮询用的账号池是两回事 —— ' +
             '扫进来的全局账号默认**不**收消息，只拿来轮询查数据；要收消息的才加到这里。' +
             '「删除」= 移出名单（立刻停掉它的长连接），删了不会再自动冒出来。' +
             '想加号去侧边栏「营地消息」页面（那儿列着「可以加进来的号」）。' +
-            '归属人是扫码登录时记下的，想换人去「账号列表」改「归属 QQ」。',
+            '归属人是扫码登录时记下的，想换人去「账号列表」改「归属 QQ」。'
+          ],
           component: 'GSubForm',
           componentProps: {
             multiple: true,
