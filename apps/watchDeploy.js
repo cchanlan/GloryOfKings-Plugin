@@ -524,7 +524,15 @@ export class WatchDeploy extends plugin {
       //    「服务端没回这个字段」（undefined）也当成没找到，就是 2026-10-06
       //    那次误报（见 status() 里的同一处注释）
       if (status.ffmpeg === false) {
-        lines.push('', '⚠️ 这台机器上没找到 ffmpeg，取流会失败。装好之后发一次 #营地观战部署')
+        lines.push(
+          '',
+          '⚠️ 这台机器上没找到 ffmpeg，取流会失败。',
+          '终端执行 ffmpeg -version 有版本号的话，说明只是插件没找到它 ——',
+          '去锅巴「王者荣耀 → 服务端接入」把「ffmpeg 路径」填成它的完整路径，再发一次本指令'
+        )
+      } else if (dependency.ffmpeg) {
+        // 找到了就报出来：以后换机器/重装，这句话直接告诉用户该填什么
+        lines.push('', `ffmpeg：${dependency.ffmpeg}`)
       }
 
       lines.push(...publicUrlHintLines())

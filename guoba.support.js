@@ -350,6 +350,21 @@ export function supportGuoba () {
           }
         },
         {
+          field: 'config.ffmpegPath',
+          label: 'ffmpeg 路径',
+          bottomHelpMessage:
+            '留空 = 自动找（先查系统 PATH，再扫常见安装目录）。' +
+            '⚠️ 自动找认不出所有装法，提示「没找到 ffmpeg」时就手填这里。' +
+            '先确认它真的能跑：终端里执行 ffmpeg -version，有版本号就说明装了；' +
+            '再执行 where ffmpeg（Windows）或 which ffmpeg（Linux/macOS），把输出的那行完整路径填进来。' +
+            'Windows 形如 D:\\ffmpeg\\bin\\ffmpeg.exe，Linux/macOS 形如 /usr/local/bin/ffmpeg。' +
+            '填了就只认这个路径，自动查找整个跳过。改完发一次 #营地观战部署 生效。',
+          component: 'Input',
+          componentProps: {
+            placeholder: '留空 = 自动查找'
+          }
+        },
+        {
           field: 'config.shareEnabled',
           label: '营地ID共享库',
           bottomHelpMessage:

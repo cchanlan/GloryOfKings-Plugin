@@ -144,6 +144,8 @@ cd ./plugins/GloryOfKings-Plugin && pnpm install
 
 ⚠️ 这两条别混：`接入` 要的是**分发服务**的地址（拿来下代码），`连接` 要的是**观战服务本身**的地址。填错了只会得到一句 `not_found`。
 
+装好 ffmpeg 但部署仍提示「没找到」时：终端执行 `ffmpeg -version`，有版本号就说明只是插件没找到它，去锅巴「服务端接入」把「ffmpeg 路径」填成完整路径（Windows 形如 `D:\ffmpeg\bin\ffmpeg.exe`），再发一次 `#营地观战部署`。
+
 自己部署时还要把**直播间对外地址**填成外网能访问的（域名或公网 IP）并放行 `8899` 端口，不然群友点开是白屏。
 
 > 端口分工：`8899` 是**播放面**（公网，播放页/直播流/聊天/只读状态），插件的 `watchApiUrl` 指的是**控制面** `127.0.0.1:8898`（开播/停止/好友名单等敏感接口只绑本机回环，**不要把 8898 放行到公网**）。可用 `GOK_WATCH_PORT` / `GOK_WATCH_CTRL_PORT`（和对应 `*_HOST`）覆盖，`GOK_WATCH_MAX_ROOMS` 限制同时在播路数（默认 16）。
@@ -157,6 +159,7 @@ cd ./plugins/GloryOfKings-Plugin && pnpm install
 | `shareApiUrl` | `https://gok.9e.nz:442` | 共享库地址；仍需填写接入令牌并开启共享库 |
 | `dependencyRegistry` | `https://registry.npmmirror.com` | 自动安装依赖使用的 npm 镜像 |
 | `dependencyProxy` | 空 | npm / ffmpeg 依赖安装使用的 HTTP(S) 代理 |
+| `ffmpegPath` | 空 | ffmpeg 的完整路径。留空 = 自动找（先查 PATH，再扫常见安装目录）。提示「没找到 ffmpeg」时用终端 `ffmpeg -version` 确认它真能跑，再把 `where ffmpeg`（Windows）或 `which ffmpeg`（Linux/macOS）的输出填进来。填了就只认这个路径 |
 | `watchCdnHttps` | 空 | 按 `server/README-CDN-HTTPS.md` 部署 HTTPS CDN Worker 后填写；修改或清空后保存，再发 `#营地观战部署` 生效。留空时 HTTPS 观众使用本机转发，HTTP 观众仍直连 CDN |
 | `watchApiUrl` | `http://127.0.0.1:8898` | 观战服务地址（**控制面**，只绑本机回环）。自己部署填本机；**用别人部署好的填对方的控制面**（`#营地观战连接 <地址>` 会写这里，填成播放面会被明确拦下） |
 | `campImApiUrl` | `http://127.0.0.1:8900` | 营地消息服务地址，同上 |

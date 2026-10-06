@@ -102,26 +102,27 @@ function npmEnv (cfg) {
 }
 
 /**
- * 扫一个目录找 ffmpeg，只往下钻**一层**（认 `<dir>/ffmpeg.exe` 和
- * `<dir>/bin/ffmpeg.exe` 两种布局）。
+ * 扫一个目录找 ffmpeg（Windows 手动解压那种布局的兜底）。
  *
- * ⚠️⚠️ **为什么必须扫目录**（2026-10-06 修）：用户在 Windows 上「把 ffmpeg 解压到
- *    某个盘」是最常见的装法 —— 实测主人这台就在 `F:\ffmpeg\bin`，而候选表原先只有
- *    三个 C 盘的固定落点，于是这里找不到、服务端 `lib/ffmpeg.js` 也找不到、
- *    `GOK_FFMPEG` 还是空串，部署完报「这台机器上没找到 ffmpeg」。可终端里
- *    `ffmpeg -version` 明明跑得通 —— 因为那是**新开的**进程拿到了新 PATH，而云崽
- *    进程的 PATH 停在它启动那一刻（同一个坑见 utils/pm2.js 文件头）。
- *    所以 PATH 查不到时必须再摸一遍常见安装目录。
+ * ⚠️⚠️ **为什么必须扫目录**（2026-10-06 修）：用户「把 ffmpeg 解压到某个盘」是
+ *    Windows 上最常见的装法 —— 实测主人这台就在 `F:\ffmpeg\bin`，而候选表原先只有
+ *    三个 C 盘的固定落点。PATH 里查不到（云崽进程的 PATH 停在它启动那一刻，
+ *    见 utils/pm2.js 文件头），所以只能自己摸安装目录。
  *
- * 只钻一层、候选目录十来个，`readdirSync` 的开销可以忽略；不做全盘递归，
- * 那会在部署路径上卡住。
+ * ⚠️ **只认目录名正好叫 `ffmpeg` 是不够的** —— 官网压缩包解出来叫
+ *    `ffmpeg-7.0-full_build`，用户还可能自己套一层（`D:\tools\ffmpeg\bin`）。
+ *    所以这里对**名字里带 ffmpeg** 的目录多给几层预算，其余目录只浅扫。
  *
- * @param {string} dir 要扫的目录
- * @param {string[]} names 认哪些文件名
- * @returns {string[]} 命中的绝对路径（目录不存在 / 没权限返回空数组）
+ * 全盘递归是不做的：C 盘几千个目录，`readdirSync` 一遍就够把部署卡住。
+ * 实在找不到就让用户去锅巴手填 `ffmpegPath` —— 那才是根治，这里只是尽力而为。
+ *
+ * @param {string} dir 起始目录
+ * @param {string} exe 可执行文件名
+ * @param {number} budget 还能往下钻几层（名字含 ffmpeg 的目录会给到至少 2）
+ * @returns {string[]} 命中的绝对路径
  */
-function scanDirFor (dir, names) {
-  if (!dir) return []
+function scanDirFor (dir, exe, budget = 1) {
+  if (!dir || budget < 0) return []
   const hits = []
   let entries
   try {
@@ -131,46 +132,64 @@ function scanDirFor (dir, names) {
   }
   for (const entry of entries) {
     const full = path.join(dir, entry.name)
-    if (entry.isFile() && names.includes(entry.name)) {
-      hits.push(full)
-    } else if (entry.isDirectory()) {
-      try {
-        for (const sub of fs.readdirSync(full, { withFileTypes: true })) {
-          if (sub.isFile() && names.includes(sub.name)) hits.push(path.join(full, sub.name))
-        }
-      } catch {}
+    if (entry.isFile()) {
+      if (entry.name === exe) hits.push(full)
+      continue
     }
+    if (!entry.isDirectory()) continue
+    // 名字里带 ffmpeg 的目录（`ffmpeg`、`ffmpeg-7.0-full_build`、`ffmpeg-latest`…）
+    // 大概率就是它，给足预算；其余目录按原预算递减，避免全盘扫
+    const next = /ffmpeg/i.test(entry.name) ? Math.max(budget, 2) : budget - 1
+    hits.push(...scanDirFor(full, exe, next))
   }
   return hits
 }
 
-/** Windows 上可能放着 ffmpeg 的根目录（手解压常见的几个盘） */
-function winRoots () {
+/**
+ * 系统里**真实存在**的盘符根目录。
+ *
+ * ⚠️ 别写死 `'CDEFG'`：用户把 ffmpeg 放在 H 盘、或者机器上压根没有 F 盘时，
+ *    写死的名单要么漏、要么每次都去摸不存在的盘（每个 `existsSync` 都要等
+ *    系统回一次「没有这个设备」，慢且会刷 Windows 的事件日志）。
+ */
+function winDrives () {
   const out = []
-  for (const letter of 'CDEFG') out.push(`${letter}:\\`)
+  for (let code = 65; code <= 90; code++) {
+    const root = `${String.fromCharCode(code)}:\\`
+    try {
+      if (fs.existsSync(root)) out.push(root)
+    } catch {}
+  }
   return out
 }
 
-function ffmpegCandidates () {
+function ffmpegCandidates (cfg = {}) {
   const exe = IS_WIN ? 'ffmpeg.exe' : 'ffmpeg'
-  const out = [process.env.GOK_FFMPEG, exe]
+  // ⭐ 用户手填的路径排在最前面 —— 他说在哪就是哪，别再猜
+  const out = [cfgValue(cfg, 'ffmpegPath'), process.env.GOK_FFMPEG, exe]
   if (IS_WIN) {
     const pf = process.env.ProgramFiles || 'C:\\Program Files'
     const la = process.env.LOCALAPPDATA || ''
     out.push(path.join(pf, 'ffmpeg', 'bin', exe), la && path.join(la, 'Microsoft', 'WinGet', 'Links', exe), 'C:\\ffmpeg\\bin\\ffmpeg.exe')
 
-    // ⭐ 手解压落点：靠扫目录猜，而不是把盘符一个个写死
-    for (const root of winRoots()) {
+    // ⭐ 手解压落点：按真实盘符扫，而不是把盘符一个个写死
+    for (const root of winDrives()) {
       out.push(...scanDirFor(path.join(root, 'ffmpeg'), [exe]))
-      out.push(...scanDirFor(root, [exe]))
+      out.push(...scanDirFor(root, [exe], 0))
+    }
+    // 常见的「先建个目录再解压」的父目录，往里多钻一层
+    for (const root of winDrives()) {
+      for (const parent of ['tools', 'software', 'dev', 'app', 'apps', 'bin']) {
+        out.push(...scanDirFor(path.join(root, parent), [exe], 1))
+      }
     }
     // winget 实际解压出来的位置（Links 目录可能还没建/没进 PATH）
-    if (la) out.push(...scanDirFor(path.join(la, 'Microsoft', 'WinGet', 'Packages'), [exe]))
+    if (la) out.push(...scanDirFor(path.join(la, 'Microsoft', 'WinGet', 'Packages'), [exe], 1))
     // scoop / chocolatey 的落点
     const up = process.env.USERPROFILE || ''
     if (up) {
       out.push(...scanDirFor(path.join(up, 'scoop', 'shims'), [exe]))
-      out.push(...scanDirFor(path.join(up, 'scoop', 'apps'), [exe]))
+      out.push(...scanDirFor(path.join(up, 'scoop', 'apps'), [exe], 1))
     }
     out.push('C:\\ProgramData\\chocolatey\\bin\\ffmpeg.exe')
     out.push(...scanDirFor('C:\\ProgramData\\chocolatey\\bin', [exe]))
@@ -197,12 +216,25 @@ function ffmpegCandidates () {
  *    `GOK_FFMPEG=ffmpeg` 也确实注进去了，服务端还是找不到。
  *    换成绝对路径之后，服务端的 PATH 是什么样都不影响。
  */
-async function findFfmpeg () {
-  for (const bin of ffmpegCandidates()) {
-    if ((bin.includes('/') || bin.includes('\\')) && !fs.existsSync(bin)) continue
-    if ((await run(bin, ['-version'], { timeout: 8000 })).ok) return absoluteFfmpeg(bin)
+async function findFfmpeg (cfg = {}) {
+  // ⭐ 用户手填了就**只认它**，不再自动找。
+  //    为什么不回退到自动查找：他填这一格就是因为自动找失败过。回退会让「填错了」
+  //    表现成「填不填都一样」，他永远不会发现自己填错；只认它则立刻报「这个路径用不了」，
+  //    指向明确。下面这句提示就是给他改的机会。
+  const manual = cfgValue(cfg, 'ffmpegPath')
+  if (manual) {
+    if (!fs.existsSync(manual) && (manual.includes('/') || manual.includes('\\'))) {
+      return { error: `填的 ffmpeg 路径不存在：${manual}` }
+    }
+    if ((await run(manual, ['-version'], { timeout: 8000 })).ok) return { path: manual }
+    return { error: `填的 ffmpeg 路径跑不起来：${manual}` }
   }
-  return ''
+
+  for (const bin of ffmpegCandidates(cfg)) {
+    if ((bin.includes('/') || bin.includes('\\')) && !fs.existsSync(bin)) continue
+    if ((await run(bin, ['-version'], { timeout: 8000 })).ok) return { path: absoluteFfmpeg(bin) }
+  }
+  return { path: '' }
 }
 
 /**
@@ -281,7 +313,13 @@ export async function ensureDependencies ({ needFfmpeg = false, needWs = false, 
   installing = new Promise(resolve => { release = resolve })
   if (previous) await previous
   try {
-    const result = { ok: true, changed: false, pm2: false, ffmpeg: needFfmpeg ? await findFfmpeg() : '', messages: [], commands: [] }
+    const found = needFfmpeg ? await findFfmpeg(cfg) : { path: '' }
+    const result = { ok: true, changed: false, pm2: false, ffmpeg: found.path || '', messages: [], commands: [] }
+    // ⭐ 手填的路径用不了 → 当场说清楚，别让它掉进下面「找不到就自动装一个」的逻辑
+    //    （那会给一个**已经装了 ffmpeg、只是路径填错**的人装第二份）
+    if (needFfmpeg && found.error) {
+      return { ...result, ok: false, messages: [`${found.error} —— 去锅巴「王者荣耀 → 服务端接入」改正「ffmpeg 路径」，或者清空它改回自动查找`] }
+    }
 
       // Windows 上服务跑在插件自己的 pm2 里（lpm2 提供隔离管道 + 专属 PM2_HOME），
       // 所以先要 lpm2；它的 pm2 是 peer 依赖，自动安装不可靠（npm 6 没有这机制、
@@ -335,10 +373,14 @@ export async function ensureDependencies ({ needFfmpeg = false, needWs = false, 
           return { ...result, ok: false, messages: [`ffmpeg 自动安装失败，请手动执行：${spec.text}`] }
         }
         result.changed = true
-        result.ffmpeg = await findFfmpeg()
+        result.ffmpeg = (await findFfmpeg(cfg)).path || ''
       }
       if (needFfmpeg && !result.ffmpeg) {
-        return { ...result, ok: false, messages: ['ffmpeg 已执行安装，但当前进程还找不到它；重启云崽后再发一次部署。'] }
+        return {
+          ...result,
+          ok: false,
+          messages: ['装完 ffmpeg 后还是找不到它 —— 去锅巴「王者荣耀 → 服务端接入」把「ffmpeg 路径」填成它的完整路径（例如 D:\\ffmpeg\\bin\\ffmpeg.exe），再发一次 #营地观战部署']
+        }
       }
       return result
   } finally { release() }

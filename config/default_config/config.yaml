@@ -77,6 +77,12 @@ shareEnabled: false
 #*服务端接入时自动安装缺失的 pm2 / ffmpeg。外网受限时可填国内 npm 镜像或代理。
 dependencyRegistry: 'https://registry.npmmirror.com'
 dependencyProxy: ''
+#*ffmpeg 的完整路径。留空 = 自动找（先查 PATH，再扫常见安装目录）。
+#*⚠️ 自动找**不可能覆盖所有装法** —— Windows 上解压到哪个盘、目录叫什么名字
+#*全看用户自己，扫不到就只能手填。找不到时可执行 `ffmpeg -version` 看能不能跑，
+#*能跑就把 `where ffmpeg`（Windows）或 `which ffmpeg`（Linux/macOS）的输出填进来。
+#*填了就以它为准，自动查找整个跳过。
+ffmpegPath: ''
 #*服务端代码分发的地址（主人服务器上跑的那个分发服务，默认端口 6868）。
 #*#营地观战接入 / #营地消息接入 会把它写进来，也可以直接在锅巴里填。
 #*留空 = 还没接入，部署指令会提示进群 972915804 找主人要。
