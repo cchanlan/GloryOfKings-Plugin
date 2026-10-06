@@ -21,10 +21,9 @@
  *   #段位趋势 2          第 2 个绑定账号（1-2 位数字优先当天数，3-4 位当序号）
  */
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import path from 'path'
 import {
   getImgType,
-  resolveCurrentId, readYamlFile, Button, shouldQuote, getUserAvatar,
+  resolveCurrentId, getBoundIds, Button, shouldQuote, getUserAvatar,
   AT_HEAD, stripAtText, resolveTargetUserId, resolveMemberName
 } from '#utils'
 import { loadArchive, collectBattles, ARCHIVE_KEEP_DAYS } from '../utils/battleArchive.js'
@@ -33,7 +32,6 @@ import {
 } from '../utils/rankTrend.js'
 import { getHeroNameMap, loadPushList } from '../utils/pushStore.js'
 import { heroIconUrl } from '../utils/reportStore.js'
-import { PluginData } from '#components'
 
 const CMD = '(段位趋势|段位曲线|排位趋势|段位走势)'
 
@@ -59,7 +57,12 @@ export class RankTrend extends plugin {
 
     let campId = args.campId
     if (!campId && args.index) {
-      const ids = (readYamlFile(path.join(PluginData, 'UserData.yaml')) || {})[userId]?.ids || []
+      // ⚠️ 走 getBoundIds 而不是裸读 YAML（2026-10-06 修）：readYamlFile 的契约是
+      //    「文件不存在 / 内容坏了**原样抛错**」，`|| {}` 拦不住 throw —— 手工编辑坏
+      //    UserData.yaml 之后这条指令会整条抛异常，异常被 loader 的 catch 吃掉，
+      //    用户**一句提示都收不到**。getBoundIds 读的就是同一个文件（带指纹缓存）。
+      //    同族修复见 apps/skinMissing.js 与 apps/battleReport.js 的日报分支。
+      const ids = getBoundIds(userId)
       campId = ids[args.index - 1] || ''
       if (!campId) return e.reply(`你没有第 ${args.index} 个绑定的营地ID，发送 #营地ID 看看列表`, shouldQuote())
     }

@@ -15,15 +15,13 @@
  * 的两级判据。渲染失败时回落到逐行文字（renderCompare），判定口径两边完全一致。
  */
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import path from 'path'
 import {
   getImgType,
-  ApiService, resolveCurrentId, readYamlFile, Button, shouldQuote,
+  ApiService, resolveCurrentId, getBoundIds, Button, shouldQuote,
   AT_HEAD, stripAtText, pickAtText, resolveMemberName
 } from '#utils'
 import { summarizeProfile, rankText, compareRank } from '../utils/profileSummary.js'
 import { getHeroNameMap } from '../utils/pushStore.js'
-import { PluginData } from '#components'
 
 /**
  * 对比项。cmp 返回 >0 表示左边赢；text 负责把值渲染成人话。
@@ -127,8 +125,10 @@ export class KingCompare extends plugin {
     const campIds = nums.filter(tok => tok.length >= 5)
     const indexes = nums.filter(tok => tok.length < 5).map(Number)
 
-    const mine = readYamlFile(path.join(PluginData, 'UserData.yaml')) || {}
-    const myIds = mine[self]?.ids || []
+    // ⚠️ 走 getBoundIds 而不是裸读 YAML（2026-10-06 修，同 rankTrend / scoreTrend）：
+    //    readYamlFile 读失败是**原样抛错**，`|| {}` 拦不住 —— 表坏掉时整条指令
+    //    静默无响应。getBoundIds 读同一个文件、失败按空表处理。
+    const myIds = getBoundIds(self)
     const byIndex = idx => myIds[idx - 1] || ''
 
     // 左边默认是自己（当前号），除非用序号/营地ID显式指定了两个对手。
