@@ -122,6 +122,16 @@ export function refreshGroupIndex (bot = null) {
   const groups = {}
   let memberCount = 0
 
+  // ⚠️ 提到循环外取一次（2026-10-06 修，同 detectLeftGroups:281-283 的写法）：
+  //    `Bot.gml` 是**深拷贝 getter**（框架 bot.ts 里每次访问都新建整张 Map），
+  //    写在循环里等于每群全量拷贝一两次，群多时纯白烧 CPU。
+  let memberCache
+  try {
+    memberCache = host.gml
+  } catch (err) {
+    logger?.debug?.(`[王者索引] 取成员缓存失败: ${err.message}`)
+  }
+
   for (const [groupId, groupInfo] of groupMap) {
     const gid = cleanId(groupId)
     if (!gid) continue
@@ -129,12 +139,7 @@ export function refreshGroupIndex (bot = null) {
     // 频道 / 公会（有 guild 字段）不走群成员那套，跳过
     if (groupInfo?.guild) continue
 
-    let memberMap = null
-    try {
-      memberMap = host.gml?.get?.(groupId) || host.gml?.get?.(Number(groupId)) || null
-    } catch (err) {
-      logger?.debug?.(`[王者索引] 取群 ${gid} 成员表失败: ${err.message}`)
-    }
+    const memberMap = memberCache?.get?.(groupId) || memberCache?.get?.(Number(groupId)) || null
 
     // 这个群还没有成员缓存：不写进索引（写了就是空成员，会让本群的人全被判成不在群）
     if (!memberMap || !memberMap.size) continue

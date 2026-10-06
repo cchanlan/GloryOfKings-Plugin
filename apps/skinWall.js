@@ -362,6 +362,10 @@ export class SkinWall extends plugin {
     // 单页直接发图
     if (totalPages === 1) {
       const img = await puppeteer.screenshot('SkinWall', buildParams(pages[0], 0))
+      // ⚠️ 判空（2026-10-06 修）：screenshot 渲染失败是**返回 false** 不抛错，
+      //    不拦的话适配器把非对象元素包成文本段（OneBotv11.js:60），群里收到一条 `false`。
+      //    下面多页分支本来就有 `if (img)`，单页这条早返回漏了。
+      if (!img) return e.reply('皮肤图渲染失败，请稍后再试', shouldQuote())
       await e.reply([img, Button.skinWall(ID)], shouldQuote())
       return
     }

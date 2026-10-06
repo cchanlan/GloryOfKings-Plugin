@@ -199,9 +199,18 @@ export async function collectSkinNews () {
   return { items, store }
 }
 
-/** 把这批皮肤记进已推列表（按 `isToday` 分键，见 collectSkinNews 的说明） */
+/**
+ * 把这批皮肤记进已推列表（按 `isToday` 分键，见 collectSkinNews 的说明）。
+ *
+ * ⚠️ 落盘前**重读一次**，只把 `pushed` 合并进去（2026-10-06 修，同 gameNews 的修法）。
+ *    传进来的 `store` 是 `collectSkinNews()` 那一刻的快照，而中间隔着出图 +
+ *    逐个订阅群发消息（几十秒）。这段时间里用户发 `#关闭皮肤上新推送` 改了 pushList，
+ *    用旧快照整份 `saveSkinNewsStore` 会把它**静默改回开启**。
+ */
 export function markSkinNewsPushed (store, items) {
+  if (!items.length) return
   const keys = items.map(s => `${s.id}${s.isToday ? '@online' : '@upcoming'}`)
-  store.pushed = [...store.pushed.filter(k => !keys.includes(k)), ...keys]
-  saveSkinNewsStore(store)
+  const fresh = loadSkinNewsStore()
+  fresh.pushed = [...fresh.pushed.filter(k => !keys.includes(k)), ...keys]
+  saveSkinNewsStore(fresh)
 }

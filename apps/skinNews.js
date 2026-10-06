@@ -80,7 +80,10 @@ export class SkinNews extends plugin {
       list = await getSkinCalendar()
     } catch (error) {
       logger.error(`[皮肤上新] 获取失败: ${error.message}`)
-      return e.reply(`获取皮肤上新数据失败：${error.message}`, shouldQuote())
+      // ⚠️ 原始 error.message 不甩给用户（2026-10-06 修，同 gameNews）：
+      //    这条数据源是官网资料库（零鉴权、不占营地配额），失败基本只有网络 / 对方改版，
+      //    原文对用户没有可操作性，还可能带完整 URL 与内部字段名。
+      return e.reply('皮肤上新数据拉取失败，稍后再试试', shouldQuote())
     }
 
     const { upcoming, todayList, recent } = splitCalendar(list, 8)
