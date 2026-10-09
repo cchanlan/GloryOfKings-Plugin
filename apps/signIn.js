@@ -41,6 +41,7 @@ import { signOneAccount, summarizeViews, groupByOwner } from '../utils/campSignT
 import { buildSignView, isSignedToday } from '../utils/campSign.js'
 import { sendPrivate } from '../utils/privateMsg.js'
 import { sendMaster } from '../utils/masterMsg.js'
+import { hotBox } from '../utils/hotState.js'
 
 /** 定时签到时间的配置键（锅巴「营地签到」区块） */
 const KEY_CRON = 'campSignCron'
@@ -57,6 +58,17 @@ const GAP_MS = 1500
  */
 const LOCK_KEY = '__gokCampSignLock'
 const signLock = (globalThis[LOCK_KEY] ||= { running: false })
+
+/**
+ * 实例登记处 —— 给 `guoba.support.js` 的保存钩子用。
+ *
+ * ⚠️ 为什么不直接 `import('../index.js')` 拿 apps：`index.js` 顶层有
+ *    `await loadModules()` 之类副作用，而 guoba.support.js 是被锅巴用
+ *    **带 query 的动态 import** 加载的，反向 import 入口可能触发第二次求值。
+ *    `hotBox` 本来就是为「跨模块实例共享一份状态」造的（pushStore 已在用），
+ *    这里正好是它的适用场景：构造函数里**覆盖**登记，热重载后拿到的永远是最新实例。
+ */
+const instanceBox = hotBox('campSignInstance', { current: null })
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -116,6 +128,9 @@ export class CampSignIn extends plugin {
       ]
     })
 
+    // 把自己登记进 hotBox，供锅巴保存钩子在「刚开启自动签到」时调用
+    instanceBox.current = this
+
     // cron 留空 = 关掉定时（collectTask 只收 cron 和 fnc 都有值的项）
     this.task = [
       {
@@ -130,6 +145,30 @@ export class CampSignIn extends plugin {
   /** 卸载 / 热重载时释放锁，避免老代次卡住导致新代次永远跳过（框架 loader.js 会调） */
   async onUnload () {
     signLock.running = false
+  }
+
+  /**
+   * 「刚打开自动签到，先当场签一次」—— 给 `guoba.support.js` 的保存钩子调。
+   *
+   * ⚠️ 为什么需要：定时下一次触发可能是**明天早上 7:30**，主人刚开完开关却什么都
+   *    看不到，会以为没生效（2026-10-10 主人提的诉求）。
+   *
+   * ⚠️ **故意不 await**：保存请求要立刻返回（不然锅巴转圈转到用户以为卡死），
+   *    而这一轮要打十几个营地请求、跑十几秒。结果照常走私聊，跟定时任务同一条路。
+   *
+   * @returns {boolean} 是否真的排上了一次（false = 已有一轮在跑）
+   */
+  signNowAfterEnable () {
+    if (signLock.running) {
+      logger.info(`[${PluginName}] 刚开启自动签到，但已有一轮在跑，跳过这次即时签到`)
+      return false
+    }
+
+    this.autoSign().catch(error => {
+      logger.error(`[${PluginName}] 开启自动签到后的即时签到出错: ${error?.message || error}`)
+    })
+
+    return true
   }
 
   /**
@@ -384,6 +423,17 @@ export class CampSignIn extends plugin {
 
     await e.reply(data.textFallback, shouldQuote())
   }
+}
+
+/**
+ * 取当前签到实例（锅巴保存钩子用）。
+ *
+ * 单独导出而不是让 guoba.support.js 自己 import hotState：
+ * **box 的 key 只在这里出现一次**，两边各写一个字符串迟早会漂移
+ * （一边改了一边没改 = 静默取不到实例）。
+ */
+export function currentCampSignInstance () {
+  return instanceBox.current || null
 }
 
 export default CampSignIn

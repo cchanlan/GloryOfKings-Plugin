@@ -8,6 +8,9 @@ import authStore from './utils/authStore.js'
 import { getAccountSwitches, setAccountEnabled, invalidate, pruneAccounts } from './utils/campImStore.js'
 import { ownerOf } from './utils/campImPush.js'
 import { listMasterQQ } from './utils/masterMsg.js'
+// 「刚开启自动签到 → 当场签一次」用。⚠️ 用具名导入（本文件顶部的注释解释过：
+// 锅巴用带 query 的动态 import 加载本文件，命名空间导入会整个 support 载入失败）
+import { currentCampSignInstance } from './apps/signIn.js'
 // 锅巴面板打开时，把「接入那一刻写进配置、但面板还显示为空」的那几格补齐
 import { fillDefaultShareUrl, migrateLegacyShareToken } from './utils/shareDefaults.js'
 
@@ -1084,6 +1087,27 @@ export function supportGuoba () {
           auth: Config.getDefOrConfig('auth')
         }
 
+        /**
+         * ⭐「刚打开自动签到 → 当场签一次」（2026-10-10 主人要求）。
+         *
+         * ⚠️⚠️ 判据必须**窄**：不能「保存了就签」。这个面板有二十多个配置项，
+         *    主人改任何一格都触发一轮签到的话，每保存一次就打十几个营地请求，
+         *    十有八九撞 -30107（命中一次静默 12 小时）。
+         *
+         * 只在「这一格真的从旧值变成非空」时才签 = 「刚把自动签到打开」那一刻。
+         * 三个条件缺一不可：
+         *   ① 提交里**有** `config.campSignCron`（没提交 = 主人根本没碰这格）
+         *   ② 新值**非空**（空 = 他是来关掉的，不该签）
+         *   ③ 与旧值**不同**（保存了但没改，不该重复签）
+         */
+        const signCronKey = 'config.campSignCron'
+        let turnedOnSign = false
+        if (Object.prototype.hasOwnProperty.call(data, signCronKey)) {
+          const nextValue = String(data[signCronKey] ?? '').trim()
+          const prevValue = String(get(configMap.config, 'campSignCron') ?? '').trim()
+          turnedOnSign = Boolean(nextValue) && nextValue !== prevValue
+        }
+
         if (Object.prototype.hasOwnProperty.call(data, 'authPool.accounts')) {
           const payload = data['authPool.accounts']
           // ⚠️ 快照现在带掩码：payload 缺了/不是数组就**别动池子**。
@@ -1137,6 +1161,27 @@ export function supportGuoba () {
           const currentValue = get(configMap[configName], configPath)
           if (!isEqual(currentValue, data[key])) {
             Config.modify(configName, configPath, data[key])
+          }
+        }
+
+        // ⚠️ 放在**所有写回之后**：这会儿配置才真的落盘。
+        //    即时签到是异步跑的（见 signNowAfterEnable），保存接口立刻返回。
+        if (turnedOnSign) {
+          try {
+            const inst = currentCampSignInstance()
+            if (inst) {
+              const started = inst.signNowAfterEnable()
+              logger.info(
+                started
+                  ? `[${PluginName}] 自动签到已开启，先当场签一次（结果会私聊各号主）`
+                  : `[${PluginName}] 自动签到已开启，但已有一轮在跑，这次没即时签`
+              )
+            } else {
+              logger.warn(`[${PluginName}] 自动签到已开启，但取不到签到实例，这次没即时签`)
+            }
+          } catch (error) {
+            // 即时签到失败**不能**让保存失败 —— 配置已经存好了，那才是主诉求
+            logger.warn(`[${PluginName}] 开启自动签到后的即时签到触发失败：${error?.message || error}`)
           }
         }
 
