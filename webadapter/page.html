@@ -23,7 +23,7 @@
     <header class="gki-topbar">
       <div>
         <h1>营地消息</h1>
-        <p>只有名单里的号会挂长连接收消息，收到的好友消息推给它的归属人。</p>
+        <p>名单里的号会自动收游戏消息，收到后推给它的归属人。</p>
       </div>
       <div class="gki-side">
         <span class="gki-status" id="status">已同步</span>
@@ -35,7 +35,7 @@
       <div class="gki-inner">
         <div class="gki-section-head">
           <h2>账号列表</h2>
-          <p>这里的号是<b>专门收消息</b>的，跟查询/推送轮询用的账号池是两回事 —— 轮询的号不用加进来。</p>
+          <p>这里只管收消息，跟查询/推送轮询的账号池不是一回事。</p>
         </div>
         <section class="gki-list" id="list">
           <div class="gki-empty">加载中…</div>
@@ -43,7 +43,7 @@
 
         <div class="gki-section-head gki-add-head" id="addHead" hidden>
           <h2>可以加进来的号</h2>
-          <p>登录过但没在名单里的，点一下就加进来。</p>
+          <p>登录过、还没加进名单的，点一下就加。</p>
         </div>
         <section class="gki-list gki-add" id="addList" hidden></section>
       </div>
@@ -145,7 +145,7 @@
 
     if (!all) {
       listEl.innerHTML = '<div class="gki-empty"><b>名单是空的，一个号都不收消息</b>'
-        + '<span>从下面「可以加进来的号」里挑，或者发 #营地wx全局登录 扫码添加</span></div>'
+        + '<span>从下面「可以加进来的号」里挑，或发 #营地wx全局登录 扫码添加</span></div>'
       renderAdd()
       return
     }
