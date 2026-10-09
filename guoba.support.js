@@ -474,13 +474,13 @@ export function supportGuoba () {
         {
           field: 'config.campImEnabled',
           label: '营地消息总开关',
-          bottomHelpMessage: '关掉后插件不再拉消息、也不再推私信（服务端照常收）。每个营地号的收发只推给它的归属人 —— 没有归属人的号一律不推。哪个号要收消息、哪个不要，去侧边栏的「营地消息」页面一个个开关。',
+          bottomHelpMessage: '关掉后插件不再拉消息、也不再推私信（服务端照常收）。每个营地号的收发只推给它的归属人 —— 没有归属人的号一律不推。哪个号要收消息、哪个不要，去侧边栏的「营地消息」页面一个个开关。⚠️ 开关开着、但一个号都没勾时，插件不会去连服务端（不发请求、日志也不会刷「拉取失败」）；勾上一个号，几秒内自动开始收。',
           component: 'Switch'
         },
         {
           field: 'config.campImPollMs',
           label: '拉消息间隔（毫秒）',
-          bottomHelpMessage: '插件多久去服务端取一次新消息。走本机回环、没有风控，只影响推送延迟。别调太小（下限 1000）。',
+          bottomHelpMessage: '插件多久去服务端取一次新消息。走本机回环、没有风控，只影响推送延迟。别调太小（下限 1000）。服务端连不上时会自动退避重试（逐步拉长到一分钟一次），拉通一次立刻恢复正常。',
           component: 'InputNumber',
           componentProps: {
             min: 1000,

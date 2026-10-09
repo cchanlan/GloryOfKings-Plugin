@@ -39,6 +39,42 @@ function pollMs () {
   return Math.max(1000, n)
 }
 
+/**
+ * 有没有号在收消息 —— **轮询的第二道闸**（2026-10-07 加）。
+ *
+ * ⚠️⚠️ 为什么光有 `campImEnabled` 不够：那个开关只表示「这个功能开着」（默认就是开的），
+ *    而**收消息名单**（`campIm.yaml` 的 `accounts`）才回答「到底有没有人要收」。
+ *    两者都不成立时还去敲服务端，就是纯粹的空转：
+ *
+ *      没接入 / 没部署 / 一个号都没开的机器，会每 `campImPollMs`（默认 **3 秒**）
+ *      打一次本地 8900；服务没起来就每次抛 `fetch failed`，日志被这一条刷满
+ *      —— 主人 2026-10-07 反馈的正是这个（截图里满屏 `[营地消息] 拉取失败: fetch failed`）。
+ *
+ * ⚠️ 名单是**现读内存**（`campImStore` 的缓存锚在 globalThis），这一句代价为零，
+ *    而且是每轮现读 —— 用户发 `#营地消息开`、或去锅巴勾一个号，**下一轮就自动开始拉**。
+ *    定时器一直转着，只是名单空的时候一次请求、一条日志都不发。
+ */
+function hasReceivers () {
+  return Object.keys(store.getAccountSwitches()).length > 0
+}
+
+/** 连续拉到失败时，两次日志之间的最小间隔 —— 退避期间只按这个节奏报一声，别刷屏 */
+const FAIL_LOG_INTERVAL_MS = 10 * 60 * 1000
+
+/**
+ * 连续失败后的重试间隔：**从 2×`campImPollMs` 起翻倍，封顶 1 分钟**。
+ *
+ * 服务没起来（还没部署 / 地址填错 / 对方关机）时，3 秒一次的硬重试毫无意义 ——
+ * 只会把日志刷满、白占请求。失败越多等得越久，**一次拉通就归零**，
+ * 所以正常用起来不会有任何延迟感。
+ *
+ * 实测节奏（默认 3 秒）：6s → 12s → 24s → 48s → 60s → 60s…
+ */
+function failBackoffMs (failStreak) {
+  const step = Math.min(Math.max(Number(failStreak), 0), 5)
+  return Math.min(pollMs() * 2 ** step, 60 * 1000)
+}
+
 // ────────────────────────── 轮询 ──────────────────────────
 
 /**
@@ -58,7 +94,24 @@ function pollMs () {
  * 再配合类上的 `onUnload()`（框架 `loader.js` 卸载时会调）把定时器清干净。
  */
 const POLL_STATE_KEY = '__gokCampImPollState'
-const pollState = (globalThis[POLL_STATE_KEY] ||= { timer: null, bootTimer: null, polling: false })
+const pollState = (globalThis[POLL_STATE_KEY] ||= {})
+// ⚠️ 逐个补默认值，**不能用 `||= { ... }` 一把建**：热重载时 globalThis 上那个对象
+//    是**上一代**留下的（可能没有本轮新加的字段），`||=` 见它存在就整个跳过，
+//    于是 `failStreak` 是 undefined → `undefined + 1` = NaN → 退避永远算不出来。
+for (const [k, v] of Object.entries({
+  timer: null,
+  bootTimer: null,
+  polling: false,
+  // 连续失败次数（拉通一次归零），和「上次报失败的时刻」一起锚在这儿：
+  // 写成模块级变量的话，热重载一来就被清零，退避形同虚设
+  failStreak: 0,
+  lastFailLogAt: 0,
+  // 本进程是否**见过**收消息的号。用途见 tick 里那段「名单清空后的一次性收尾」：
+  // 只有先见过，才需要去通知服务端把已挂上的连接停掉（从没接入的机器一次都不发）
+  hadReceivers: false
+})) {
+  if (pollState[k] === undefined) pollState[k] = v
+}
 
 /** 重入闸：上一轮没跑完就跳过这一轮 */
 const isPolling = () => pollState.polling
@@ -74,57 +127,91 @@ function switchSnapshot () {
 /**
  * 拉一次消息并分派。
  * ⚠️ 逐条处理、逐条推进游标 —— 中间某条推失败不能卡住后面的。
+ *
+ * @returns {Promise<boolean>} 这一轮**拉通了**没有。调用方据此决定下一轮等多久
+ *   （失败走退避，别再 3 秒一次硬怼）、以及要不要报错。调用前请先过 `hasReceivers()`。
  */
 async function pollOnce () {
-  if (isPolling()) return
+  // 上一轮还没跑完：当成功处理（保持正常节奏），别叠退避
+  if (isPolling()) return true
   pollState.polling = true
+  let ok = false
   try {
-    // ⭐ 开关变了就同步给服务端（主人在锅巴页面改完，这里几秒内生效）
-    const snap = switchSnapshot()
-    if (snap !== lastSwitchSnapshot) {
-      const r = await syncAccounts()
-      // 同步成功才记快照；失败下轮重试
-      if (r.ok) lastSwitchSnapshot = snap
-    }
-
-    const since = store.getCursor()
-    const res = await client.getMessages(since)
-    if (!res?.ok) return
-
-    // ⚠️⚠️ 服务端重启后消息 id 从 1 重新计数，而游标是「只前进」的 —— 游标停在上次那个大值上，
-    //    之后**一条新消息都拉不到**，表现成「收发全断」（实测 2026-09-20：游标 28、服务端 lastId 12）。
-    //    检测到「服务端最新 id 比游标还小」就复位，下一轮从头补拉（队列里没推过的都会补上）。
-    if (Number(res.lastId) < since) {
-      logger.mark(`[营地消息] 服务端消息序号回退（游标 ${since} → 最新 ${res.lastId}），重置游标后重新拉`)
-      store.resetCursor()
-      return
-    }
-
-    const list = res.messages || []
-    for (const msg of list) {
-      const keys = store.messageKeys(msg)
-      if (keys.some(k => store.hasSeenMessage(k))) {
-        // ⚠️ 服务端 ws 每次重连都会把离线消息重新补拉进队列、分配**新的服务端 id**，
-        //    游标（只按 id 前进）挡不住；只能靠游戏消息 id / 内容指纹去重。
-        logger.debug?.(`[营地消息] 跳过服务端重放的重复消息 ${keys[0]}`)
-      } else {
-        // 先记后发：同一条消息只尝试推一次；推失败也别让下一次补拉再推，否则会刷屏
-        for (const k of keys) store.markSeenMessage(k)
-        try {
-          await dispatch(msg)
-        } catch (e) {
-          logger.error(`[营地消息] 处理消息 ${msg?.id} 出错：${e?.message || e}`)
-        }
-      }
-      // ⭐ 无论成功失败都推进游标 —— 否则一条坏消息会永远卡住后面所有消息
-      store.setCursor(msg.id)
-    }
+    ok = await pollRound()
   } catch (e) {
-    // 服务没起来是常态（还没部署），debug 级别就够，别刷屏
-    logger.debug?.(`[营地消息] 拉取失败：${e?.message || e}`)
+    // ⚠️⚠️ 服务没起来是常态（还没部署 / 地址填错 / 对方关机），**但不能每轮都报** ——
+    //    默认 3 秒一轮，不节流就是每 3 秒一行日志，屏幕直接被刷满
+    //    （主人 2026-10-07 反馈的满屏 `[营地消息] 拉取失败: fetch failed` 就是它）。
+    //    头一次立刻报（让人马上知道出事了），之后每 FAIL_LOG_INTERVAL_MS 才报一声。
+    const msg = e?.message || e
+    const now = Date.now()
+    if (!pollState.lastFailLogAt || now - pollState.lastFailLogAt >= FAIL_LOG_INTERVAL_MS) {
+      pollState.lastFailLogAt = now
+      // +1 是因为计数在下面才累加，此刻 `failStreak` 还是「本轮之前」的轮数
+      logger.debug?.(`[营地消息] 拉取失败：${msg}（已连续 ${pollState.failStreak + 1} 轮，改为退避重试）`)
+    }
   } finally {
     pollState.polling = false
   }
+
+  // 退避计数：拉通就归零（恢复正常节奏），失败累加（下一轮等更久）。
+  // ⚠️ 归零时连 `lastFailLogAt` 一起清 —— 否则「好了又坏」时那句失败日志
+  //    会被上一次的节流窗口压掉，主人看不到「它又开始失败了」。
+  if (ok) {
+    pollState.failStreak = 0
+    pollState.lastFailLogAt = 0
+  } else {
+    pollState.failStreak += 1
+  }
+  return ok
+}
+
+/**
+ * 一轮的实际动作（成功返回 true）。
+ * @returns {Promise<boolean>}
+ */
+async function pollRound () {
+  // ⭐ 开关变了就同步给服务端（主人在锅巴页面改完，这里几秒内生效）
+  const snap = switchSnapshot()
+  if (snap !== lastSwitchSnapshot) {
+    const r = await syncAccounts()
+    // 同步成功才记快照；失败下轮重试
+    if (r.ok) lastSwitchSnapshot = snap
+  }
+
+  const since = store.getCursor()
+  const res = await client.getMessages(since)
+  if (!res?.ok) return false
+
+  // ⚠️⚠️ 服务端重启后消息 id 从 1 重新计数，而游标是「只前进」的 —— 游标停在上次那个大值上，
+  //    之后**一条新消息都拉不到**，表现成「收发全断」（实测 2026-09-20：游标 28、服务端 lastId 12）。
+  //    检测到「服务端最新 id 比游标还小」就复位，下一轮从头补拉（队列里没推过的都会补上）。
+  if (Number(res.lastId) < since) {
+    logger.mark(`[营地消息] 服务端消息序号回退（游标 ${since} → 最新 ${res.lastId}），重置游标后重新拉`)
+    store.resetCursor()
+    return true
+  }
+
+  const list = res.messages || []
+  for (const msg of list) {
+    const keys = store.messageKeys(msg)
+    if (keys.some(k => store.hasSeenMessage(k))) {
+      // ⚠️ 服务端 ws 每次重连都会把离线消息重新补拉进队列、分配**新的服务端 id**，
+      //    游标（只按 id 前进）挡不住；只能靠游戏消息 id / 内容指纹去重。
+      logger.debug?.(`[营地消息] 跳过服务端重放的重复消息 ${keys[0]}`)
+    } else {
+      // 先记后发：同一条消息只尝试推一次；推失败也别让下一次补拉再推，否则会刷屏
+      for (const k of keys) store.markSeenMessage(k)
+      try {
+        await dispatch(msg)
+      } catch (e) {
+        logger.error(`[营地消息] 处理消息 ${msg?.id} 出错：${e?.message || e}`)
+      }
+    }
+    // ⭐ 无论成功失败都推进游标 —— 否则一条坏消息会永远卡住后面所有消息
+    store.setCursor(msg.id)
+  }
+  return true
 }
 
 /** 分派一条消息 */
@@ -144,12 +231,49 @@ async function dispatch (msg) {
  *
  * ⚠️ 幂等锁看的是 `pollState.timer`（globalThis 上的跨代次单例），不是模块级变量 ——
  *    热重载后模块级变量会重置，锁就失效了。见 pollState 的注释。
+ *
+ * ⚠️⚠️ 定时器**一直转着**，但每一拍都先过两道闸（见 `tick`）—— 名字空、总开关关时
+ *    **零请求、零日志**，只是空转一个 setTimeout。这样用户一开名单/一改配置，
+ *    下一拍（最多 3 秒）就自动开始拉，不需要重启也不需要重新挂钩子。
  */
 function startPolling () {
   if (pollState.timer) return
   const tick = async () => {
-    if (pollEnabled()) await pollOnce()
-    pollState.timer = setTimeout(tick, pollMs())
+    // ⚠️⚠️ 定时器里**绝不能把异常抛出去** —— 会掀掉整个云崽进程（同 gameRecordPush 的规矩）。
+    //    下面两条路各自都有 try/catch，这里再兜一层是防「以后谁往里加一句会抛的代码」。
+    let ok = true
+    try {
+      // 两道闸，按「先便宜后贵」排：
+      //   ① 总开关（读内存配置）
+      //   ② 有没有号要收消息（读内存名单）—— 一个都没有就别去敲服务端了
+      //      （没接入的机器每 3 秒打一次空门，日志会被 fetch failed 刷满，见 hasReceivers）
+      if (pollEnabled() && hasReceivers()) {
+        pollState.hadReceivers = true
+        ok = await pollOnce()
+      } else {
+        // 没在拉：把退避清零，等真开始拉时是「立刻就得结果」的正常节奏
+        pollState.failStreak = 0
+        pollState.lastFailLogAt = 0
+        // ⚠️⚠️ **名单被清空后的一次性收尾**（2026-10-07）：服务端手上的 ws 长连接
+        //    原先只靠轮询里那句 `syncAccounts` 去停，闸门一加这条路就断了 ——
+        //    用户把号全关掉之后，服务端会一直挂着几条没人要的连接。
+        //    · 只在「本进程确实见过收消息的号」时才收这一次尾（`hadReceivers`）——
+        //      从没接入过的机器一次请求都不会发，正是这次要修的形态；
+        //    · 只试一次，**失败了不重试**（服务端一时连不上就放过，别又变成 3 秒一刷）；
+        //      真要再对一次，用户发 `#营地消息同步` 即可（那条指令直接调 syncAccounts）。
+        if (pollEnabled() && pollState.hadReceivers) {
+          pollState.hadReceivers = false
+          const r = await syncAccounts()
+          if (!r.ok) {
+            logger.debug?.(`[营地消息] 名单已清空，但没能通知服务端停掉连接：${r.error}（可发 #营地消息同步 重试）`)
+          }
+        }
+      }
+    } catch (e) {
+      logger.error?.(`[营地消息] 轮询出错：${e?.message || e}`)
+      ok = false
+    }
+    pollState.timer = setTimeout(tick, ok ? pollMs() : failBackoffMs(pollState.failStreak))
     pollState.timer.unref?.()
   }
   // 启动后先等一下再拉，别和插件加载抢资源
@@ -630,6 +754,15 @@ function bootstrap () {
     try {
       if (!pollEnabled()) {
         logger.info(`[${PluginName}] 营地消息未启用（配置 campImEnabled）`)
+        return
+      }
+      // ⚠️⚠️ **一个号都没在收消息时，启动这两次请求也不打**（2026-10-07 加）。
+      //    没接入过 / 一个号都没开的机器，`syncAccounts` 和 `seedSeenFromQueue`
+      //    各是一次注定连不上的请求（未接入的机器上就是两条 `fetch failed`）。
+      //    但**定时器照常启动** —— 用户哪天发了 `#营地消息开`，下一拍自动开始拉。
+      if (!hasReceivers()) {
+        logger.info(`[${PluginName}] 还没有号在收消息（发 #营地消息开 开启），暂不连接营地消息服务`)
+        startPolling()
         return
       }
       // 先按开关把账号同步给服务端（服务没起来就静默跳过，等部署）
