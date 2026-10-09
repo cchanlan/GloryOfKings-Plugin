@@ -55,6 +55,7 @@ import {
   resolveOnlineSince,
   formatBattleText,
   formatGamingText,
+  formatGamingHintText,
   formatOnlineText,
   needBattleList,
   isSubActive,
@@ -867,7 +868,8 @@ export class GameRecordPush extends plugin {
       await this.checkOnline(qq, sub, data, state)
       // 开播提示和上下线播报同源：都用本轮这一份 data，**不额外查询**
       //（2026-09-20 从独立的 15 秒轮询挪回来，见 checkHint 的注释）
-      if (data) await this.checkHint(qq, sub, data)
+      // ⚠️ heroMap 一路传下去：合并文案要带英雄名与场次胜率（见 formatGamingHintText）
+      if (data) await this.checkHint(qq, sub, data, heroMap)
     }
 
     // 收尾：按这一轮的活跃度定接下来跳过几轮，顺带把本轮观测写进快照字段
@@ -913,8 +915,21 @@ export class GameRecordPush extends plugin {
 
     // 开局提醒。用 gaming.dtEventTime（开局时间戳，一局之内恒定）做去重键，
     // 比 isGaming 布尔值可靠：连着开两局时布尔值可能一直是 true，时间戳会变。
+    //
+    // ⚠️⚠️ **开了上下线提醒的人，开局提醒不在这里发**（2026-10-07 合并，主人要求）：
+    //    满 N 分钟时由 `checkHint` 发**一条**合并提示（开局信息 + 「要不要开一路观战」），
+    //    原先两处各发一条、说的却是同一局同一个时长，群里连着刷两屏 ——
+    //    实测形态就是「进入了排位赛…已进行 3 分钟」紧跟着「已经开局 3 分钟了…」。
+    //
+    //    ⚠️ 判据必须是「开播提示这条路真的会跑」：`online` 开关 **且** 配置里
+    //       `watchHintEnabled` 没关。缺任何一个都还按老样子在这儿发 ——
+    //       否则两边都不发，订阅者连「他开打了」都收不到。
+    //    ⚠️ 让位之后，`lastGamingStart` 这个游标改由 `checkHint` 那一路推进
+    //       （发得出去才推，口径不变），所以这里也不写它。
     const gamingStart = String(data.gaming?.dtEventTime || '')
-    const needGaming = data.isGaming && gamingStart && gamingStart !== String(sub.lastGamingStart || '')
+    const hintOwnsGaming = isFlagOn(sub, 'online') && readConfig().watchHintEnabled !== false
+    const needGaming = !hintOwnsGaming &&
+      data.isGaming && gamingStart && gamingStart !== String(sub.lastGamingStart || '')
 
     // 新结算的战绩
     const fresh = pickNewBattles(data.list, sub)
@@ -1064,25 +1079,40 @@ export class GameRecordPush extends plugin {
    *    挪回来用的是同一份 data：它们能播，这条就能播。
    *
    * 去重键 `hintGamingStart` 记「已经问过的那一局」（`gaming.dtEventTime` 一局之内恒定）。
+   *
+   * ⚠️⚠️ **这里同时承担「开局提醒」**（2026-10-07 合并，主人要求）：开了上下线提醒的人
+   *    满 N 分钟只发**一条**「开局信息 + 要不要开一路观战」，`checkBattle` 那边已经让位
+   *    （见那里的 `hintOwnsGaming`）。所以下面每一条「发不出去 / 不发了」的分支
+   *    **都必须补发一条纯开局提醒**，否则订阅者连「他开打了」都收不到。
+   *
+   * @param {Record<string,string>} [heroMap] heroId -> 英雄名（兜底开局提醒要用）
    */
-  async checkHint (qq, sub, data) {
+  async checkHint (qq, sub, data, heroMap = {}) {
     if (readConfig().watchHintEnabled === false) return
 
     const afterMin = Math.max(1, Number(readConfig().watchHintAfterMin) || 3)
     const { action, minutes } = decideHint(data, afterMin)
-    // `wait`（还没进对局 / 时长不够 / 接口没给数据）什么都不做，下一轮再判
+    // `wait`（还没进对局 / 时长不够 / 接口没给数据）什么都不做，下一轮再判。
+    // ⚠️ 这里**不补发开局提醒**：时长还没到，下一轮判成 `hint`/`drop` 时再发，
+    //    否则「还没满 3 分钟」就先播一条、到点再播一条，又成了刷屏
     if (action === 'wait') return
 
     const gameKey = String(data?.gaming?.dtEventTime || '')
 
-    // 放弃（模式不支持 / 对方藏了战绩）：记下这一局，别每轮重判
+    // ⚠️⚠️ **「这一局处理过了」必须排在最前面判**（2026-10-07 合并时调整顺序）：
+    //    下面 `drop` 分支现在要**补发一条开局提醒**，而 `checkAll` 和 `hintTick`
+    //    两路都会走到这里（hintTick 15 秒一轮、checkAll 按 cron，时序上会撞）。
+    //    若把去重判据放在 drop 之后，同一局会被补发两次。
+    //    原来的顺序是「drop 在前」—— 那时 drop 只写个字段、重写一次无害，现在不行了。
+    if (!gameKey || gameKey === String(sub.hintGamingStart || '')) return
+
+    // 放弃（模式不支持 / 对方藏了战绩）：问不了开播，但**开打了这件事还得说**。
+    // 记下这一局，别每轮重判（兜底发送失败也不重试，口径见 sendGamingFallback）
     if (action === 'drop') {
-      if (gameKey) mergeSubState(qq, { hintGamingStart: gameKey })
+      await this.sendGamingFallback(qq, sub, data, heroMap)
+      mergeSubState(qq, { hintGamingStart: gameKey })
       return
     }
-
-    // 这一局已经问过了
-    if (!gameKey || gameKey === String(sub.hintGamingStart || '')) return
 
     // 好友判定只拦「**明确不是好友**」—— 那种情况提示了群友也开不了。
     // 查不到（观战服务没起 / 抽风）**照发**：宁可发一条可能开不了的，
@@ -1092,13 +1122,43 @@ export class GameRecordPush extends plugin {
     const friend = await this.findFriend(sub.campId)
     if (friend === false) {
       logger.mark(`[王者推送] ${qq} 的营地 ${sub.campId} 不是任何全局账号的好友，不发开播提示`)
+      // 开不了播，但开局这件事照说（同上：checkBattle 已经不发那一条了）
+      await this.sendGamingFallback(qq, sub, data, heroMap)
       mergeSubState(qq, { hintGamingStart: gameKey })
       return
     }
 
-    const ok = await this.sendHint(qq, sub, data.gaming, minutes, friend?.record || null)
-    // 只有真发出去了才记「这局问过」—— 发送失败留着下轮重试，否则这条提示就永远丢了
-    if (ok) mergeSubState(qq, { hintGamingStart: gameKey })
+    const ok = await this.sendHint(qq, sub, data.gaming, minutes, heroMap, friend?.record || null)
+    // 只有真发出去了才记「这局问过」—— 发送失败留着下轮重试，否则这条提示就永远丢了。
+    // ⚠️ 连同 `lastGamingStart` 一起推进：合并后开局提醒由这一路承担，
+    //    那个游标（原先由 checkBattle 独占）也得跟着走，否则重载/换路后会重复发一条
+    if (ok) mergeSubState(qq, { hintGamingStart: gameKey, lastGamingStart: gameKey })
+  }
+
+  /**
+   * 纯开局提醒（兜底）。
+   *
+   * `checkBattle` 在「开了上下线提醒」时不再发开局提醒（由 `checkHint` 合并成一条），
+   * 但**开不了播**的对局（模式不支持 / 藏了战绩 / 不是好友）不走合并那条路 ——
+   * 这时用这个补上「他开打了」，不然那几种局在群里会彻底没声。
+   *
+   * @param {Record<string,string>} [heroMap] heroId -> 英雄名
+   */
+  async sendGamingFallback (qq, sub, data, heroMap = {}) {
+    const gaming = data?.gaming
+    if (!gaming) return
+    const name = await this.resolveDisplayName(qq, sub)
+    const text = formatGamingText(gaming, heroMap, name)
+    const ok = await this.send(qq, sub, text)
+    if (!ok) {
+      // ⚠️ 失败**不重试**（调用方照常记去重键收手）：这条兜底是一次性的补充播报，
+      //    重试意味着 checkAll 和 hintTick 两路各补发一条 —— 那正是本次要消灭的刷屏。
+      //    口径与原行为一致：原先「不是好友/模式不支持」这两个分支就是不留重试的。
+      logger.warn(`[王者推送] ${qq} 的开局提醒（兜底）发送失败，这一局不再重试`)
+      return
+    }
+    // 发出去了才推游标（与其它播报同口径）
+    mergeSubState(qq, { lastGamingStart: String(gaming.dtEventTime || '') })
   }
 
   /**
@@ -1121,6 +1181,8 @@ export class GameRecordPush extends plugin {
       const cfg = readConfig()
       const afterMin = Math.max(1, Number(cfg.watchHintAfterMin) || 3)
       const now = Date.now()
+      // 合并文案要带英雄名/场次胜率（和 checkAll 那一路同源，缓存 6 小时，不额外打请求）
+      const heroMap = await getHeroNameMap()
 
       // ⭐ 挑「该盯的人」。判据**只有两个**，而且**不依赖「上线」这个瞬间**：
       //    ① 开了上下线提醒（主人的意思：只服务订阅了上下线的人）
@@ -1205,6 +1267,9 @@ export class GameRecordPush extends plugin {
         if (action === 'drop') {
           logger.mark(`[王者推送] ${qq} 盯梢放弃：${reason}`)
           // ⚠️ 放弃也要记下这一局，否则下一轮又被挑中白查（同上的死循环）
+          // ⚠️ 且**补发纯开局提醒**：开了上下线提醒时 checkBattle 已经不发那一条了
+          //    （见 checkHint 的说明），这里不补的话「模式不支持」的局群里会彻底没声
+          await this.sendGamingFallback(qq, sub, data, heroMap)
           mergeSubState(qq, { hintWatching: '', hintSince: '', hintGamingStart: gameKey })
           continue
         }
@@ -1237,11 +1302,15 @@ export class GameRecordPush extends plugin {
           }
         } else if (friend === false) {
           logger.mark(`[王者推送] ${qq} 的营地 ${sub.campId} 不是任何全局账号的好友，不发提示`)
+          // ⚠️⚠️ **必须在这儿补发开局提醒**（2026-10-07 合并）：开了上下线提醒时
+          //    `checkBattle` 已经不播开局那一条了，而这里原先直接推 `hintGamingStart` 收手 ——
+          //    一推游标，`checkHint` 那边就被去重挡住，这条局在群里**彻底没声**。
+          await this.sendGamingFallback(qq, sub, data, heroMap)
           mergeSubState(qq, { hintWatching: '', hintSince: '', hintGamingStart: gameKey })
           continue
         }
 
-        const ok = await this.sendHint(qq, sub, data.gaming, minutes, friend?.record || null)
+        const ok = await this.sendHint(qq, sub, data.gaming, minutes, heroMap, friend?.record || null)
         // ⚠️ 只有真发出去了才记「这局提示过」—— 发送失败（群取不到）时留着下轮重试，
         //    否则这条提示就永远丢了
         if (ok) {
@@ -1310,8 +1379,9 @@ export class GameRecordPush extends plugin {
    *      退化成裸查整个账号池（频控风险 + 慢 + 缓存分桶错乱，详见 `findFriend` 的注释）。
    *      取不到（不是好友但服务查不到、或他不在对局里）时传 null —— 字段留空是**兜底**，
    *      不是正常路径。
+   * @param {Record<string,string>} [heroMap] heroId -> 英雄名（合并文案里带英雄与场次胜率）
    */
-  async sendHint (qq, sub, gaming, minutes, coord = null) {
+  async sendHint (qq, sub, gaming, minutes, heroMap = {}, coord = null) {
     // ⚠️⚠️ **名字优先用营地实时返回的角色名**（2026-10-05 修）。
     //    原先写的是 `sub.roleName || 群名片`，而 `#营地开播` 回话时用的是
     //    `/api/friends` 里那一行的 `nick`（= 营地实时 roleName）—— **两个不同源**：
@@ -1327,7 +1397,19 @@ export class GameRecordPush extends plugin {
     if (campName && campName !== String(sub?.roleName || '')) {
       mergeSubState(qq, { roleName: campName })
     }
-    const text = `${name} 已经开局 ${minutes} 分钟了\n要不要开一路观战？发 #营地开播`
+    // ⚠️⚠️ **合并文案**（2026-10-07 改）：原先这里只发「已经开局 N 分钟了…」，
+    //    而 `checkBattle` 另发一条「进入了排位赛…已进行 N 分钟」——同一局刷两屏。
+    //    现在开局信息（模式/英雄/场次胜率）+ 开播引导合成一条，`checkBattle` 那边让位。
+    //    ⚠️ 第一行仍是 `〈名字〉 已经开局 N 分钟了 · …`：`#营地开播` 的引用识别
+    //       靠 `/^(.+?)\s*已经开局\s*\d+\s*分钟/` 抠人名，别改动这个开头（见 pushStore）。
+    //
+    // ⚠️⚠️ **文案里的名字和记给服务端的 `nick` 必须是同一个值**（2026-10-07 一起修）：
+    //    `#营地开播` 是先从**文案**里抠出人名、再去服务端按 `nick` 找回原来那一场的
+    //    （见 apps/watchBattle.js 的 startHinted）。而文案这边会把名字里的私有区图标
+    //    和不可见字符洗掉（营地昵称里很常见）—— 两边不同源时，昵称带图标的号就会出现
+    //    「引用着提示发 #营地开播，却提示找不到/开成别人」。所以先洗一次，两边都用它。
+    const display = name ? normalizeName(name) : ''
+    const text = formatGamingHintText(gaming, heroMap, display, minutes)
     const ok = await this.send(qq, sub, text)
     if (!ok) return false
 
@@ -1342,7 +1424,8 @@ export class GameRecordPush extends plugin {
             groupId: gid,
             battleID: String(gaming?.battleId || coord?.battleId || ''),
             campId: String(sub.campId || ''),
-            nick: name,
+            // ⚠️ 用洗净后的名字，和上面文案里显示的**完全一致**（引用开播按它匹配）
+            nick: display,
             // ⚠️ 这四个是 `#营地开播` 复查/取流的关键：缺了 owners 它会退化成查全部账号
             watcher: String(coord?.watcher || ''),
             owners: Array.isArray(coord?.owners) ? coord.owners.map(String) : [],

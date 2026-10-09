@@ -1275,6 +1275,44 @@ export function formatGamingText (gaming, heroMap = {}, name = '') {
   return lines.join('\n')
 }
 
+/**
+ * 开播提示文案：开局信息 + 「要不要开一路观战」**合成一条**。
+ *
+ * 来龙去脉：这两条原先由两个链路各发一次 —— `checkBattle` 的开局提醒
+ * （`formatGamingText`）和 `checkHint` 的开播提示，说的却是**同一局、同一个时长**，
+ * 连着打时同一轮就能在群里刷出两屏（实测形态：「进入了排位赛…」紧跟着
+ * 「已经开局 3 分钟了…」）。合并后满 N 分钟只发这一条。
+ *
+ * ⚠️⚠️ **第一行必须保持 `〈名字〉 已经开局 N 分钟了` 的原样开头**：
+ *    `apps/watchBattle.js` 的 `#营地开播` 靠 `/^(.+?)\s*已经开局\s*\d+\s*分钟/`
+ *    从被引用的这条提示里抠出人名，去服务端挑回「原来那一场」。改掉这句等于把
+ *    「引用精确开播」弄坏 —— 群里好几个人先后开局时会开错人。
+ *
+ * @param {object} gaming data.gaming
+ * @param {object} [heroMap] heroId -> 英雄名
+ * @param {string} [name] 玩家名。这条也不 @ 本人，名字得写进文案
+ * @param {number} minutes 已开局分钟数（满 N 分钟那条的判据值）
+ */
+export function formatGamingHintText (gaming, heroMap = {}, name = '', minutes = 0) {
+  const mode = String(gaming?.mapName || '').trim() || '对局'
+  const heroName = heroMap[String(gaming?.heroId)] || (gaming?.heroId ? `英雄${gaming.heroId}` : '')
+  const who = normalizeName(name)
+
+  const lines = [`${name ? `${who} ` : ''}已经开局 ${minutes} 分钟了 · 进入了${mode}`]
+
+  if (heroName) {
+    const stat = []
+    const gameNum = toInt(gaming?.gameNum)
+    if (gameNum > 0) stat.push(`${gameNum} 场`)
+    if (gaming?.winRate) stat.push(`胜率 ${gaming.winRate}`)
+    lines.push(`🎮 ${heroName}${stat.length ? `（${stat.join(' · ')}）` : ''}`)
+  }
+
+  lines.push('要不要开一路观战？发 #营地开播')
+
+  return lines.join('\n')
+}
+
 /* ------------------------------------------------------- 开播提示（盯梢） */
 
 /**
