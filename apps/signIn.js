@@ -1,11 +1,12 @@
 /**
  * 王者营地每日签到。
  *
- * ## 两条入口
+ * ## 三条入口
  *
  * | 入口 | 签谁 | 结果送哪 |
  * |---|---|---|
  * | `#王者签到` 指令 | **发指令的人名下**的号 | **回原会话**（群里发就回群、私聊发就回私聊） |
+ * | `#开启/关闭王者自动签到` | 改定时开关（改配置 + 立刻重排 job） | 回原会话一句确认 |
  * | 每日定时任务 | 池子里**所有**有号主的号 | **私聊各自的号主** |
  *
  * ## 为什么必须按 owner 分流
@@ -24,6 +25,25 @@
  * `-105204 是缺参数不是没权限`）全在 `utils/campSignTask.js` 的 `signOneAccount` 里。
  * 指令和定时都调它 —— 两处各写一份必然漂移。
  *
+ * ## 没绑王者角色的号：**全程静默**
+ *
+ * 它既不出现在签到图里、也不出现在私聊里（2026-10-10 主人要求：
+ * 「没有角色的直接静默处理，不需要渲染也不需要告知，直接跳过」）。
+ * 判据只认 `/game/rolelist` 的 `20001.roles` 为空 ——
+ * ⚠️ **不能**用 `signinfo` 的 `weekSignMap === '0000000'` 代替：
+ * 「有角色但从没签过的新号」长得一模一样（实测对照见 `utils/campSignTask.js`）。
+ * 所以「探测」照跑（省不掉那次请求），**跳过的是展示**。
+ *
+ * ## 定时开关：`#开启/关闭王者自动签到`
+ *
+ * ⚠️ 这两个指令跟 `#王者签到` **完全无关** —— 后者只是手动签一次，不改配置。
+ * 自动签到的开关是配置项 `campSignCron`（锅巴「营地签到」区块，默认 `0 30 7 * * *`）。
+ *
+ * 改配置后**必须让 job 立刻重排**（`utils/taskCtl.js`），否则：
+ *   · 空配置时加载 → 用户运行中「开启」→ job 从没注册过，永远不跑
+ *   · 非空配置时加载 → 用户运行中「关闭」→ job 还挂着，第二天照样私聊
+ * 另有一道**运行时闸门**（`autoSign` 开头查配置）兜底，双保险。
+ *
  * ## 定时任务「一切正常就不打扰」
  *
  * 天天推一条「今天已签」是骚扰。私聊只在两种情况发：
@@ -36,15 +56,18 @@ import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { shouldQuote, getImgType, AT_HEAD, AT_TAIL } from '#utils'
 import { Config, PluginName } from '#components'
 import authStore from '../utils/authStore.js'
-import apiService from '../utils/api.js'
-import { signOneAccount, summarizeViews, groupByOwner } from '../utils/campSignTask.js'
-import { buildSignView, isSignedToday } from '../utils/campSign.js'
+import { signOneAccount, probeAccount, summarizeViews, groupByOwner } from '../utils/campSignTask.js'
+import { buildSignView } from '../utils/campSign.js'
 import { sendPrivate } from '../utils/privateMsg.js'
 import { sendMaster } from '../utils/masterMsg.js'
 import { hotBox } from '../utils/hotState.js'
+import { rescheduleOwnTask, isCronOn } from '../utils/taskCtl.js'
 
 /** 定时签到时间的配置键（锅巴「营地签到」区块） */
 const KEY_CRON = 'campSignCron'
+
+/** 默认的自动签到时间（锅巴里那个 placeholder 跟这里要一致，改一处就要改两处） */
+const DEFAULT_CRON = '0 30 7 * * *'
 
 /** 账号之间的间隔，别把营地接口打急了（api.js 自己也有节流，这里是额外保险） */
 const GAP_MS = 1500
@@ -80,6 +103,45 @@ function cfg () {
   }
 }
 
+/**
+ * 写 `campSignCron` 配置。成功返回 true。
+ *
+ * ⚠️ 走 `Config.modify`（锅巴同一条写路径）。自己写 yaml 会绕过框架的
+ *    缓存与热重载通知，出现「面板显示旧的、实际是新的」这种最难查的错。
+ */
+function writeCron (cron) {
+  try {
+    Config.modify('config', KEY_CRON, String(cron || ''))
+    return true
+  } catch (error) {
+    logger.error(`[${PluginName}] 写 ${KEY_CRON} 失败: ${error?.message || error}`)
+    return false
+  }
+}
+
+/**
+ * cron → 人话时间，用在回复里。
+ *
+ * ⚠️ 只认自家那几种形状（`秒 分 时 日 月 周`），认不出就**原样回显 cron** ——
+ *    瞎猜一个「每天 0:00」比直接给 cron 更误导（用户会照错的去等）。
+ *    主人自己在锅巴里填的任意 cron 都该能显示，所以兜底必须是原串。
+ */
+function humanCron (cron) {
+  const raw = String(cron || '').trim()
+  const parts = raw.split(/\s+/)
+  if (parts.length < 6) return raw
+
+  const [sec, min, hour, day, month, week] = parts
+  const isNum = v => /^\d+$/.test(v)
+
+  // 每天固定时间：秒 分 时 都是数字、日 月 是 *
+  if (isNum(sec) && isNum(min) && isNum(hour) && day === '*' && month === '*' && week === '*') {
+    return `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`
+  }
+
+  return raw
+}
+
 /** 账号显示名：营地昵称 > 登录名 > 只有ID */
 function labelOf (account) {
   const campId = String(account?.userId || '')
@@ -111,6 +173,18 @@ export class CampSignIn extends plugin {
       event: 'message',
       priority: 0,
       rule: [
+        // ⚠️ 两条开关指令必须排在 `#王者签到` / `#王者签到状态` **前面**：
+        //    框架按注册顺序匹配，虽然 `#(?:开启...)王者自动签到` 跟 `#王者签到`
+        //    实际不冲突（前缀不同），但「自动签到」里含「签到」二字，
+        //    放前面是**零成本的保险** —— 将来谁把 `#王者签到` 那条改宽就会出事。
+        {
+          reg: new RegExp(`${AT_HEAD}#(?:开启|打开|启用)王者自动签到${AT_TAIL}`),
+          fnc: 'enableAuto'
+        },
+        {
+          reg: new RegExp(`${AT_HEAD}#(?:关闭|关掉|停用)王者自动签到${AT_TAIL}`),
+          fnc: 'disableAuto'
+        },
         {
           // ⚠️⚠️ 只认带「王者」前缀的写法，**不注册裸 `#签到状态`**。
           //    本机实测（2026-10-10）xhh-TL 的米游社插件注册了
@@ -145,6 +219,88 @@ export class CampSignIn extends plugin {
   /** 卸载 / 热重载时释放锁，避免老代次卡住导致新代次永远跳过（框架 loader.js 会调） */
   async onUnload () {
     signLock.running = false
+  }
+
+  /**
+   * 「配置里的 cron 变了，让 job 跟上」—— 给 `guoba.support.js` 的保存钩子调。
+   *
+   * ⚠️⚠️ **锅巴那条路也必须重排**（2026-10-10 补）：面板保存只写配置的话，
+   *    「配置原本为空 → 面板里填上时间」这个最常见的操作会让 job **从来没注册过** ——
+   *    面板显示开着、配置也是对的，但第二天早上什么都不发生。
+   *    而闸门（`autoSign` 开头那句）只挡「配置空」，挡不住「配置非空但没 job」。
+   *
+   * ⚠️ 包一层而不是让锅巴直接 import `utils/taskCtl.js`：
+   *    `this.task[0]` 这个下标只该在本文件里出现 —— 别处各写一次，
+   *    将来 task 数组加一项就会有人拿错（跟 `instanceBox` 那条注释同一个道理）。
+   *
+   * @param {string} cron 配置里的新值（空 = 关）
+   * @returns {Promise<boolean>} 是否重排成功
+   */
+  async syncTaskCron (cron) {
+    return rescheduleOwnTask(this.task[0], cron)
+  }
+
+  /**
+   * `#开启王者自动签到` —— 打开定时，并**当场先签一次**。
+   *
+   * ⚠️ 跟锅巴面板那个保存钩子走**同一条路**（`signNowAfterEnable`）：
+   *    两边都只改配置的话，行为会漂移（一边当场签、一边不签），
+   *    而用户分不清自己是从哪儿开的。
+   *
+   * ⚠️ 写配置用 `Config.modify`（跟锅巴同一条写路径），**不自己写 yaml** ——
+   *    自己写会绕过框架的缓存与热重载通知，出现「面板显示旧的、实际是新的」。
+   */
+  async enableAuto (e) {
+    // 已经是开着的就别重复触发一轮签到（可能正撞上定时那轮，白等十几秒）
+    if (isCronOn(cfg()[KEY_CRON])) {
+      return e.reply(
+        `自动签到已经开着啦（每天 ${humanCron(cfg()[KEY_CRON])}）\n`
+        + '想改时间：锅巴面板 → 王者荣耀 → 营地签到\n'
+        + '想手动签一次：发 #王者签到',
+        shouldQuote()
+      )
+    }
+
+    const ok = writeCron(DEFAULT_CRON)
+    if (!ok) return e.reply('写入配置失败，去锅巴面板里开一下试试', shouldQuote())
+
+    await rescheduleOwnTask(this.task[0], DEFAULT_CRON)
+
+    await e.reply(
+      `自动签到已开启（每天 ${humanCron(DEFAULT_CRON)}）\n`
+      + '现在先签一次，结果私聊你\n'
+      + '想改时间：锅巴面板 → 王者荣耀 → 营地签到',
+      shouldQuote()
+    )
+
+    // 回复先发出去，再跑签到（不然用户要盯着「已开启」等十几秒才等到第二条）
+    this.signNowAfterEnable()
+  }
+
+  /**
+   * `#关闭王者自动签到` —— 关掉定时。
+   *
+   * ⚠️ 关掉**不会**取消已经排上的那一轮，也不会撤回已经发出的私聊 ——
+   *    那都是「关之前」发生的事，用户能理解；含糊其辞反而让人以为没关掉。
+   */
+  async disableAuto (e) {
+    if (!isCronOn(cfg()[KEY_CRON])) {
+      return e.reply(
+        '自动签到本来就是关着的\n发 #王者签到 可以手动签一次',
+        shouldQuote()
+      )
+    }
+
+    const ok = writeCron('')
+    if (!ok) return e.reply('写入配置失败，去锅巴面板里关一下试试', shouldQuote())
+
+    await rescheduleOwnTask(this.task[0], '')
+
+    await e.reply(
+      '自动签到已关闭，之后不会再自动签\n'
+      + '随时发 #王者签到 手动签，或发 #开启王者自动签到 重新打开',
+      shouldQuote()
+    )
   }
 
   /**
@@ -199,6 +355,11 @@ export class CampSignIn extends plugin {
    *
    * 存在的意义：想确认「还差几天满签」时有一条不产生副作用的路，
    * 而且它绝不撞频控。
+   *
+   * ⚠️ 跟 `#王者签到` 共用 `probeAccount()`（查角色 → 查状态）。
+   *    早先这里**只查 signinfo 不查 rolelist**，于是「没绑王者角色的号」会以
+   *    「今天还没签」的姿态出现在图上 —— 用户照着去签，只会再被告知签不了。
+   *    现在统一走 probe，没角色的号被 `noRole` 标出来、静默跳过。
    */
   async checkStatus (e) {
     const accounts = this.#myAccounts(e)
@@ -207,30 +368,21 @@ export class CampSignIn extends plugin {
     const views = []
     for (const account of accounts) {
       const { campId, name } = labelOf(account)
-
-      try {
-        const info = (await apiService.getCampSignInfo(campId))?.data || {}
-        const signed = isSignedToday(info.weekSignMap)
-
-        views.push({
-          name,
-          campId,
-          info,
-          // 判不了就别硬报「未签」
-          stateClass: signed === null ? 'fail' : (signed ? 'done' : 'new'),
-          stateText: signed === null ? '数据异常' : (signed ? '今天已签' : '今天还没签')
-        })
-      } catch (error) {
-        logger.warn(`[王者签到] ${campId} 查状态失败: ${error?.message || error}`)
-        views.push({
-          name, campId, stateClass: 'fail', stateText: '查询失败',
-          failReason: apiService.formatUserFacingError(error)
-        })
-      }
+      views.push(await probeAccount(campId, { name }))
       await sleep(GAP_MS)
     }
 
-    await this.#render(e, views, { mode: 'status' })
+    // ⚠️ 没绑王者角色的号**静默跳过**（2026-10-10 主人要求）
+    const shown = views.filter(view => !view.noRole)
+    if (!shown.length) {
+      return e.reply(
+        '名下这些营地号都还没绑定王者角色，签不了\n'
+        + '先在王者里用这个号登录一次，再发 #王者签到',
+        shouldQuote()
+      )
+    }
+
+    await this.#render(e, shown, { mode: 'status' })
   }
 
   /**
@@ -238,6 +390,11 @@ export class CampSignIn extends plugin {
    *
    * 每个号的失败都在 `signOneAccount` 内部吃掉了，
    * 一个号挂了不影响后面的号 ——「微信号签上了、QQ 号没签上」必须如实分开报。
+   *
+   * ⚠️ 没绑王者角色的号**静默跳过**（2026-10-10 主人要求）：
+   *    它既不进图、也不进文字、也不算进任何计数。
+   *    但**必须照样走一遍 `signOneAccount`** —— 只有它才知道这个号有没有角色
+   *    （判据在 `/game/rolelist`，省不掉这次请求）。跳过的是**展示**，不是探测。
    */
   async signIn (e) {
     const accounts = this.#myAccounts(e)
@@ -259,7 +416,17 @@ export class CampSignIn extends plugin {
         await sleep(GAP_MS)
       }
 
-      await this.#render(e, views, { mode: 'sign', ...summarizeViews(views) })
+      // 探测照跑（上面），但**没角色的号不出现在结果里**
+      const shown = views.filter(view => !view.noRole)
+      if (!shown.length) {
+        return e.reply(
+          '名下这些营地号都还没绑定王者角色，签不了\n'
+          + '先在王者里用这个号登录一次，再发 #王者签到',
+          shouldQuote()
+        )
+      }
+
+      await this.#render(e, shown, { mode: 'sign', ...summarizeViews(shown) })
     } finally {
       signLock.running = false
     }
@@ -276,6 +443,17 @@ export class CampSignIn extends plugin {
   async autoSign () {
     if (signLock.running) {
       logger.warn(`[${PluginName}] 上一轮营地签到还没跑完，本轮跳过`)
+      return
+    }
+
+    // ⚠️⚠️ **运行时闸门**（2026-10-10）：配置关了就直接返回，不管 job 有没有被摘掉。
+    //    这是 `#关闭王者自动签到` 的第二道保险 —— 万一重排失败（框架 loader 路径变了、
+    //    `createTask` 改名了），job 还挂在调度器里，光靠重排就会出现
+    //    「用户以为关了、第二天照样收到私聊」。那种错比没有这个开关更让人恼火。
+    //    `#开启` 那边同理：配置为空时 collectTask 根本没注册过 job，
+    //    闸门不会误挡（它是「配置空才挡」）。
+    if (!isCronOn(cfg()[KEY_CRON])) {
+      logger.debug(`[${PluginName}] 自动签到已关闭，本轮不跑`)
       return
     }
 
@@ -298,13 +476,22 @@ export class CampSignIn extends plugin {
       }
 
       const stats = summarizeViews(pairs.map(pair => pair.view))
+      // ⚠️ 没绑角色的号**静默**：不进私聊、不进主人汇报，只在日志里留个数
+      //    （主人要排查「某个号怎么从来不签」时，日志是唯一的线索）
       logger.info(
         `[${PluginName}] 营地自动签到完成：签上 ${stats.okCount} / 已签 ${stats.alreadyCount} / ` +
-        `没角色 ${stats.noRoleCount} / 失败 ${stats.failCount}`
+        `失败 ${stats.failCount} / 没角色跳过 ${stats.noRoleCount}`
       )
 
-      await this.#notifyOwners(pairs)
-      await this.#notifyMasterOrphans(pairs)
+      // 私聊与主人汇报都只看「有角色」的那批 —— 没角色的号连探测结果都不展示
+      const shown = pairs.filter(pair => !pair.view?.noRole)
+      if (!shown.length) {
+        logger.info(`[${PluginName}] 营地自动签到：名下号都没绑王者角色，不打扰任何人`)
+        return
+      }
+
+      await this.#notifyOwners(shown)
+      await this.#notifyMasterOrphans(shown)
     } catch (error) {
       logger.error(`[${PluginName}] 营地自动签到出错: ${error?.message || error}`)
     } finally {
@@ -316,8 +503,10 @@ export class CampSignIn extends plugin {
    * 把结果私聊给各自的号主。
    *
    * ⚠️ **只发「需要他知道」的内容**：签上了要说（他领到奖励了），
-   *    真失败了要说（要他处理）。「本来已签」「没绑角色」都是**日常状态**，
-   *    天天推等于骚扰 —— 跳过。
+   *    真失败了要说（要他处理）。「本来已签」是**日常状态**，天天推等于骚扰 —— 跳过。
+   *
+   * ⚠️ 传进来的 `pairs` **已经滤掉没绑角色的号**（调用方做的，见 `autoSign`）——
+   *    这里不用再判 `noRole`，判了也是死代码。
    */
   async #notifyOwners (pairs) {
     const grouped = groupByOwner(pairs)
@@ -325,7 +514,7 @@ export class CampSignIn extends plugin {
     for (const [owner, views] of grouped) {
       if (!owner) continue   // 无主号交给 #notifyMasterOrphans
 
-      const needTell = views.filter(v => v.signed || (!v.noRole && !v.already))
+      const needTell = views.filter(v => v.signed || !v.already)
       if (!needTell.length) continue
 
       const lines = ['营地签到结果']
@@ -359,6 +548,8 @@ export class CampSignIn extends plugin {
    * ⚠️ 走 `sendMaster`（它按 `utils/masterMsg.js` 的口径收口：勾了取交集、
    *    没勾取第一个、交集空回落第一个），**不要**自己遍历 `cfg.master` ——
    *    那会把账号信息广播给每个主人。
+   *
+   * ⚠️ 传进来的 `pairs` 同样**已经滤掉没绑角色的号**（见 `autoSign`）。
    */
   async #notifyMasterOrphans (pairs) {
     const orphans = pairs.filter(pair => !String(pair.account?.ownerBotUserId || '').trim())
@@ -369,12 +560,12 @@ export class CampSignIn extends plugin {
       if (view.signed) {
         const gifts = giftLine(view)
         lines.push(`${view.campId}：签到成功${gifts ? `，${gifts}` : ''}`)
-      } else if (!view.noRole && !view.already) {
+      } else if (!view.already) {
         lines.push(`${view.campId}：${view.stateText}${view.failReason ? ` —— ${view.failReason}` : ''}`)
       }
     }
 
-    // 全是「已签」「没角色」时 lines 是空的 —— 没新信息就不打扰主人
+    // 全是「已签」时 lines 是空的 —— 没新信息就不打扰主人
     if (!lines.length) return
 
     await sendMaster([

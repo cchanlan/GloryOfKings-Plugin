@@ -1102,10 +1102,13 @@ export function supportGuoba () {
          */
         const signCronKey = 'config.campSignCron'
         let turnedOnSign = false
+        /** 提交里带了 cron 就记下新值，保存完之后用它重排 job（null = 这次没碰这格） */
+        let nextSignCron = null
         if (Object.prototype.hasOwnProperty.call(data, signCronKey)) {
           const nextValue = String(data[signCronKey] ?? '').trim()
           const prevValue = String(get(configMap.config, 'campSignCron') ?? '').trim()
           turnedOnSign = Boolean(nextValue) && nextValue !== prevValue
+          nextSignCron = nextValue
         }
 
         if (Object.prototype.hasOwnProperty.call(data, 'authPool.accounts')) {
@@ -1182,6 +1185,36 @@ export function supportGuoba () {
           } catch (error) {
             // 即时签到失败**不能**让保存失败 —— 配置已经存好了，那才是主诉求
             logger.warn(`[${PluginName}] 开启自动签到后的即时签到触发失败：${error?.message || error}`)
+          }
+        }
+
+        /**
+         * ⭐⭐「面板改了签到时间 → 让 job 跟上」（2026-10-10 补的缺口）。
+         *
+         * ⚠️⚠️ 这一段**不能省**，而且跟上面那段是**两件事**：
+         *   · 上面只管「刚开启 → 当场签一次」（要签，但只管这一次）
+         *   · 这里管「job 有没有按新 cron 排上」（不签，但管以后每天）
+         *
+         * 少了它会怎样：主人原本关着自动签到（配置为空 → `collectTask` 压根没注册 job），
+         * 然后在面板里填上 `0 30 7 * * *` 保存 —— 配置是对的、面板显示开着，
+         * **但 job 从来没注册过，第二天早上什么都不发生**。
+         * 而 `autoSign` 开头那道闸门只挡「配置空」，挡不住「配置非空但没 job」。
+         *
+         * 判据比上面宽一点：**只要提交里带了这一格**就重排（不要求「值变了」）——
+         * 重排是幂等的（框架会先 cancel 再重建），多排一次没有任何副作用；
+         * 而「值没变就不排」会在「配置被别的途径改过、job 没跟上」时漏掉。
+         */
+        if (nextSignCron !== null) {
+          try {
+            const inst = currentCampSignInstance()
+            if (inst) {
+              await inst.syncTaskCron(nextSignCron)
+            } else {
+              logger.warn(`[${PluginName}] 签到时间已保存，但取不到签到实例，job 没能重排`)
+            }
+          } catch (error) {
+            // 同上：重排失败不能让保存失败（配置已经落盘了）
+            logger.warn(`[${PluginName}] 签到时间保存后重排 job 失败：${error?.message || error}`)
           }
         }
 

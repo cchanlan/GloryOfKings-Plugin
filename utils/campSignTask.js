@@ -1,13 +1,13 @@
 /**
- * 营地签到的**账号编排层**：给一个账号签一次、给一批账号签一轮。
+ * 营地签到的**账号编排层**：探一个号的状态、给一个号签一次、给一批号签一轮。
  *
- * 抽出来是因为有**两个调用方**：
+ * 抽出来是因为有**三个调用方**：
  *   · `apps/signIn.js` 的 `#王者签到` 指令（谁发指令就给谁名下的号签，结果回原会话）
+ *   · `apps/signIn.js` 的 `#王者签到状态`（只看不签）
  *   · `apps/signIn.js` 的每日定时任务（给池子里所有号签，结果**私聊各自的号主**）
  *
- * 两边的差异只有「签谁」和「结果送哪」，**签的动作本身必须只有一份** ——
- * 否则「角色列表 → 查状态 → 没签才签」这套顺序会在两处漂移，
- * 而它恰好是踩过坑的地方（不带 `roleId` 会回骗人的 -105204）。
+ * 三边的差异只有「签不签」和「结果送哪」，**「查角色 → 查状态」这套顺序必须只有一份** ——
+ * 否则它会在多处漂移，而它恰好是踩过坑的地方（不带 `roleId` 会回骗人的 -105204）。
  *
  * 零云崽依赖（只 import 纯逻辑 + api），可以脱开运行时单测。
  */
@@ -15,28 +15,29 @@ import apiService from './api.js'
 import { isSignedToday, pickMainRole, classifySignCode } from './campSign.js'
 
 /**
- * 给**一个**营地号签一次。
+ * 探一个营地号的**当前状态**（不发写请求）：查角色 + 查签到状态。
  *
- * 顺序（顺序本身就是踩坑的结论，别调换）：
- *   ① `/game/rolelist` 取 `roleId` —— `newsignin` **必需**，缺了会回那句骗人的
- *      `-105204 未授权营地，请前往游戏修改授权设置后重试`（看着像权限问题，实际是缺参数）
- *   ② `/operation/action/signinfo` 查今天签没签 —— 已签就**不发写请求**
- *      （少一次请求 = 少一分撞 -105206 频控的风险）
- *   ③ 没签才发 `newsignin`
+ * ⚠️⚠️ **「没绑王者角色」的判据只能来自 `/game/rolelist`**（2026-10-10 实测对照）：
  *
- * **不抛异常**：任何失败都翻译成 `{ ok: false, stateText, failReason }`，
- * 好让「一个号挂了」不影响「另一个号能签」。
+ * | 号 | `20001.roles` | `signinfo.weekSignMap` | `seqSignDays` |
+ * |---|---|---|---|
+ * | 没绑角色的号 | `[]` ← **只有这里能看出来** | `'0000000'` | `0` |
+ * | 有角色但**从没签过**的新号 | 有 | `'0000000'` | `0` |
+ *
+ * 两者在 `signinfo` 上**完全一样** —— 拿 `weekSignMap === '0000000'` 当「没角色」的判据，
+ * 会把「刚绑好角色、还没签过」的号误判成没角色、静默跳过，用户永远等不到它开始签。
+ * 所以「静默跳过没角色的号」这个需求（2026-10-10 主人要求）**必须多打一次 rolelist**，
+ * 这次请求省不掉。
  *
  * @param {string} campId 营地号（账号池里的 userId）
  * @param {object} [opts]
  * @param {string} [opts.name] 显示名（不给就只用 campId）
- * @returns {Promise<object>} view —— 形状跟 apps/signIn.js 里手搓的那份一致：
- *   `{ name, campId, stateClass, stateText, info, roleName?, signGifts?, failReason? }`
+ * @returns {Promise<object>} view —— `{ name, campId, stateClass, stateText, info?, role?, roleName?, signedToday?, already?, noRole?, failReason? }`
  */
-export async function signOneAccount (campId, { name } = {}) {
+export async function probeAccount (campId, { name } = {}) {
   const label = String(name || campId)
 
-  // ① 角色列表
+  // ① 角色列表 —— 没角色就到此为止（这是「静默跳过」的唯一判据来源）
   let role
   try {
     role = pickMainRole(await apiService.getRoleList(campId))
@@ -46,8 +47,7 @@ export async function signOneAccount (campId, { name } = {}) {
 
   if (!role?.roleId) {
     // ⚠️ 这一类**不是失败**：号没绑王者角色是结构性事实（主人 5 个号里 3 个如此）。
-    //    调用方要把它单独计数（noRoleCount），不能并进 failCount ——
-    //    否则会报「3 个没签上」，看着像插件坏了。
+    //    调用方按 `noRole` **静默跳过**它 —— 不渲染、不告知、也不并进 failCount。
     return {
       name: label,
       campId,
@@ -66,12 +66,52 @@ export async function signOneAccount (campId, { name } = {}) {
     return fail(label, campId, '查询失败', apiService.formatUserFacingError(error), error, role)
   }
 
-  if (isSignedToday(info.weekSignMap) === true) {
-    return {
-      name: label, campId, stateClass: 'done', stateText: '今天已签',
-      info, roleName: role.roleName, already: true
-    }
+  const signed = isSignedToday(info.weekSignMap)
+
+  return {
+    name: label,
+    campId,
+    info,
+    role,
+    roleName: role.roleName,
+    signedToday: signed,
+    already: signed === true,
+    // 判不了就别硬报「未签」
+    stateClass: signed === null ? 'fail' : (signed ? 'done' : 'new'),
+    stateText: signed === null ? '数据异常' : (signed ? '今天已签' : '今天还没签')
   }
+}
+
+/**
+ * 给**一个**营地号签一次。
+ *
+ * 顺序（顺序本身就是踩坑的结论，别调换）：
+ *   ① `/game/rolelist` 取 `roleId` —— `newsignin` **必需**，缺了会回那句骗人的
+ *      `-105204 未授权营地，请前往游戏修改授权设置后重试`（看着像权限问题，实际是缺参数）
+ *   ② `/operation/action/signinfo` 查今天签没签 —— 已签就**不发写请求**
+ *      （少一次请求 = 少一分撞 -105206 频控的风险）
+ *   ③ 没签才发 `newsignin`
+ *
+ * ①② 跟 `#王者签到状态` 共用 `probeAccount()` —— 两边各写一份必然漂移。
+ *
+ * **不抛异常**：任何失败都翻译成 `{ ok: false, stateText, failReason }`，
+ * 好让「一个号挂了」不影响「另一个号能签」。
+ *
+ * @param {string} campId 营地号（账号池里的 userId）
+ * @param {object} [opts]
+ * @param {string} [opts.name] 显示名（不给就只用 campId）
+ * @returns {Promise<object>} view —— 形状跟 apps/signIn.js 里手搓的那份一致：
+ *   `{ name, campId, stateClass, stateText, info, roleName?, signGifts?, failReason? }`
+ */
+export async function signOneAccount (campId, { name } = {}) {
+  const probe = await probeAccount(campId, { name })
+
+  // 没角色 / 查询失败 / 已签 / 状态判不了 —— 都不发写请求，原样返回
+  if (probe.noRole || probe.failReason || probe.already || probe.signedToday === null) {
+    return probe
+  }
+
+  const { name: label, info, role } = probe
 
   // ③ 真签到（retries=0，写操作不能重试 —— 重试等于连签两次，只会撞 -105206）
   let res
