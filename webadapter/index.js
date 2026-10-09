@@ -1,26 +1,46 @@
 /**
- * 营地消息 —— 锅巴扩展页面（可视化管理）。
+ * 营地消息 —— Web 控制台扩展页面（可视化管理）。
  *
  * ## 为什么单独做一个页面
- * 锅巴的静态 schema（`guoba.support.js`）只能渲染「固定结构 + 动态数据」，
- * 没法做「每账号一行、带头像/在线状态/独立开关」这种运行时形状的列表。
- * 所以走 `guoba/` 目录的自定义页面路线（锅巴启动时自动扫描，见
- * `Guoba-Plugin/server/service/both/CustomPageService.js` 的 `PAGE_DIRS`）。
+ * 控制台的静态表单（锅巴的 `guoba.support.js`）只能渲染「固定结构 + 动态数据」，
+ * 没法做「每账号一行、带头像/归属/独立开关」这种运行时形状的列表，
+ * 所以走插件自己目录下的扩展页面。
  *
- * ## 接口挂在哪
- * `ctx.registerApi` 注册的接口自动挂到 `/api/custom/<插件目录名>/...` 下，
- * 并且**自动带登录鉴权** —— 别绕过它去裸挂 express（那样没有鉴权）。
+ * ## 目录为什么是 `webadapter/`（而不是 `guoba/`）
+ * **一份页面要让两套控制台都能装**，而两套认的目录不一样：
  *
- * ## 页面怎么拿接口地址
- * 页面从 `location.search` 读 `__apiBase` / `token`，**不要硬编码**
- * （前缀里含锅巴的挂载段，各环境不一样）。
+ * | 宿主 | 扫描的目录 | 认不认另一个 |
+ * | --- | --- | --- |
+ * | QQBot-Web-Adapter | `plugins/<插件>/webadapter/` | **只认 `webadapter/`** |
+ * | 锅巴 Guoba-Plugin | `PAGE_DIRS = ['guoba', 'webadapter']` | 两个都认，`guoba/` 优先 |
+ *
+ * 所以**只放 `webadapter/` 一份**就行：锅巴会 fallback 到它，WebAdapter 正着认它，
+ * 两边通吃、不用维护两份、也不会互相漂移。
+ * ⚠️ 反过来只放 `guoba/` 的话，WebAdapter 那边**整个页面都不会出现**
+ *    —— 它只扫 `webadapter/`，看不见 `guoba/`。
+ *
+ * ## 接口挂在哪（两套不一样，页面里别写死）
+ * | 宿主 | 接口实际前缀 | 页面能从哪拿到 |
+ * | --- | --- | --- |
+ * | 锅巴 | `<挂载前缀>/api/custom/<插件目录名>` | iframe query 的 `__apiBase` |
+ * | WebAdapter | `<挂载前缀>/api` | 没有 `__apiBase`，用 `__webBase + '/api'` |
+ *
+ * 本文件两套都只注册**同一个路由**（`/gok-camp-im/accounts`），
+ * 前缀由页面按上表自己推 —— 见 `page.html` 里的 `resolveApiBase()`。
+ *
+ * ## 鉴权（两套都由宿主自动套，别绕过）
+ * - 锅巴：`ctx.registerApi` 挂到 `/api/custom/...`，落在它的 `TokenInterceptor` 里
+ * - WebAdapter：`ctx.registerApi` 挂到 `<前缀>/api/...`，落在它的 `apiAuthGuard` 里
+ * 两套都是「登录后才放行」。页面侧只有锅巴需要自己带凭证（token 在 iframe 的 query 上）。
+ *
+ * ⚠️ 一律用 `ctx.registerApi`，**不要**裸挂 `Bot.express` —— 那样没有登录鉴权。
  */
 import authStore from '../utils/authStore.js'
 import * as store from '../utils/campImStore.js'
 import { ownerOf } from '../utils/campImPush.js'
 
 /**
- * 锅巴面板用的账号快照。
+ * 控制台页面用的账号快照。
  *
  * ⚠️⚠️ 列的**只是「收消息名单」里的号** —— 这份名单跟「轮询用的全局账号池」
  *    （`AuthPool.json`）是两回事：账号池扫进来是给查询/推送轮询用的，
@@ -97,14 +117,15 @@ function mask (id) {
 }
 
 export function init (ctx) {
-  // ⚠️⚠️ `style` 字段**必须写**：锅巴的 `resolveAsset()` 按白名单放行静态资源，
-  //    没在描述符里声明的文件会被 403（页面里自己写 `<link href="page.css">` 也拿不到）。
+  // ⚠️⚠️ `style` 字段**两套都得写**：它同时是「渲染用的样式」和「静态资源白名单」，
+  //    没声明的文件请求会被 403（页面里自己写的 `<link href="page.css">` 也拿不到）：
+  //      - 锅巴 `resolveAsset()`：只放行描述符里的 `[src, style, script]`
+  //      - WebAdapter `webPageAllowed`：同样只放行这三个
   //
-  // ⚠️⚠️ **但这也意味着 CSS 会被注入到【面板主文档】的 `<head>`**（见锅巴前端
-  //    `views/custom/index.vue` 的 `injectAssets()`）—— 是**全局**的，不是 iframe 内。
-  //    所以类名**必须加前缀**，否则会和别的插件的自定义页面互相覆盖
-  //    （实测 `.card` / `.toggle` / `.list` 撞上了 Gscore-Adapter，把人家页面搞花了）。
-  //    本页统一用 `gki-` 前缀（GloryOfKings IM）。
+  // ⚠️ iframe 模式（有 `src`）下两套都**不会**把 CSS 注入到控制台主文档，
+  //    页面里必须自己 `<link>` 引（两套前端都只在片段/html 模式注入）。
+  //    类名仍然统一带 `gki-` 前缀（GloryOfKings IM）—— 防的是片段模式和别的插件页面撞车
+  //    （实测通用的 `.card` / `.toggle` / `.list` 撞上过 Gscore-Adapter 的页面）。
   ctx.registerPage({
     id: 'gok-camp-im',
     title: '营地消息',

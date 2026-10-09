@@ -2,12 +2,17 @@
  * 营地消息管理页样式。
  *
  * ⚠️⚠️ **类名一律带 `gki-` 前缀（GloryOfKings IM），这不是洁癖，是必须的**：
- *    锅巴把这里注入到**面板主文档的 `<head>`**（不是 iframe 内），是**全局样式**。
+ *    片段模式下 CSS 会被注入到**控制台主文档的 `<head>`**（不是 iframe 内），是**全局样式**。
  *    实测用 `.card` / `.toggle` / `.list` 这种通用名会撞上 Gscore-Adapter 的自定义页面，
  *    把人家页面搞花（头像变巨大、排版全乱）。
+ *    （iframe 模式下本来互不干扰，但同一个文件两种模式都要能用，所以前缀照带。）
  *
- * ⚠️ 颜色一律走 CSS 变量 —— 锅巴有主题切换，写死的颜色在另一套上会瞎。
+ * ⚠️ 颜色一律走 CSS 变量 —— 控制台有主题切换，写死的颜色在另一套上会瞎。
  *    变量名也带 `gki-` 前缀，同样防冲突。
+ *
+ * ⚠️ 页面根节点用 `height: 100vh`：两套宿主给 iframe 的都是「撑满剩余高度」的容器
+ *    （锅巴 `.g-custom-frame` 是 flex:1 + min-height:560px；WebAdapter `.web-page-iframe`
+ *     是 flex:1 + min-height:0），iframe 内的 100vh 就等于 iframe 自身的高度，两边都成立。
  */
 
 .gki-page {
@@ -45,7 +50,10 @@
 .gki-page button,
 .gki-page input { font: inherit; }
 
-/* 冷色主题：锅巴切到 cool 时跟着走 */
+/* 冷色主题：锅巴切到 cool 时跟着走。
+   ⚠️ 只在**片段模式**下有效（那时页面跟锅巴主文档同体）。
+   iframe 模式下 `gki-theme-cool` 加在**宿主主文档**的 body 上，iframe 里看不见 ——
+   那种情况交给下面的 prefers-color-scheme 兜底。 */
 body.gki-theme-cool .gki-page {
   --gki-bg: #f5f7f8;
   --gki-surface: #ffffff;
@@ -315,16 +323,6 @@ body.gki-theme-cool .gki-toggle i { background: #d7dde0; }
 .gki-empty b { display: block; margin-bottom: 6px; color: var(--gki-text); font-size: 14px; }
 .gki-empty span { font-size: 12px; }
 
-
-  height: 34px;
-  padding: 0 15px;
-  border: 0;
-  border-radius: 7px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-
 /* ── Toast ────────────────────────────────── */
 
 .gki-toast {
@@ -357,4 +355,4 @@ body.gki-theme-cool .gki-toggle i { background: #d7dde0; }
   .gki-card { grid-template-columns: 38px minmax(0, 1fr) auto; gap: 11px; padding: 12px; }
   .gki-av, .gki-av.gki-fallback { width: 38px; height: 38px; }
   .gki-title { font-size: 13px; }
-  }
+}

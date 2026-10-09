@@ -5,15 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>营地消息</title>
 <!-- ⚠️⚠️ CSS **必须在这里自己引**（照 Gscore-Adapter 的写法）。
-     锅巴前端的 `injectAssets()` 只在**片段模式**（描述符没写 `src`）才注入 style/script；
-     我们用的是 iframe 模式（有 `src`），那条路根本不会跑 —— 靠它等于没样式（实测踩过）。
-     iframe 内的相对引用走锅巴种的 Cookie 过鉴权，能正常加载。
+     iframe 模式（描述符写了 `src`）下两套前端**都不会**注入 style/script ——
+     锅巴的 `injectAssets()` 和 WebAdapter 的 `mountWebPage()` 都只在「片段 / html 模式」注入，
+     靠它等于没样式（实测踩过）。所以自己 `<link>`。
 
-     ⚠️ 同时描述符里**也要**写 `style: 'page.css'`：锅巴的 `resolveAsset()` 按
-     `[src, style, script]` 白名单放行静态资源，没声明的话这个请求会被 403。
+     ⚠️ 同时描述符里**也要**写 `style: 'page.css'`：两套都按
+     `[src, style, script]` 白名单放行静态资源，没声明的话这个请求会被 403：
+       - 锅巴 `resolveAsset()` —— iframe 内相对引用靠它种的 Cookie 过鉴权
+       - WebAdapter `webPageAllowed` —— 同源请求自动带 Cookie，页面侧不用管
 
-     ⚠️ 页面 CSS 的类名都带 `gki-` 前缀 —— 因为片段模式下它会被注入到面板全局，
-     通用类名（.card/.toggle）会撞上别的插件的自定义页面。 -->
+     ⚠️ 页面 CSS 的类名都带 `gki-` 前缀（GloryOfKings IM），防的是片段模式和别的插件页面撞车：
+     实测通用的 `.card` / `.toggle` / `.list` 撞上过 Gscore-Adapter 的自定义页面。 -->
 <link rel="stylesheet" href="page.css" />
 </head>
 <body>
@@ -33,7 +35,7 @@
       <div class="gki-inner">
         <div class="gki-section-head">
           <h2>账号列表</h2>
-          <p>这里的号是**专门收消息**的，跟查询/推送轮询用的账号池是两回事 —— 轮询的号不用加进来。</p>
+          <p>这里的号是<b>专门收消息</b>的，跟查询/推送轮询用的账号池是两回事 —— 轮询的号不用加进来。</p>
         </div>
         <section class="gki-list" id="list">
           <div class="gki-empty">加载中…</div>
@@ -53,11 +55,32 @@
 <script>
 (function () {
   var q = new URLSearchParams(location.search)
-  var apiBase = q.get('__apiBase') || ''
-  var token = q.get('token') || ''
-  // 锅巴的兼容层会把 token 挂在 window.__GUOBA__ 上，两个来源都认
-  if (!token && window.__GUOBA__) token = window.__GUOBA__.token || ''
-  var API = apiBase + '/gok-camp-im/accounts'
+
+  /* ── 接口地址：两套宿主的形状不一样，这里推出来 ──────────────────────
+     锅巴（Guoba-Plugin）
+       iframe 地址上带 `__apiBase` = `<挂载前缀>/api/custom/<插件目录名>`
+       校验走请求头 `guoba-access-token`，token 也在 query 上、并挂在 window.__GUOBA__
+
+     QQBot-Web-Adapter
+       iframe 上**只有** `__webBase`（= `<挂载前缀>`），没有 __apiBase、也没有 token ——
+       接口直接挂在 `<挂载前缀>/api/<路由>` 下，靠 Cookie 里的会话过鉴权。
+       ⚠️ 所以这里**不能**写 `q.get('__apiBase') || ''` 拉倒（那在 WebAdapter 下是空串，
+          请求会打到当前页面所在目录去，直接 404）。
+
+     两条路都拿不到时（别的宿主 / 直接开文件），留空 = 退回同源相对路径，至少不会拼出脏地址。 */
+  function resolveApiBase() {
+    var explicit = q.get('__apiBase')
+    if (explicit) return explicit
+    var webBase = q.get('__webBase')
+    if (webBase) return webBase.replace(/\/+$/, '') + '/api'
+    return ''
+  }
+
+  var API = resolveApiBase() + '/gok-camp-im/accounts'
+
+  /* 凭证：锅巴要，WebAdapter 不要（它认 Cookie）。
+     token 从 query 读，读不到再问锅巴的兼容层要 —— 两个来源都认。 */
+  var token = q.get('token') || (window.__GUOBA__ && window.__GUOBA__.token) || ''
 
   var accounts = []
   var available = []
@@ -78,7 +101,8 @@
   }
 
   function req(method, body) {
-    var opt = { method: method, headers: {} }
+    var opt = { method: method, headers: {}, credentials: 'same-origin' }
+    // 只在有 token 时带这个头 —— WebAdapter 下没有 token，多带个空头没意义
     if (token) opt.headers['guoba-access-token'] = token
     if (body) {
       opt.headers['Content-Type'] = 'application/json'
@@ -107,8 +131,8 @@
     toast._t = setTimeout(function () { toastEl.className = 'gki-toast' }, 2600)
   }
 
-  // 保存状态写在标题栏右上角（和「N / M 已启用」并排），**不放按钮** ——
-  // 开关是自动存的，锅巴标题栏本来就有「刷新」，页内再放一个纯属多余（主人 2026-09-20 定的）
+  // 保存状态写在标题栏右上角（和「N 个号收消息」并排），**不放按钮** ——
+  // 开关是自动存的，控制台标题栏本来就有「刷新」，页内再放一个纯属多余（主人 2026-09-20 定的）
   function setStatus(text, bad) {
     statusEl.textContent = text
     statusEl.classList.toggle('gki-bad', Boolean(bad))

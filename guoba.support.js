@@ -136,7 +136,7 @@ function getCampImSnapshot () {
   //    不代表它要挂 ws 收消息。早先这里把池子里的号全列出来、默认开，
   //    账号一多就没法管（2026-09-20 主人指出）。
   //    想加号：去侧边栏「营地消息」页面，那儿有「可以加进来的号」。
-  // ⚠️ 再 filter 一道兜底（同 guoba/index.js 的理由）：宁可少列，
+  // ⚠️ 再 filter 一道兜底（同 webadapter/index.js 的理由）：宁可少列，
   //    也不能把池子里没有的号显示成「在收消息」
   const accounts = Object.keys(switches)
     .filter(uid => infoOf.has(String(uid)))
@@ -1115,7 +1115,7 @@ export function supportGuoba () {
           // ⚠️⚠️ 前端是**全量提交**当前名单的，删掉一行 = 那一项压根不出现在 payload 里。
           //    只逐个 set 的话，被删掉的那一行从来没被遍历到，于是永远留在名单里 ——
           //    而 apps/campIm.js 照样给它挂长连接、照样往归属人推私信（2026-10-06 修）。
-          //    正确做法见同仓库 guoba/index.js 的 /gok-camp-im/accounts：先做差集移出，再加入。
+          //    正确做法见同仓库 webadapter/index.js 的 /gok-camp-im/accounts：先做差集移出，再加入。
           // ⚠️ 同时补 Array.isArray 守卫（照上面 authPool 那半边的写法）：payload 不是数组就
           //    **别动名单** —— `|| []` 兜不住普通对象，`for...of` 抛 TypeError 会把后面
           //    config / auth 的写回整批带崩，用户看到的是「点了保存但什么都没变」。
