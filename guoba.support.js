@@ -563,6 +563,15 @@ export function supportGuoba () {
           }
         },
         {
+          field: 'config.campSignCron',
+          label: '每日签到时间（cron）',
+          bottomHelpMessage: '到点给每个号签一次，结果私聊各自的号主。默认每天 7:30。留空 = 关掉定时（还能手发 #王者签到）。只推「签上了」和「失败了」，已签过和没绑角色的号不打扰。',
+          component: 'Input',
+          componentProps: {
+            placeholder: "默认 0 30 7 * * *（秒 分 时 日 月 周）"
+          }
+        },
+        {
           field: 'config.campRenewCron',
           label: '登录态保活时间（cron）',
           bottomHelpMessage: '定期给每个号续一下登录态，默认每天 5:13。留空 = 关掉定时。',

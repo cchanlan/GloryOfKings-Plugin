@@ -62,6 +62,7 @@ cd ./plugins/GloryOfKings-Plugin && pnpm install
 | `#营地ID` `#王者ID` `#荣耀ID` `#农药ID` `#我的王者ID` `#我的荣耀ID` `#我的农药ID` | 已绑账号列表（7 种写法等价） |
 | `#营地wx全局登录` / `#营地QQ全局登录` | 扫码登录：拿登录态 + 自动绑定这个营地号，登录后才能用 `#营地观战` |
 | `#王者签到` `#签到` | 领当天营地签到奖励；名下每个号都签一遍，已签过的会说明，不是报错 |
+| ⏰ 每日 7:30 | **自动签到**（可在锅巴「营地签到」改时间或关掉）：签上了、失败了会**私聊**你，已签过和没绑角色的号不打扰 |
 | `#王者签到状态` | 只看不签：今天签没签、连续几天、本周还差几天满签 |
 
 | `#营地币` `#营地余额` | 查营地币余额（每日签到和营地任务给的就是这个） |
@@ -168,6 +169,7 @@ cd ./plugins/GloryOfKings-Plugin && pnpm install
 | `dependencyRegistry` | `https://registry.npmmirror.com` | 自动安装依赖使用的 npm 镜像 |
 | `dependencyProxy` | 空 | npm / ffmpeg 依赖安装使用的 HTTP(S) 代理 |
 | `ffmpegPath` | 空 | ffmpeg 的完整路径。留空 = 自动找（先查 PATH，再扫常见安装目录）。提示「没找到 ffmpeg」时用终端 `ffmpeg -version` 确认它真能跑，再把 `where ffmpeg`（Windows）或 `which ffmpeg`（Linux/macOS）的输出填进来。填了就只认这个路径 |
+| `campSignCron` | `0 30 7 * * *` | 每日自动签到时间（默认每天 7:30）。到点给每个号签一次，结果私聊各自的号主；只推「签上了」和「失败了」。留空 = 关掉定时（还能手发 `#王者签到`） |
 | `watchCdnHttps` | 空 | 按 `server/README-CDN-HTTPS.md` 部署 HTTPS CDN Worker 后填写；修改或清空后保存，再发 `#营地观战部署` 生效。留空时 HTTPS 观众使用本机转发，HTTP 观众仍直连 CDN |
 | `watchApiUrl` | `http://127.0.0.1:8899` | 观战服务地址。2026-10-06 起默认指公网入口 8899（单端口模式全量受理），老配置里的 8898 也继续可用（控制面仍监听）。自己部署填本机；**用别人部署好的填对方的公网地址**（`#营地观战连接 <地址>` 会写这里） |
 | `campImApiUrl` | `http://127.0.0.1:8900` | 营地消息服务地址，同上 |

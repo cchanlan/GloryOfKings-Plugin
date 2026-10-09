@@ -1,40 +1,72 @@
 /**
- * 王者营地每日签到（`#王者签到` / `#王者签到状态`）。
+ * 王者营地每日签到。
  *
- * ## 谁能签、签的是谁
+ * ## 两条入口
  *
- * 签到状态**绑在具体营地号上**（`/operation/action/signinfo` 读的就是请求方
- * 那个号的签到图），所以：
+ * | 入口 | 签谁 | 结果送哪 |
+ * |---|---|---|
+ * | `#王者签到` 指令 | **发指令的人名下**的号 | **回原会话**（群里发就回群、私聊发就回私聊） |
+ * | 每日定时任务 | 池子里**所有**有号主的号 | **私聊各自的号主** |
  *
- *   · **只能用「发指令的人自己名下」的营地号**（`ownerBotUserId` 等于他的 QQ，
- *     口径同 `#营地观战` 的 `myWatchers`）。拿全局号去签等于替别人签，
- *     还会读到别人的状态。
- *   · 名下**有多个号就挨个签**（一个人可能微信、QQ 各一个营地号）。
- *   · 一个号都没有 → 直接提示去扫码登录，不要落到
- *     「未找到可用的营地登录态」那句技术报错上。
+ * ## 为什么必须按 owner 分流
  *
- * ## roleId 是必需参数（别被错误文案骗了）
+ * 签到状态**绑在具体营地号上**（`/operation/action/signinfo` 读的就是请求方那个号的签到图），
+ * 所以「谁扫的号签谁名下」是硬约束：拿全局号去签等于替别人签、还会读到别人的状态。
+ * `ownerBotUserId` 在扫码全局登录时写入（口径同 `#营地观战` 的 `myWatchers`）。
  *
- * `newsignin` 不带 `roleId` 时服务端回的是
- * `-105204 未授权营地，请前往游戏修改授权设置后重试` —— 看着像权限问题，
- * **实际是缺参数**。2026-10-10 逐组对照实测：body 里只补一个 `roleId`，
- * 返回就从 `-105204` 变成 `-105203 请勿重复签到`（参数齐了）。
- * 而且**只有 body 里的 `roleId` 管用**，`gameRoleId`/`areaId`/`serverId`
- * 以及请求头里的那套 `gameroleid`/`gameserverid` 通通不算数。
- * 所以每次签到前先用 `/game/rolelist` 现取一次角色ID。
+ * ⚠️ **无主号**（2026-09-17 之前扫的、没有 `ownerBotUserId`）：
+ * · 指令里靠 `includeOrphan: e.isMaster` 兜给主人
+ * · 定时任务里**只报给主人**（走 `sendMaster`，它自己按 `masterMsg.js` 的口径收口）
  *
- * ## 判据都在 utils/campSign.js
+ * ## 签的动作只有一份
  *
- * 字段解读（周图下标、错误码分流、奖励拼串、出图数据装配）全是纯函数放在那边，
- * 由 `test/campSign.test.mjs` 钉住；这个文件只管指令编排、请求和回复。
+ * 「角色列表 → 查状态 → 没签才签」这套顺序（以及背后的 `roleId` 必需、
+ * `-105204 是缺参数不是没权限`）全在 `utils/campSignTask.js` 的 `signOneAccount` 里。
+ * 指令和定时都调它 —— 两处各写一份必然漂移。
+ *
+ * ## 定时任务「一切正常就不打扰」
+ *
+ * 天天推一条「今天已签」是骚扰。私聊只在两种情况发：
+ *   · 真签上了（他领到奖励了，值得说一声）
+ *   · 真失败了（要他处理）
+ * 「本来已签」「没绑王者角色」都是日常状态，**跳过**。
+ * 一轮跑完在日志里留一行汇总，主人自查看日志就够。
  */
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { shouldQuote, getImgType, AT_HEAD, AT_TAIL } from '#utils'
+import { Config, PluginName } from '#components'
 import authStore from '../utils/authStore.js'
 import apiService from '../utils/api.js'
-import {
-  isSignedToday, pickMainRole, classifySignCode, buildSignView
-} from '../utils/campSign.js'
+import { signOneAccount, summarizeViews, groupByOwner } from '../utils/campSignTask.js'
+import { buildSignView, isSignedToday } from '../utils/campSign.js'
+import { sendPrivate } from '../utils/privateMsg.js'
+import { sendMaster } from '../utils/masterMsg.js'
+
+/** 定时签到时间的配置键（锅巴「营地签到」区块） */
+const KEY_CRON = 'campSignCron'
+
+/** 账号之间的间隔，别把营地接口打急了（api.js 自己也有节流，这里是额外保险） */
+const GAP_MS = 1500
+
+/**
+ * 互斥锁锚在 `globalThis` 上，**不用实例私有字段**。
+ *
+ * 原因同 `apps/campRenew.js` 的 renewLock：JiuLi 热重载会给 `plugins/` 下每个模块
+ * 追加 `?jiuli_reload=<代数>` 重新求值整张模块图，实例私有字段跨模块代次完全独立 ——
+ * 老代次那个已经在跑的不会被新代次的锁挡住，而一轮签到几十秒的窗口足够重叠。
+ */
+const LOCK_KEY = '__gokCampSignLock'
+const signLock = (globalThis[LOCK_KEY] ||= { running: false })
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+
+function cfg () {
+  try {
+    return Config.getDefOrConfig('config') || {}
+  } catch {
+    return {}
+  }
+}
 
 /** 账号显示名：营地昵称 > 登录名 > 只有ID */
 function labelOf (account) {
@@ -43,11 +75,27 @@ function labelOf (account) {
   return { campId, name: name || campId }
 }
 
+/** 「今日奖励」拼成一行（私聊文案用，跟出图那边的口径一致） */
+function giftLine (view) {
+  const gifts = Array.isArray(view?.signGifts) ? view.signGifts : []
+  if (!gifts.length) return ''
+
+  return gifts
+    .map(g => {
+      const name = String(g?.giftText || g?.name || '').trim()
+      if (!name) return ''
+      const num = String(g?.giftNum ?? g?.packageNum ?? '').trim()
+      return num && num !== '1' ? `${name}x${num}` : name
+    })
+    .filter(Boolean)
+    .join(' + ')
+}
+
 export class CampSignIn extends plugin {
   constructor () {
     super({
       name: '王者营地签到',
-      dsc: '王者营地每日签到',
+      dsc: '王者营地每日签到（可定时自动签，结果私聊号主）',
       event: 'message',
       priority: 0,
       rule: [
@@ -67,6 +115,21 @@ export class CampSignIn extends plugin {
         }
       ]
     })
+
+    // cron 留空 = 关掉定时（collectTask 只收 cron 和 fnc 都有值的项）
+    this.task = [
+      {
+        name: '王者营地每日签到',
+        cron: String(cfg()[KEY_CRON] || ''),
+        fnc: () => this.autoSign(),
+        log: false
+      }
+    ]
+  }
+
+  /** 卸载 / 热重载时释放锁，避免老代次卡住导致新代次永远跳过（框架 loader.js 会调） */
+  async onUnload () {
+    signLock.running = false
   }
 
   /**
@@ -93,20 +156,6 @@ export class CampSignIn extends plugin {
   }
 
   /**
-   * 拉一个账号的签到状态（只读）。
-   * 返回 `{ info, error }` —— 失败不抛，交给调用方决定怎么报，
-   * 好让「一个号挂了」不影响「另一个号能出图」。
-   */
-  async #fetchInfo (campId) {
-    try {
-      return { info: (await apiService.getCampSignInfo(campId))?.data || {}, error: null }
-    } catch (error) {
-      logger.warn(`[王者签到] ${campId} 查状态失败: ${error?.message || error}`)
-      return { info: null, error: apiService.formatUserFacingError(error) }
-    }
-  }
-
-  /**
    * `#王者签到状态` —— 只看不签，完全不发写请求。
    *
    * 存在的意义：想确认「还差几天满签」时有一条不产生副作用的路，
@@ -119,139 +168,180 @@ export class CampSignIn extends plugin {
     const views = []
     for (const account of accounts) {
       const { campId, name } = labelOf(account)
-      const { info, error } = await this.#fetchInfo(campId)
 
-      if (error) {
-        views.push({ name, campId, stateClass: 'fail', stateText: '查询失败', failReason: error })
-        continue
+      try {
+        const info = (await apiService.getCampSignInfo(campId))?.data || {}
+        const signed = isSignedToday(info.weekSignMap)
+
+        views.push({
+          name,
+          campId,
+          info,
+          // 判不了就别硬报「未签」
+          stateClass: signed === null ? 'fail' : (signed ? 'done' : 'new'),
+          stateText: signed === null ? '数据异常' : (signed ? '今天已签' : '今天还没签')
+        })
+      } catch (error) {
+        logger.warn(`[王者签到] ${campId} 查状态失败: ${error?.message || error}`)
+        views.push({
+          name, campId, stateClass: 'fail', stateText: '查询失败',
+          failReason: apiService.formatUserFacingError(error)
+        })
       }
-
-      const signed = isSignedToday(info.weekSignMap)
-      views.push({
-        name, campId,
-        // 状态标签：判不了就别硬报「未签」
-        stateClass: signed === null ? 'fail' : (signed ? 'done' : 'new'),
-        stateText: signed === null ? '数据异常' : (signed ? '今天已签' : '今天还没签'),
-        info
-      })
+      await sleep(GAP_MS)
     }
 
     await this.#render(e, views, { mode: 'status' })
   }
 
   /**
-   * `#王者签到` —— 挨个给名下每个号签到。
+   * `#王者签到` —— 给发指令的人名下每个号签一遍，结果回**原会话**。
    *
-   * 顺序：角色列表 → 签到状态 →（没签才）签到。
-   * 每个号都包在自己的 try 里，一个号失败不影响后面的号 ——
-   * 「微信号签上了、QQ 号没签上」这种部分成功必须如实分开报。
+   * 每个号的失败都在 `signOneAccount` 内部吃掉了，
+   * 一个号挂了不影响后面的号 ——「微信号签上了、QQ 号没签上」必须如实分开报。
    */
   async signIn (e) {
     const accounts = this.#myAccounts(e)
     if (!accounts.length) return this.#noAccountHint(e)
 
-    const views = []
-    let okCount = 0
-    let alreadyCount = 0
-    let failCount = 0
-    // ⚠️ 「没绑王者角色」单独计数，**不并进 failCount**（2026-10-10 真机踩到）：
-    //    主人 5 个号里 3 个没角色，并进去会报「3 个没签上」，看着像插件坏了。
-    //    那是结构性签不了，副标题该说「能签的号都签过了」。
-    let noRoleCount = 0
+    // 跟定时任务共用一把锁：撞上定时轮次时让指令这边明确回一句，
+    // 不能像定时那样静默跳过（玩家在等回复）
+    if (signLock.running) {
+      await e.reply('上一轮签到还在跑，稍等一下再发', shouldQuote())
+      return
+    }
 
-    for (const account of accounts) {
-      const { campId, name } = labelOf(account)
+    signLock.running = true
+    try {
+      const views = []
+      for (const account of accounts) {
+        const { campId, name } = labelOf(account)
+        views.push(await signOneAccount(campId, { name }))
+        await sleep(GAP_MS)
+      }
 
-      try {
-        // ① 先拿角色ID —— newsignin 必需，缺了会回那句骗人的 -105204
-        const role = pickMainRole(await apiService.getRoleList(campId))
-        if (!role?.roleId) {
-          views.push({
-            name, campId, stateClass: 'fail', stateText: '没有王者角色',
-            failReason: '这个营地号还没绑定王者角色，先在游戏里登录一次再来签'
-          })
-          // 走 noRoleCount 而不是 failCount —— 详见上面计数器的注释
-          noRoleCount++
-          continue
-        }
+      await this.#render(e, views, { mode: 'sign', ...summarizeViews(views) })
+    } finally {
+      signLock.running = false
+    }
+  }
 
-        // ② 查状态，已签就不发写请求（少一次请求 = 少一分撞频控的风险）
-        const { info, error } = await this.#fetchInfo(campId)
-        if (error) {
-          views.push({ name, campId, stateClass: 'fail', stateText: '查询失败', failReason: error })
-          failCount++
-          continue
-        }
+  /**
+   * 每日定时任务：给池子里所有能用的号签一遍，**私聊各自的号主**。
+   *
+   * 三条规矩：
+   *   ① **一切正常就不打扰** —— 签上的 / 真失败的才私聊（见 `#notifyOwners`）
+   *   ② 无主号的结果只报给主人，且走 `sendMaster` 收口（不群发给每个主人）
+   *   ③ 一轮跑完在日志里留一行汇总
+   */
+  async autoSign () {
+    if (signLock.running) {
+      logger.warn(`[${PluginName}] 上一轮营地签到还没跑完，本轮跳过`)
+      return
+    }
 
-        if (isSignedToday(info.weekSignMap) === true) {
-          views.push({
-            name, campId, stateClass: 'done', stateText: '今天已签',
-            info, roleName: role.roleName
-          })
-          alreadyCount++
-          continue
-        }
+    signLock.running = true
+    try {
+      // ⚠️ 用 listAccounts()（池子里全部）而不是 listGlobalAccountsByOwner：
+      //    定时任务要覆盖所有号，包括无主号。authInvalid 的跳过 ——
+      //    登录态已失效的号签也是白签，还白吃一次频控。
+      const accounts = authStore.listAccounts().filter(account => !account?.authInvalid)
+      if (!accounts.length) {
+        logger.info(`[${PluginName}] 营地自动签到：账号池里没有可用账号，跳过`)
+        return
+      }
 
-        // ③ 真签到
-        const res = await apiService.doCampSign(campId, role.roleId)
-        const verdict = classifySignCode(res?.returnCode)
+      const pairs = []
+      for (const account of accounts) {
+        const { campId, name } = labelOf(account)
+        pairs.push({ account, view: await signOneAccount(campId, { name }) })
+        await sleep(GAP_MS)
+      }
 
-        if (verdict === 'ok') {
-          views.push({
-            name, campId, stateClass: 'new', stateText: '签到成功',
-            roleName: role.roleName,
-            // 签到成功后服务端会回一份新的状态字段，直接用它拼图
-            info: {
-              ...info,
-              weekSignMap: res?.data?.userSign || info.weekSignMap,
-              seqSignDays: res?.data?.seqSignDays ?? info.seqSignDays,
-              userTotalSign: res?.data?.totalSignDays ?? info.userTotalSign
-            },
-            signGifts: Array.isArray(res?.data?.giftList) ? res.data.giftList : [],
-            signDate: res?.data?.signDate || ''
-          })
+      const stats = summarizeViews(pairs.map(pair => pair.view))
+      logger.info(
+        `[${PluginName}] 营地自动签到完成：签上 ${stats.okCount} / 已签 ${stats.alreadyCount} / ` +
+        `没角色 ${stats.noRoleCount} / 失败 ${stats.failCount}`
+      )
+
+      await this.#notifyOwners(pairs)
+      await this.#notifyMasterOrphans(pairs)
+    } catch (error) {
+      logger.error(`[${PluginName}] 营地自动签到出错: ${error?.message || error}`)
+    } finally {
+      signLock.running = false
+    }
+  }
+
+  /**
+   * 把结果私聊给各自的号主。
+   *
+   * ⚠️ **只发「需要他知道」的内容**：签上了要说（他领到奖励了），
+   *    真失败了要说（要他处理）。「本来已签」「没绑角色」都是**日常状态**，
+   *    天天推等于骚扰 —— 跳过。
+   */
+  async #notifyOwners (pairs) {
+    const grouped = groupByOwner(pairs)
+
+    for (const [owner, views] of grouped) {
+      if (!owner) continue   // 无主号交给 #notifyMasterOrphans
+
+      const needTell = views.filter(v => v.signed || (!v.noRole && !v.already))
+      if (!needTell.length) continue
+
+      const lines = ['营地签到结果']
+      let okCount = 0
+      for (const v of needTell) {
+        const label = `${v.name}（${v.campId}）`
+        if (v.signed) {
           okCount++
-        } else if (verdict === 'already') {
-          // 服务端说今天签过了 —— 也算正常结果（可能刚在别处签的）
-          views.push({
-            name, campId, stateClass: 'done', stateText: '今天已签',
-            info, roleName: role.roleName
-          })
-          alreadyCount++
-        } else if (verdict === 'too-fast') {
-          views.push({
-            name, campId, stateClass: 'fail', stateText: '操作太频繁',
-            info, roleName: role.roleName,
-            failReason: '这次请求得太快了，过一会儿再发一次 #王者签到'
-          })
-          failCount++
-        } else if (verdict === 'missing-role') {
-          // roleId 传了还不认 —— 通常是角色和登录态对不上
-          views.push({
-            name, campId, stateClass: 'fail', stateText: '角色签不了',
-            info, roleName: role.roleName,
-            failReason: '这个角色签不了，去营地 App 里确认一下角色绑定'
-          })
-          failCount++
+          const gifts = giftLine(v)
+          lines.push(`${label}：签到成功${gifts ? `，${gifts}` : ''}`)
         } else {
-          views.push({
-            name, campId, stateClass: 'fail', stateText: '签到失败',
-            info, roleName: role.roleName,
-            failReason: `${res?.returnMsg || `错误码 ${res?.returnCode}`}`
-          })
-          failCount++
+          lines.push(`${label}：${v.stateText}${v.failReason ? ` —— ${v.failReason}` : ''}`)
         }
-      } catch (error) {
-        logger.warn(`[王者签到] ${campId} 失败: ${error?.message || error}`)
-        views.push({
-          name, campId, stateClass: 'fail', stateText: '签到失败',
-          failReason: apiService.formatUserFacingError(error)
-        })
-        failCount++
+      }
+      if (okCount) lines.push('', `共签上 ${okCount} 个号`)
+
+      const sent = await sendPrivate(owner, lines.join('\n'))
+      if (!sent.ok) {
+        // 私信发不出去（多半没加机器人好友）→ 转告主人，别静默丢
+        logger.warn(`[${PluginName}] 签到结果推给 ${owner} 失败：${sent.reason}`)
+        await sendMaster(
+          `营地号主 ${owner} 的签到结果推不出去（TA 多半没加机器人好友），内容：\n${lines.join('\n')}`
+        )
+      }
+    }
+  }
+
+  /**
+   * 无主号的结果只报给主人。
+   *
+   * ⚠️ 走 `sendMaster`（它按 `utils/masterMsg.js` 的口径收口：勾了取交集、
+   *    没勾取第一个、交集空回落第一个），**不要**自己遍历 `cfg.master` ——
+   *    那会把账号信息广播给每个主人。
+   */
+  async #notifyMasterOrphans (pairs) {
+    const orphans = pairs.filter(pair => !String(pair.account?.ownerBotUserId || '').trim())
+    if (!orphans.length) return
+
+    const lines = []
+    for (const { view } of orphans) {
+      if (view.signed) {
+        const gifts = giftLine(view)
+        lines.push(`${view.campId}：签到成功${gifts ? `，${gifts}` : ''}`)
+      } else if (!view.noRole && !view.already) {
+        lines.push(`${view.campId}：${view.stateText}${view.failReason ? ` —— ${view.failReason}` : ''}`)
       }
     }
 
-    await this.#render(e, views, { mode: 'sign', okCount, alreadyCount, failCount, noRoleCount })
+    // 全是「已签」「没角色」时 lines 是空的 —— 没新信息就不打扰主人
+    if (!lines.length) return
+
+    await sendMaster([
+      `有 ${orphans.length} 个营地号没有归属人，签到结果：`,
+      ...lines
+    ].join('\n'))
   }
 
   /**
