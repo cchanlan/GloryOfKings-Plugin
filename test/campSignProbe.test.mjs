@@ -73,6 +73,17 @@ const { probeAccount, signOneAccount } = await import(
   pathToFileURL(path.join(PLUGIN_DIR, 'utils', 'campSignTask.js')).href
 )
 
+// ⚠️ 收尾要删掉这个临时目录：`mkdtempSync` 建在系统 tmp 下，不清的话
+//    每跑一次单测就多留一个 `/tmp/gok-probe-XXXX`（实测已经攒了两个）。
+//    放在这里而不是每个用例里 —— 它整个测试文件只有一份。
+test.after(() => {
+  try {
+    fs.rmSync(tmp, { recursive: true, force: true })
+  } catch {
+    // 删不掉也不该让测试失败（Windows 上偶发占用）
+  }
+})
+
 // ---------------------------------------------------------------- 桩数据（真实形状）
 
 /** 没绑王者角色：20001 的 roles 是空数组（2026-10-10 真机原文） */
