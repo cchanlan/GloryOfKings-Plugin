@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>{{title}}</title>
+  <!-- 卡片 / 四格 / 区块的基础样式都在 BattleReport.css，这里只补签到特有的 -->
+  <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
+  <style>
+    /* 七天格子：一格一天，已签的亮金、今天未签的描边高亮、未来的压暗 */
+    .week-strip {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 9px;
+    }
+    .day-cell {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 12px 8px;
+      text-align: center;
+      position: relative;
+    }
+    .day-cell.done {
+      background: linear-gradient(180deg, rgba(245,215,110,0.18), rgba(245,215,110,0.05));
+      border-color: rgba(245,215,110,0.45);
+    }
+    /* 今天是「还没签」的那一格：描边提醒但不抢已签的视觉重量 */
+    .day-cell.today-pending {
+      border-color: rgba(111,211,155,0.65);
+      border-style: dashed;
+    }
+    .day-cell.today-done { box-shadow: 0 0 0 1px rgba(245,215,110,0.5) inset; }
+    .day-cell.future { opacity: 0.4; }
+
+    .day-week { font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 7px; }
+    .day-cell.done .day-week { color: rgba(245,215,110,0.85); }
+    .day-mark {
+      font-family: Number, sans-serif;
+      font-size: 26px;
+      line-height: 1;
+      margin-bottom: 9px;
+    }
+    .day-cell.done .day-mark { color: #f5d76e; }
+    .day-cell:not(.done) .day-mark { color: rgba(255,255,255,0.22); }
+    .day-gift {
+      font-size: 11px;
+      color: rgba(255,255,255,0.42);
+      line-height: 1.35;
+      /* 名字里可能还有连字符（「东皇太一-东海龙王」），允许在连字符后断，
+         但不许把单个词从中间劈开 —— 早先 `break-all` 会断成「(1 / 天)」 */
+      word-break: keep-all;
+      overflow-wrap: break-word;
+      /* 两行封顶：超了用省略号，别把格子撑成三行长短不一 */
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      min-height: 30px;
+    }
+    .day-cell.done .day-gift { color: rgba(255,255,255,0.6); }
+    /* 没数据的格子（失败号 / 未来）：不占礼物行的高度，整格压暗 */
+    .day-cell.blank .day-gift { min-height: 30px; }
+    .day-cell.blank { opacity: 0.5; }
+    /* 今天那格的角标 */
+    .day-tag {
+      position: absolute;
+      top: -7px; right: -7px;
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 8px;
+      background: #6fd39b;
+      color: #0f1420;
+      font-weight: 600;
+    }
+    .day-cell.done .day-tag { background: #f5d76e; }
+
+    /* 奖励行：图标 + 名字 + 数量 */
+    .gift-list { display: flex; flex-direction: column; gap: 9px; }
+    .gift-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 10px 16px;
+    }
+    .gift-icon {
+      width: 44px; height: 44px;
+      border-radius: 9px;
+      object-fit: cover;
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.06);
+    }
+    .gift-main { flex: 1; min-width: 0; }
+    .gift-name {
+      font-size: 16px;
+      margin-bottom: 4px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .gift-desc {
+      font-size: 12px;
+      color: rgba(255,255,255,0.38);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .gift-num {
+      font-family: Number, sans-serif;
+      font-size: 22px;
+      color: #f5d76e;
+      flex-shrink: 0;
+    }
+    .gift-num i { font-size: 12px; font-style: normal; color: rgba(255,255,255,0.4); margin-left: 3px; }
+
+    /* 累计签到奖励（7 天 / 14 天档） */
+    .total-list { display: flex; flex-direction: column; gap: 9px; }
+    .total-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 10px 16px;
+    }
+    .total-row.reached {
+      background: linear-gradient(100deg, rgba(245,215,110,0.13), rgba(255,255,255,0.02));
+      border-color: rgba(245,215,110,0.4);
+    }
+    /* 进度条：当前连续天数 / 这一档要求的天数 */
+    .total-bar {
+      width: 150px; height: 6px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 3px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .total-bar-in {
+      height: 100%;
+      background: linear-gradient(90deg, rgba(245,215,110,0.5), #f5d76e);
+      border-radius: 3px;
+    }
+    .total-row.reached .total-bar-in { background: linear-gradient(90deg, #6fd39b, #a5e8c3); }
+    .total-days {
+      font-family: Number, sans-serif;
+      font-size: 17px;
+      color: rgba(255,255,255,0.8);
+      width: 78px;
+      flex-shrink: 0;
+    }
+    .total-status {
+      font-size: 13px;
+      flex-shrink: 0;
+      width: 66px;
+      text-align: right;
+    }
+    .total-status.ok { color: #6fd39b; }
+    .total-status.no { color: rgba(255,255,255,0.35); }
+
+    /* 账号块：一个人多个营地号时，每个号一段 */
+    .account-block { border-bottom: 1px solid rgba(255,255,255,0.07); }
+    .account-block:last-child { border-bottom: none; }
+    .account-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 26px 0;
+    }
+    .account-name { font-size: 17px; font-weight: 600; }
+    .account-id { font-size: 13px; color: rgba(255,255,255,0.35); }
+    .account-state {
+      margin-left: auto;
+      font-size: 14px;
+      padding: 3px 12px;
+      border-radius: 9px;
+      flex-shrink: 0;
+    }
+    .account-state.done { background: rgba(245,215,110,0.15); color: #f5d76e; }
+    .account-state.new { background: rgba(111,211,155,0.15); color: #6fd39b; }
+    .account-state.fail { background: rgba(233,110,110,0.15); color: #e96e6e; }
+    .account-body { padding: 15px 26px 18px; display: flex; flex-direction: column; gap: 15px; }
+
+    .empty-note {
+      padding: 30px 26px;
+      text-align: center;
+      color: rgba(255,255,255,0.45);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <!-- 头部 -->
+  <div class="card-header">
+    <img class="avatar" src="{{avatar}}" alt="" onerror="this.style.display='none'">
+    <div class="user-info">
+      <h2 class="username">{{username}}</h2>
+      <span class="badge">{{dateText}}</span>
+      <span class="badge">{{accountCount}} 个营地号</span>
+    </div>
+    <div class="report-label">
+      {{title}}
+      <span class="sub">{{subText}}</span>
+    </div>
+  </div>
+
+  <!-- 总览四格 -->
+  <div class="stat-grid">
+    <div class="stat-cell {{todayClass}}">
+      <div class="stat-val">{{todayVal}}</div>
+      <div class="stat-key">今天</div>
+    </div>
+    <div class="stat-cell gold">
+      <div class="stat-val">{{maxSeq}}</div>
+      <div class="stat-key">最长连续</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val">{{totalSign}}</div>
+      <div class="stat-key">累计签到</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val">{{giftCount}}</div>
+      <div class="stat-key">{{giftKey}}</div>
+    </div>
+  </div>
+
+  {{if accounts && accounts.length}}
+    {{each accounts a}}
+    <div class="account-block">
+      <div class="account-head">
+        <span class="account-name">{{a.name}}</span>
+        <span class="account-id">{{a.campId}}</span>
+        <span class="account-state {{a.stateClass}}">{{a.stateText}}</span>
+      </div>
+      <div class="account-body">
+        <!-- 本周签到图。拿不到状态（查询失败 / 没绑角色）的号不画格子 —— 
+             画一排空的「——」既没信息又让图变长 -->
+        {{if a.hasWeek}}
+        <div class="week-strip">
+          {{each a.days d}}
+          <div class="day-cell {{d.cls}}">
+            {{if d.tag}}<span class="day-tag">{{d.tag}}</span>{{/if}}
+            <div class="day-week">{{d.week}}</div>
+            <div class="day-mark">{{d.mark}}</div>
+            <div class="day-gift">{{d.gift}}</div>
+          </div>
+          {{/each}}
+        </div>
+        {{/if}}
+
+        <!-- 今天的奖励明细（只在真签成功时才有） -->
+        {{if a.gifts && a.gifts.length}}
+        <div>
+          <div class="section-title" style="margin-bottom:11px;">今日奖励<span class="tip">{{a.roleName}}</span></div>
+          <div class="gift-list">
+            {{each a.gifts g}}
+            <div class="gift-row">
+              <img class="gift-icon" src="{{g.icon}}" alt="" onerror="this.style.visibility='hidden'">
+              <div class="gift-main">
+                <div class="gift-name">{{g.name}}</div>
+                <div class="gift-desc">{{g.desc}}</div>
+              </div>
+              <div class="gift-num">{{g.num}}<i>个</i></div>
+            </div>
+            {{/each}}
+          </div>
+        </div>
+        {{/if}}
+
+        <!-- 累计签到档位进度 -->
+        {{if a.totals && a.totals.length}}
+        <div>
+          <div class="section-title" style="margin-bottom:11px;">累计签到奖励<span class="tip">按累计天数解锁</span></div>
+          <div class="total-list">
+            {{each a.totals t}}
+            <div class="total-row {{t.cls}}">
+              <span class="total-days">{{t.days}} 天</span>
+              <div class="total-bar"><div class="total-bar-in" style="width:{{t.percent}}%"></div></div>
+              <div class="gift-main">
+                <div class="gift-name">{{t.name}}</div>
+                <div class="gift-desc">{{t.desc}}</div>
+              </div>
+              <span class="total-status {{t.statusClass}}">{{t.statusText}}</span>
+            </div>
+            {{/each}}
+          </div>
+        </div>
+        {{/if}}
+
+        {{if a.note}}<div class="hour-note">{{a.note}}</div>{{/if}}
+      </div>
+    </div>
+    {{/each}}
+  {{else}}
+    <div class="empty-note">{{emptyText}}</div>
+  {{/if}}
+
+  <div class="footer">{{footText}}</div>
+</div>
+</body>
+</html>

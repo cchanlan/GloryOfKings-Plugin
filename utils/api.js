@@ -1311,6 +1311,33 @@ class CampAuthSession {
   }
 
   /**
+   * 只给**指定的那一个**账号，不做轮转。
+   *
+   * 签到这类接口必须用它，两个理由：
+   *   · `candidates()` 是**轮转**的 —— 查 `/operation/action/signinfo` 会读到
+   *     **别的号**的签到状态（5 个号轮流当队首，同一条指令两次结果可能不同）；
+   *   · 签到动作更是直接改状态，拿错号去签等于替别人签。
+   *
+   * 账号不在池里 / 被标失效 / 密钥不全时返回**空数组**，调用方按「没有登录态」处理。
+   *
+   * @param {string} userId 账号池里的 userId（营地ID）
+   * @returns {Array<{auth: object, source: string, label: string}>}
+   */
+  candidatesForAccount (userId) {
+    const wanted = toText(userId)
+    if (!wanted) return []
+
+    const account = authStore.getAccount(wanted)
+    if (!account || account.authInvalid || !isUsableAuth(account)) return []
+
+    return [{
+      auth: this.buildConfig(account, this.#baseConfig()),
+      source: 'global',
+      label: `指定账号 ${account.userId}`
+    }]
+  }
+
+  /**
    * 本轮请求该按什么顺序试哪些账号。
    *
    * （原 `#getAuthCandidates`，被 utils/authStore.js 的注释引用着）
@@ -1775,9 +1802,13 @@ class CampTransport {
    *
    * （原 `#requestWithCandidates`）
    */
-  async requestWithCandidates (method, endpoint, body = null, additionalHeaders = {}, retries = 2, targetUserId = '', requesterBotUserId = '') {
+  async requestWithCandidates (method, endpoint, body = null, additionalHeaders = {}, retries = 2, targetUserId = '', requesterBotUserId = '', options = {}) {
     const url = `${this.#baseUrls.main}${endpoint}`
-    const candidates = this.#auth.candidates(targetUserId, requesterBotUserId)
+    // options.accountId：只发**指定的那一个**账号、不轮转。签到这类
+    // 「状态绑在具体账号上」的接口必须走它，否则会读到 / 改到别的号。
+    const candidates = options.accountId
+      ? this.#auth.candidatesForAccount(options.accountId)
+      : this.#auth.candidates(targetUserId, requesterBotUserId)
 
     if (!candidates.length) {
       throw new AuthConfigError('未找到可用的营地登录态，请先完成营地登录，或在账号池中配置一个可用的全局账号')
@@ -1887,9 +1918,19 @@ class CampTransport {
    *
    * （原 `#requestGameFormWithCandidates`）
    */
-  async gameFormWithCandidates (endpoint, extraFields = {}, targetUserId = '', requesterBotUserId = '', retries = 2) {
+  async gameFormWithCandidates (endpoint, extraFields = {}, targetUserId = '', requesterBotUserId = '', retries = 2, options = {}) {
     const url = `${this.#baseUrls.game}${endpoint}`
-    const candidates = this.#auth.candidates(targetUserId, requesterBotUserId)
+    // options.accountId：只发**指定的那一个**账号、不轮转。和 requestWithCandidates
+    // 那条完全同构 —— 早先只有主站那边加了，游戏侧这条漏了，于是「查 A 号的
+    // 营地币」实际可能是拿 B 号的登录态发的，读回来是 **B 号的余额**
+    // （2026-10-10 实测：裸探针写死账号读 25，走插件读 0）。
+    //
+    // ⚠️ 只给**账号级数据**（余额这种「我的」数据）用它。
+    //    `getGameHeroList` 那种「看谁由参数决定、本来就该用任意登录态去查」的
+    //    接口**不要**传，传了会让「查非好友」失效。
+    const candidates = options.accountId
+      ? this.#auth.candidatesForAccount(options.accountId)
+      : this.#auth.candidates(targetUserId, requesterBotUserId)
 
     if (!candidates.length) {
       throw new AuthConfigError('未找到可用的营地登录态，请先完成营地登录，或在账号池中配置一个可用的全局账号')
@@ -1977,6 +2018,7 @@ class CampTransport {
       }
     })
   }
+
 }
 
 /* ========================================================== 门面 */
@@ -2181,6 +2223,7 @@ class ApiService {
    * 该接口位于游戏侧域名，使用 form 表单 + token/userId 鉴权，响应不加密。
    * 接口与参数参考自 https://github.com/KimigaiiWuyi/WzryUID
    */
+
   async getSkinList (ID, requesterBotUserId = '') {
     return this.#transport.gameFormWithCandidates('/play/h5getheroskinlist', {
       noCache: '0',
@@ -2293,6 +2336,155 @@ class ApiService {
    */
   async getTvChoiceItems (targetUserId = '', requesterBotUserId = '') {
     return this.#transport.requestWithCandidates('POST', '/info/tv/choiceitem', {}, {}, 2, targetUserId, requesterBotUserId)
+  }
+
+  /* ==================================================== 六、营地签到 */
+
+  /**
+   * 拿一个营地号在游戏里的**角色列表**。
+   *
+   * 签到的 `newsignin` 必须带 `roleId`，而这个值不在登录态里 —— 账号池里所有号的
+   * `gameRoleId` 都是空的（那是「当前选中角色」的缓存，扫码登录时不写）。
+   * 所以每次签到前要现查一次。
+   *
+   * 返回值形状：`{ userId, openid, gameList: [{ gameId, roles: [...] }] }`，
+   * 王者的 gameId 是 `20001`，`roles[]` 里每条含 `roleId` / `roleName` / `areaId` /
+   * `serverId` / `roleDesc`（如「微信安卓 至尊星耀III」）。
+   *
+   * ⚠️ 用**指定的那个账号**发（options.accountId），不能轮转 —— 否则查到的是别人的角色。
+   *
+   * @param {string} userId 账号池里的 userId（营地ID）
+   */
+  async getRoleList (userId) {
+    return this.#transport.requestWithCandidates(
+      'POST', '/game/rolelist', {}, {}, 2, userId, '', { accountId: userId }
+    )
+  }
+
+  /**
+   * 查一个营地号的**签到状态**。
+   *
+   * 返回体（实测 2026-10-10，`data` 部分）：
+   *   · `weekSignMap`   —— **本周签到图**，7 个字符、`'1'` 为已签，**下标 0 = 周一**
+   *                        （2026-10-10 是周六，主人号返回 `'0000010'`，第 6 位=1 ✓）
+   *   · `seqSignDays`   —— 连续签到天数
+   *   · `userTotalSign` —— 累计签到天数
+   *   · `canExtraSign`  —— 可补签次数
+   *   · `weekList`      —— 本周 1~7 天的奖励表（`date` + `gift[]`）
+   *   · `totalList`     —— 累计签到（7 天 / 14 天…）奖励表
+   *   · `redPoint`      —— 红点（`{ text, show, id }`）
+   *
+   * ⚠️ 判「今天签没签」只认 `weekSignMap`。**别用同族的 `/operation/extrasignweekinfo`** ——
+   *    它的 `signMap` 实测恒为 `'0000000'`（主人号当天已签也照样全 0），是另一个口径。
+   *
+   * ⚠️ 用**指定的那个账号**发（options.accountId），不能轮转。
+   *
+   * @param {string} userId 账号池里的 userId（营地ID）
+   */
+  async getCampSignInfo (userId) {
+    return this.#transport.requestWithCandidates(
+      'POST', '/operation/action/signinfo', {}, {}, 2, userId, '', { accountId: userId }
+    )
+  }
+
+  /**
+   * 给一个营地号**签到**。
+   *
+   * ⚠️⚠️ `roleId` 是**必需**的，不带它服务端回的是那句骗人的
+   *    `-105204 未授权营地，请前往游戏修改授权设置后重试` —— 看着像权限问题，
+   *    实际是**缺参数**（2026-10-10 实测：body 里只补一个 `roleId` 就变成
+   *    `-105203 请勿重复签到`，参数就齐了）。别被那句文案带去查授权设置。
+   *
+   * 实测确认**只有 body 里的 `roleId` 管用**，这些通通不算数（都回 -105204）：
+   *   body 里的 `gameRoleId` / `areaId` / `serverId` / `gameAreaId` / `gameServerId`；
+   *   请求头里的 `gameroleid` / `gameserverid` / `gameareaid`；
+   *   以及 `type` / `signType` / `source` / `userId` / `gameId` 等猜测参数。
+   *
+   * 返回码：
+   *   · `0`        签到成功，`data` 里是奖励（`giftList[]` / `signDate` / `seqSignDays` / `totalSignDays`）
+   *   · `-105203`  今天已经签过了（**不是错误**，调用方要按「已签」而不是「失败」处理）
+   *   · `-105206`  操作太频繁，歇几秒再试
+   *   · `-105204`  roleId 没传对（见上）
+   *
+   * `retries` 传 **0**：签到是**写操作**，重试等于连签两次，只会撞 -105206。
+   *
+   * @param {string} userId 账号池里的 userId（营地ID）
+   * @param {string|number} roleId 该账号在游戏里的角色ID（来自 getRoleList）
+   */
+  async doCampSign (userId, roleId) {
+    const role = toText(roleId)
+
+    // ⚠️ roleId 为空时**整个字段都不发**，不能发 `{"roleId":""}`（2026-10-10 实测）：
+    //    body = `{}`            → `-105204 未授权营地`（服务端认「缺字段」）
+    //    body = `{"roleId":""}` → `1 服务繁忙，请稍后再试`（认「字段值非法」）
+    //    两者结果不一样，说明 -105204 的判据是「这个键不存在」。空串漏出去的话，
+    //    用户看到的是「服务繁忙」这种看不出原因的码，比「未授权营地」更难查。
+    const body = role ? { roleId: role } : {}
+
+    return this.#transport.requestWithCandidates(
+      'POST', '/operation/action/newsignin', body, {},
+      0, userId, '', { accountId: userId }
+    )
+  }
+
+  /**
+   * 查**营地币余额**。
+   *
+   * 端点本身叫 `h5lotteryquery`（抽奖查询），但实测（2026-10-10）它一次给全：
+   *   · `data.userCurrencyCnt` —— **营地币余额**（签到给的也是营地币，
+   *     主人号当天签到拿 25 枚，这里读出来正是 25 ✓）
+   *   · `data.exchangeInfo`   —— 兑换活动信息，**没活动时是 `null`**
+   *   · `data.exchangeBanners` —— 兑换横幅，没活动时是 `[]`
+   *   · `data.gamesList`      —— 参与的游戏（王者是 `20001`）
+   *   · `data.lotteryInfo`    —— 抽奖信息，没活动时是 `null`
+   *
+   * ⚠️ 走**游戏侧** form 网关（`baseUrls.game`），不是主站 —— 主站打这个路径
+   *    是 `404 Route Not Found`。
+   * ⚠️ `exchangeInfo` 为 null **不代表接口坏了**，是「当前没有兑换活动」。
+   *    上层要按「没活动」展示，别报成错误。
+   *
+   * @param {string} targetUserId 用哪个账号查（营地池里的 userId）
+   * @param {string} requesterBotUserId 发起查询的机器人用户 ID
+   */
+  async getCampCoin (targetUserId = '', requesterBotUserId = '') {
+    const userId = toText(targetUserId)
+
+    // ⚠️⚠️ 必须传 `options.accountId`（不轮转）。余额是**账号级**的数据，
+    //    而 `gameFormWithCandidates` 默认会按全局账号轮转 ——
+    //    不锁账号的话，「查 A 号的营地币」会拿 B 号的登录态发出去，
+    //    读回来的是 **B 号的余额**（2026-10-10 实测：同一个号，
+    //    裸探针写死账号读 25、走插件读 0，就是这个原因）。
+    return this.#transport.gameFormWithCandidates(
+      '/play/h5lotteryquery', {}, userId, requesterBotUserId, 2, { accountId: userId }
+    )
+  }
+
+  /**
+   * 拉**营地商城**商品列表（`/mall/tabgoodslist`）。
+   *
+   * 实测 2026-10-10：`totalPage` 67、单页 15 条。每条商品字段非常多，常用的：
+   *   · `goodsId` / `djcId` —— 商品 ID（`djcId` 是「道具城」那边的 ID）
+   *   · `name` / `subName` —— 名称 / 副标题（皮肤商品这里是英雄名）
+   *   · `posterUrl` / `goodsBust` —— 海报 / 半身像
+   *   · `curPrice` / `orgPrice` / `discountPrice` —— 现价 / 原价 / 折后价
+   *   · `currencyType` —— **币种数组**。实测取值：`1`（营地币）、`3`（人民币）、`4`
+   *   · `type` —— 商品类型（1=皮肤、6=英雄、7=个性按键…）
+   *   · `isOwn` —— 是否已拥有
+   *   · `limitBuy` —— 限购
+   *
+   * ⚠️ **`tabId` 不是品类筛选**：实测传 0~5 各页返回的商品不同，但都是混着的，
+   *    没有稳定的「营地币专区」这种语义。想筛就用 `currencyType`。
+   * ⚠️ `page` 从 **0** 开始。
+   *
+   * @param {object} [opts]
+   * @param {number} [opts.tabId=0]
+   * @param {number} [opts.page=0] 页码，**从 0 开始**
+   * @param {number} [opts.pageSize=15]
+   */
+  async getMallGoods ({ tabId = 0, page = 0, pageSize = 15 } = {}) {
+    return this.#transport.requestWithCandidates('POST', '/mall/tabgoodslist', {
+      tabId, page, pageSize
+    }, {}, 2)
   }
 
   /**

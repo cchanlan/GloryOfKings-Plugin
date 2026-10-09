@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>营地商城</title>
+  <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
+  <style>
+    /* 商品网格：一屏 3 列 × 5 行 = 15 条，正好一页 */
+    .goods-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      padding: 18px 26px;
+    }
+    .goods-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .goods-card.owned { border-color: rgba(111,211,155,0.4); }
+
+    /* 海报区：固定高度，图用 cover —— 商品图长宽比不统一
+       （皮肤是竖版半身像、英雄是方图），不固定高度会让卡片高低不齐 */
+    .goods-pic {
+      width: 100%;
+      height: 190px;
+      position: relative;
+      overflow: hidden;
+      /* 图没加载出来时露出的底色。比纯灰好看，也跟卡片同色系 */
+      background: linear-gradient(160deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02));
+    }
+    /* 破图占位：图 onerror 时露出来的那个图标 + 文字。
+       ⚠️ 不能只把 img 藏起来 —— 那样留一片纯灰，看着像渲染坏了 */
+    .goods-pic::after {
+      content: "营地商城";
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      color: rgba(255,255,255,0.16);
+      letter-spacing: 2px;
+    }
+    .goods-pic img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
+      /* 图盖在占位文字上面：加载成功就完全遮住，失败就露出下面那句 */
+      position: relative;
+      z-index: 1;
+    }
+    /* 已拥有 / 折扣角标 */
+    .goods-badge {
+      position: absolute;
+      top: 8px; left: 8px;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 8px;
+      background: rgba(111,211,155,0.9);
+      color: #0f1420;
+      font-weight: 600;
+    }
+    .goods-badge.sale {
+      background: rgba(233,110,110,0.92);
+      color: #fff;
+    }
+
+    .goods-info { padding: 11px 13px 13px; display: flex; flex-direction: column; gap: 7px; flex: 1; }
+    .goods-name {
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.3;
+      /* 名字长的（「三丽鸥家族祈愿币礼包10抽」）要能折两行，超了省略 */
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      min-height: 39px;
+    }
+    .goods-sub {
+      font-size: 12px;
+      color: rgba(255,255,255,0.42);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      min-height: 16px;
+    }
+    .goods-price-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-top: auto;
+      flex-wrap: wrap;
+    }
+    .goods-price {
+      font-family: Number, sans-serif;
+      font-size: 20px;
+      color: #f5d76e;
+    }
+    /* 折后价旁边划掉的原价 */
+    .goods-org {
+      font-family: Number, sans-serif;
+      font-size: 12px;
+      color: rgba(255,255,255,0.3);
+      text-decoration: line-through;
+    }
+    .goods-limit {
+      font-size: 11px;
+      color: rgba(233,110,110,0.85);
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+    .goods-own {
+      font-size: 12px;
+      color: #6fd39b;
+    }
+    /* 「无价」占位（英雄这类商品接口不给价）—— 灰一点，别像出错了 */
+    .goods-price.none { color: rgba(255,255,255,0.25); }
+
+    /* 空列表 / 翻页提示 */
+    .page-note {
+      padding: 0 26px 18px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.42);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .empty-note {
+      padding: 40px 26px;
+      text-align: center;
+      color: rgba(255,255,255,0.45);
+      font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="card-header">
+    <div class="user-info">
+      <h2 class="username">{{title}}</h2>
+      <span class="badge">{{pageText}}</span>
+      <span class="badge">{{count}} 件商品</span>
+    </div>
+    <div class="report-label">
+      营地商城
+      <span class="sub">只读 · 兑换请去营地 App</span>
+    </div>
+  </div>
+
+  {{if goods && goods.length}}
+  <div class="goods-grid">
+    {{each goods g}}
+    <div class="goods-card {{g.ownedClass}}">
+      <div class="goods-pic">
+        <img src="{{g.image}}" alt="" onerror="this.style.visibility='hidden'">
+        {{if g.owned}}<span class="goods-badge">已拥有</span>{{/if}}
+        {{if g.discounted && !g.owned}}<span class="goods-badge sale">折扣</span>{{/if}}
+      </div>
+      <div class="goods-info">
+        <div class="goods-name">{{g.name}}</div>
+        <div class="goods-sub">{{g.sub}}</div>
+        <div class="goods-price-row">
+          <span class="goods-price {{g.priceClass}}">{{g.priceText}}</span>
+          {{if g.discounted && g.orgPrice && g.orgPrice !== '0'}}
+          <span class="goods-org">{{g.orgPrice}}</span>
+          {{/if}}
+          {{if g.limitText}}<span class="goods-limit">{{g.limitText}}</span>{{/if}}
+        </div>
+      </div>
+    </div>
+    {{/each}}
+  </div>
+
+  <div class="page-note">
+    <span>{{nextHint}}</span>
+    <span>{{ageHint}}</span>
+  </div>
+  {{else}}
+  <div class="empty-note">
+    这一页没有商品<br>
+    <span style="font-size:13px;">试试 #营地商城 1 回到第一页</span>
+  </div>
+  {{/if}}
+
+  <div class="footer">{{footText}}</div>
+</div>
+</body>
+</html>
