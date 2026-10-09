@@ -86,6 +86,30 @@ export function parseCoinBalance (data) {
   }
 }
 
+/**
+ * 一个号的余额**该不该显示、显示成什么**。
+ *
+ * ⚠️⚠️ 2026-10-10 主人要求：「余额没有的或者没有角色的就别显示了」。
+ *    实测主人名下 5 个号 —— 有王者角色的 2 个是 25 / 225，另外 3 个（`roles` 空数组、
+ *    没绑王者角色）全是 **0**。营地币本来就是签到 / 营地任务发的，**没角色的号必然读成 0**，
+ *    所以「不显示 0」这一条已经把「没角色」一起覆盖了，不必再打一次 `/game/rolelist`
+ *    去分辨原因（多打 N 次请求 = 白吃一轮 -30107 频控，命中一次静默 12 小时）。
+ *
+ * ⚠️ 「读不到」（`coin === null`）**必须照旧说**，不能跟 0 一起吞掉 ——
+ *    那是真故障，静默处理会让用户以为号丢了。
+ *
+ * @param {string} label 显示名（形如 `昵称（1536597962）`）
+ * @param {object} view `parseCoinBalance` 的返回值
+ * @returns {string|null} 该显示的一行文案；**返回 null = 这一行不显示**
+ */
+export function balanceLineOf (label, view) {
+  // ⚠️ coinText 里**已经带「枚」了**（`'25 枚'`），别再拼一次
+  if (!view || view.coin === null || view.coin === undefined) return `${label}：读取失败`
+  if (!(view.coin > 0)) return null
+
+  return `${label}：${view.coinText}`
+}
+
 /** 价格口径：优先折后价，没有就用现价；都为 0 时返回空 */
 function pickPrice (goods) {
   const discount = String(goods?.discountPrice ?? '').trim()

@@ -27,7 +27,7 @@ import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { shouldQuote, getImgType, AT_HEAD, AT_TAIL } from '#utils'
 import authStore from '../utils/authStore.js'
 import apiService from '../utils/api.js'
-import { parseCoinBalance, parseGoodsList } from '../utils/campMall.js'
+import { parseCoinBalance, parseGoodsList, balanceLineOf } from '../utils/campMall.js'
 
 /** 一页拉多少条（服务端默认 15，正好铺一屏） */
 const PAGE_SIZE = 15
@@ -79,7 +79,14 @@ export class CampCoin extends plugin {
     const accounts = this.#myAccounts(e)
     if (!accounts.length) return this.#noAccountHint(e)
 
-    const lines = ['营地币余额']
+    // ⚠️⚠️ **0 枚的号不列出来**（2026-10-10 主人要求：「余额没有的或者没有角色的就别显示了」）。
+    //    为什么不另外查一次 `/game/rolelist` 去分开「没绑王者角色」和「余额真是 0」：
+    //      · 营地币就是王者营地的签到 / 营地任务发的，**没角色的号必然读成 0**
+    //        （实测主人名下 5 个号：有角色的那 2 个是 25 / 225，没角色的 3 个全是 0），
+    //        所以 `> 0` 这一条已经把两类一起覆盖 —— 分开了也一样不显示
+    //      · 为了把「不显示的原因」分细一点而多打 N 次 rolelist，是白吃一轮频控
+    //        （-30107 命中一次静默 12 小时）
+    const rows = []
 
     for (const account of accounts) {
       const campId = String(account.userId)
@@ -90,20 +97,28 @@ export class CampCoin extends plugin {
         const data = (await apiService.getCampCoin(campId))?.data || {}
         const view = parseCoinBalance(data)
 
-        // ⚠️ coinText 里**已经带「枚」了**（`'25 枚'`），别再拼一次 ——
-        //    早先写成 `${view.coin} 枚` 拼出来是「25 0 枚」这种。
-        // ⚠️ 余额读不出来时 coin 是 null（不是 0）：直接写 0 会让用户以为
-        //    余额被清零了，所以走 coinText 那句「读取失败」
-        lines.push(`${label}：${view.coinText}`)
+        // ⚠️ 该不该显示、显示成什么，判据在 utils/campMall.js 的 balanceLineOf 里
+        //    （能脱机单测；0 枚 / 没角色都返回 null = 不显示，读不到则照旧报「读取失败」）
+        const line = balanceLineOf(label, view)
+        if (line) rows.push(line)
+
         // ⚠️ 没兑换活动是**常态**（实测 exchangeInfo 恒为 null），
         //    别写成「加载失败」那种像出错了的话
-        if (view.hasExchange) lines.push(`　${view.exchangeText}`)
+        if (line && view.hasExchange) rows.push(`　${view.exchangeText}`)
       } catch (error) {
         logger.warn(`[营地币] ${campId} 查询失败: ${error?.message || error}`)
-        lines.push(`${label}：查询失败 —— ${apiService.formatUserFacingError(error)}`)
+        rows.push(`${label}：查询失败 —— ${apiService.formatUserFacingError(error)}`)
       }
     }
 
+    const lines = ['营地币余额']
+    if (rows.length) {
+      lines.push(...rows)
+    } else {
+      // ⚠️ 一个能显示的都没有时**必须说一句**：只回一个标题看着像坏了。
+      //    同时这也是「没绑角色的号」唯一会出声的地方 —— 否则主人会以为指令没反应
+      lines.push('', `名下 ${accounts.length} 个营地号现在都没有营地币`)
+    }
     lines.push('', '营地币来自每日签到与营地任务；兑换要去营地 App 里操作')
     await e.reply(lines.join('\n'), shouldQuote())
   }

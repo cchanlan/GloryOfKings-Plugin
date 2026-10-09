@@ -11,7 +11,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   describeCurrencies, parseCoinBalance, parseGoodsList,
-  truncateName, describePageAge
+  truncateName, describePageAge, balanceLineOf
 } from '../utils/campMall.js'
 
 /* ------------------------------------------------------------ describeCurrencies */
@@ -92,6 +92,37 @@ test('parseCoinBalance：data 整个缺失也不抛', () => {
   const v = parseCoinBalance(null)
   assert.equal(v.coin, null)
   assert.equal(v.hasExchange, false)
+})
+
+/* ------------------------------------------------------------- balanceLineOf */
+
+test('balanceLineOf：有余额的号显示成「昵称（ID）：N 枚」', () => {
+  // ⚠️ 不能拼成「25 0 枚」—— coinText 自带单位（2026-10-10 踩过）
+  const line = balanceLineOf('ccxhan（1536597962）', parseCoinBalance(COIN_RESP))
+  assert.equal(line, 'ccxhan（1536597962）：25 枚')
+})
+
+test('balanceLineOf：0 枚的号**不显示**（返回 null）', () => {
+  // 2026-10-10 主人要求：「余额没有的或者没有角色的就别显示了」。
+  // 没绑王者角色的号实测恒为 0，所以这一条同时覆盖了「没角色」
+  assert.equal(balanceLineOf('A（1476924610）', parseCoinBalance({ userCurrencyCnt: 0 })), null)
+})
+
+test('balanceLineOf：读不到余额时**照旧报「读取失败」**，不能跟 0 一起吞掉', () => {
+  // 这是真故障，静默处理会让用户以为号丢了
+  for (const bad of [null, undefined, '', [], {}]) {
+    const line = balanceLineOf('B（1477968574）', parseCoinBalance({ userCurrencyCnt: bad }))
+    assert.equal(line, 'B（1477968574）：读取失败', `输入 ${JSON.stringify(bad)}`)
+  }
+})
+
+test('balanceLineOf：view 整个缺失也不抛，按「读取失败」处理', () => {
+  assert.equal(balanceLineOf('C（1580886057）', null), 'C（1580886057）：读取失败')
+  assert.equal(balanceLineOf('C（1580886057）', undefined), 'C（1580886057）：读取失败')
+})
+
+test('balanceLineOf：负数余额也当「没有」不显示（异常值不该冒出来）', () => {
+  assert.equal(balanceLineOf('D（1）', parseCoinBalance({ userCurrencyCnt: -5 })), null)
 })
 
 /* ------------------------------------------------------------------ pickPrice / 列表 */
