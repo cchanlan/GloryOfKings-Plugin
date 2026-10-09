@@ -330,6 +330,16 @@ export class WatchBattle extends plugin {
     }
 
     const playing = data.playing || []
+
+    // ⚠️⚠️ **没人在打就不出图，直接发文案**（2026-10-10 主人要求）。
+    //    一张只写着「好友里现在没人在打」的空卡片既没有信息量，又要白等一次
+    //    puppeteer 渲染；文案更快，也照样说清「有几个人在线但没开局」。
+    //    有对局时才值得出图 —— 那才有编号可挑、有开局时长可看。
+    if (!playing.length) {
+      await e.reply(this.renderText(playing, data), shouldQuote())
+      return
+    }
+
     // 模板里不做计算：编号、显示用哪个名字、开局多久、能不能开，都在这里算好
     // ⚠️ `canWatch` 用**服务端算好的**那个 —— 它按「这个好友能被哪些账号看到、其中有没有空闲的」
     //    判，跟真正开播时 pickWatcher 的判据一致。
@@ -928,7 +938,13 @@ export class WatchBattle extends plugin {
     }
   }
 
-  /** 出图挂了时的纯文字兜底 */
+  /**
+   * 出图挂了时的纯文字兜底。
+   *
+   * ⚠️ 它还有第二个用途：**没人在打时直接走它**（2026-10-10 主人要求），
+   *    见 `list()`。所以这里的「没人」分支不是兜底，是主路径 ——
+   *    改文案时按「用户会直接看到」来写。
+   */
   renderText (playing, data = {}) {
     const lines = ['🎮 营地观战']
     if (!playing.length) {
