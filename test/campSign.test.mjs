@@ -466,3 +466,93 @@ test('buildSignText：单独调用也能用（数字段缺省时不写 undefined
   assert.ok(!text.includes('undefined'))
   assert.ok(!text.includes('未定义'))
 })
+/**
+ * 追加测试：`noRoleCount` 与 `failCount` 必须分开表述。
+ *
+ * 来源：2026-10-10 真机端到端 —— 主人名下 5 个营地号里 3 个没绑王者角色，
+ * 副标题报了「3 个没签上」，看着像插件坏了。
+ */
+
+const NOROLE_SAT = new Date('2026-10-10T12:00:00+08:00')
+
+function noroleInfo (over = {}) {
+  return { weekSignMap: '0000010', seqSignDays: 1, userTotalSign: 1, weekList: [], totalList: [], ...over }
+}
+
+test('副标题：没人绑角色的号不该算成「没签上」', () => {
+  // 真机场景：5 个号，2 个签过、3 个没王者角色
+  const view = buildSignView({
+    views: [
+      { name: 'C', campId: '1', stateClass: 'done', stateText: '今天已签', info: noroleInfo() },
+      { name: 'B', campId: '2', stateClass: 'done', stateText: '今天已签', info: noroleInfo() },
+      { name: 'X', campId: '3', stateClass: 'fail', stateText: '没有王者角色', failReason: '还没绑定王者角色' }
+    ],
+    mode: 'sign', alreadyCount: 2, failCount: 0, noRoleCount: 3, now: NOROLE_SAT
+  })
+  assert.equal(view.subText, '今天都已签过', '有已签且零失败时，说「今天都已签过」')
+  assert.ok(!view.subText.includes('没签上'), '绝不能出现「没签上」')
+})
+
+test('副标题：全是没角色的号时说「能签的号都签过了」', () => {
+  const view = buildSignView({
+    views: [{ name: 'X', campId: '3', stateClass: 'fail', stateText: '没有王者角色', failReason: '没绑' }],
+    mode: 'sign', alreadyCount: 0, failCount: 0, noRoleCount: 1, now: NOROLE_SAT
+  })
+  assert.equal(view.subText, '能签的号都签过了')
+})
+
+test('副标题：真有失败时才说「N 个没签上」', () => {
+  const view = buildSignView({
+    views: [
+      { name: 'A', campId: '1', stateClass: 'fail', stateText: '签到失败', failReason: '网络超时' },
+      { name: 'X', campId: '3', stateClass: 'fail', stateText: '没有王者角色', failReason: '没绑' }
+    ],
+    mode: 'sign', failCount: 1, noRoleCount: 1, now: NOROLE_SAT
+  })
+  assert.equal(view.subText, '1 个没签上', '只数真失败的那个，不含没角色的')
+})
+
+test('副标题：签成功优先说「签上 N 个」', () => {
+  const view = buildSignView({
+    views: [{ name: 'A', campId: '1', stateClass: 'new', stateText: '签到成功', info: noroleInfo() }],
+    mode: 'sign', okCount: 1, noRoleCount: 2, now: NOROLE_SAT
+  })
+  assert.equal(view.subText, '签上 1 个')
+})
+
+test('副标题：状态模式永远是「只看不签」，不受计数影响', () => {
+  const view = buildSignView({
+    views: [{ name: 'A', campId: '1', stateClass: 'done', stateText: '今天已签', info: noroleInfo() }],
+    mode: 'status', okCount: 9, failCount: 9, noRoleCount: 9, now: NOROLE_SAT
+  })
+  assert.equal(view.subText, '只看不签')
+})
+
+test('文字兜底：没角色的号单独成句，不混进「失败」', () => {
+  const view = buildSignView({
+    views: [
+      { name: 'C', campId: '1', stateClass: 'done', stateText: '今天已签', info: noroleInfo() },
+      { name: 'X', campId: '3', stateClass: 'fail', stateText: '没有王者角色', failReason: '还没绑定王者角色' }
+    ],
+    mode: 'sign', alreadyCount: 1, failCount: 0, noRoleCount: 1, now: NOROLE_SAT
+  })
+  const t = view.textFallback
+  assert.ok(t.includes('1 个没绑王者角色'), `实际=${t}`)
+  assert.ok(!t.includes('1 个失败'), '没角色不该被说成失败')
+})
+
+test('文字兜底：buildSignText 直接调用也支持 noRoleCount', () => {
+  const t = buildSignText({
+    views: [{ name: 'X', campId: '3', stateClass: 'fail', stateText: '没有王者角色', failReason: '没绑' }],
+    mode: 'sign', noRoleCount: 2, now: NOROLE_SAT
+  })
+  assert.ok(t.includes('2 个没绑王者角色'))
+})
+
+test('不传 noRoleCount 时行为不变（向后兼容，老调用方不会炸）', () => {
+  const view = buildSignView({
+    views: [{ name: 'A', campId: '1', stateClass: 'fail', stateText: '签到失败', failReason: 'x' }],
+    mode: 'sign', failCount: 1, now: NOROLE_SAT
+  })
+  assert.equal(view.subText, '1 个没签上')
+})

@@ -154,6 +154,10 @@ export class CampSignIn extends plugin {
     let okCount = 0
     let alreadyCount = 0
     let failCount = 0
+    // ⚠️ 「没绑王者角色」单独计数，**不并进 failCount**（2026-10-10 真机踩到）：
+    //    主人 5 个号里 3 个没角色，并进去会报「3 个没签上」，看着像插件坏了。
+    //    那是结构性签不了，副标题该说「能签的号都签过了」。
+    let noRoleCount = 0
 
     for (const account of accounts) {
       const { campId, name } = labelOf(account)
@@ -166,7 +170,8 @@ export class CampSignIn extends plugin {
             name, campId, stateClass: 'fail', stateText: '没有王者角色',
             failReason: '这个营地号还没绑定王者角色，先在游戏里登录一次再来签'
           })
-          failCount++
+          // 走 noRoleCount 而不是 failCount —— 详见上面计数器的注释
+          noRoleCount++
           continue
         }
 
@@ -246,7 +251,7 @@ export class CampSignIn extends plugin {
       }
     }
 
-    await this.#render(e, views, { mode: 'sign', okCount, alreadyCount, failCount })
+    await this.#render(e, views, { mode: 'sign', okCount, alreadyCount, failCount, noRoleCount })
   }
 
   /**
@@ -263,6 +268,8 @@ export class CampSignIn extends plugin {
       okCount: meta.okCount || 0,
       alreadyCount: meta.alreadyCount || 0,
       failCount: meta.failCount || 0,
+      // 「没绑王者角色」单独透传，别让它混进「没签上」的计数
+      noRoleCount: meta.noRoleCount || 0,
       avatar: `https://q1.qlogo.cn/g?b=qq&s=100&nk=${e.user_id}`,
       username: (e.sender?.card || e.sender?.nickname || String(e.user_id))
     })

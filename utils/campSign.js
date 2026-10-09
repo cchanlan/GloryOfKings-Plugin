@@ -249,7 +249,7 @@ function giftSummary (gifts, maxLength = 22) {
  */
 export function buildSignView ({
   views = [], mode = 'sign', okCount = 0, alreadyCount = 0, failCount = 0,
-  avatar = '', username = '', now = new Date()
+  noRoleCount = 0, avatar = '', username = '', now = new Date()
 } = {}) {
   const todayIndex = (now.getDay() + 6) % 7   // 周一=0
   const isSign = mode === 'sign'
@@ -345,11 +345,30 @@ export function buildSignView ({
 
   const dateText = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
+  /**
+   * 副标题（右上角那句）。
+   *
+   * ⚠️⚠️ **「没绑王者角色的号」不能算进「没签上」**（2026-10-10 真机踩到）：
+   *    主人名下 5 个营地号里只有 2 个绑了王者角色（另外 3 个的 `roles` 是空数组），
+   *    把那 3 个算成失败会报「3 个没签上」—— 看着像插件坏了或账号出事了，
+   *    但那是**结构性事实**（这些号本来就没有王者角色、永远签不了），不是故障。
+   *    真正该说的是「能签的都签完了」。
+   *
+   * `noRoleCount` 由调用方单独统计（apps/signIn.js 的「没有王者角色」分支），
+   * **不要**并进 `failCount`。
+   */
   let subText = ''
-  if (!isSign) subText = '只看不签'
-  else if (okCount > 0) subText = `签上 ${okCount} 个`
-  else if (alreadyCount > 0 && failCount === 0) subText = '今天都已签过'
-  else if (failCount > 0) subText = `${failCount} 个没签上`
+  if (!isSign) {
+    subText = '只看不签'
+  } else if (okCount > 0) {
+    subText = `签上 ${okCount} 个`
+  } else if (failCount === 0 && alreadyCount > 0) {
+    subText = '今天都已签过'
+  } else if (failCount === 0 && noRoleCount > 0) {
+    subText = '能签的号都签过了'
+  } else if (failCount > 0) {
+    subText = `${failCount} 个没签上`
+  }
 
   const todayVal = signedTodayCount > 0 ? '已签' : (views.length ? '未签' : '—')
 
@@ -369,7 +388,7 @@ export function buildSignView ({
     accounts,
     emptyText: '名下还没有可用的营地号',
     footText: '奖励发在营地账号上，一个号签一次；数据来自王者营地',
-    textFallback: buildSignText({ views, mode, okCount, alreadyCount, failCount, now })
+    textFallback: buildSignText({ views, mode, okCount, alreadyCount, failCount, noRoleCount, now })
   }
 }
 
@@ -379,7 +398,7 @@ export function buildSignView ({
  * ⚠️ 这条路径**必须完整**：签到是写操作，图挂了也不能让用户不知道签上没有。
  * 所以每个号的状态、连续天数、本次拿到的奖励都要写全。
  */
-export function buildSignText ({ views = [], mode = 'sign', okCount = 0, alreadyCount = 0, failCount = 0, now = new Date() } = {}) {
+export function buildSignText ({ views = [], mode = 'sign', okCount = 0, alreadyCount = 0, failCount = 0, noRoleCount = 0, now = new Date() } = {}) {
   const isSign = mode === 'sign'
   const lines = [isSign ? '王者营地签到' : '王者营地签到状态']
 
@@ -407,6 +426,8 @@ export function buildSignText ({ views = [], mode = 'sign', okCount = 0, already
     const summary = []
     if (okCount) summary.push(`${okCount} 个签到成功`)
     if (alreadyCount) summary.push(`${alreadyCount} 个本来已签`)
+    // 没绑角色的号单独说 —— 并进「失败」会吓人（见 buildSignView 的注释）
+    if (noRoleCount) summary.push(`${noRoleCount} 个没绑王者角色（签不了，正常）`)
     if (failCount) summary.push(`${failCount} 个失败`)
     if (summary.length) lines.push('', summary.join('，'))
   }
