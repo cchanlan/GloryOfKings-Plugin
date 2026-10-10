@@ -113,11 +113,8 @@ function cfg () {
  *    真实的社交动作。所以必须留一个能关掉的口子（锅巴「营地签到」区块里那个勾），
  *    而且**读不到配置时按「关」处理**：脱机脚本 / 异常情况下宁可少做，
  *    也不要莫名其妙替主人点赞。
- *
- * ⚠️ **导出是为了让 `#营地任务` 用同一个判据**（见 apps/campCoin.js）——
- *    两边各写一份必然漂移，而漂移的后果是「签到不做、手发指令却做了」这种怪事。
  */
-export function isAutoTaskEnabled () {
+function isAutoTaskEnabled () {
   const config = cfg()
   // `cfg()` 读失败时回的是空对象 —— 用「有没有读到东西」区分「读失败」和「真的没配」
   if (!Object.keys(config).length) return false
