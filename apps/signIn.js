@@ -104,6 +104,27 @@ function cfg () {
 }
 
 /**
+ * 「签到时顺手把福利任务也做了」的开关（`campSignAutoTask`，默认**开**）。
+ *
+ * 主人的要求是「开了定时签到就把任务也做了」，所以默认开、跟着签到走，
+ * 不额外让用户再找一个开关。
+ *
+ * ⚠️⚠️ 但它包含**点赞** —— 那是**替用户给别人的内容点赞**，会在营地上留下
+ *    真实的社交动作。所以必须留一个能关掉的口子（锅巴「营地签到」区块里那个勾），
+ *    而且**读不到配置时按「关」处理**：脱机脚本 / 异常情况下宁可少做，
+ *    也不要莫名其妙替主人点赞。
+ *
+ * ⚠️ **导出是为了让 `#营地任务` 用同一个判据**（见 apps/campCoin.js）——
+ *    两边各写一份必然漂移，而漂移的后果是「签到不做、手发指令却做了」这种怪事。
+ */
+export function isAutoTaskEnabled () {
+  const config = cfg()
+  // `cfg()` 读失败时回的是空对象 —— 用「有没有读到东西」区分「读失败」和「真的没配」
+  if (!Object.keys(config).length) return false
+  return config.campSignAutoTask !== false
+}
+
+/**
  * 写 `campSignCron` 配置。成功返回 true。
  *
  * ⚠️ 走 `Config.modify`（锅巴同一条写路径）。自己写 yaml 会绕过框架的
@@ -412,7 +433,7 @@ export class CampSignIn extends plugin {
       const views = []
       for (const account of accounts) {
         const { campId, name } = labelOf(account)
-        views.push(await signOneAccount(campId, { name }))
+        views.push(await signOneAccount(campId, { name, autoTask: isAutoTaskEnabled() }))
         await sleep(GAP_MS)
       }
 
@@ -471,7 +492,7 @@ export class CampSignIn extends plugin {
       const pairs = []
       for (const account of accounts) {
         const { campId, name } = labelOf(account)
-        pairs.push({ account, view: await signOneAccount(campId, { name }) })
+        pairs.push({ account, view: await signOneAccount(campId, { name, autoTask: isAutoTaskEnabled() }) })
         await sleep(GAP_MS)
       }
 
@@ -514,7 +535,14 @@ export class CampSignIn extends plugin {
     for (const [owner, views] of grouped) {
       if (!owner) continue   // 无主号交给 #notifyMasterOrphans
 
-      const needTell = views.filter(v => v.signed || !v.already)
+      /**
+       * ⚠️ **「本来已签但刚补领到奖励」也要说**（2026-10-10 加）：
+       *    签到只是把任务做掉，福利中心那 25 枚营地币要另外领一次才到账
+       *    （见 `utils/campSignTask.js` 的 `claimTaskRewards`）。
+       *    用户在 App 里签过、没点领取时，定时任务这一轮才是真正帮他拿到币的那次 ——
+       *    这时候沉默，他就永远不知道币到账了。
+       */
+      const needTell = views.filter(v => v.signed || !v.already || v.claimedText)
       if (!needTell.length) continue
 
       const lines = ['营地签到结果']
@@ -525,9 +553,13 @@ export class CampSignIn extends plugin {
           okCount++
           const gifts = giftLine(v)
           lines.push(`${label}：签到成功${gifts ? `，${gifts}` : ''}`)
+        } else if (v.already) {
+          lines.push(`${label}：今天已签`)
         } else {
           lines.push(`${label}：${v.stateText}${v.failReason ? ` —— ${v.failReason}` : ''}`)
         }
+        // 领到的营地币单独一行（这是用户最关心的那笔）
+        if (v.claimedText) lines.push(`　已领取：${v.claimedText}${v.coin === null ? '' : `，现有 ${v.coin} 营地币`}`)
       }
       if (okCount) lines.push('', `共签上 ${okCount} 个号`)
 
@@ -563,6 +595,8 @@ export class CampSignIn extends plugin {
       } else if (!view.already) {
         lines.push(`${view.campId}：${view.stateText}${view.failReason ? ` —— ${view.failReason}` : ''}`)
       }
+      // 补领到的营地币也要报（已签的号同样可能刚帮他领到，见 #notifyOwners 的注释）
+      if (view.claimedText) lines.push(`${view.campId}：已领取 ${view.claimedText}`)
     }
 
     // 全是「已签」时 lines 是空的 —— 没新信息就不打扰主人

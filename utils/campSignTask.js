@@ -13,6 +13,80 @@
  */
 import apiService from './api.js'
 import { isSignedToday, pickMainRole, classifySignCode } from './campSign.js'
+import { parseTaskList, rewardBody, describeClaimed } from './campTask.js'
+import { completeDailyTasks, describeActed } from './campDailyTask.js'
+
+/**
+ * 领一遍这个号在**福利中心**已完成但还没领的任务奖励。
+ *
+ * ## 为什么签到之后还要来这一趟
+ *
+ * `newsignin` 只是把「每日前往游戏专区签到」这个任务**做掉**
+ * （`finishStatus` 变 1），那 25 枚营地币**不会自己到账** —— 福利中心页面上
+ * 会一直挂着「领取」按钮，这就是用户反馈的「签到了但没领到」。
+ * 币要再打一次 `/operation/action/rewardtask` 才进账（实测领完余额 25→50 ✓）。
+ *
+ * ## 为什么顺手把别的任务也领了
+ *
+ * 浏览资讯 / 点赞 / 分享这些任务，用户在营地 App 里做过之后同样只是
+ * `finishStatus=1`，奖励照样躺着。既然已经拉了一次任务列表，**凡是
+ * `claimable`（做完了 + 没领）的一起领**比只领签到那条更符合预期，
+ * 也不多花请求（领取接口本身支持一次传多个 taskId）。
+ *
+ * ⚠️ **只领、不替用户做任务**：没做完的任务这里一律不碰 ——
+ *    「浏览」「点赞」「分享」要真的去点别人的内容，那是替用户产生社交行为，
+ *    不是签到该干的事。
+ *
+ * **不抛异常**：领取失败不该让「签到成功」这件事看起来像失败了。
+ *
+ * @param {string} campId 营地号
+ * @returns {Promise<{claimed: object[], coin: number|null, todo: object[], failReason: string}>}
+ */
+export async function claimTaskRewards (campId) {
+  const empty = { claimed: [], coin: null, todo: [], failReason: '' }
+
+  let view
+  try {
+    view = parseTaskList(await apiService.getCampTaskList(campId))
+  } catch (error) {
+    globalThis.logger?.warn?.(`[营地任务] ${campId} 拉任务列表失败: ${error?.message || error}`)
+    return { ...empty, failReason: apiService.formatUserFacingError(error) }
+  }
+
+  if (!view.ok) return { ...empty, failReason: view.failReason }
+
+  const todo = view.tasks.filter(task => !task.finished)
+  if (!view.claimable.length) {
+    return { claimed: [], coin: view.coin, todo, failReason: '' }
+  }
+
+  try {
+    const res = await apiService.claimCampTasks(
+      campId,
+      rewardBody(view.claimable.map(task => task.taskId))
+    )
+
+    if (res?.returnCode !== 0 && String(res?.returnCode) !== '0') {
+      globalThis.logger?.warn?.(`[营地任务] ${campId} 领取失败: ${res?.returnCode} ${res?.returnMsg || ''}`)
+      return { claimed: [], coin: view.coin, todo, failReason: '奖励领取失败' }
+    }
+  } catch (error) {
+    globalThis.logger?.warn?.(`[营地任务] ${campId} 领取异常: ${error?.message || error}`)
+    return { claimed: [], coin: view.coin, todo, failReason: apiService.formatUserFacingError(error) }
+  }
+
+  const gained = view.claimable.reduce((sum, task) => sum + task.currency, 0)
+  globalThis.logger?.info?.(`[营地任务] ${campId} 领取成功：${describeClaimed(view.claimable) || view.claimable.length + ' 个任务'}`)
+
+  return {
+    claimed: view.claimable,
+    // ⚠️ 余额是**领取前**那一份，加上这次领到的才是现在的数 ——
+    //    不为了显示一个数再多打一次请求（而且营地那边也有延迟）
+    coin: view.coin === null ? null : view.coin + gained,
+    todo,
+    failReason: ''
+  }
+}
 
 /**
  * 探一个营地号的**当前状态**（不发写请求）：查角色 + 查签到状态。
@@ -103,12 +177,22 @@ export async function probeAccount (campId, { name } = {}) {
  * @returns {Promise<object>} view —— 形状跟 apps/signIn.js 里手搓的那份一致：
  *   `{ name, campId, stateClass, stateText, info, roleName?, signGifts?, failReason? }`
  */
-export async function signOneAccount (campId, { name } = {}) {
+export async function signOneAccount (campId, { name, autoTask = true } = {}) {
   const probe = await probeAccount(campId, { name })
 
-  // 没角色 / 查询失败 / 已签 / 状态判不了 —— 都不发写请求，原样返回
-  if (probe.noRole || probe.failReason || probe.already || probe.signedToday === null) {
+  // 没角色 / 查询失败 / 状态判不了 —— 都不发写请求，原样返回
+  if (probe.noRole || probe.failReason || probe.signedToday === null) {
     return probe
+  }
+
+  /**
+   * ⚠️ **「今天已签」也要走一趟领取**（这是本次修复的要点之一）：
+   *    用户昨天/刚才在 App 里签过、但没点「领取」，那 25 枚币还躺着。
+   *    早先这里和上面的分支并在一起直接 return，于是「已签」的号永远领不到奖励 ——
+   *    而这恰恰是最常见的那种（定时任务签完，用户再手发一次 `#王者签到`）。
+   */
+  if (probe.already) {
+    return withRewards(probe, autoTask)
   }
 
   const { name: label, info, role } = probe
@@ -124,7 +208,7 @@ export async function signOneAccount (campId, { name } = {}) {
   const verdict = classifySignCode(res?.returnCode)
 
   if (verdict === 'ok') {
-    return {
+    return withRewards({
       name: label,
       campId,
       stateClass: 'new',
@@ -140,12 +224,13 @@ export async function signOneAccount (campId, { name } = {}) {
       signGifts: Array.isArray(res?.data?.giftList) ? res.data.giftList : [],
       signDate: res?.data?.signDate || '',
       signed: true
-    }
+    }, autoTask)
   }
 
   if (verdict === 'already') {
-    // 服务端说今天签过了 —— 正常结果（可能刚在别处签的），不是失败
-    return { name: label, campId, stateClass: 'done', stateText: '今天已签', info, roleName: role.roleName, already: true }
+    // 服务端说今天签过了 —— 正常结果（可能刚在别处签的），不是失败。
+    // 同样要去领一趟奖励：签过 ≠ 领过（见 claimTaskRewards 的说明）
+    return withRewards({ name: label, campId, stateClass: 'done', stateText: '今天已签', info, roleName: role.roleName, already: true }, autoTask)
   }
 
   if (verdict === 'too-fast') {
@@ -166,6 +251,37 @@ export async function signOneAccount (campId, { name } = {}) {
   }
 
   return fail(label, campId, '签到失败', res?.returnMsg || `错误码 ${res?.returnCode}`, null, role, info)
+}
+
+/**
+ * 给一个 view 补上「福利中心奖励」那几项。
+ *
+ * 抽出来是因为**两条路都要走**（刚签上的、本来就已签的），而两边各写一次
+ * 必然漂移 —— 漂移的后果恰好是这次要修的 bug 的翻版：某一条路不领，
+ * 用户就永远差那 25 枚币。
+ *
+ * 领取失败**不改 stateClass**：签到成功就是成功了，不能因为领奖没成
+ * 让整张图标红（但 `rewardNote` 会把原因带出去）。
+ */
+async function withRewards (view, autoTask = true) {
+  // ⚠️ 顺序**必须先做任务、再领奖励**：反过来的话，这一轮刚做出来的那 25 币
+  //    要等下一次签到才收得到 —— 而「下次」往往已经是明天，任务早重置了。
+  const acted = await completeDailyTasks(view.campId, { enabled: autoTask })
+
+  const result = await claimTaskRewards(view.campId)
+
+  return {
+    ...view,
+    actedTasks: acted,
+    // 给用户看的那一句（「浏览资讯、点赞」）；什么都没做时是空串，
+    // 图/文案那边据此决定要不要多显示一行
+    actedText: describeActed(acted),
+    claimedTasks: result.claimed,
+    claimedText: describeClaimed(result.claimed),
+    coin: result.coin,
+    todoTasks: result.todo,
+    rewardNote: result.failReason
+  }
 }
 
 /** 造一个「失败」view，省得上面每个分支都写一遍 */

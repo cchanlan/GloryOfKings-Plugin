@@ -28,6 +28,10 @@ import { shouldQuote, getImgType, AT_HEAD, AT_TAIL } from '#utils'
 import authStore from '../utils/authStore.js'
 import apiService from '../utils/api.js'
 import { parseCoinBalance, parseGoodsList, balanceLineOf } from '../utils/campMall.js'
+import { claimTaskRewards } from '../utils/campSignTask.js'
+import { completeDailyTasks, describeActed } from '../utils/campDailyTask.js'
+import { describeClaimed, describeTodo } from '../utils/campTask.js'
+import { isAutoTaskEnabled } from './signIn.js'
 
 /** 一页拉多少条（服务端默认 15，正好铺一屏） */
 const PAGE_SIZE = 15
@@ -45,6 +49,12 @@ export class CampCoin extends plugin {
           //    带货类插件都可能合理地用它们
           reg: new RegExp(`${AT_HEAD}#营地商城(?:\\s*(\\d+))?${AT_TAIL}`),
           fnc: 'mall'
+        },
+        {
+          // ⚠️ 要排在 `#营地币` 前面：`#营地任务` 跟它不冲突，但别名里有
+          //    「营地福利」，而将来谁把 `#营地币` 那条写宽就会抢过去
+          reg: new RegExp(`${AT_HEAD}#(?:营地任务|营地福利|领营地币)${AT_TAIL}`),
+          fnc: 'tasks'
         },
         {
           reg: new RegExp(`${AT_HEAD}#(?:营地币|营地余额)${AT_TAIL}`),
@@ -120,6 +130,65 @@ export class CampCoin extends plugin {
       lines.push('', `名下 ${accounts.length} 个营地号现在都没有营地币`)
     }
     lines.push('', '营地币来自每日签到与营地任务；兑换要去营地 App 里操作')
+    await e.reply(lines.join('\n'), shouldQuote())
+  }
+
+  /**
+   * `#营地任务` —— 看福利中心任务 + **做掉能做的、把做完的奖励领了**。
+   *
+   * ## 为什么要有这条指令
+   *
+   * 营地的「做完任务」和「领到奖励」是**两步**：任务做完只是 `finishStatus=1`，
+   * 那 25 枚营地币要再点一次「领取」才到账。用户（包括主人）一直以为签到就自动给币，
+   * 实际上福利中心一直挂着没领的奖励 —— 这条指令就是替他点那一下。
+   *
+   * ⚠️ **顺序跟签到那边一致：先做任务、再领奖励** —— 反了的话这一轮刚做出来的
+   *    25 币要等下次才收得到（而「下次」可能已经是明天，任务早重置了）。
+   *
+   * ⚠️ 「做任务」包含**点赞**（会真的给别人的内容点赞），所以跟签到流程**共用
+   *    同一个开关** `config.campSignAutoTask`（关掉就只查、只领，不碰社交动作）。
+   */
+  async tasks (e) {
+    const accounts = this.#myAccounts(e)
+    if (!accounts.length) return this.#noAccountHint(e)
+
+    const autoTask = isAutoTaskEnabled()
+    const lines = ['营地福利任务']
+    let gained = 0
+
+    for (const account of accounts) {
+      const campId = String(account.userId)
+      const name = String(account.nickname || account.userName || campId)
+      const label = `${name}（${campId}）`
+
+      // 先把能做的做掉（浏览/点赞/分享），再领 —— 顺序不能反
+      const acted = await completeDailyTasks(campId, { enabled: autoTask })
+      const result = await claimTaskRewards(campId)
+
+      if (result.failReason) {
+        lines.push(`${label}：${result.failReason}`)
+        continue
+      }
+
+      const parts = []
+      const actedText = describeActed(acted)
+      if (actedText) parts.push(`刚自动做了 ${actedText}`)
+      if (result.coin !== null) parts.push(`${result.coin} 营地币`)
+      if (result.claimed.length) {
+        gained += result.claimed.reduce((sum, task) => sum + task.currency, 0)
+        parts.push(`刚领到 ${describeClaimed(result.claimed)}`)
+      }
+      lines.push(`${label}：${parts.join('，') || '没有可做的任务、也没有可领的奖励'}`)
+
+      const todo = describeTodo(result.todo)
+      if (todo) lines.push(`　${todo}`)
+    }
+
+    if (gained > 0) lines.push('', `本次共领到 ${gained} 营地币`)
+    lines.push('', autoTask
+      ? '（浏览资讯 / 点赞 / 分享都会自动做；不想让机器人替你点赞，可在锅巴「营地签到」里关掉）'
+      : '（自动做任务已关掉，去锅巴「营地签到」里打开就会自动做；「关注作者」要自己关注）')
+
     await e.reply(lines.join('\n'), shouldQuote())
   }
 

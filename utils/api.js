@@ -63,6 +63,13 @@ const CODE_SUCCESS = 0
 const CODE_RATE_LIMITED = -30107
 
 /**
+ * 福利中心任务的 `gameId`：**50001 是营地自己**，不是王者的 20001。
+ * 单独一个常量是因为它要同时进 body 和请求头（少一处就回「服务繁忙」），
+ * 两边必须是同一个值。语义与取值来源见 `utils/campTask.js` 的 `CAMP_GAME_ID`。
+ */
+const CAMP_TASK_GAME_ID = '50001'
+
+/**
  * 营地确定性「账号登录态失效」错误码（实测闲置 29 天的号回的就是它）。
  * 只有这类确定性信号才允许给账号打 authInvalid 标记，见 isDefiniteAuthFailure。
  */
@@ -2103,6 +2110,49 @@ class ApiService {
     return this.#transport.requestWithCandidates('POST', endpoint, body, {}, 2, targetUserId, requesterBotUserId)
   }
 
+  /* ------------------------------------------------------------ 通用请求门面 */
+
+  /**
+   * 主站（kohcamp.qq.com）POST 接口的公开入口。
+   *
+   * 为什么需要：`requestWithCandidates` 是 `CampTransport` 的私有方法，
+   * 上层（探针、新功能）想试一个还没封装过的路径时，得有一个能用的口子。
+   *
+   * ⚠️ `extraHeaders` 不是可有可无的摆设：营地有一批接口**同一个值要在 body 和
+   *    请求头各出现一次**，只放 body 会回一句看不出原因的 `1:服务繁忙，请稍后再试`
+   *    （2026-10-10 实测 `/operation/action/tasklist`：body 带 `gameId` 仍是 1，
+   *    补上同名请求头才通）。同族的 `getHeroRecordDetails` 也是这个脾气（`serverId`）。
+   *
+   * @param {string} endpoint 路径，如 `/operation/action/tasklist`
+   * @param {object} [body]
+   * @param {string} [targetUserId] 查谁的（不传 = 当前登录态那个号）
+   * @param {string} [accountId] 锁账号用（传了就不轮转）
+   * @param {object} [extraHeaders] 额外请求头（见上面那条注意）
+   * @returns {Promise<object>}
+   */
+  async campRequest (endpoint, body = {}, targetUserId = '', accountId = '', extraHeaders = {}) {
+    return this.#transport.requestWithCandidates(
+      'POST', endpoint, body, extraHeaders, 2, targetUserId, '',
+      accountId ? { accountId } : {}
+    )
+  }
+
+  /**
+   * 游戏侧 form 接口的公开入口（跟 `getCampCoin` 同一条链路）。
+   *
+   * @param {string} endpoint 路径，如 `/play/h5lotteryquery`
+   * @param {object} [extraFields]
+   * @param {string} [targetUserId]
+   * @param {string} [accountId] 锁账号用
+   * @returns {Promise<object>}
+   */
+  async gameFormRequest (endpoint, extraFields = {}, targetUserId = '', accountId = '') {
+    return this.#transport.gameFormWithCandidates(
+      endpoint, extraFields, targetUserId, '', 2,
+      accountId ? { accountId } : {}
+    )
+  }
+
   /* ================================================== 一、战绩（对局记录） */
 
   /**
@@ -2424,6 +2474,164 @@ class ApiService {
     return this.#transport.requestWithCandidates(
       'POST', '/operation/action/newsignin', body, {},
       0, userId, '', { accountId: userId }
+    )
+  }
+
+  /**
+   * 查一个营地号的**福利中心任务列表**（`/operation/action/tasklist`）。
+   *
+   * ⚠️⚠️ **路径里那段 `action` 不能漏**：`/operation/tasklist` 实测回
+   *    `returnCode 12`，而 12 的真身是 trpc 的「**这个路径没注册**」
+   *    （有的服务会把原文透出来：`rpc name /xxx invalid, current service:
+   *    trpc.camp.userSvr.UserSvr ...`）。所以**看到 12 就是路径写错了**，
+   *    跟「服务繁忙」那句文案没关系，别照着它去查频控或登录态。
+   *
+   * ⚠️⚠️ **`gameId` 要在 body 和请求头各放一次**，少了请求头回
+   *    `returnCode 1:服务繁忙` —— 又是一句会把人带偏的文案。
+   *
+   * ⚠️ **别传空串**：`{gameId:'50001', serverId:'', roleId:''}` 回 `1`，
+   *    把两个空字段去掉就通了（同 `doCampSign` 的 roleId，营地对空串和
+   *    缺字段的处理是两回事）。福利中心任务全是账号级的，不需要角色。
+   *
+   * 返回 `data`：`taskList[]` / `myCurrency`（营地币余额）/ `extra` / `exchangeList`。
+   * 单条任务的字段与状态位解读见 `utils/campTask.js`。
+   *
+   * @param {string} userId 账号池里的 userId（营地ID）
+   */
+  /* --------------------------------------- 福利中心的「做任务」动作（浏览/点赞） */
+
+  /**
+   * 取一条**营地资讯流**（`/info/followinfo`），从中挑出可用的资讯 ID。
+   *
+   * 为什么需要它：福利中心的「浏览资讯」「点赞」两个任务，完成判据在**服务端** ——
+   * 必须真的读一篇资讯 / 真的点一个赞，任务才会变 `finishStatus=1`。
+   * 实测（2026-10-10）：`/play/gettaskconditiondata`（type=5 / 11）返回 `rc=0`
+   * **但不改任务状态**，它只是埋点上报，别指望它。
+   *
+   * 返回 `data.list[]`，其中 `type === 14` 的是资讯卡，卡里 `infoContent.infoId`
+   * 就是 `/info/detailinfo` 要的 `iInfoId`（见 `utils/campTask.js` 的 `pickInfoId`）。
+   *
+   * ⚠️ 走**主站/trpc 网关** —— `/info/*` 在老网关（gameForm 那条）上是 `404 Not Found`。
+   *
+   * @param {string} userId 账号池里的 userId（营地ID）
+   */
+  async getInfoFeed (userId) {
+    const id = toText(userId)
+
+    return this.#transport.requestWithCandidates(
+      'POST', '/info/followinfo', {}, {}, 2, id, '', { accountId: id }
+    )
+  }
+
+  /**
+   * **浏览**一篇资讯（`/info/detailinfo`）—— 福利中心「浏览资讯」任务的完成动作。
+   *
+   * 实测（2026-10-10，主人号）：
+   *   · 调用前 「浏览资讯」`[0/1] finishStatus=0`
+   *   · 调用后 「浏览资讯」`[1/1] finishStatus=1` ✓（之后 `rewardtask` 领到 25 币）
+   *
+   * `iInfoId` 必须**真实有效** —— 编一个会回 `-115407 无效的资讯`；
+   * ID 从 `getInfoFeed()` 现取，别写死（资讯会下架）。
+   *
+   * ⚠️ **读操作**，没有对外副作用，可以放心自动做。
+   *
+   * @param {string} userId 账号池里的 userId（营地ID）
+   * @param {string|number} iInfoId 资讯 ID
+   */
+  async viewCampInfo (userId, iInfoId) {
+    const id = toText(userId)
+
+    return this.#transport.requestWithCandidates(
+      'POST', '/info/detailinfo', { iInfoId: toText(iInfoId) }, {}, 2, id, '', { accountId: id }
+    )
+  }
+
+  /**
+   * 给一篇资讯**点赞**（`/info/addlike`）—— 福利中心「点赞」任务的完成动作。
+   *
+   * 实测（2026-10-10，主人号）：调用后「点赞」`[0/1] → [1/1] finishStatus=1` ✓。
+   * 返回 `{ like, dislike, likeNum, dislikeNum }`。
+   *
+   * ⚠️⚠️ **这是写操作，而且是「替你给别人的内容点赞」** —— 跟浏览不一样，
+   *    它会在营地上留下一个真实的社交动作。所以：
+   *    · `retries` 传 **0**（重试 = 反复点赞）
+   *    · 上层要**可关**（`config.campSignAutoTask`），别做成没法拒绝的默认行为
+   *    · **只对未完成的任务做**：靠 `finishStatus` 判，不是每轮无脑点
+   *
+   * ⚠️ 同一个 ID 再点一次会不会变成「取消赞」**没验证过** —— 调用方必须自己
+   *    保证幂等（这正是上面那条「看 finishStatus」的由来）。
+   *
+   * @param {string} userId 账号池里的 userId（营地ID）
+   * @param {string|number} iInfoId 资讯 ID
+   */
+  async likeCampInfo (userId, iInfoId) {
+    const id = toText(userId)
+
+    return this.#transport.requestWithCandidates(
+      'POST', '/info/addlike', { iInfoId: toText(iInfoId) }, {}, 0, id, '', { accountId: id }
+    )
+  }
+
+  /**
+   * **上报一个任务条件**（`/play/gettaskconditiondata`）。
+   *
+   * ⚠️⚠️ **这个口只对「分享」这类服务端验证不了的行为有效，别拿它当万能的完成口**：
+   *
+   * | type | 含义 | 上报后任务会完成吗 |
+   * |---|---|---|
+   * | **1** | 分享 | ✅ **会**（实测：分享任务 `finishStatus` 0→1） |
+   * | 9 | 分享给好友 | ❌ 不会（实测不变） |
+   * | 5 | 点击资讯tab | ❌ 不会（实测不变） |
+   * | 11 | 浏览历史 | ❌ 不会（实测不变） |
+   *
+   * 道理是：**浏览和点赞服务端能自己验证**（有没有真读过那篇资讯、有没有真点过赞），
+   * 所以只认真实行为，上报没用；**分享在客户端侧（调起微信/QQ）服务端收不到回调**，
+   * 只能认这个上报 —— 这也正是「分享任务不用真分享」的由来。
+   *
+   * ⚠️ 走**老网关的 form 链路**（`gameFormWithCandidates`），不是主站那条：
+   *    主站打这个路径回 `returnCode 12`（路径不在该网关上）。
+   *
+   * @param {string} userId 账号池里的 userId（营地ID）
+   * @param {number} type 条件类型，目前只有 `1`（分享）有意义
+   */
+  async reportTaskCondition (userId, type) {
+    const id = toText(userId)
+
+    return this.#transport.gameFormWithCandidates(
+      '/play/gettaskconditiondata', { type: Number(type) }, id, '', 0, { accountId: id }
+    )
+  }
+
+  async getCampTaskList (userId) {
+    const id = toText(userId)
+
+    return this.#transport.requestWithCandidates(
+      'POST', '/operation/action/tasklist', { gameId: CAMP_TASK_GAME_ID }, { gameId: CAMP_TASK_GAME_ID },
+      2, id, '', { accountId: id }
+    )
+  }
+
+  /**
+   * **领取**福利中心已完成任务的奖励（`/operation/action/rewardtask`）。
+   *
+   * 这是「签到了但营地币没到账」的那一步：`newsignin` 只把任务做了
+   * （`finishStatus=1`），奖励得再领一次才进账（实测领完 `packageStatus` 0→1、
+   * 余额 25→50，`/play/h5lotteryquery` 同步变化 ✓）。
+   *
+   * ⚠️ `retries` 传 **0**：领取是**写操作**，重试等于重复领。服务端虽然会拦，
+   *    但白吃请求、还往频控上撞（同 `doCampSign` 的理由）。
+   *
+   * ⚠️ body 形态跟 `gameId` 绑定，见 `utils/campTask.js` 的 `rewardBody`。
+   *
+   * @param {string} userId 账号池里的 userId（营地ID）
+   * @param {object} body `rewardBody()` 造出来的 `{ taskIds, mRoleIds }`
+   */
+  async claimCampTasks (userId, body) {
+    const id = toText(userId)
+
+    return this.#transport.requestWithCandidates(
+      'POST', '/operation/action/rewardtask', body, { gameId: CAMP_TASK_GAME_ID },
+      0, id, '', { accountId: id }
     )
   }
 

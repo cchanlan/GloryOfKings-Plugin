@@ -287,6 +287,17 @@
         </div>
         {{/if}}
 
+        <!-- 福利中心补领到的营地币。
+             ⚠️ 跟上面「今日奖励」分开放：那是签到当场给的，这是福利中心任务的奖励，
+             要再领一次才到账（合并显示会让用户以为签到本来就自动给币）。 -->
+        {{if a.actedText}}
+        <div class="hour-note">自动完成：{{a.actedText}}</div>
+        {{/if}}
+        {{if a.claimedText}}
+        <div class="hour-note">已领取：{{a.claimedText}}{{if a.coinText}}　现有 {{a.coinText}}{{/if}}</div>
+        {{/if}}
+        {{if a.rewardNote}}<div class="hour-note">奖励领取：{{a.rewardNote}}</div>{{/if}}
+
         {{if a.note}}<div class="hour-note">{{a.note}}</div>{{/if}}
       </div>
     </div>

@@ -89,6 +89,9 @@ const helpSections = [
     icon: '营地',
     list: [
       { cmd: '#营地币', alias: ['#营地余额'], desc: '查营地币余额（签到与营地任务的奖励就是这个），没余额的号不显示' },
+      // ⚠️ 说明里要写明「做完≠领到」：这正是用户踩的坑 —— 营地里任务做完了
+      //    奖励还挂着没领，币不会自己到账
+      { cmd: '#营地任务', alias: ['#营地福利', '#领营地币'], desc: '看福利中心任务，并把做完还没领的营地币领了（做完不等于领到，要领一次才到账）' },
       { cmd: '#营地商城', args: '[页码]', desc: '逛营地商城，看皮肤/英雄/道具的价格与是否已拥有' },
       { cmd: '#营地ID共享帮助', desc: '换机器人不用重新绑定营地ID' },
       { cmd: '#营地观战帮助', desc: '看营地好友谁在打，挑一个开直播' },
@@ -494,7 +497,10 @@ function renderTextHelp (sections, keyword) {
     lines.push('', `【${section.title}】`)
     for (const item of section.list) {
       const args = item.args ? ` ${item.args}` : ''
-      lines.push(`${item.cmd}${args} —— ${item.desc}`)
+      // ⚠️ 别名必须一起列出来：正则认好几种写法时，文字版只写一条
+      //    等于另外几条对用户不存在（出图挂了的时候这就是唯一的说明书）
+      const alias = Array.isArray(item.alias) && item.alias.length ? `（也可发 ${item.alias.join(' / ')}）` : ''
+      lines.push(`${item.cmd}${args}${alias} —— ${item.desc}`)
     }
   }
 

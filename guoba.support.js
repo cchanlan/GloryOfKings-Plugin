@@ -575,6 +575,12 @@ export function supportGuoba () {
           }
         },
         {
+          field: 'config.campSignAutoTask',
+          label: '签到后顺手做福利任务',
+          bottomHelpMessage: '签到时把福利中心的「浏览资讯」「点赞」「分享」也做掉，再把奖励领回来（各 25 营地币）。⚠️「点赞」是拿你的号真去点别人的内容，介意就关掉。（「分享」只上报状态、不会真发出去。）',
+          component: 'Switch'
+        },
+        {
           field: 'config.campRenewCron',
           label: '登录态保活时间（cron）',
           bottomHelpMessage: '定期给每个号续一下登录态，默认每天 5:13。留空 = 关掉定时。',
@@ -1081,7 +1087,13 @@ export function supportGuoba () {
           campIm: { accounts: campIm.accounts }
         }
       },
-      setConfigData (data, { Result }) {
+      // ⚠️ 必须 async：下面要 `await inst.syncTaskCron(...)` 重排 job。
+      //    少了这个关键字是**语法错误**（`await` 只在 async 函数里合法），
+      //    而它会让**整个 guoba.support.js 加载失败** —— 不是「那个功能不生效」，
+      //    是整个插件在锅巴面板里消失。2026-10-10 排查到（`node --check` 报
+      //    `Unexpected reserved word`；注意在**没有 package.json 的目录**下检查
+      //    会走语法探测、把顶层 await 放过，得在插件目录里检查才暴露）。
+      async setConfigData (data, { Result }) {
         const configMap = {
           config: Config.getDefOrConfig('config'),
           auth: Config.getDefOrConfig('auth')

@@ -316,6 +316,27 @@ export function buildSignView ({
       days,
       gifts,
       totals,
+      /**
+       * 福利中心这次补领到的营地币。
+       *
+       * ⚠️ 跟上面的 `gifts`（签到奖励）**不是一回事**，不能合并：
+       *    签到奖励是 `newsignin` 当场给的，而这一笔是福利中心任务的奖励，
+       *    要再打一次 `rewardtask` 才到账（「签到了但币没到」就是漏了这一步）。
+       *    分开显示用户才看得懂「签到」和「领取」是两件事。
+       */
+      claimedText: String(view.claimedText || ''),
+      /**
+       * 这次**自动做掉**的福利任务（「浏览资讯、点赞、分享」）。
+       *
+       * 跟 `claimedText` 是两件事：这是「替你做了」，那是「替你领了」。
+       * 分开是因为点赞属于**替用户产生的社交动作** —— 得让用户看得见，
+       * 别一声不吭就替人点了赞（可关，见 `config.campSignAutoTask`）。
+       * 什么都没做时是空串，模板那边据此决定要不要显示。
+       */
+      actedText: String(view.actedText || ''),
+      coinText: view.coin === null || view.coin === undefined ? '' : `${view.coin} 营地币`,
+      // 领取失败的原因（签到本身可能是成功的，所以不走 note 那条红字）
+      rewardNote: String(view.rewardNote || ''),
       // 失败原因 / 频繁提示这类话，放在账号块底部
       note: view.failReason || ''
     }
@@ -421,6 +442,18 @@ export function buildSignText ({ views = [], mode = 'sign', okCount = 0, already
     if (gifts.length) {
       lines.push(`　今日奖励：${gifts.map(g => (g.num && g.num !== '1' ? `${g.name}x${g.num}` : g.name)).join(' + ')}`)
     }
+
+    /**
+     * 福利中心补领到的营地币**必须单独一行**：
+     * 它跟上面那行「今日奖励」来源不同（那是签到当场给的，这是任务奖励要另领一次），
+     * 混进去会让用户以为签到本来就会给币 —— 而「以为会自动给」正是这个 bug 的由来。
+     */
+    if (view.claimedText) {
+      lines.push(`　已领取：${view.claimedText}${view.coin === null || view.coin === undefined ? '' : `，现有 ${view.coin} 营地币`}`)
+    }
+    // 「替你做了」和「替你领了」分开说，理由见 buildSignView 里 actedText 的注释
+    if (view.actedText) lines.push(`　自动完成：${view.actedText}`)
+    if (view.rewardNote) lines.push(`　奖励领取：${view.rewardNote}`)
   }
 
   if (isSign) {
