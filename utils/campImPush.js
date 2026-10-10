@@ -80,7 +80,12 @@ function clip (s, n = 20) {
  */
 function buildContent (msg) {
   // ⭐ 只留角色名（游戏里的名字），不带营地账号昵称 —— 两个名字摆一起反而看不清谁是谁
-  const title = clip(msg.fromRoleName, 16) || clip(msg.fromUserId, 12)
+  // ⭐ 名字的回落链：**游戏角色名 → 营地昵称 → 营地号**。
+  //    中间那层是给**离线补拉**的消息兜的：营地那个接口只保证收件人那侧
+  //    `toUserInfo` 带完整角色信息，发件人 `fromUserInfo` 常常是
+  //    `roleName:''` + `nickname:'营地昵称'`（2026-10-10 实测样本），
+  //    少了这一层，补拉回来的消息标题会显示成一串营地号，认不出是谁发的。
+  const title = clip(msg.fromRoleName, 16) || clip(msg.nickname, 16) || clip(msg.fromUserId, 12)
   const body = msg.text || '（空消息）'
 
   // ⚠️ 图下这一行是**引用回复的暗号**：`📩` 是 tryQuote 的识别标志、营地号是 missCamp 锚点、
