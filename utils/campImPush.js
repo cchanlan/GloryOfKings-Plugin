@@ -53,6 +53,15 @@ export function ownerOf (campUserId) {
   }
 }
 
+/**
+ * 营地**官方通知账号** —— 活动红点 / 系统提示（`campEventMsg`）的发信人，不是真人好友。
+ *
+ * ⚠️ 服务端（`server-im/camp-im-server.js`）在解析阶段就挡掉了这批，插件端再兜一层是因为：
+ *    **用户跑的营地消息服务可能是别人部署的旧版**，那边没这道过滤的话，
+ *    插件端不认就照样会把「您有未领取的任务奖励」这类推成好友私信（2026-10-10 实测）。
+ */
+const OFFICIAL_SENDER_ID = '1001'
+
 /** 昵称/角色名截断，防刷屏 */
 function clip (s, n = 20) {
   const t = String(s || '').trim()
@@ -135,6 +144,9 @@ async function renderCard (card) {
  * @returns {Promise<{ok:boolean, reason?:string, to?:string}>}
  */
 export async function pushToOwner (msg, { bot } = {}) {
+  // 官方通知账号（活动红点等）不进私信 —— 服务端新版已挡，这里兜旧版服务端，见上
+  if (String(msg?.fromUserId || '') === OFFICIAL_SENDER_ID) return { ok: false, reason: 'official_sender' }
+
   const owner = ownerOf(msg.selfUserId)
   if (!owner) return { ok: false, reason: 'no_owner' }   // 无归属 → 按约定不管
 
