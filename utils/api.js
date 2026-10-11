@@ -2686,10 +2686,18 @@ class ApiService {
   async getCampExchange (userId) {
     const id = toText(userId)
 
-    return this.#transport.requestWithCandidates(
+    const res = await this.#transport.requestWithCandidates(
       'POST', '/operation/lotteryquery', { gameId: '20001', type: 'exchange' }, {},
       2, id, '', { accountId: id }
     )
+
+    // ⚠️⚠️ **这个端点不套 `data`** —— 实测（2026-10-11）它把
+    //    `serverTime` / `exchangeInfo` / `userCurrencyCnt` 直接摊在响应顶层，
+    //    而同一族的 `/operation/action/tasklist`、以及 form 那条 `h5lotteryquery`
+    //    **都是套 `data` 的**。调用方按惯例写 `res.data` 就会拿到 `undefined`，
+    //    表现成「**现在没有可兑换的东西**」这种看起来像「活动没开」的假象。
+    //    这里统一补一层 `data`，让两条路的手感一致 —— 别让调用方去猜形状。
+    return { ...res, data: res?.data ?? res }
   }
 
   /**
