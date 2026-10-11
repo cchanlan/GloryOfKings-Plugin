@@ -28,7 +28,7 @@ import { shouldQuote, getImgType, AT_HEAD, AT_TAIL } from '#utils'
 import authStore from '../utils/authStore.js'
 import apiService from '../utils/api.js'
 import { parseCoinBalance, balanceLineOf } from '../utils/campMall.js'
-import { parseExchange, canExchange, exchangeBody, cleanExchangeMsg, groupByCycle, toCard, describeGift } from '../utils/campExchange.js'
+import { parseExchange, canExchange, exchangeBody, cleanExchangeMsg, groupByCycle, numberGifts, toCard, describeGift } from '../utils/campExchange.js'
 
 export class CampCoin extends plugin {
   constructor () {
@@ -197,7 +197,11 @@ export class CampCoin extends plugin {
       return
     }
 
-    const gift = view.gifts.find(item => item.no === parseInt(noMatch[1], 10))
+    // ⚠️⚠️ 选号必须用**跟图上同一套编号**（先分组、再编号）——
+    //    直接拿 `view.gifts.find(g => g.no === N)` 会查错：那个列表还没分组，
+    //    编号跟图上的对不上（图按周期分过组），用户按图里的号选会兑到别的东西。
+    const ordered = numberGifts(groupByCycle(view.gifts)).flatMap(group => group.gifts)
+    const gift = ordered.find(item => item.no === parseInt(noMatch[1], 10))
     if (!gift) {
       await e.reply(`没有 ${noMatch[1]} 号商品，发 #营地兑换 看清单`, shouldQuote())
       return
@@ -269,8 +273,9 @@ export class CampCoin extends plugin {
    */
   async #renderExchange (e, view, who, coinText) {
     // 按限兑周期分组（本期/本日/本周/本月），跟营地 App 的排版一致；
-    // 卡片要显示的字段也在 toCard 里算好，模板不做计算（那样没法单测）
-    const groups = groupByCycle(view.gifts).map(group => ({
+    // ⚠️ 顺序有讲究：**先分组 → 再编号**（编号要对应图上顺序，见 numberGifts）；
+    //    卡片该显示的字段最后在 toCard 里算好，模板不做计算（那样没法单测）
+    const groups = numberGifts(groupByCycle(view.gifts)).map(group => ({
       ...group,
       gifts: group.gifts.map(toCard)
     }))

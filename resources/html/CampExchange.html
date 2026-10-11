@@ -65,11 +65,28 @@
       padding: 4px 10px;
       border-radius: 14px 0 14px 0;
     }
-    /* 右上角的「已兑过 / 已拥有」标记 */
+    /* ⚠️⚠️ 编号角标 —— **必须有**：底部写着「发 #营地兑换 编号」，
+       图上却找不到编号的话，用户根本没法操作（2026-10-11 主人指出）。
+       有「剩 N 份」角标时挪到它右边，免得两个角标叠在一起。 */
+    .ex-no {
+      position: absolute; top: 0; left: 0;
+      background: rgba(245,215,110,0.92);
+      color: #2a2010; font-size: 13px; font-weight: 800;
+      min-width: 26px; padding: 4px 8px;
+      border-radius: 14px 0 14px 0;
+      text-align: center;
+    }
+    .ex-card.has-badge .ex-no {
+      left: auto; right: 0;
+      border-radius: 0 14px 0 14px;
+    }
+    /* 右上角的「已兑过 / 已拥有」标记。
+       ⚠️ 有编号角标挤到右边时要往下让一行，否则两个角标叠在一起看不清 */
     .ex-flag {
       position: absolute; top: 8px; right: 10px;
       font-size: 12px; color: rgba(230,235,245,0.55);
     }
+    .ex-card.has-badge .ex-flag { top: 30px; }
 
     /* ⚠️ 图标固定 92×92 —— 商品图长短不一，不定死会让同一行卡片高低不齐 */
     .ex-icon {
@@ -146,7 +163,9 @@
       </div>
       <div class="ex-grid">
         {{each group.gifts gift}}
-        <div class="ex-card{{if gift.soldOut}} sold-out{{/if}}{{if gift.mineUsed}} mine-used{{/if}}">
+        <div class="ex-card{{if gift.soldOut}} sold-out{{/if}}{{if gift.mineUsed}} mine-used{{/if}}{{if gift.showLeft}} has-badge{{/if}}">
+          <!-- 编号角标：底部那句「发 #营地兑换 编号」全靠它，**不能省** -->
+          <div class="ex-no">{{gift.no}}</div>
           <!-- 角标只在【限量商品】上出现（照营地 App）：限量就挂「剩 N 份」，
                抢光了就是「剩 0 份」+ 卡片压暗；**不限量的什么都不挂**。
                这条判据在 toCard 里算好（showLeft / leftText），模板不做计算。 -->
@@ -172,7 +191,7 @@
     {{/each}}
 
     <div class="ex-foot">
-      发 <span class="hl">#营地兑换 编号</span> 选一件，再加 <span class="hl">确认</span> 两个字才真换<br>
+      发 <span class="hl">#营地兑换 编号</span> 选一件（编号见卡片左上角），再加 <span class="hl">确认</span> 两个字才真换<br>
       {{if endTime}}本期到 {{endTime}} 截止{{/if}}
     </div>
 

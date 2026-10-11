@@ -103,7 +103,11 @@ export function parseExchange (data, { ownedIds = [] } = {}) {
     return toInt(a?.exchangePos, 0) - toInt(b?.exchangePos, 0)
   })
 
-  const gifts = sorted.map((item, i) => normalizeGift(item, i, ownedIds)).filter(Boolean)
+  const gifts = sorted
+    .map(item => normalizeGift(item, 0, ownedIds))
+    .filter(Boolean)
+    // ⚠️ `no`（给用户看的编号）**不在这里定** —— 见 `numberGifts` 的注释：
+    //    分组会重排，编号必须在**最终展示顺序**上分配。
 
   const rawCoin = data?.userCurrencyCnt
   const coin = rawCoin === null || rawCoin === undefined || rawCoin === ''
@@ -117,6 +121,31 @@ export function parseExchange (data, { ownedIds = [] } = {}) {
     ruleText: String(info.ruleText ?? '').trim(),
     activityId: String(info.exchangeId ?? '').trim()
   }
+}
+
+/**
+ * 给一批商品**统一编号** —— 编号必须对应「图上从上到下、从左到右」的顺序。
+ *
+ * ## 为什么单独一步、而且必须在分组之后调
+ *
+ * 图里按「本期 / 本日 / 本周 / 本月」分了组，**分组会重排** ——
+ * 在 `parseExchange` 里就编好号的话，全图顺序会被分组打乱成
+ * 「1、2、3…12、13、2、14」（2026-10-11 主人截图上的跳号就是这个）。
+ * 用户照着编号发指令会选错东西，所以**编号只在最终展示顺序上分配一次**。
+ *
+ * ⚠️ 每组内部**沿用传进来的顺序**（组内已经是 `parseExchange` 排好的
+ *    priority / exchangePos 序），这里只负责编号，**不重排**。
+ *
+ * @param {Array<{gifts: object[]}>} groups `groupByCycle` 的分组结果
+ * @returns {Array} 同一批分组，每件商品的 `no` 已按全图顺序写好
+ */
+export function numberGifts (groups = []) {
+  let seq = 0
+
+  return groups.map(group => ({
+    ...group,
+    gifts: (group.gifts || []).map(gift => ({ ...gift, no: ++seq }))
+  }))
 }
 
 /**
