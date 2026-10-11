@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>营地币兑换</title>
+  <!-- 复用营地系列的深色底 + 卡片样式；本页只补兑换特有的那几块 -->
+  <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
+  <style>
+    /* 顶部：余额条（左头像+昵称，右边营地币数量） */
+    .ex-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 22px;
+    }
+    .ex-who { display: flex; align-items: center; gap: 12px; }
+    .ex-who img {
+      width: 46px; height: 46px; border-radius: 50%;
+      border: 2px solid rgba(245,215,110,0.5);
+    }
+    .ex-who .name { font-size: 20px; color: #f2f4f8; font-weight: 600; }
+    .ex-coin {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 26px; font-weight: 700;
+      color: #f5d76e;
+    }
+    .ex-coin .unit { font-size: 15px; color: rgba(245,215,110,0.75); font-weight: 500; }
+
+    /* 分组标题：左边一句「本期 · 限兑」，右边一行小字说明 */
+    .ex-group { margin-top: 14px; }
+    .ex-group-head {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 14px; margin: 0 4px 12px;
+    }
+    .ex-group-title { font-size: 19px; font-weight: 700; color: #f2f4f8; }
+    .ex-group-tip { font-size: 13px; color: rgba(230,235,245,0.5); }
+
+    /* 商品网格：一屏三列（跟营地 App 的排版一致） */
+    .ex-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    .ex-card {
+      position: relative;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 14px;
+      padding: 14px 12px 12px;
+      display: flex; flex-direction: column; align-items: center;
+      text-align: center;
+    }
+    /* 抢光的整体压暗，别让它抢可兑的视觉重量 */
+    .ex-card.sold-out { opacity: 0.6; }
+
+    /* 左上角蓝色「剩 N 份」角标（照营地 App 的样式）。
+       ⚠️ 只在【限量】商品上出现：不限量的（itemLeft = -1）不显示 ——
+          给「无限量」挂个「剩 -1 份」既没意义又难看。这条数据在 toCard 里算好。 */
+    .ex-badge {
+      position: absolute; top: 0; left: 0;
+      background: linear-gradient(135deg, #4a9eff, #2b7de9);
+      color: #fff; font-size: 12px; font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 14px 0 14px 0;
+    }
+    /* 右上角的「已兑过 / 已拥有」标记 */
+    .ex-flag {
+      position: absolute; top: 8px; right: 10px;
+      font-size: 12px; color: rgba(230,235,245,0.55);
+    }
+
+    /* ⚠️ 图标固定 92×92 —— 商品图长短不一，不定死会让同一行卡片高低不齐 */
+    .ex-icon {
+      width: 92px; height: 92px;
+      border-radius: 10px;
+      object-fit: cover;
+      background: rgba(255,255,255,0.04);
+      margin: 12px 0 10px;
+      flex: none;
+    }
+    .ex-icon.placeholder {
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; color: rgba(230,235,245,0.35);
+    }
+
+    /* ⚠️ 名字占位固定两行高：一行名和两行名的卡片，下面的价格条才对得齐 */
+    .ex-name {
+      font-size: 15px; font-weight: 600; color: #f2f4f8;
+      line-height: 1.35;
+      height: 40px;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .ex-limit { font-size: 12px; color: rgba(230,235,245,0.45); margin-top: 4px; }
+
+    /* 价格条：金色数字，抢光/买不起的压暗。margin-top:auto 把价格条推到卡片底部，
+       这样同一行里名字短一行的卡片，价格条也在同一高度 */
+    .ex-price {
+      margin-top: auto;
+      padding-top: 10px;
+      width: 100%;
+    }
+    .ex-price .num {
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+      padding: 7px 0;
+      border-radius: 9px;
+      background: rgba(245,215,110,0.10);
+      border: 1px solid rgba(245,215,110,0.28);
+      color: #f5d76e;
+      font-size: 16px; font-weight: 700;
+    }
+    .ex-card.sold-out .ex-price .num,
+    .ex-card.mine-used .ex-price .num {
+      background: rgba(255,255,255,0.04);
+      border-color: rgba(255,255,255,0.10);
+      color: rgba(230,235,245,0.45);
+    }
+
+    .ex-foot {
+      margin-top: 18px; padding: 14px 4px 4px;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      font-size: 13px; color: rgba(230,235,245,0.5);
+      line-height: 1.7;
+    }
+    .ex-foot .hl { color: #f5d76e; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <div class="ex-head">
+      <div class="ex-who">
+        {{if avatar}}<img src="{{avatar}}" alt="">{{/if}}
+        <div class="name">{{who}}</div>
+      </div>
+      <div class="ex-coin">{{coinText}}<span class="unit">营地币</span></div>
+    </div>
+
+    {{each groups group}}
+    <div class="ex-group">
+      <div class="ex-group-head">
+        <div class="ex-group-title">{{group.title}} · 限兑</div>
+        <div class="ex-group-tip">{{group.tip}}</div>
+      </div>
+      <div class="ex-grid">
+        {{each group.gifts gift}}
+        <div class="ex-card{{if gift.soldOut}} sold-out{{/if}}{{if gift.mineUsed}} mine-used{{/if}}">
+          <!-- 角标只在【限量商品】上出现（照营地 App）：限量就挂「剩 N 份」，
+               抢光了就是「剩 0 份」+ 卡片压暗；**不限量的什么都不挂**。
+               这条判据在 toCard 里算好（showLeft / leftText），模板不做计算。 -->
+          {{if gift.showLeft}}
+          <div class="ex-badge">{{gift.leftText}}</div>
+          {{/if}}
+          {{if gift.mineUsed}}<div class="ex-flag">已兑过</div>{{else if gift.owned}}<div class="ex-flag">已拥有</div>{{/if}}
+
+          {{if gift.icon}}
+          <img class="ex-icon" src="{{gift.icon}}" alt="">
+          {{else}}
+          <div class="ex-icon placeholder">无图</div>
+          {{/if}}
+
+          <div class="ex-name">{{gift.name}}</div>
+          <div class="ex-limit">{{gift.limitText}}</div>
+
+          <div class="ex-price"><div class="num">{{gift.price}}</div></div>
+        </div>
+        {{/each}}
+      </div>
+    </div>
+    {{/each}}
+
+    <div class="ex-foot">
+      发 <span class="hl">#营地兑换 编号</span> 选一件，再加 <span class="hl">确认</span> 两个字才真换<br>
+      {{if endTime}}本期到 {{endTime}} 截止{{/if}}
+    </div>
+
+  </div>
+</body>
+</html>

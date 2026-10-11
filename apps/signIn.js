@@ -7,7 +7,7 @@
  * |---|---|---|
  * | `#王者签到` 指令 | **发指令的人名下**的号 | **回原会话**（群里发就回群、私聊发就回私聊） |
  * | `#开启/关闭王者自动签到` | 改定时开关（改配置 + 立刻重排 job） | 回原会话一句确认 |
- * | 每日定时任务 | 池子里**所有**有号主的号 | **私聊各自的号主** |
+ * | 每日定时任务 | 池子里**所有**有号主的号 | **按开启位置发**（群里开的就回那个群 @ 他 + 出图；私聊开的/没记录就私聊），见 utils/signReportTarget.js |
  *
  * ## 为什么必须按 owner 分流
  *
@@ -41,12 +41,12 @@
  *
  * 改配置后**必须让 job 立刻重排**（`utils/taskCtl.js`），否则：
  *   · 空配置时加载 → 用户运行中「开启」→ job 从没注册过，永远不跑
- *   · 非空配置时加载 → 用户运行中「关闭」→ job 还挂着，第二天照样私聊
+ *   · 非空配置时加载 → 用户运行中「关闭」→ job 还挂着，第二天照样推报告
  * 另有一道**运行时闸门**（`autoSign` 开头查配置）兜底，双保险。
  *
  * ## 定时任务「一切正常就不打扰」
  *
- * 天天推一条「今天已签」是骚扰。私聊只在两种情况发：
+ * 天天推一条「今天已签」是骚扰。报告只在两种情况发：
  *   · 真签上了（他领到奖励了，值得说一声）
  *   · 真失败了（要他处理）
  * 「本来已签」「没绑王者角色」都是日常状态，**跳过**。
@@ -62,6 +62,7 @@ import { sendPrivate } from '../utils/privateMsg.js'
 import { sendMaster } from '../utils/masterMsg.js'
 import { hotBox } from '../utils/hotState.js'
 import { rescheduleOwnTask, isCronOn } from '../utils/taskCtl.js'
+import { rememberTarget, getTarget, forgetTarget } from '../utils/signReportTarget.js'
 
 /** 定时签到时间的配置键（锅巴「营地签到」区块） */
 const KEY_CRON = 'campSignCron'
@@ -183,11 +184,58 @@ function giftLine (view) {
     .join(' + ')
 }
 
+/**
+ * 签到结果拼成文字（私聊用，也给出图失败时兜底）。
+ *
+ * 抽成函数是因为**三个地方要用同一份文案**：私聊、群里出图失败的回落、
+ * 以及推不出去时转告主人的那一段。各写一份必然漂移。
+ */
+function signResultText (views) {
+  const lines = ['营地签到结果']
+  let okCount = 0
+
+  for (const v of views) {
+    const label = `${v.name}（${v.campId}）`
+    if (v.signed) {
+      okCount++
+      const gifts = giftLine(v)
+      lines.push(`${label}：签到成功${gifts ? `，${gifts}` : ''}`)
+    } else if (v.already) {
+      lines.push(`${label}：今天已签`)
+    } else {
+      lines.push(`${label}：${v.stateText}${v.failReason ? ` —— ${v.failReason}` : ''}`)
+    }
+    // 这一轮自动做掉的任务（浏览/点赞/分享）
+    if (v.actedText) lines.push(`　自动完成：${v.actedText}`)
+    // 领到的营地币单独一行（这是用户最关心的那笔）
+    if (v.claimedText) lines.push(`　已领取：${v.claimedText}${v.coin === null ? '' : `，现有 ${v.coin} 营地币`}`)
+  }
+
+  if (okCount) lines.push('', `共签上 ${okCount} 个号`)
+  return lines.join('\n')
+}
+
+/**
+ * 取群名片，出图标题用。
+ *
+ * ⚠️ 取不到就回 QQ 号 —— 群成员接口在不同适配器上差异很大（有的没有
+ * `pickMember`、有的 `getInfo` 不存在），**不能让它把整条推送带崩**。
+ */
+async function groupNickname (bot, groupId, userId) {
+  try {
+    const member = bot?.pickMember?.(groupId, userId)
+    const info = await member?.getInfo?.()
+    return String(info?.card || info?.nickname || userId)
+  } catch {
+    return String(userId)
+  }
+}
+
 export class CampSignIn extends plugin {
   constructor () {
     super({
       name: '王者营地签到',
-      dsc: '王者营地每日签到（可定时自动签，结果私聊号主）',
+      dsc: '王者营地每日签到（可定时自动签，报告发在开启时的位置）',
       event: 'message',
       priority: 0,
       rule: [
@@ -269,10 +317,16 @@ export class CampSignIn extends plugin {
    *    自己写会绕过框架的缓存与热重载通知，出现「面板显示旧的、实际是新的」。
    */
   async enableAuto (e) {
+    // ⚠️ 位置要**先记**，且「已经开着」那条分支也要记 ——
+    //    用户在群里补发一次 `#开启王者自动签到`，意图就是「把报告挪到这个群」，
+    //    不能因为「早就开着了」就不理他（那样他会以为没生效）。
+    rememberTarget(e)
+
     // 已经是开着的就别重复触发一轮签到（可能正撞上定时那轮，白等十几秒）
     if (isCronOn(cfg()[KEY_CRON])) {
       return e.reply(
         `自动签到已经开着啦（每天 ${humanCron(cfg()[KEY_CRON])}）\n`
+        + `以后的签到结果就发在${e.group_id ? '本群' : '私聊'}\n`
         + '想改时间：锅巴面板 → 王者荣耀 → 营地签到\n'
         + '想手动签一次：发 #王者签到',
         shouldQuote()
@@ -286,7 +340,7 @@ export class CampSignIn extends plugin {
 
     await e.reply(
       `自动签到已开启（每天 ${humanCron(DEFAULT_CRON)}）\n`
-      + '现在先签一次，结果私聊你\n'
+      + `现在先签一次，以后的结果都发在${e.group_id ? '本群' : '私聊'}\n`
       + '想改时间：锅巴面板 → 王者荣耀 → 营地签到',
       shouldQuote()
     )
@@ -313,6 +367,10 @@ export class CampSignIn extends plugin {
     if (!ok) return e.reply('写入配置失败，去锅巴面板里关一下试试', shouldQuote())
 
     await rescheduleOwnTask(this.task[0], '')
+
+    // 关了就把「报告发哪儿」的记录清掉：下次开启会按那次的位置重新记，
+    // 留着只会让「在 A 群关掉、到 B 群开启」时多一次无谓的覆盖判断
+    forgetTarget(e.user_id)
 
     await e.reply(
       '自动签到已关闭，之后不会再自动签\n'
@@ -518,13 +576,18 @@ export class CampSignIn extends plugin {
   }
 
   /**
-   * 把结果私聊给各自的号主。
+   * 把结果发给各自的号主 —— **发到他当初开签到的地方**。
    *
    * ⚠️ **只发「需要他知道」的内容**：签上了要说（他领到奖励了），
    *    真失败了要说（要他处理）。「本来已签」是**日常状态**，天天推等于骚扰 —— 跳过。
    *
    * ⚠️ 传进来的 `pairs` **已经滤掉没绑角色的号**（调用方做的，见 `autoSign`）——
    *    这里不用再判 `noRole`，判了也是死代码。
+   *
+   * ⚠️⚠️ 发送位置按 `utils/signReportTarget.js` 的记录走（2026-10-11 主人要求）：
+   *    在群里开的就回那个群（**@他 + 出图**），私聊开的 / 没有记录的走私聊。
+   *    「没有记录」是**老用户的正常状态**（这个表 10-11 才有），必须回落私聊，
+   *    不能当成出错跳过 —— 否则所有老用户一夜之间收不到报告。
    */
   async #notifyOwners (pairs) {
     const grouped = groupByOwner(pairs)
@@ -542,32 +605,42 @@ export class CampSignIn extends plugin {
       const needTell = views.filter(v => v.signed || !v.already || v.claimedText)
       if (!needTell.length) continue
 
-      const lines = ['营地签到结果']
-      let okCount = 0
-      for (const v of needTell) {
-        const label = `${v.name}（${v.campId}）`
-        if (v.signed) {
-          okCount++
-          const gifts = giftLine(v)
-          lines.push(`${label}：签到成功${gifts ? `，${gifts}` : ''}`)
-        } else if (v.already) {
-          lines.push(`${label}：今天已签`)
-        } else {
-          lines.push(`${label}：${v.stateText}${v.failReason ? ` —— ${v.failReason}` : ''}`)
-        }
-        // 领到的营地币单独一行（这是用户最关心的那笔）
-        if (v.claimedText) lines.push(`　已领取：${v.claimedText}${v.coin === null ? '' : `，现有 ${v.coin} 营地币`}`)
-      }
-      if (okCount) lines.push('', `共签上 ${okCount} 个号`)
+      const target = getTarget(owner)
+      const sent = target?.groupId
+        ? await this.#sendToGroup(target, owner, needTell)
+        : await sendPrivate(owner, signResultText(needTell))
 
-      const sent = await sendPrivate(owner, lines.join('\n'))
       if (!sent.ok) {
-        // 私信发不出去（多半没加机器人好友）→ 转告主人，别静默丢
+        // 发不出去（私聊多半没加好友、群里多半是退群了）→ 转告主人，别静默丢
         logger.warn(`[${PluginName}] 签到结果推给 ${owner} 失败：${sent.reason}`)
         await sendMaster(
-          `营地号主 ${owner} 的签到结果推不出去（TA 多半没加机器人好友），内容：\n${lines.join('\n')}`
+          `营地号主 ${owner} 的签到结果推不出去（${sent.reason}），内容：\n${signResultText(needTell)}`
         )
       }
+    }
+  }
+
+  /**
+   * 把结果发到群里：**@他 + 签到图**（出图失败就 @他 + 文字）。
+   *
+   * @returns {Promise<{ok: boolean, reason: string}>} 跟 `sendPrivate` 同形状，
+   *   让调用方不用分叉处理失败
+   */
+  async #sendToGroup (target, owner, views) {
+    try {
+      const bot = (target.botId && Bot[target.botId]) || Bot
+      const group = bot?.pickGroup?.(target.groupId)
+      if (!group?.sendMsg) return { ok: false, reason: `取不到群 ${target.groupId}` }
+
+      const { image, textFallback } = await renderSignImage(views, {
+        mode: 'sign',
+        ...summarizeViews(views)
+      }, { userId: owner, username: await groupNickname(bot, target.groupId, owner) })
+
+      await group.sendMsg([segment.at(owner), image || textFallback])
+      return { ok: true, reason: '' }
+    } catch (error) {
+      return { ok: false, reason: String(error?.message || error) }
     }
   }
 
@@ -613,38 +686,58 @@ export class CampSignIn extends plugin {
    * 不能因为截图失败就让这次签到静默消失（写请求已经发出去了）。
    */
   async #render (e, views, meta) {
-    const data = buildSignView({
-      views,
-      mode: meta.mode,
-      okCount: meta.okCount || 0,
-      alreadyCount: meta.alreadyCount || 0,
-      failCount: meta.failCount || 0,
-      // 「没绑王者角色」单独透传，别让它混进「没签上」的计数
-      noRoleCount: meta.noRoleCount || 0,
-      avatar: `https://q1.qlogo.cn/g?b=qq&s=100&nk=${e.user_id}`,
+    const { image, textFallback } = await renderSignImage(views, meta, {
+      userId: e.user_id,
       username: (e.sender?.card || e.sender?.nickname || String(e.user_id))
     })
 
-    let image = null
-    try {
-      image = await puppeteer.screenshot('campSign', {
-        tplFile: 'plugins/GloryOfKings-Plugin/resources/html/CampSign.html',
-        _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
-        imgType: getImgType(),
-        ...data
-      })
-    } catch (error) {
-      logger.error(`[王者签到] 出图失败: ${error.message}`)
-    }
-
-    // ⚠️ screenshot 失败返回的是 false 而不是抛错，光看 try/catch 拦不住
-    if (image) {
-      await e.reply(image, shouldQuote())
-      return
-    }
-
-    await e.reply(data.textFallback, shouldQuote())
+    await e.reply(image || textFallback, shouldQuote())
   }
+}
+
+/**
+ * 出签到图 —— **不依赖消息事件**，定时任务也能用。
+ *
+ * 从 `#render` 里拆出来的：定时任务那条路原先只会手拼文字
+ * （`#notifyOwners`），用户在群里开的签到、第二天收到一坨纯文本，
+ * 跟手动 `#王者签到` 出的图完全两个样（2026-10-11 主人提出）。
+ * 两边各写一份渲染必然漂移，所以收口到这里。
+ *
+ * **永远不抛异常**：出图失败就回 `image: null`，调用方拿 `textFallback` 兜底 ——
+ * 签到结果比图重要，不能因为截图挂了让这次签到静默消失（写请求已经发出去了）。
+ *
+ * @param {object[]} views signOneAccount 的结果数组
+ * @param {object} meta `{ mode, okCount, alreadyCount, failCount, noRoleCount }`
+ * @param {object} who `{ userId, username }` —— 头像和标题用
+ * @returns {Promise<{image: any, textFallback: string}>}
+ */
+export async function renderSignImage (views, meta, who = {}) {
+  const data = buildSignView({
+    views,
+    mode: meta.mode,
+    okCount: meta.okCount || 0,
+    alreadyCount: meta.alreadyCount || 0,
+    failCount: meta.failCount || 0,
+    // 「没绑王者角色」单独透传，别让它混进「没签上」的计数
+    noRoleCount: meta.noRoleCount || 0,
+    avatar: `https://q1.qlogo.cn/g?b=qq&s=100&nk=${who.userId || ''}`,
+    username: String(who.username || who.userId || '')
+  })
+
+  let image = null
+  try {
+    image = await puppeteer.screenshot('campSign', {
+      tplFile: 'plugins/GloryOfKings-Plugin/resources/html/CampSign.html',
+      _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
+      imgType: getImgType(),
+      ...data
+    })
+  } catch (error) {
+    logger.error(`[王者签到] 出图失败: ${error.message}`)
+  }
+
+  // ⚠️ screenshot 失败返回的是 false 而不是抛错，光看 try/catch 拦不住
+  return { image: image || null, textFallback: data.textFallback }
 }
 
 /**

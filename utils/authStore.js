@@ -773,6 +773,43 @@ class AuthStore {
   }
 
   /**
+   * 取一个机器人用户**当前选中的**营地号（`UserData.yaml` 的 `{ ids, current }`）。
+   *
+   * ## 为什么需要它
+   *
+   * 一个人名下可以绑好几个营地号（主人就有 5 个）。要做「账号级」的事
+   * （`#营地兑换` 花币、查余额这类）时，**必须有个明确的「用哪个号」**。
+   *
+   * ⚠️⚠️ **别拿 `listGlobalAccountsByOwner(...)[0]` 当「当前号」** ——
+   *    那个列表是按 `isGlobalDefault` → `priority` → **userId 字符串**排的，
+   *    多号之间这些字段往往完全相同（主人 5 个号 priority 都是 100），
+   *    于是「第一个」实际由 **userId 的字典序**决定 —— 2026-10-11 实测就因此
+   *    把别人（`1476924610`）的号当成了主人的默认号显示出来。
+   *    「当前号」只有 `UserData.yaml` 里的 `current` 说了算。
+   *
+   * ⚠️ `current` 是**下标**不是 id：它在 `ids` 里越界（手改 YAML、备份还原、
+   *    删过号）时回落第一个，**不抛错** —— 展示用的东西不该让指令整个挂掉。
+   *
+   * @param {string} botUserId 机器人用户（QQ 号）
+   * @returns {string} 当前营地号；没绑过就回 `''`
+   */
+  getCurrentCampUserId (botUserId) {
+    const id = toText(botUserId)
+    if (!id) return ''
+
+    const userData = readYamlSafe(USER_DATA_FILE, EMPTY_USER_DATA)
+    const entry = userData?.[id]
+    if (!entry || !Array.isArray(entry.ids) || !entry.ids.length) return ''
+
+    const index = Number(entry.current)
+    const picked = Number.isInteger(index) && index >= 0 && index < entry.ids.length
+      ? entry.ids[index]
+      : entry.ids[0]
+
+    return toText(picked)
+  }
+
+  /**
    * 把营地ID绑到机器人用户身上（`UserData.yaml` 里 `{ ids: [], current: 0 }` 那套）。
    * 已绑过的号不重复入列，只把它切到 `current`。
    */

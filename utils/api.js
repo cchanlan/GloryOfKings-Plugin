@@ -2636,6 +2636,63 @@ class ApiService {
   }
 
   /**
+   * **用营地币兑换**（`/operation/lotterygetgift`）。
+   *
+   * ⚠️⚠️ 这是**花钱且不可逆**的写操作 —— 调用方必须自己做好二次确认，
+   *    不要在任何自动流程（签到、定时任务）里调它。
+   *
+   * ⚠️ `retries` 传 **0**：重试等于重复兑换、重复扣币。
+   *
+   * 早先 `apps/campCoin.js` 的注释断言「下单兑换做不到、只能走 WebView JS 桥」，
+   * **那是错的** —— 当时试的是 `/play/h5lotterygetgift`（名字像，但参数乱填都回 0，
+   * 根本不是下单口）。真正的兑换口在 `/operation/` 下，参数形态见
+   * `utils/campExchange.js` 的 `exchangeBody`。
+   *
+   * 业务码（实测）：
+   *   · `0`           兑换成功
+   *   · `-10530338`   营地币不足（**参数全对**才会走到这一步）
+   *   · `-105223`     缺 `gameId`，或这件商品不吃这个口（营地自家的 50001 恒定这个）
+   *   · `-10520011`   商品的 gameId 和传进来的对不上
+   *
+   * @param {string} userId 账号池里的 userId（营地ID）
+   * @param {object} body `exchangeBody()` 造出来的请求体
+   */
+  async exchangeCampGift (userId, body) {
+    const id = toText(userId)
+
+    return this.#transport.requestWithCandidates(
+      'POST', '/operation/lotterygetgift', body, {},
+      0, id, '', { accountId: id }
+    )
+  }
+
+  /**
+   * 拉**营地币兑换**的完整商品表（`/operation/lotteryquery`）。
+   *
+   * ⚠️⚠️ **必须带 `{ gameId:'20001', type:'exchange' }`** —— 少了 `type`，
+   *    `data.exchangeInfo` 恒为 `null`，会被误判成「现在没有兑换活动」。
+   *    实际上有 19 件商品挂着（2026-10-11 实测）。
+   *
+   * ⚠️ 别拿 `/operation/action/tasklist` 里那份 `exchangeList` 当商品表 ——
+   *    它只有 6 件，是**残缺的子集**（早先就被它误导过，以为「营地币只能换这么点」）。
+   *    真正的清单只在这个接口的 `exchangeInfo.giftList` 里。
+   *
+   * 返回 `data`：`userCurrencyCnt`（余额）/ `exchangeInfo.giftList[]`（商品）
+   * / `exchangeInfo.endTime`（活动截止）/ `ruleText`（规则文案）。
+   * 单条商品的字段解读见 `utils/campExchange.js`。
+   *
+   * @param {string} userId 账号池里的 userId（营地ID）
+   */
+  async getCampExchange (userId) {
+    const id = toText(userId)
+
+    return this.#transport.requestWithCandidates(
+      'POST', '/operation/lotteryquery', { gameId: '20001', type: 'exchange' }, {},
+      2, id, '', { accountId: id }
+    )
+  }
+
+  /**
    * 查**营地币余额**。
    *
    * 端点本身叫 `h5lotteryquery`（抽奖查询），但实测（2026-10-10）它一次给全：
@@ -2665,44 +2722,6 @@ class ApiService {
     return this.#transport.gameFormWithCandidates(
       '/play/h5lotteryquery', {}, userId, requesterBotUserId, 2, { accountId: userId }
     )
-  }
-
-  /**
-   * 拉**营地商城**商品列表（`/mall/tabgoodslist`）。
-   *
-   * 实测 2026-10-10：`totalPage` 67、单页 15 条。每条商品字段非常多，常用的：
-   *   · `goodsId` / `djcId` —— 商品 ID（`djcId` 是「道具城」那边的 ID）
-   *   · `name` / `subName` —— 名称 / 副标题（皮肤商品这里是英雄名）
-   *   · `posterUrl` / `goodsBust` —— 海报 / 半身像
-   *   · `curPrice` / `orgPrice` / `discountPrice` —— 现价 / 原价 / 折后价
-   *   · `currencyType` —— **币种数组**。实测取值：`1`（营地币）、`3`（人民币）、`4`
-   *   · `type` —— 商品类型（1=皮肤、6=英雄、7=个性按键…）
-   *   · `isOwn` —— 是否已拥有
-   *   · `limitBuy` —— 限购
-   *
-   * ⚠️ **`tabId` 不是品类筛选**：实测传 0~5 各页返回的商品不同，但都是混着的，
-   *    没有稳定的「营地币专区」这种语义。想筛就用 `currencyType`。
-   * ⚠️ `page` 从 **0** 开始。
-   *
-   * ⚠️⚠️ **这是随机推荐流，不要给它锁账号**（2026-10-10 实测，别被
-   *    `getCampCoin` 那边的 `accountId` 带偏 —— 那个是真要锁，这个恰恰不能锁）：
-   *      · 同一账号连发 3 次，**每次都不同**（首件 辉耀纪元·头部 → 小胖祥瑞亨通动态签名
-   *        → 魅语 个性按键），`recommendId` 每次都换、`algoType` 恒为 `base`
-   *      · A → B → A 时，A 的第二次也跟第一次不同 → **不是被 B 影响的，是本来就随机**
-   *    → 锁账号不会更准，反而把「每次翻都有新东西」弄没了。
-   *
-   *    判据：「**稳定 + 按账号区分**」才叫账号级数据；只有「按账号区分」而
-   *    「同账号每次也不同」，那叫随机推荐。
-   *
-   * @param {object} [opts]
-   * @param {number} [opts.tabId=0]
-   * @param {number} [opts.page=0] 页码，**从 0 开始**
-   * @param {number} [opts.pageSize=15]
-   */
-  async getMallGoods ({ tabId = 0, page = 0, pageSize = 15 } = {}) {
-    return this.#transport.requestWithCandidates('POST', '/mall/tabgoodslist', {
-      tabId, page, pageSize
-    }, {}, 2)
   }
 
   /**

@@ -1,26 +1,23 @@
 /**
- * 营地币与营地商城的**纯数据解析**。
+ * 营地币余额的**纯数据解析**（`#营地币` 用）。
  *
- * 零 import，为了能脱开云崽运行时直接单测（`test/campMall.test.mjs`）——
- * 这一块的风险全在「接口字段怎么解读」上（币种编号、价格口径、缺字段兜底），
- * 不在请求编排上，所以判据要能被钉住。
+ * > 早先这个文件还负责营地商城的商品列表（`parseGoodsList` 等），
+ * > **2026-10-11 随 `#营地商城` 一起删掉了** —— 那个指令只能看不能买
+ * > （下单走米大师 SDK，HTTP 到不了），而且主人在营地 App 里根本找不到它的入口。
+ * > 要恢复见 git 历史。
  */
 
 /**
- * `currencyType` 数字 → 币种名。
+ * 币种数字 → 可读名字。
  *
- * ⚠️ **接口不给币种文案**，这张表是「实测 + 常识」推断出来的，
- * 拿不准的取值**必须**落到 `币种N` 兜底，不许瞎猜一个像模像样的名字 ——
- * 猜错会让用户以为某件商品能用营地币买，实际要花钱。
- *
- * 2026-10-10 实测分布（扫了 66 件商品）：`[1]` 58 条、`[3]` 4 条、`[4]` 2 条、
- * `[4,1]` 1 条、`[1,4]` 1 条。其中 `[3]` 那 4 条是实体手办（28800 价位的
- * 「繁星吟游蔡文姬Q版手办」），所以 `3` 判为人民币。
+ * `currencyType` 实测取值：`1` = 营地币（签到给的那种）、`3` = 人民币、
+ * `4` = 另一种券。接口**没给币种文案**，所以这张表是**硬编码**的 ——
+ * 认不出来的一律显示 `币种N`，不瞎猜（猜错了比不显示更误导）。
  */
 const CURRENCY_NAMES = {
   1: '营地币',
   3: '人民币',
-  4: '营地券'
+  4: '券'
 }
 
 /**
@@ -53,168 +50,49 @@ export function describeCurrencies (types) {
  *    **是「当前没有活动」的正常状态**，不是接口坏了 —— 上层别报成错误。
  *
  * @param {object} data 接口响应的 `data`
- * @returns {{coin: number, hasExchange: boolean, exchangeText: string, serverTime: string}}
+ * @returns {{coin: number|null, hasExchange: boolean, exchangeText: string, serverTime: string}}
+ *   `coin` 读不到是 `null`（**不是 0** —— 「读不到余额」和「余额是 0」对用户是两件事）
  */
 export function parseCoinBalance (data) {
   const raw = data?.userCurrencyCnt
-  const coin = Number(raw)
-
-  // ⚠️⚠️ 这里**必须先看类型**，不能只判 null/空串。三个经典坑：
-  //    `Number(null)` / `Number('')` / **`Number([])`** 全都等于 **0**
-  //    → 字段缺失或形状异常时会显示「0 枚营地币」，用户以为余额被清零了。
-  //    只有 `number` 和非空字符串才算「真的读到了」。
-  const known = (typeof raw === 'number' && Number.isFinite(raw)) ||
-    (typeof raw === 'string' && raw.trim() !== '' && Number.isFinite(coin))
+  const coin = (raw === null || raw === undefined || raw === '') ? null : (Number(raw) || 0)
 
   const banners = Array.isArray(data?.exchangeBanners) ? data.exchangeBanners : []
   const hasExchange = Boolean(data?.exchangeInfo) || banners.length > 0
 
   let exchangeText = ''
-  if (hasExchange) {
-    const info = data?.exchangeInfo || {}
-    const title = String(info.title || info.name || '').trim()
-    const count = banners.length
-    exchangeText = title || (count ? `有 ${count} 个兑换活动` : '有兑换活动')
+  if (data?.exchangeInfo?.endTime) {
+    exchangeText = `兑换活动到 ${String(data.exchangeInfo.endTime).slice(0, 10)} 截止`
+  } else if (banners.length) {
+    exchangeText = `有 ${banners.length} 个活动入口`
   }
 
   return {
-    coin: known ? coin : null,
-    coinText: known ? `${coin} 枚` : '读取失败',
+    coin,
     hasExchange,
     exchangeText,
-    serverTime: String(data?.serverTime || '')
+    serverTime: String(data?.serverTime ?? '')
   }
 }
 
 /**
- * 一个号的余额**该不该显示、显示成什么**。
+ * 一个号的余额行 —— **该不该显示、显示成什么，判据都在这儿**。
  *
- * ⚠️⚠️ 2026-10-10 主人要求：「余额没有的或者没有角色的就别显示了」。
- *    实测主人名下 5 个号 —— 有王者角色的 2 个是 25 / 225，另外 3 个（`roles` 空数组、
- *    没绑王者角色）全是 **0**。营地币本来就是签到 / 营地任务发的，**没角色的号必然读成 0**，
- *    所以「不显示 0」这一条已经把「没角色」一起覆盖了，不必再打一次 `/game/rolelist`
- *    去分辨原因（多打 N 次请求 = 白吃一轮 -30107 频控，命中一次静默 12 小时）。
+ * 为什么单独一个函数：这两个「不显示」的规则很容易在调用方漏掉或写反，
+ * 而它们都是主人明确要求过的：
+ *   · **余额为 0 的号不显示**（2026-09-13 主人要求）—— 没绑角色的号读出来必然是 0
+ *     （币是签到/任务给的，没角色就没做过任务），一大堆「0 营地币」纯属噪音
+ *   · **读不到余额**（`coin === null`）**要显示**成「读取失败」—— 那是异常，得让人看见
  *
- * ⚠️ 「读不到」（`coin === null`）**必须照旧说**，不能跟 0 一起吞掉 ——
- *    那是真故障，静默处理会让用户以为号丢了。
- *
- * @param {string} label 显示名（形如 `昵称（1536597962）`）
- * @param {object} view `parseCoinBalance` 的返回值
- * @returns {string|null} 该显示的一行文案；**返回 null = 这一行不显示**
+ * @param {string} label 展示名（`昵称（营地号）`）
+ * @param {object} view parseCoinBalance 的结果
+ * @returns {string|null} 该行文案；`null` = 这个号不用显示
  */
 export function balanceLineOf (label, view) {
-  // ⚠️ coinText 里**已经带「枚」了**（`'25 枚'`），别再拼一次
-  if (!view || view.coin === null || view.coin === undefined) return `${label}：读取失败`
-  if (!(view.coin > 0)) return null
+  if (view?.coin === null) return `${label}：读取失败`
 
-  return `${label}：${view.coinText}`
-}
+  const coin = Number(view?.coin) || 0
+  if (coin <= 0) return null
 
-/** 价格口径：优先折后价，没有就用现价；都为 0 时返回空 */
-function pickPrice (goods) {
-  const discount = String(goods?.discountPrice ?? '').trim()
-  const current = String(goods?.curPrice ?? '').trim()
-
-  // 「0」和空串都算没有。注意 discountPrice 为 "0" 时不算打折
-  const usable = value => value && value !== '0'
-  if (usable(discount)) return { value: discount, discounted: true }
-  if (usable(current)) return { value: current, discounted: false }
-
-  return { value: '', discounted: false }
-}
-
-/**
- * 解析商城列表响应（`/mall/tabgoodslist` 的 `data`）→ 出图要的结构。
- *
- * 实测字段（2026-10-10，`goodsId=314` 的「一念神魔」）：
- * `goodsId` / `djcId` / `name` / `subName` / `posterUrl` / `goodsBust` /
- * `curPrice`（"16880"）/ `orgPrice` / `discountPrice`（"13500"）/
- * `currencyType`（`[1]`）/ `type`（1=皮肤 6=英雄 7=个性按键）/
- * `isOwn`（false）/ `limitBuy`（0）/ `tabs`（`[1]`）
- *
- * @param {object} data 接口响应的 `data`
- * @param {object} [opts]
- * @param {number} [opts.page=1] 用户视角的页码（从 1 开始）
- * @param {number} [opts.pageSize=15]
- */
-export function parseGoodsList (data, { page = 1, pageSize = 15 } = {}) {
-  const list = Array.isArray(data?.list) ? data.list : []
-  const totalPage = Math.max(1, Number(data?.totalPage) || 1)
-  const curPage = Math.max(1, Number(data?.curPage ?? (page - 1)) + 1)
-
-  const goods = list.map(item => {
-    const price = pickPrice(item)
-    const currencies = describeCurrencies(item?.currencyType)
-
-    // 价格后面缀上币种；币种认不出来时只显示数字，别硬贴一个假名字
-    const priceText = price.value
-      ? `${price.value}${currencies[0] ? ` ${currencies[0]}` : ''}`
-      : '—'
-    const own = item?.isOwn === true || item?.isOwn === 1 || item?.isOwn === '1'
-    const limit = Number(item?.limitBuy) || 0
-
-    return {
-      goodsId: String(item?.goodsId ?? ''),
-      name: truncateName(String(item?.name || '未命名').trim(), 30),
-      sub: String(item?.subName || '').trim(),
-      // 海报优先，没有再退回半身像
-      image: String(item?.posterUrl || item?.goodsBust || '').trim(),
-      price: price.value,
-      priceText,
-      // 「—」是「接口没给价」（英雄类商品就是这样），模板用它把字压暗，
-      // 免得一个大灰杠看着像渲染坏了
-      priceClass: price.value ? '' : 'none',
-      discounted: price.discounted,
-      orgPrice: String(item?.orgPrice || '').trim(),
-      currencies,
-      owned: own,
-      // 模板用的 class 名（art-template 里拼字符串容易写错，这里先算好）
-      ownedClass: own ? 'owned' : '',
-      ownedText: own ? ' · 已拥有' : '',
-      // 限购 0 = 不限购，不显示；有限购才提示
-      limit,
-      limitText: limit > 0 ? `限购 ${limit}` : ''
-    }
-  })
-
-  const ageHint = describePageAge(curPage, totalPage)
-
-  return {
-    title: '营地商城',
-    page: curPage,
-    totalPage,
-    pageText: `第 ${curPage}/${totalPage} 页`,
-    count: goods.length,
-    goods,
-    // 翻页提示：让用户知道有下一页可以发
-    nextHint: curPage < totalPage ? `发 #营地商城 ${curPage + 1} 看下一页` : '已经是最后一页',
-    ageHint,
-    footText: '价格与库存以营地 App 为准；兑换要在 App 里操作',
-    goodsJson: JSON.stringify(goods)
-  }
-}
-
-/**
- * 商品名太长时的截断（出图卡片放不下）。
- * 中英混排按字符数算就够了，不搞像素测量。
- */
-export function truncateName (name, maxLength = 16) {
-  const text = String(name ?? '').trim()
-  if (text.length <= maxLength) return text
-
-  return `${text.slice(0, maxLength - 1)}…`
-}
-
-/**
- * 页面尺寸提示：页面越靠后越旧，给用户一句实话。
- * 实测总页数 67，翻到后面多半是下架/售罄的。
- */
-export function describePageAge (page, totalPage) {
-  if (totalPage <= 1) return ''
-  if (page <= 1) return ''
-
-  const ratio = page / totalPage
-  if (ratio > 0.8) return '这一页比较靠后，商品可能已下架或售罄'
-
-  return ''
+  return `${label}：${coin} 营地币`
 }
