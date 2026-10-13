@@ -60,6 +60,28 @@ const ORIGIN = 'https://chat-1255653016.cos.ap-guangzhou.myqcloud.com/1762241423
   assert.equal(pics[0].url, 'https://example.com/a.png?x=1')
 }
 
+// ④b ⭐⭐ 离线补拉的形态：多包一层 linkData（协议码还是字符串）
+//     真实样本（2026-10-13 实测 /chatserver/offline/singlemsg）
+{
+  const OFFLINE_LINK = [{
+    linkData: ['7', '0', '0', JSON.stringify({ origin: ORIGIN, height: 2796, emojiName: null, width: 1290,
+      thumb: ORIGIN + '?imageMogr2/thumbnail/!30p', type: 0, scale: 1 })]
+  }]
+  const msg = { selfUserId: '1580886057', fromUserId: '1762241423', text: '', raw: { message: '', links: OFFLINE_LINK } }
+  const pics = extractImages(msg)
+  assert.equal(pics.length, 1, '离线补拉的 linkData 形态没认出来（断线期间收的图会全丢）')
+  assert.equal(pics[0].url, ORIGIN)
+  assert.equal(pics[0].width, 1290)
+}
+
+// ④c 坏数据的 linkData（不是数组 / 空对象）也不能抛
+{
+  assert.deepEqual(extractImages({ links: [{ linkData: null }] }), [])
+  assert.deepEqual(extractImages({ links: [{ linkData: 'x' }] }), [])
+  assert.deepEqual(extractImages({ links: [{}] }), [])
+  assert.deepEqual(extractImages({ links: [null] }), [])
+}
+
 // ⑤ 占位文案：单图 [图片]、多图 [图片 ×N]，且不是发件人视角的「我发送了…」
 {
   assert.equal(photoMark(1), '[图片]')

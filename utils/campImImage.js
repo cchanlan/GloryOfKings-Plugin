@@ -23,15 +23,31 @@
  */
 
 /**
- * links 里一项长这样：`[7, 0, 0, '<JSON 元信息>']`。
+ * links 里一项有两种形态（**2026-10-13 实测对比出来的，都要认**）：
  *
- * 前三项是协议码（实测 `7/0/0`，不同消息类型可能不一样）—— **不要依赖它们的值**，
- * 也不认固定下标：只扫数组里的字符串项，谁解析得出图片地址就用谁。
+ * ```js
+ * // ① 在线推送（ws 推来的 param）—— 裸数组
+ * [7, 0, 0, '{"origin":"…"}']
+ *
+ * // ② 离线补拉（/chatserver/offline/singlemsg 的 data.list[]）—— 多包一层 linkData
+ * { linkData: ['7', '0', '0', '{"origin":"…"}'] }   // 注意协议码还是字符串
+ * ```
+ *
+ * ⚠️⚠️ **漏了 ② 的后果**（这个 bug 真出现过）：断线超 60 秒重连后补拉回来的
+ *    图片消息会解析不出图 → 被判成空消息**静默丢掉** —— 表现是「在线收得到图、
+ *    断线之后那段时间的图全没影」。两条路径的数据源是同一个营地接口家族，
+ *    但序列化形态不一样，必须都覆盖。
+ *
+ * 前三项是协议码（实测 `7/0/0`）—— **不要依赖它们的值**，也不认固定下标：
+ * 只扫数组里的字符串项，谁解析得出图片地址就用谁。
  * 这样营地哪天调整前缀，这里不用跟着改。
  */
 function parseLinkItem (item) {
-  if (!Array.isArray(item)) return null
-  for (const cell of item) {
+  if (!item || typeof item !== 'object') return null
+  // ② 离线补拉：{ linkData: [...] }
+  const arr = Array.isArray(item) ? item : item.linkData
+  if (!Array.isArray(arr)) return null
+  for (const cell of arr) {
     if (typeof cell !== 'string') continue
     const pic = parseImageMeta(cell)
     if (pic) return pic
