@@ -114,10 +114,23 @@ const SIGNINFO_EMPTY = {
   data: { weekSignMap: '0000000', seqSignDays: 0, userTotalSign: 0, weekList: [], totalList: [] }
 }
 
-/** 有角色、今天已签（真机原文） */
+/**
+ * 有角色、今天已签（真机原文）。
+ *
+ * ⚠️⚠️ 原先是写死的 `'0000010'`（那次实测是**周六**）—— 但 `isSignedToday`
+ *    按「今天」那一格判，只有周六跑才等于「已签」，其余六天全红。
+ *    这个测试是周六写的，于是从周一到周五稳定挂两条（2026-10-14 周三踩到）。
+ *    fixture 必须**按当天现算**，才跟"真机原文"的语义一致。
+ */
+const signedMapToday = () => {
+  const map = '0000000'.split('')
+  map[(new Date().getDay() + 6) % 7] = '1'   // 周一=0（与 campSign.js 同口径）
+  return map.join('')
+}
+
 const SIGNINFO_SIGNED = {
   returnCode: 0,
-  data: { weekSignMap: '0000010', seqSignDays: 1, userTotalSign: 1 }
+  data: { weekSignMap: signedMapToday(), seqSignDays: 1, userTotalSign: 1 }
 }
 
 function reset () {

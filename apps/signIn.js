@@ -7,7 +7,7 @@
  * |---|---|---|
  * | `#王者签到` 指令 | **发指令的人名下**的号 | **回原会话**（群里发就回群、私聊发就回私聊） |
  * | `#开启/关闭王者自动签到` | 改定时开关（改配置 + 立刻重排 job） | 回原会话一句确认 |
- * | 每日定时任务 | 池子里**所有**有号主的号 | **按开启位置发**（群里开的就回那个群 @ 他 + 出图；私聊开的/没记录就私聊），见 utils/signReportTarget.js |
+ * | 每日定时任务 | 池子里**所有**有号主的号 | **按开启位置发**（群里开的就回那个群 @ 他；私聊开的/没记录就私聊），**两条路都出图**，见 utils/signReportTarget.js |
  *
  * ## 为什么必须按 owner 分流
  *
@@ -226,6 +226,22 @@ async function groupNickname (bot, groupId, userId) {
     const member = bot?.pickMember?.(groupId, userId)
     const info = await member?.getInfo?.()
     return String(info?.card || info?.nickname || userId)
+  } catch {
+    return String(userId)
+  }
+}
+
+/**
+ * 私聊取好友昵称，出图标题用 —— 同 `groupNickname` 的口径：
+ * 拿不到（没加好友 / 适配器没有 `getInfo`）就回 QQ 号，**绝不抛**。
+ *
+ * ⚠️ 跟群路一样**收 bot 参数**（多账号下别拿错号去查好友）。
+ */
+async function friendNickname (bot, userId) {
+  try {
+    const friend = bot?.pickFriend?.(userId)
+    const info = await friend?.getInfo?.()
+    return String(info?.nickname || info?.card || userId)
   } catch {
     return String(userId)
   }
@@ -608,7 +624,7 @@ export class CampSignIn extends plugin {
       const target = getTarget(owner)
       const sent = target?.groupId
         ? await this.#sendToGroup(target, owner, needTell)
-        : await sendPrivate(owner, signResultText(needTell))
+        : await this.#sendToPrivateChat(target, owner, needTell)
 
       if (!sent.ok) {
         // 发不出去（私聊多半没加好友、群里多半是退群了）→ 转告主人，别静默丢
@@ -642,6 +658,45 @@ export class CampSignIn extends plugin {
     } catch (error) {
       return { ok: false, reason: String(error?.message || error) }
     }
+  }
+
+  /**
+   * 把结果私聊给号主：**跟群路一样先出图**，图挂了才回落纯文字。
+   *
+   * ⚠️⚠️ 2026-10-14 修：这条分支原先**只拼文字**（`signResultText`），
+   *    而位置记录表 `SignReportTarget.yaml` 是 10-11 才有的 ——
+   *    在那之前开的、以及**在锅巴面板里开着开关的**用户全都查不到记录，
+   *    一律走这条私聊路，于是「报告出图」对他们等于没发生过：
+   *    每天 7:30 收到的永远是那坨文字（主人自己的号就是这样）。
+   *    两条路都是「签到报告」，长的就该一个样 —— 各写一份必然漂移
+   *    （10-11 只给群路补了图，私聊路就漏成了这次的 bug）。
+   *
+   * @returns {Promise<{ok: boolean, reason: string}>} 同 `sendPrivate` 形状
+   */
+  async #sendToPrivateChat (target, owner, views) {
+    const bot = (target?.botId && Bot[target.botId]) || Bot
+
+    let sent = { ok: false, reason: 'render_failed' }
+    let textFallback = ''
+    try {
+      const rendered = await renderSignImage(views, {
+        mode: 'sign',
+        ...summarizeViews(views)
+      }, { userId: owner, username: await friendNickname(bot, owner) })
+
+      textFallback = rendered.textFallback || ''
+      if (rendered.image) sent = await sendPrivate(owner, [rendered.image], { bot })
+      if (sent.ok) return { ok: true, reason: '' }
+    } catch (error) {
+      sent = { ok: false, reason: String(error?.message || error) }
+    }
+
+    // 图没出成（或图发不出去）→ 回落纯文字：签到是写操作，结果必须送达。
+    // 文案优先用渲染器给的 `textFallback`（跟手动指令那条路的兜底同一份），
+    // 它自己会写明「出图失败，先用文字版」—— 用户就不会以为我们改错了。
+    logger.warn(`[${PluginName}] 签到图发给 ${owner} 没成（${sent.reason}），改用文字`)
+    const fallback = await sendPrivate(owner, textFallback || signResultText(views), { bot })
+    return { ok: fallback.ok, reason: fallback.reason || '' }
   }
 
   /**
