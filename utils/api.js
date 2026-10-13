@@ -1358,21 +1358,50 @@ class CampAuthSession {
       auth: this.buildConfig(candidate.auth, baseAuth)
     }))
 
+    // ⭐⭐ 自我优先（2026-10-14 加）：被查者本人在池里就先用**他自己的号**发。
+    //
+    // 为什么：营地有「自我豁免」——自己查自己不受战绩隐私限制（2026-10-13 主号实测：
+    // 隐藏态下他见 invisible=true/list=0、自见 invisible=false/list=30 真实数据，
+    // 见记忆 gok-camp-privacy-self-exemption）。目标本人的号提到队首之后，
+    // 「查开了隐私的号」只要他自己扫码进过池子就能出数据。
+    //
+    // ⚠️ 只在 targetUserId 确实是**池内的营地号**时才命中；传角色 ID 的调用
+    //    （如 getFightData 传 roleId、getHeroRecordDetails 传 roleId）天然不命中，
+    //    自动退回原顺序，行为与改动前一致。
+    // ⚠️ 频控自动回退：self 命中 -30107 会被 #rateLimiter 记冷却，后续请求在
+    //    #runWithCandidates 的冷却检查处自动跳过它、落到其余全局账号轮询 ——
+    //    「风控时退回轮询」不需要另写逻辑。
+    // ⚠️ self 只是**顺序**优先级：命中不了的场景（未登号/失效/冷却中）全部自动
+    //    退化，不改变任何账号的可用性或轮转游标。
+    const targetId = toText(targetUserId)
+    let selfCandidate = null
+    if (targetId) {
+      const selfIndex = mappedCandidates.findIndex(candidate => toText(candidate.auth?.userId) === targetId)
+      if (selfIndex >= 0) {
+        const [picked] = mappedCandidates.splice(selfIndex, 1)
+        selfCandidate = {
+          ...picked,
+          label: `${picked.label}（目标本人，自我优先）`
+        }
+      }
+    }
+
     // 先轮转再打日志：日志要反映**这次实际会按什么顺序试**，打轮转前的顺序
     // 会让人以为「每次都是同一个号打头」而去找轮询为什么没生效（实测踩过）。
     const rotated = this.#rotateGlobals(mappedCandidates)
+    const ordered = selfCandidate ? [selfCandidate, ...rotated] : rotated
 
     logger.debug('[王者接口] 本次请求鉴权候选列表', {
       targetUserId: toText(targetUserId),
       requesterBotUserId: toText(requesterBotUserId),
-      candidates: rotated.map(candidate => this.#debugInfo(
+      candidates: ordered.map(candidate => this.#debugInfo(
         candidate.auth,
         candidate.source,
         candidate.label
       ))
     })
 
-    return rotated
+    return ordered
   }
 
   /** 标记这个候选账号失效（原 `#markCandidateAuthFailure`） */
