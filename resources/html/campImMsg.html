@@ -92,6 +92,23 @@
       word-break: break-word;
       white-space: pre-wrap;
     }
+    /* 对方发的图片：原图镶在卡片里，多张依次排开 */
+    .photos {
+      margin-top: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .photo {
+      display: block;
+      width: 100%;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.06);
+      /* 长得离谱的图（全景截图之类）封个顶，别把卡片拉成一条 */
+      max-height: 1400px;
+      object-fit: contain;
+      object-position: top;
+    }
   </style>
 </head>
 <body>
@@ -108,7 +125,16 @@
     </div>
     <div class="tag">营地消息</div>
   </div>
+  {{if photos}}
+  <div class="photos">
+    {{each photos}}
+    <img class="photo" src="{{$value}}" alt="">
+    {{/each}}
+  </div>
+  {{/if}}
+  {{if message}}
   <div class="body">{{message}}</div>
+  {{/if}}
 </div>
 </body>
 </html>

@@ -22,6 +22,7 @@
 import path from 'node:path'
 import { PluginData } from '#components'
 import { readYamlFile, writeYamlFile } from './yamlUtils.js'
+import { extractImages } from './campImImage.js'
 
 const FILE = path.join(PluginData, 'campIm.yaml')
 
@@ -158,15 +159,21 @@ export function getRef (msgId) {
  *    行为没保证），单靠它就会漏；内容指纹用「发信人 + 游戏时间戳 + 正文」，同一条消息重放
  *    时这三个都不变。两条键同时查，命中哪条都算重复。
  *
- * @param {object} msg 服务端返回的消息对象
- * @returns {string[]}
+ * ⚠️⚠️ 内容指纹里**还要带图片地址**（2026-10-14 加）：图片消息的正文是**空的**，
+ *    指纹只剩「发信人 + 时间戳」—— 同一个人同一秒连发两张图（截图连拍很常见）
+ *    时两张的指纹一模一样，第二张会被误判成重放**静默丢掉**。
+ *    用图片原图地址当指纹的一部分，两张不同的图就分得开了。
  */
 export function messageKeys (msg) {
   const self = String(msg?.selfUserId ?? '')
   const mid = msg?.messageId || msg?.raw?.messageID || ''
   const keys = []
   if (mid) keys.push(`${self}:${mid}`)
-  keys.push(`${self}:${msg?.fromUserId ?? ''}:${msg?.time ?? ''}:${msg?.text ?? ''}`)
+  const fp = `${self}:${msg?.fromUserId ?? ''}:${msg?.time ?? ''}:${msg?.text ?? ''}`
+  // 图片消息的 text 为空，拿原图地址补进指纹（没图时**不加后缀**，格式和旧版一字不差 ——
+  // 盘上已有的去重键继续对得上，升级不会让老消息多推一遍）
+  const picKey = extractImages(msg).map(p => p.url).join(',')
+  keys.push(picKey ? `${fp}:${picKey}` : fp)
   return [...new Set(keys)]
 }
 

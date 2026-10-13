@@ -17,6 +17,7 @@
  */
 import { Config, PluginName } from '#components'
 import { shouldQuote } from '#utils'
+import { extractImages } from '../utils/campImImage.js'
 import * as client from '../utils/campImClient.js'
 import * as store from '../utils/campImStore.js'
 import { pushToOwner, ownerOf, getLastPush } from '../utils/campImPush.js'
@@ -216,7 +217,13 @@ async function pollRound () {
 
 /** 分派一条消息 */
 async function dispatch (msg) {
-  if (!msg?.text) return
+  // ⚠️⚠️ 判空**不能只看 text**（2026-10-14 修）：营地好友发**图片**时 `text` 是空串、
+  //    图片地址在 `links` 里（见 utils/campImImage.js）。原先这里写的是 `if (!msg?.text) return`，
+  //    于是每一条图片消息都在这一行被**静默吞掉** —— 用户侧的表现就是「别人发的图片收不到」，
+  //    而服务端队列里明明躺着这些消息（实测三条 `type:'photo'` 全卡在这）。
+  //    有图就算有内容，正常走推送；图和文字都没有（解析失败 / 空消息）才丢。
+  const hasImages = extractImages(msg).length > 0
+  if (!msg?.text && !hasImages) return
   // 推给归属人
   const r = await pushToOwner(msg, { bot: global.Bot })
   if (r.ok) {

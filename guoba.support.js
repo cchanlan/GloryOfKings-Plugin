@@ -476,7 +476,7 @@ export function supportGuoba () {
         {
           field: 'config.campImPushImage',
           label: '推送带对方头像',
-          bottomHelpMessage: '推送时带上对方在游戏里的头像。',
+          bottomHelpMessage: '推送时带上对方在游戏里的头像。关掉只影响这张头像卡片，对方发的图片照常转过来。',
           component: 'Switch'
         },
         {

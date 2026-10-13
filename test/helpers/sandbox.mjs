@@ -49,6 +49,9 @@ const COPY_FILES = [
   'utils/authStore.js',
   // 营地消息的本地状态（test/campImDedup.test.mjs 用）
   'utils/campImStore.js',
+  // 营地消息的图片解析 —— campImStore 的 messageKeys 依赖它（图片消息指纹），
+  // 少这一个就是 ERR_MODULE_NOT_FOUND
+  'utils/campImImage.js',
   // 出图格式（test/imageType.test.mjs 用）
   'utils/imageType.js',
   // 「隐藏主页」标注的有效期（test/hiddenProfilesTtl.test.mjs 用）。

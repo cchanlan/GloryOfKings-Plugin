@@ -47,12 +47,16 @@ import {
   getHostBlackList
 } from './blackList.js'
 import { getImgType } from './imageType.js'
+import { extractImages, photoMark } from './campImImage.js'
 import { Config } from '#components'
 
 export {
   // 出图格式（锅巴「输出图片类型」）。37 处出图统一从这里取，别在各 app 里写死 ——
   // 详见 utils/imageType.js 顶部关于「微信下 webp 会变成文件」的说明
   getImgType,
+  // 营地图片消息的解析（正文空、地址在 links 里，见 utils/campImImage.js）
+  extractImages,
+  photoMark,
   ApiService,
   readJsonFile,
   writeJsonFile,
