@@ -125,7 +125,7 @@ console.log(JSON.stringify({ noRequester }))
     `取角色名这类内部调用应照旧提队首，实际: ${out.noRequester.order}`)
 })
 
-test('② 池里只剩被查号时可摘 → 明确回报「查不到」而不是硬发', () => {
+test('② 池里只剩被查号 → 保持原样不摘（单号池没有「别人查」这回事）', () => {
   const root = makeSandbox()
   ensurePluginRoot(root)
   const r = run(root, prelude({ 222: ACC('222', '9002', 20) }) + `
@@ -134,10 +134,18 @@ console.log(JSON.stringify({ sole }))
 `)
   assert.equal(r.ok, true, `沙箱脚本失败: ${r.stderr}`)
   const out = JSON.parse(r.stdout.trim().split('\n').pop())
-  // ⚠️ 文案刻意不断言「对方设了隐私」—— 单号池的用户很多，那种情况对方可能根本没开隐私，
-  //    所以用的是「可能是…也可能是…」的中性说法。这里只断言它明确回了「查不到」。
-  assert.match(out.sole.thrown || '', /查不到/,
-    `没有中立账号可用时应明确回报查不到，实际: ${out.sole.thrown}`)
+
+  // ⚠️ 本机只登了被查者这一个号时**不能摘**（摘了就空池、正常功能被掐死）。
+  //    那种场景整个机器人只有他一个登录态，能查到什么都是他自己的号在查，
+  //    「别人查」这个前提根本不成立（2026-10-15 主人指出）。
+  //
+  // ⚠️ 沙箱里 fetch 是假的，请求**必然**报「测试里不该发真请求」—— 那正说明它
+  //    **没被隐私闸门拦住、照常往下发**了。所以这里只断言「没回隐私拒绝」，
+  //    不能断言「什么都没抛」（那会把沙箱自己的报错也算进去）。
+  assert.doesNotMatch(out.sole.thrown || '', /隐私|查不到/,
+    `不该被隐私闸门拦下，实际: ${out.sole.thrown}`)
+  assert.equal(out.sole.order?.length, 1, `只有一个号时要保留它，实际: ${out.sole.order}`)
+  assert.equal(out.sole.order?.[0], '222', '不摘 → 照旧用它查')
 })
 
 test('防呆：发起人是字面量 "undefined"（假 e 壳子）时按「没传」处理，不能误摘', () => {
