@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>营地隐私设置</title>
+  <!-- 复用营地系列的深色底 + 卡片样式；本页只补隐私特有的那几块 -->
+  <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
+  <style>
+    /* 顶部：谁的设置 */
+    .pv-head-text { display: flex; flex-direction: column; gap: 5px; }
+    .pv-head-text .name { font-size: 24px; font-weight: 700; color: #f2f4f8; }
+    .pv-head-text .sub { font-size: 13px; color: rgba(255,255,255,0.42); }
+
+    /* ⚠️⚠️ 战绩实际效果横幅 —— 这是整张图上**唯一真实**的状态。
+       营地的 getprivacymenu 读回的开关状态是假的（别人明明看不到了，它还说
+       「全部联系人可查看」），所以下面的项目列表只列「能改什么」、不画开关。
+       这一行是拿别人的 token 查 morebattlelist 的 invisible 得来的，是真的。 */
+    .pv-banner {
+      margin: 16px 26px 4px;
+      padding: 13px 18px;
+      border-radius: 13px;
+      display: flex; align-items: center; gap: 10px;
+      font-size: 16px;
+    }
+    .pv-banner.open   { background: rgba(80,200,120,0.14); border: 1px solid rgba(80,200,120,0.3);  color: #8fe4ac; }
+    .pv-banner.hidden { background: rgba(235,90,95,0.14);  border: 1px solid rgba(235,90,95,0.32);  color: #f2999d; }
+    .pv-banner.unknown{ background: rgba(255,255,255,0.05);border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.5); }
+    .pv-banner .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+    .pv-banner .tip { margin-left: auto; font-size: 12px; opacity: 0.62; }
+
+    .pv-body { padding: 8px 26px 4px; }
+
+    /* 一项一行：编号 + 项名 + 能改哪几档。
+       ⚠️ 用行式而不是网格：16 项里有的带 6 个档位（观战），
+          塞进窄卡片会换行把整格顶高，行式横着排完全够放。 */
+    .pv-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.055);
+    }
+    .pv-row:last-child { border-bottom: none; }
+
+    /* ⚠️⚠️ 编号**必须显示**：底下写着「发 #隐私隐藏 编号」，
+       图上找不到编号的话用户根本没法操作（#营地兑换 踩过这个）。 */
+    .pv-no {
+      flex-shrink: 0;
+      width: 28px; height: 28px;
+      border-radius: 9px;
+      background: rgba(245,215,110,0.14);
+      border: 1px solid rgba(245,215,110,0.3);
+      color: #f5d76e;
+      font-family: Number, sans-serif;
+      font-size: 16px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .pv-name {
+      flex-shrink: 0;
+      width: 168px;
+      font-size: 16px;
+      color: #eef2f8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    /* ⚠️⚠️ 标签区**定死宽度**，让所有行的档位列都从同一个 x 开始。
+       第一版用 `flex: 1 1 auto` 时，行尾还有小字说明的行会把标签区挤窄，
+       纵向扫下来「哪列对哪列」对不上、看着参差（实测看出来的）。
+       ⚠️ 但定死宽度之后**行尾放不下任何东西了**（没剩余空间 → 被 `.card` 的
+       `overflow:hidden` 裁掉，实测「已实测有效」四个字整块消失）。
+       → 所以「实测有效」做成**项名变色 + 小勾**，不占行尾（见 .pv-ok）。
+       ⚠️ 标签之间**不要 `justify-content` 拉开** —— `flex-wrap` 容器里用
+       `space-between` 会让换行后的最后一行也摊到两边，看着散。 */
+    .pv-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      width: 940px;
+      flex: 0 0 940px;
+    }
+    /* 实测有效的项：项名标绿（判据见 utils/campPrivacy.js 的 VERIFIED_PRIVACY_IDS） */
+    .pv-row.verified .pv-name { color: #8fe4ac; }
+    /* 小勾放在 `.pv-name` **里面**，这样项名那一列宽度不变、标签起点不会被顶右 */
+    .pv-ok {
+      font-style: normal;
+      margin-left: 5px;
+      font-size: 14px;
+      color: #7fe0a0;
+    }
+    .pv-tag {
+      flex-shrink: 0;
+      font-size: 12px;
+      padding: 3px 9px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.11);
+      color: rgba(235,240,248,0.82);
+    }
+    /* 营地锁死、改不动的那一档（观战的「允许观战」）压成灰色，别让人去试 */
+    .pv-tag.locked {
+      background: rgba(255,255,255,0.03);
+      border-color: rgba(255,255,255,0.07);
+      color: rgba(255,255,255,0.28);
+    }
+    /* 「锁」要和档位名拉开，否则「允许观战 锁」看着像一个词（实测看出来的） */
+    .pv-tag .mark {
+      font-style: normal;
+      margin-left: 7px;
+      padding-left: 7px;
+      border-left: 1px solid rgba(255,255,255,0.14);
+      opacity: 0.8;
+    }
+
+    /* 用法：图上必须写清怎么改，否则看完图还得再发一条帮助 */
+    .pv-usage { padding: 4px 26px 18px; }
+    .pv-usage-list {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 13px;
+      padding: 13px 17px;
+      display: flex; flex-direction: column; gap: 7px;
+    }
+    .pv-usage-line { font-size: 13px; color: rgba(255,255,255,0.68); }
+    .pv-usage-line b { color: #f5d76e; font-weight: 600; }
+    .pv-usage-note {
+      margin-top: 4px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.4);
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="card-header">
+      {{if avatar}}<img class="avatar" src="{{avatar}}" onerror="this.style.display='none'">{{/if}}
+      <div class="pv-head-text">
+        <div class="name">营地隐私设置</div>
+        <div class="sub">{{who}}　·　{{campId}}</div>
+      </div>
+    </div>
+
+    <div class="pv-banner {{if battleUnknown}}unknown{{else if battleHidden}}hidden{{else}}open{{/if}}">
+      <span class="dot"></span>
+      <span>{{battleText}}</span>
+      <span class="tip">你自己看永远是看得到的</span>
+    </div>
+
+    <div class="pv-body">
+      {{each classes cls}}
+      <div class="section-title">{{cls.className}}</div>
+      {{each cls.items item}}
+      <div class="pv-row {{if item.verified}}verified{{/if}}">
+        <div class="pv-no">{{item.no}}</div>
+        <div class="pv-name">{{item.name}}{{if item.verified}}<i class="pv-ok">✓</i>{{/if}}</div>
+        <div class="pv-tags">
+          {{each item.details d}}
+          <span class="pv-tag {{if d.locked}}locked{{/if}}">{{d.name}}{{if d.locked}}<i class="mark">锁</i>{{/if}}</span>
+          {{/each}}
+        </div>
+      </div>
+      {{/each}}
+      {{/each}}
+    </div>
+
+    <div class="pv-usage">
+      <div class="pv-usage-list">
+        <div class="pv-usage-line"><b>#隐私隐藏 1</b>　把第 1 项对所有人藏起来</div>
+        <div class="pv-usage-line"><b>#隐私公开 1</b>　把第 1 项放开给所有人</div>
+        <div class="pv-usage-line"><b>#隐私隐藏 1 陌生人</b>　只改一档，档位名照上面的标签写</div>
+        <div class="pv-usage-line"><b>#隐藏我的战绩</b> / <b>#公开我的战绩</b>　一条顶战绩那 4 项</div>
+        <div class="pv-usage-note">
+          标签是「这一项能按哪几类人分别设置」，带「锁」的那档营地不让改<br>
+          项名带绿勾的是挂号验证过、别人真看不到的；没勾的营地没有接口能验，不保证<br>
+          编号是营地自己的，所以这里会跳号（营地管不了的那几项没列）<br>
+          改完半分钟左右生效，别反复发；战绩改没改成，看最上面那一行
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">{{generatedAt}}</div>
+  </div>
+</body>
+</html>
