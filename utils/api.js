@@ -1377,9 +1377,10 @@ class CampAuthSession {
     // ⚠️ 判据用「**名下包含**」而不是「当前选中的那个号」（`getCurrentCampUserId`）——
     //    一个人可以绑好几个号（主人有 5 个），传 B 的号时他的 current 可能是 A，
     //    按「当前选中」判会误判成「不是本人」而把推送也打回隐私限制。
-    // ⚠️ 只在 targetUserId 确实是**池内的营地号**时才命中；传角色 ID 的调用
-    //    （如 getFightData 传 roleId、getHeroRecordDetails 传 roleId）天然不命中，
-    //    自动退回原顺序，行为与改动前一致。
+    // ⚠️ 传**角色 ID** 的接口（赛季表现 / 对战五维 / 赛季常用英雄）靠上面那道
+    //    `roleIdToCampId` 映射译成营地号；映射是**从 `getProfile` 的响应里学的**
+    //    （那几个接口的调用方总是先查 profile 拿 roleId，所以现成就有）。
+    //    译不到就按 roleId 原样处理、退回原顺序 —— 宁可不优化，也不能猜错归属误摘账号。
     // ⚠️ 频控自动回退：self 命中 -30107 会被 #rateLimiter 记冷却，后续请求在
     //    #runWithCandidates 的冷却检查处自动跳过它、落到其余全局账号轮询 ——
     //    「风控时退回轮询」不需要另写逻辑。
@@ -1423,7 +1424,11 @@ class CampAuthSession {
         //    这正是隐私该有的样子（主人要的就是「别人艾特他查不到」）。
         const filtered = pool.filter(candidate => toText(candidate.auth?.userId) !== ownTargetId)
         if (!filtered.length) {
-          throw new CampError('对方在营地里设置了隐私，别人查不到 TA 的数据')
+          // ⚠️ 文案别断言「对方设置了隐私」—— 还有一种同样常见的情况：
+          //    本机**只登了他自己的那一个号**（很多用户就是这样），摘掉就空池了。
+          //    那种时候对方可能根本没开隐私，说成「他设了隐私」是误报。
+          //    用「可能是」把两种可能都覆盖掉。
+          throw new CampError('查不到 TA 的数据，可能是对方设了隐私，也可能是本机没有别的可用登录态')
         }
         pool = filtered
       }
@@ -2306,7 +2311,13 @@ class ApiService {
     // 顺手记下 roleId ↔ 营地号。用 roleId 的那几个接口（赛季表现 / 对战五维 /
     // 赛季常用英雄）要靠它把 targetId 译回营地号，才能正确判断归属
     // —— 详见 `roleIdToCampId` 的说明。
-    rememberRoleOwner(res?.data?.targetRoleId, ID)
+    // ⚠️ **每个角色都记**：一个营地号可能绑着好几个角色（主人那个号就有 3 个），
+    //    调用方用到「主角色」以外的 roleId 时，归属判据照样认得出来。
+    const profile = res?.data
+    if (profile) {
+      rememberRoleOwner(profile.targetRoleId, ID)
+      for (const role of (profile.roleList || [])) rememberRoleOwner(role?.roleId, ID)
+    }
 
     return res
   }

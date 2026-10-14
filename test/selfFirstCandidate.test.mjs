@@ -125,7 +125,7 @@ console.log(JSON.stringify({ noRequester }))
     `取角色名这类内部调用应照旧提队首，实际: ${out.noRequester.order}`)
 })
 
-test('② 池里只剩被查号时可摘 → 明确抛「对方设置了隐私」而不是硬发', () => {
+test('② 池里只剩被查号时可摘 → 明确回报「查不到」而不是硬发', () => {
   const root = makeSandbox()
   ensurePluginRoot(root)
   const r = run(root, prelude({ 222: ACC('222', '9002', 20) }) + `
@@ -134,8 +134,10 @@ console.log(JSON.stringify({ sole }))
 `)
   assert.equal(r.ok, true, `沙箱脚本失败: ${r.stderr}`)
   const out = JSON.parse(r.stdout.trim().split('\n').pop())
-  assert.match(out.sole.thrown || '', /隐私/,
-    `没有中立账号可用时应回隐私文案，实际: ${out.sole.thrown}`)
+  // ⚠️ 文案刻意不断言「对方设了隐私」—— 单号池的用户很多，那种情况对方可能根本没开隐私，
+  //    所以用的是「可能是…也可能是…」的中性说法。这里只断言它明确回了「查不到」。
+  assert.match(out.sole.thrown || '', /查不到/,
+    `没有中立账号可用时应明确回报查不到，实际: ${out.sole.thrown}`)
 })
 
 test('防呆：发起人是字面量 "undefined"（假 e 壳子）时按「没传」处理，不能误摘', () => {
