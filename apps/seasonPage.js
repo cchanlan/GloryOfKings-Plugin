@@ -65,7 +65,7 @@ export class SeasonPage extends plugin {
 
     let profileData
     try {
-      profileData = await ApiService.getProfile(campId, String(userId))
+      profileData = await ApiService.getProfile(campId, String(e.user_id))
     } catch (err) {
       await e.reply(ApiService.formatUserFacingError(err, { isMaster: Boolean(e.isMaster), scene: '赛季表现查询异常' }))
       return
@@ -85,7 +85,7 @@ export class SeasonPage extends plugin {
     // 先用 seasonId=0 拿赛季列表（seasonId 不等于赛季号：46=S44、9=S7，只能按 seasonName 匹配）
     let firstRes
     try {
-      firstRes = await ApiService.getSeasonpage(roleId, String(userId), 0)
+      firstRes = await ApiService.getSeasonpage(roleId, String(e.user_id), 0)
     } catch (err) {
       await e.reply(ApiService.formatUserFacingError(err, { isMaster: Boolean(e.isMaster), scene: '赛季表现查询异常' }))
       return
@@ -96,7 +96,7 @@ export class SeasonPage extends plugin {
       // 对方可能只是关了赛季表现的隐私开关（-30408/-10110），主页和战绩照旧能读，
       // 这时别回「暂无赛季数据」误导人，先用主页 + 最近一页排位战绩降级出图
       const scope = privacyScope(firstRes?.returnCode)
-      const fallback = await this.buildFallbackView(campId, userId, profileData, scope)
+      const fallback = await this.buildFallbackView(campId, userId, profileData, scope, String(e.user_id))
       if (fallback) {
         const img = await puppeteer.screenshot('SeasonPage', {
           imgType: getImgType(),
@@ -128,7 +128,7 @@ export class SeasonPage extends plugin {
 
     let seasonRes
     try {
-      seasonRes = await ApiService.getSeasonpage(roleId, String(userId), target.seasonId)
+      seasonRes = await ApiService.getSeasonpage(roleId, String(e.user_id), target.seasonId)
     } catch (err) {
       await e.reply(ApiService.formatUserFacingError(err, { isMaster: Boolean(e.isMaster), scene: '赛季表现查询异常' }))
       return
@@ -147,7 +147,7 @@ export class SeasonPage extends plugin {
     if (isCurrent) {
       try {
         laneResults = await Promise.all(
-          laneTypes.map(bt => ApiService.getFightData(roleId, String(userId), { gameBattleType: 3, branchType: bt })
+          laneTypes.map(bt => ApiService.getFightData(roleId, String(e.user_id), { gameBattleType: 3, branchType: bt })
             .catch(() => null))
         )
       } catch {
@@ -367,13 +367,13 @@ export class SeasonPage extends plugin {
    * 赛季数据取不到时的降级视图：主页摘要 + 最近一页排位战绩。
    * 战绩列表也读不到（或一场排位都没有）时返回 null，交给调用方回文案。
    */
-  async buildFallbackView(campId, userId, profileData, scope) {
+  async buildFallbackView(campId, userId, profileData, scope, requester) {
     const summary = summarizeProfile(profileData?.data)
     if (!summary) return null
 
     let battles = []
     try {
-      const res = await ApiService.getMoreBattleList(campId, String(userId), { option: 0, lastTime: 0 })
+      const res = await ApiService.getMoreBattleList(campId, requester, { option: 0, lastTime: 0 })
       battles = res?.data?.list || []
     } catch (err) {
       logger.debug(`[王者赛季表现] 降级读战绩失败：${err.message}`)

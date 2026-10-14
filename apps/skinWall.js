@@ -153,7 +153,7 @@ export class SkinWall extends plugin {
 
     let data
     try {
-      const res = await ApiService.getSkinList(ID, String(userId))
+      const res = await ApiService.getSkinList(ID, String(e.user_id))
       data = res && res.data ? res.data : res
     } catch (error) {
       logger.error(`[皮肤墙] 查询 ${ID} 失败: ${error.message}`)

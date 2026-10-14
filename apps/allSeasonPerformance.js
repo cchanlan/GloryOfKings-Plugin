@@ -69,7 +69,7 @@ export class AllSeasonPerformance extends plugin {
     const scene = `全部${mode}表现查询异常`
     let profileData
     try {
-      profileData = await ApiService.getProfile(campId, String(userId))
+      profileData = await ApiService.getProfile(campId, String(e.user_id))
     } catch (err) {
       await e.reply(ApiService.formatUserFacingError(err, { isMaster: Boolean(e.isMaster), scene }))
       return
@@ -90,7 +90,7 @@ export class AllSeasonPerformance extends plugin {
     // historyList 则带齐每个赛季的 rankInfo（排位）与 masterInfo（巅峰），一次请求就够，不用逐赛季拉。
     let res
     try {
-      res = await ApiService.getSeasonpage(roleId, String(userId), 0)
+      res = await ApiService.getSeasonpage(roleId, String(e.user_id), 0)
     } catch (err) {
       await e.reply(ApiService.formatUserFacingError(err, { isMaster: Boolean(e.isMaster), scene }))
       return

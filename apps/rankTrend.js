@@ -87,7 +87,7 @@ export class RankTrend extends plugin {
     if (picked.length < RANK_TREND_TARGET_POINTS) {
       try {
         const archiveFrom = Math.floor(Date.now() / 1000) - ARCHIVE_KEEP_DAYS * 86400
-        await collectBattles(String(campId), String(userId), archiveFrom, { maxPages: 8 })
+        await collectBattles(String(campId), String(e.user_id), archiveFrom, { maxPages: 8 })
         ;({ list: picked, relaxed } = pickRankWindow(loadArchive(campId), fromSec))
       } catch (error) {
         logger.debug(`[王者段位趋势] ${campId} 补拉战绩失败: ${error.message}`)

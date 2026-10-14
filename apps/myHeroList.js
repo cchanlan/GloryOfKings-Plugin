@@ -90,7 +90,7 @@ export class MyHeroList extends plugin {
 
     let res
     try {
-      res = await ApiService.getGameHeroList(ID, String(userId))
+      res = await ApiService.getGameHeroList(ID, String(e.user_id))
     } catch (error) {
       logger.error(`[我的英雄] 查询 ${ID} 失败: ${error.message}`)
       await e.reply(ApiService.formatUserFacingError(error, {
@@ -108,7 +108,7 @@ export class MyHeroList extends plugin {
     }
 
     // 历史最高战力 + 历史口径称号，一次请求拿全；失败不抛错，下面自动退回当前战力
-    const history = await this.fetchHistoryPower(ID, userId)
+    const history = await this.fetchHistoryPower(ID, userId, String(e.user_id))
 
     const merged = played.map(hero => {
       const hit = history.byHero.get(String(hero.heroId))
@@ -159,13 +159,13 @@ export class MyHeroList extends plugin {
    * @param {string|number} userId 发起查询的机器人用户ID
    * @returns {Promise<{ok: boolean, byHero: Map<string, {maxPower: number, honor: string}>}>}
    */
-  async fetchHistoryPower(ID, userId) {
+  async fetchHistoryPower(ID, userId, requester) {
     const result = { ok: false, byHero: new Map() }
 
     // roleId 只能从 profile 拿，不是营地ID
     let roleId = ''
     try {
-      const profile = await ApiService.getProfile(ID, String(userId))
+      const profile = await ApiService.getProfile(ID, requester)
       roleId = profile?.data?.targetRoleId || ''
     } catch (error) {
       logger.error(`[我的英雄] 取角色信息失败，战力退回当前值: ${error.message}`)
@@ -174,7 +174,7 @@ export class MyHeroList extends plugin {
     if (!roleId) return result
 
     try {
-      const res = await ApiService.getSeasonUsuallyHeroList(roleId, String(userId), 0)
+      const res = await ApiService.getSeasonUsuallyHeroList(roleId, requester, 0)
       for (const item of res?.data?.list || []) {
         const heroId = String(item?.heroId ?? '')
         if (!heroId) continue

@@ -154,7 +154,7 @@ export class BattleReport extends plugin {
       await e.reply(`正在汇总${isPrev ? '上个月' : '本月'}战绩，数据多的话要十几秒，请稍候...`, shouldQuote())
     }
 
-    const view = await this.buildView(String(campId), String(userId), kind, { qq: userId, e })
+    const view = await this.buildView(String(campId), String(e.user_id), kind, { qq: userId, e })
 
     // ⚠️ 拉取失败时**不能**说「没有对局记录」（2026-10-06 修）：那是把「没拉到」
     //    讲成了「你没打」，用户会当成事实。degraded 是 buildView 专门为这种情况回的标记。

@@ -171,9 +171,13 @@ export class KingCompare extends plugin {
       return e.reply('这俩是同一个号，比不出高低', shouldQuote())
     }
 
+    // ⚠️ 传的是**发起人 self**，不是这两个号各自的属主 ——
+    //    summarize 内部再调 ApiService，而那层会拿这个 QQ 判「要不要用被查号自己的登录态
+    //    绕过战绩隐私」。传属主的话，@ 别人对比时等于借对方的号看他的隐私数据；
+    //    传发起人才能让「自己的号自我豁免、别人的号照常受隐私限制」。
     const [a, b] = await Promise.all([
-      this.summarize(left, leftOwner),
-      this.summarize(right, rightOwner)
+      this.summarize(left, self),
+      this.summarize(right, self)
     ])
 
     if (!a || !b) {

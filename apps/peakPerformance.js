@@ -48,7 +48,7 @@ export class PeakPerformance extends plugin {
     // 头部信息：昵称、头像、区服
     let profileData
     try {
-      profileData = await ApiService.getProfile(campId, String(userId))
+      profileData = await ApiService.getProfile(campId, String(e.user_id))
     } catch (err) {
       await e.reply(ApiService.formatUserFacingError(err, { isMaster: Boolean(e.isMaster), scene: '巅峰表现查询异常' }))
       return
@@ -77,15 +77,15 @@ export class PeakPerformance extends plugin {
     try {
       const [fightResults, sData] = await Promise.all([
         Promise.all(
-          branchTypes.map(bt => ApiService.getFightData(roleId, String(userId), { gameBattleType: 10, branchType: bt }))
+          branchTypes.map(bt => ApiService.getFightData(roleId, String(e.user_id), { gameBattleType: 10, branchType: bt }))
         ),
         (async () => {
           try {
-            const first = await ApiService.getSeasonpage(roleId, String(userId), 0)
+            const first = await ApiService.getSeasonpage(roleId, String(e.user_id), 0)
             const list = first?.data?.historyList || []
             const sid = list[0]?.seasonId
             if (!sid) return null
-            return { res: await ApiService.getSeasonpage(roleId, String(userId), sid), list }
+            return { res: await ApiService.getSeasonpage(roleId, String(e.user_id), sid), list }
           } catch { return null }
         })()
       ])
@@ -234,7 +234,7 @@ export class PeakPerformance extends plugin {
 
     let firstRes
     try {
-      firstRes = await ApiService.getSeasonpage(roleId, String(userId), 0)
+      firstRes = await ApiService.getSeasonpage(roleId, String(e.user_id), 0)
     } catch (err) {
       await e.reply(ApiService.formatUserFacingError(err, { isMaster: Boolean(e.isMaster), scene }))
       return
@@ -254,7 +254,7 @@ export class PeakPerformance extends plugin {
 
     let seasonRes
     try {
-      seasonRes = await ApiService.getSeasonpage(roleId, String(userId), target.seasonId)
+      seasonRes = await ApiService.getSeasonpage(roleId, String(e.user_id), target.seasonId)
     } catch (err) {
       await e.reply(ApiService.formatUserFacingError(err, { isMaster: Boolean(e.isMaster), scene }))
       return

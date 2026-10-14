@@ -194,7 +194,7 @@ export class QueryGameStats extends plugin {
       // 单账号部署下 30 页确实要这么久，池里账号多就会明显更快。
       const seconds = estimateRequestSeconds(MAX_PAGES - 1)
       await e.reply(`正在翻找 ${matchedName} 的近期战绩，最多约 ${seconds} 秒，请稍候...`, shouldQuote())
-      battleList = await this.collectBattles(ID, String(userId), null, {
+      battleList = await this.collectBattles(ID, String(e.user_id), null, {
         forcePaginate: true,
         match: item => matchHero(item, heroId, matchedName)
       })
@@ -314,7 +314,7 @@ export class QueryGameStats extends plugin {
 
     let battleList
     try {
-      battleList = await this.collectBattles(ID, String(userId), mode)
+      battleList = await this.collectBattles(ID, String(e.user_id), mode)
     } catch (error) {
       logger.error(`[战绩查询] 查询 ${ID} 失败: ${error.message}`)
       await e.reply(ApiService.formatUserFacingError(error, {
@@ -357,7 +357,7 @@ export class QueryGameStats extends plugin {
         return
       }
 
-      const detail = await fetchBattleDetail(ID, battle, String(userId))
+      const detail = await fetchBattleDetail(ID, battle, String(e.user_id))
       if (detail) {
         try {
           const img = await renderBattleDetail(detail)
@@ -407,7 +407,7 @@ export class QueryGameStats extends plugin {
    *   不给则按总场数判断（模式筛选那种服务端已经筛过的场景）。
    * @returns 与 morebattlelist 的 data 同构的对象，list 已按模式过滤
    */
-  async collectBattles (ID, userId, mode, { forcePaginate = false, match = null } = {}) {
+  async collectBattles (ID, requester, mode, { forcePaginate = false, match = null } = {}) {
     const option = mode?.option ?? 0
     const target = forcePaginate ? HERO_TARGET : TARGET_COUNT
     const pageLimit = forcePaginate ? MAX_PAGES : (mode ? MODE_MAX_PAGES : 1)
@@ -419,7 +419,7 @@ export class QueryGameStats extends plugin {
     let hit = 0
 
     for (let page = 0; page < pageLimit; page += 1) {
-      const { data } = await ApiService.getMoreBattleList(ID, userId, { option, lastTime })
+      const { data } = await ApiService.getMoreBattleList(ID, requester, { option, lastTime })
       if (!data) break
       // 保留首页的 invisDes / options 等顶层字段，翻页只累加 list
       if (!root) root = data

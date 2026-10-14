@@ -1358,37 +1358,72 @@ class CampAuthSession {
       auth: this.buildConfig(candidate.auth, baseAuth)
     }))
 
-    // ⭐⭐ 自我优先（2026-10-14 加）：被查者本人在池里就先用**他自己的号**发。
+    // ⭐⭐ 自我优先：**只有「发起人自己就是被查号的主人」时**才把那个号提到队首。
     //
-    // 为什么：营地有「自我豁免」——自己查自己不受战绩隐私限制（2026-10-13 主号实测：
+    // 为什么需要：营地有「自我豁免」——自己查自己不受战绩隐私限制（2026-10-13 主号实测：
     // 隐藏态下他见 invisible=true/list=0、自见 invisible=false/list=30 真实数据，
-    // 见记忆 gok-camp-privacy-self-exemption）。目标本人的号提到队首之后，
+    // 见记忆 gok-camp-privacy-self-exemption）。本人的号提到队首之后，
     // 「查开了隐私的号」只要他自己扫码进过池子就能出数据。
     //
+    // ⚠️⚠️ 2026-10-15 修正（主人报的漏洞）：最初只要**被查号在池里**就提队首，
+    //    压根没看「谁在查」。后果是 A 艾特 B 查战绩时，机器人拿 **B 自己的 token** 去查，
+    //    于是 B 关了战绩隐私 A 也照样看得到 —— 隐私白设了。现在加了
+    //    `requesterBotUserId` 这道闸：**只有发起人名下确实有被查的那个营地号**才自我优先；
+    //    别人来查就退回全局轮转，隐私照常生效。
+    //
+    // ⚠️ `requesterBotUserId` 的语义是**发起人 QQ** —— 交互式指令传 `e.user_id`。
+    //    定时 / 批量链路（推送、归档、排行榜、群报）传的是**被查号的号主 QQ**：
+    //    那些场景「受益者就是本人」，号主名下当然包含被查号，照旧自我优先、行为不变。
+    // ⚠️ 判据用「**名下包含**」而不是「当前选中的那个号」（`getCurrentCampUserId`）——
+    //    一个人可以绑好几个号（主人有 5 个），传 B 的号时他的 current 可能是 A，
+    //    按「当前选中」判会误判成「不是本人」而把推送也打回隐私限制。
     // ⚠️ 只在 targetUserId 确实是**池内的营地号**时才命中；传角色 ID 的调用
     //    （如 getFightData 传 roleId、getHeroRecordDetails 传 roleId）天然不命中，
     //    自动退回原顺序，行为与改动前一致。
     // ⚠️ 频控自动回退：self 命中 -30107 会被 #rateLimiter 记冷却，后续请求在
     //    #runWithCandidates 的冷却检查处自动跳过它、落到其余全局账号轮询 ——
     //    「风控时退回轮询」不需要另写逻辑。
-    // ⚠️ self 只是**顺序**优先级：命中不了的场景（未登号/失效/冷却中）全部自动
-    //    退化，不改变任何账号的可用性或轮转游标。
+    // ⚠️ self 只是**顺序**优先级：命中不了的场景（未登号/失效/冷却中/发起人不是号主）
+    //    全部自动退化，不改变任何账号的可用性或轮转游标。
     const targetId = toText(targetUserId)
+    const requester = toText(requesterBotUserId)
+    let pool = [...mappedCandidates]
     let selfCandidate = null
-    if (targetId) {
-      const selfIndex = mappedCandidates.findIndex(candidate => toText(candidate.auth?.userId) === targetId)
-      if (selfIndex >= 0) {
-        const [picked] = mappedCandidates.splice(selfIndex, 1)
-        selfCandidate = {
-          ...picked,
-          label: `${picked.label}（目标本人，自我优先）`
+
+    const takeSelf = () => {
+      const index = pool.findIndex(candidate => toText(candidate.auth?.userId) === targetId)
+      if (index < 0) return null
+      const [picked] = pool.splice(index, 1)
+      return { ...picked, label: `${picked.label}（目标本人，自我优先）` }
+    }
+
+    if (targetId && requester) {
+      const ownedIds = authStore.listGlobalAccountsByOwner(requester)
+        .map(account => toText(account.userId))
+
+      if (ownedIds.includes(targetId)) {
+        // ① **本人查自己的号** → 提到队首，走营地的「自我豁免」
+        selfCandidate = takeSelf()
+      } else {
+        // ② **别人来查** → 把被查号自己的登录态**摘掉**。
+        //    ⚠️⚠️ 光「不提前」不够：池里的全局账号是轮转的，留着它迟早轮到他，
+        //    结果还是借被查者的身份查他自己的隐私数据（2026-10-15 主人报的漏洞）。
+        //    摘掉之后没有中立账号可用时，宁可明确回一句「查不到」——
+        //    这正是隐私该有的样子（主人要的就是「别人艾特他查不到」）。
+        const filtered = pool.filter(candidate => toText(candidate.auth?.userId) !== targetId)
+        if (!filtered.length) {
+          throw new CampError('对方在营地里设置了隐私，别人查不到 TA 的数据')
         }
+        pool = filtered
       }
+    } else if (targetId) {
+      // ③ **没传发起人**（内部工具调用，如取角色名）→ 维持改动前的行为，免得这些功能退化
+      selfCandidate = takeSelf()
     }
 
     // 先轮转再打日志：日志要反映**这次实际会按什么顺序试**，打轮转前的顺序
     // 会让人以为「每次都是同一个号打头」而去找轮询为什么没生效（实测踩过）。
-    const rotated = this.#rotateGlobals(mappedCandidates)
+    const rotated = this.#rotateGlobals(pool)
     const ordered = selfCandidate ? [selfCandidate, ...rotated] : rotated
 
     logger.debug('[王者接口] 本次请求鉴权候选列表', {
@@ -1835,6 +1870,11 @@ class CampTransport {
    *
    * 真正的错峰在 CampRateLimiter.gatedFetch 里按「每次 fetch」做，而不是把整条
    * 候选账号循环 × 重试链塞进队列——那样一个慢请求会独占队头几十秒。
+   *
+   * ⚠️ `requesterBotUserId` 是**发起查询的人**（交互式指令传 `e.user_id`），
+   *    它决定「要不要用被查号自己的登录态」——详见 `candidates` 里的那三道分支。
+   *    定时 / 批量链路（推送、归档、排行）传的是**被查号的号主 QQ**，语义等价于
+   *    「本人看自己的数据」，所以照旧自我优先。
    *
    * （原 `#requestWithCandidates`）
    */

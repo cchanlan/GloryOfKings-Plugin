@@ -83,7 +83,7 @@ export class SkinMissing extends plugin {
 
     let data
     try {
-      const res = await ApiService.getSkinList(String(campId), String(userId))
+      const res = await ApiService.getSkinList(String(campId), String(e.user_id))
       data = res?.data || res
     } catch (error) {
       // ⚠️ 不能把 error.message 原样甩给用户（2026-10-06 修）：getSkinList 走的是

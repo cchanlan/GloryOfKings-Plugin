@@ -327,7 +327,7 @@ export class MyKingHomepage extends plugin {
     for (const ID of IDs) {
       let profileData
       try {
-        profileData = await ApiService.getProfile(ID, String(userId))
+        profileData = await ApiService.getProfile(ID, String(e.user_id))
       } catch (error) {
         logger.error(`[王者主页] 查询 ${ID} 失败: ${error.message}`)
         const replyMessage = ApiService.formatUserFacingError(error, {

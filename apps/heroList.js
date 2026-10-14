@@ -88,7 +88,7 @@ export class HeroList extends plugin {
     // 先取主页拿 roleId 和昵称/头像
     let profile
     try {
-      profile = await ApiService.getProfile(ID, String(userId))
+      profile = await ApiService.getProfile(ID, String(e.user_id))
     } catch (error) {
       logger.error(`[常用英雄] 查询主页 ${ID} 失败: ${error.message}`)
       await e.reply(ApiService.formatUserFacingError(error, {
@@ -117,9 +117,9 @@ export class HeroList extends plugin {
     // 再取当前赛季的排位/巅峰常用英雄
     let picked
     try {
-      picked = await this.fetchSeasonHeroes(roleId, userId)
+      picked = await this.fetchSeasonHeroes(roleId, userId, String(e.user_id))
       if (!picked.heroes.length) {
-        picked = await this.fetchCareerHeroes(ID, roleId, userId)
+        picked = await this.fetchCareerHeroes(ID, roleId, userId, String(e.user_id))
       }
     } catch (error) {
       logger.error(`[常用英雄] 查询英雄列表 ${ID} 失败: ${error.message}`)
@@ -160,13 +160,13 @@ export class HeroList extends plugin {
    * 取当前赛季的排位 + 巅峰常用英雄，按 heroId 合并去重后按战力取前 5。
    * seasonId=0 只用来拿最新赛季号，英雄的战力/称号要再按 seasonId 请求一次才有。
    */
-  async fetchSeasonHeroes(roleId, userId) {
-    const first = await ApiService.getSeasonpage(roleId, String(userId), 0)
+  async fetchSeasonHeroes(roleId, userId, requester) {
+    const first = await ApiService.getSeasonpage(roleId, requester, 0)
     const history = first?.data?.historyList || []
     const current = history[0]
     if (!current?.seasonId) return { heroes: [], scopeName: '', showModes: true }
 
-    const seasonRes = await ApiService.getSeasonpage(roleId, String(userId), current.seasonId)
+    const seasonRes = await ApiService.getSeasonpage(roleId, requester, current.seasonId)
     const behavior = seasonRes?.data?.behavior || {}
 
     // 同一英雄在两个模式里战力/称号一致，场次和胜率各算各的
@@ -208,8 +208,8 @@ export class HeroList extends plugin {
   }
 
   /** 赛季内没打过排位/巅峰时的兜底：生涯累计前 5，只有一组场次/胜率 */
-  async fetchCareerHeroes(ID, roleId, userId) {
-    const res = await ApiService.getProfileHeroList(ID, roleId, String(userId))
+  async fetchCareerHeroes(ID, roleId, userId, requester) {
+    const res = await ApiService.getProfileHeroList(ID, roleId, requester)
     const heroes = (res?.data?.heroList || []).map(hero => {
       const basic = hero.basicInfo || {}
       return {

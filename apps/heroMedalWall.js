@@ -76,11 +76,11 @@ export class HeroMedalWall extends plugin {
     let roleId = ''
     let played = []
     try {
-      const profile = await ApiService.getProfile(String(campId), String(userId))
+      const profile = await ApiService.getProfile(String(campId), String(e.user_id))
       roleId = String(profile?.data?.targetRoleId || '')
       role = (profile?.data?.roleList || []).find(item => String(item.roleId) === roleId) || {}
 
-      const heroRes = await ApiService.getGameHeroList(String(campId), String(userId))
+      const heroRes = await ApiService.getGameHeroList(String(campId), String(e.user_id))
       played = (heroRes?.data?.heroList || []).filter(hero => Number(hero.playNum) > 0)
     } catch (error) {
       logger.error(`[王者称号墙] ${campId} 取数据失败: ${error.message}`)
@@ -112,7 +112,7 @@ export class HeroMedalWall extends plugin {
       roleName: role.roleName,
       serverId: role.serverId,
       campId: String(campId),
-      botUserId: String(userId)
+      botUserId: String(e.user_id)
     })
 
     const name = String(role.roleName || '').trim() || await displayName(e, userId)

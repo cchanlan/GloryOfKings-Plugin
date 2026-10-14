@@ -145,7 +145,7 @@ export class HeroDetail extends plugin {
    * @returns {Promise<object|null|string>} 数据 / null（没玩过）/ 字符串（要直接回给用户的话）
    */
   async fetchDetail (campId, heroId, matchedName, userId, e) {
-    const profile = await ApiService.getProfile(campId, String(userId))
+    const profile = await ApiService.getProfile(campId, String(e.user_id))
     const roleId = profile?.data?.targetRoleId
 
     if (!roleId) {
@@ -161,7 +161,7 @@ export class HeroDetail extends plugin {
       heroId,
       { roleName: role.roleName || '', serverId: role.serverId || '' },
       campId,
-      String(userId)
+      String(e.user_id)
     )
 
     return buildHeroDetail(res?.data, { fallbackName: matchedName })
