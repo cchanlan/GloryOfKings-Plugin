@@ -1386,6 +1386,10 @@ class CampAuthSession {
     // ⚠️ self 只是**顺序**优先级：命中不了的场景（未登号/失效/冷却中/发起人不是号主）
     //    全部自动退化，不改变任何账号的可用性或轮转游标。
     const targetId = toText(targetUserId)
+    // ⚠️ 有接口传进来的 `targetUserId` **是 roleId 不是营地号**（赛季表现 / 对战五维 /
+    //    赛季常用英雄，见 `roleIdToCampId` 的说明）—— 归属判据比的都是营地号，
+    //    所以先译一道；译不到就按原样用（行为等同修复前，不会误判）。
+    const ownTargetId = roleIdToCampId.get(targetId) || targetId
     const rawRequester = toText(requesterBotUserId)
     // ⚠️ 防呆：定时任务拼的假 e 壳子没有 `user_id`，调用方一个 `String(e.user_id)` 就会
     //    把字面量 `"undefined"` / `"null"` 传进来 —— 那会让下面**误判成「别人来查」**
@@ -1398,7 +1402,7 @@ class CampAuthSession {
     let selfCandidate = null
 
     const takeSelf = () => {
-      const index = pool.findIndex(candidate => toText(candidate.auth?.userId) === targetId)
+      const index = pool.findIndex(candidate => toText(candidate.auth?.userId) === ownTargetId)
       if (index < 0) return null
       const [picked] = pool.splice(index, 1)
       return { ...picked, label: `${picked.label}（目标本人，自我优先）` }
@@ -1408,7 +1412,7 @@ class CampAuthSession {
       const ownedIds = authStore.listGlobalAccountsByOwner(requester)
         .map(account => toText(account.userId))
 
-      if (ownedIds.includes(targetId)) {
+      if (ownedIds.includes(ownTargetId)) {
         // ① **本人查自己的号** → 提到队首，走营地的「自我豁免」
         selfCandidate = takeSelf()
       } else {
@@ -1417,7 +1421,7 @@ class CampAuthSession {
         //    结果还是借被查者的身份查他自己的隐私数据（2026-10-15 主人报的漏洞）。
         //    摘掉之后没有中立账号可用时，宁可明确回一句「查不到」——
         //    这正是隐私该有的样子（主人要的就是「别人艾特他查不到」）。
-        const filtered = pool.filter(candidate => toText(candidate.auth?.userId) !== targetId)
+        const filtered = pool.filter(candidate => toText(candidate.auth?.userId) !== ownTargetId)
         if (!filtered.length) {
           throw new CampError('对方在营地里设置了隐私，别人查不到 TA 的数据')
         }
@@ -2107,6 +2111,33 @@ class CampTransport {
 /* ========================================================== 门面 */
 
 /**
+ * ⭐ `roleId → 营地号` 的映射（从 `getProfile` 的响应里学来的）。
+ *
+ * **为什么需要它**：`candidates()` 判断「这次查询该不该用被查者自己的登录态」，
+ * 靠的是 `authStore.listGlobalAccountsByOwner()` —— 那比的是**营地号**。
+ * 但有三个接口的第一个参数是 **`roleId`（角色 ID，如 1185348788）而不是营地号**：
+ *   · `getSeasonpage`（赛季表现）
+ *   · `getFightData`（对战五维）
+ *   · `getSeasonUsuallyHeroList`（赛季常用英雄）
+ * 它们把 roleId 原样当 `targetUserId` 传进 `candidates()`，两套 ID 对不上，
+ * 于是**整条链路的闸门都失效**：本人查自己吃不到自我豁免（被自己的隐私拦住，
+ * 2026-10-15 实测 `rc=-30408`），别人查也拦不拦得住全看轮转碰巧 ——
+ * 而这几个接口的调用方**总是先查 `getProfile` 拿 roleId**，所以映射现成就有。
+ *
+ * ⚠️ 学不到就退回原样（按 roleId 当 targetId 处理），行为等同修复前 —— 宁可不优化，
+ *    也不能猜错归属而误摘账号。
+ * ⚠️ 进程内 Map，重启即清空（不需要持久化：下一次 profile 查询会重新填上）。
+ */
+const roleIdToCampId = new Map()
+
+/** 记一条 roleId → 营地号（只在两者都非空时记） */
+function rememberRoleOwner (roleId, campId) {
+  const r = toText(roleId)
+  const c = toText(campId)
+  if (r && c) roleIdToCampId.set(r, c)
+}
+
+/**
  * API 服务类，封装了王者营地相关接口请求。
  * 新版营地接口需要额外的安全参数，因此这里统一处理鉴权头、encodeParam 和响应解密。
  *
@@ -2264,13 +2295,20 @@ class ApiService {
 
   /** 获取营地主页信息 */
   async getProfile (ID, requesterBotUserId = '') {
-    return this.#makeAuthRequest('/game/koh/profile', {
+    const res = await this.#makeAuthRequest('/game/koh/profile', {
       targetUserId: ID,
       targetRoleId: '0',
       resVersion: '3',
       recommendPrivacy: '0',
       apiVersion: '2'
     }, ID, requesterBotUserId)
+
+    // 顺手记下 roleId ↔ 营地号。用 roleId 的那几个接口（赛季表现 / 对战五维 /
+    // 赛季常用英雄）要靠它把 targetId 译回营地号，才能正确判断归属
+    // —— 详见 `roleIdToCampId` 的说明。
+    rememberRoleOwner(res?.data?.targetRoleId, ID)
+
+    return res
   }
 
   /** 获取账号常用英雄列表（含场次/胜率/战力/称号） */
