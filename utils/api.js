@@ -1386,7 +1386,14 @@ class CampAuthSession {
     // ⚠️ self 只是**顺序**优先级：命中不了的场景（未登号/失效/冷却中/发起人不是号主）
     //    全部自动退化，不改变任何账号的可用性或轮转游标。
     const targetId = toText(targetUserId)
-    const requester = toText(requesterBotUserId)
+    const rawRequester = toText(requesterBotUserId)
+    // ⚠️ 防呆：定时任务拼的假 e 壳子没有 `user_id`，调用方一个 `String(e.user_id)` 就会
+    //    把字面量 `"undefined"` / `"null"` 传进来 —— 那会让下面**误判成「别人来查」**
+    //    而去摘掉被查号的登录态（比传空串危险得多：空串走的是那条「维持旧行为」的分支）。
+    //    这种值一律当「没传发起人」处理。
+    const requester = (rawRequester && rawRequester !== 'undefined' && rawRequester !== 'null')
+      ? rawRequester
+      : ''
     let pool = [...mappedCandidates]
     let selfCandidate = null
 

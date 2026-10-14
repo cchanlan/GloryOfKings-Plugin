@@ -138,6 +138,25 @@ console.log(JSON.stringify({ sole }))
     `没有中立账号可用时应回隐私文案，实际: ${out.sole.thrown}`)
 })
 
+test('防呆：发起人是字面量 "undefined"（假 e 壳子）时按「没传」处理，不能误摘', () => {
+  const root = makeSandbox()
+  ensurePluginRoot(root)
+  const r = run(root, prelude(THREE) + `
+// 定时任务拼的假 e 没有 user_id，调用方一个 String(e.user_id) 就会造出这俩字面量
+const undef = await orderFor('222', 'undefined')
+const nul = await orderFor('222', 'null')
+console.log(JSON.stringify({ undef, nul }))
+`)
+  assert.equal(r.ok, true, `沙箱脚本失败: ${r.stderr}`)
+  const out = JSON.parse(r.stdout.trim().split('\n').pop())
+
+  // 关键：这两个值**绝不能**被当成「别人来查」而摘号（那会误伤定时链路）
+  assert.equal(out.undef.order?.length, 3,
+    `"undefined" 不该摘任何账号，实际候选: ${out.undef.order}`)
+  assert.equal(out.undef.order?.[0], '222', '按「没传发起人」处理 → 照旧提队首')
+  assert.equal(out.nul.order?.length, 3, `"null" 不该摘任何账号，实际候选: ${out.nul.order}`)
+})
+
 test('轮转没被破坏：查池外号时连续请求仍会换队首', () => {
   const root = makeSandbox()
   ensurePluginRoot(root)
