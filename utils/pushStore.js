@@ -17,7 +17,11 @@
  * 3. stars 的语义随段位体系变化：旧体系「最强王者」按 roleJob 小编号每 5 星一段
  *    （段内星 0~5 循环，2026-07 底赛季切换前的数据实测 roleJob=23~26）；新体系
  *    「荣耀王者」恒为 roleJob=16、stars 直接是累计星数。所以判升降优先比 roleJob
- *    编号，编号没变时星数差才是真实变动；段位名变了就只报段位变化，不算差。
+ *    编号，编号没变时星数差才是真实变动。
+ * 4. **roleJobName 对历史对局返回的是「查询那一刻玩家的当前段位」，不是该局结束时的段位**
+ *    （2026-10-15 查实，详见 resolvePrevRankName 的注释）。同一批请求里所有历史局名字
+ *    完全相同，于是 `jobFrom` 恒等于 `jobTo`，代码里「段位 A → B」那条分支实际永远走不到，
+ *    起点段位名只能靠 roleJob 编号反推。
  *
  * 纯计算逻辑（连胜、筛新场次、文案）都放在这个文件里而不是 apps/ 下，
  * 因为 apps/*.js 的 `extends plugin` 依赖 Yunzai 注入的全局，脱离 Bot 环境 import 就崩，没法单测。
@@ -1101,6 +1105,52 @@ export function pickNewBattles (list = [], sub = {}) {
   return fresh.reverse()
 }
 
+/** 小段罗马数字：下标 0 是 I（该大段最高），往后依次降低，与 roleJob 编号同向递增 */
+const SMALL_RANK_ROMAN = ['I', 'II', 'III', 'IV', 'V']
+
+/**
+ * 由「终点段位名 + 编号变化」反推**变化前**那一段的段位名。
+ *
+ * ⚠️ 为什么非要反推（2026-10-15 主人报「升段文案读着像掉星」时查出来的）：
+ * 营地对**历史对局**返回的 `roleJobName` 是「查询那一刻玩家的当前段位」，**不是该局结束时的段位**。
+ * 实测主人号 campId 1580886057：13:08 那局在归档里是「至尊星耀II」（刚打完那轮记下的），
+ * 两小时后的收工推送里同一局已经变成「至尊星耀I」（当轮查询时的新段位）。
+ * 后果是**同一批请求里所有历史局的名字全都相同**，`jobFrom` 恒等于 `jobTo`，
+ * `formatScoreChange`/`formatStarChange` 里「段位 A → B」那条分支永远走不到，
+ * 起点段位名凭空丢失 —— 收工文案变成「至尊星耀I 3 → 0星（升段）」，
+ * 读起来像「掉了 3 星」。全量归档复算（1974 对相邻同段记录，编号变化 69 对）：
+ * 编号差 ±1（正好差一小段）42 次，其余 27 次都是 ±5 以上的大跳（跨大段/赛季重置）。
+ *
+ * 可靠的只有 `roleJob` 小编号：**同一大段内编号连续且与段位高度同向**
+ * （实测星耀 V/IV/III/II/I = 22/23/24/25/26，永恒钻石 I = 15）。
+ * 所以只差一小段时（|diff| === 1）可以由终点名进退一格拿到起点名；
+ * 差得更远就不敢猜了 —— 跨大段的编号根本不连续（钻石 I 是 15、星耀 V 是 22），
+ * 而「星耀 I(26) → 王者(16)」这种升大段编号反而是降的，
+ * 硬推必然编出一个假段位。返回空串让调用方保持原样，宁可不写名字也不写错名字。
+ *
+ * @param {string} jobTo 终点段位名（当前段位，可信）
+ * @param {number} jobNumFrom 起点 roleJob 编号
+ * @param {number} jobNumTo 终点 roleJob 编号
+ * @returns {string} 起点段位名，推不出来时返回空串
+ */
+export function resolvePrevRankName (jobTo, jobNumFrom, jobNumTo) {
+  const diff = toInt(jobNumTo) - toInt(jobNumFrom)
+  if (Math.abs(diff) !== 1) return ''
+
+  // 「至尊星耀II」拆成前缀「至尊星耀」+ 小段「II」；「最强王者」这类没有小段的直接放弃
+  const m = String(jobTo || '').trim().match(/^(.*?)(I{1,3}|IV|V)$/)
+  if (!m) return ''
+
+  const idx = SMALL_RANK_ROMAN.indexOf(m[2])
+  if (idx < 0) return ''
+
+  // 编号涨 = 段位升 = 起点比终点低一档（罗马数字更大）；编号跌则反过来
+  const prevIdx = idx + diff
+  if (prevIdx < 0 || prevIdx >= SMALL_RANK_ROMAN.length) return ''
+
+  return m[1] + SMALL_RANK_ROMAN[prevIdx]
+}
+
 /**
  * 一场战绩的分数变化。巅峰赛给巅峰分，排位给段位星数，都拿不到就返回空。
  *
@@ -1169,7 +1219,12 @@ export function formatScoreChange (item, prev) {
   // stars 直接是累计星数。编号变了说明跨了小段，按编号判升降，不算星数差
   if (jobNum && prevJobNum && jobNum !== prevJobNum) {
     if (jobNum > prevJobNum) {
-      return { text: `${job} ${prevStars} → ${stars}星（升段）`, tone: 'up' }
+      // 起点段位名自己推（营地给的历史局名字恒等于终点名，见 resolvePrevRankName）。
+      // 推得出就把两边段位和星数写全，推不出退回旧的半截文案
+      const prevName = resolvePrevRankName(job, prevJobNum, jobNum)
+      return prevName
+        ? { text: `${prevName} ${prevStars}星 → ${job} ${stars}星（升段）`, tone: 'up' }
+        : { text: `${job} ${prevStars} → ${stars}星（升段）`, tone: 'up' }
     }
     // 赢了编号却降只可能是赛季切换/段位重置（实测 2026-07-26 26→16），不是掉段，
     // 前后星数不可比，只报当前
@@ -1573,11 +1628,23 @@ export function formatStarChange (session = {}) {
   }
 
   // 同名段但 roleJob 小编号变了（旧体系 5 星一小段）：起止星数不可比，按编号报升降段。
-  // 编号下降不下结论——可能是掉段，也可能是期间跨了赛季重置（实测 26→16）
+  // 起点段位名靠 resolvePrevRankName 推（营地给的历史局名字恒等于终点名，见那个函数的说明）
   if (jobNumFrom && jobNumTo && jobNumFrom !== jobNumTo) {
-    return jobNumTo > jobNumFrom
-      ? { text: `${jobTo} ${starFrom} → ${starTo}星（升段）`, icon: '📈', tone: 'up' }
-      : { text: `${jobTo} ${starFrom} → ${starTo}星`, icon: '', tone: 'flat' }
+    const prevName = resolvePrevRankName(jobTo, jobNumFrom, jobNumTo)
+    // 推得出起点名就把两边写全（「至尊星耀II 3星 → 至尊星耀I 0星（升段）」），
+    // 推不出（跨大段/赛季重置）就退回旧的半截文案，只报当前段位
+    const full = (tag) => `${prevName} ${starFrom}星 → ${jobTo} ${starTo}星（${tag}）`
+    if (jobNumTo > jobNumFrom) {
+      return prevName
+        ? { text: full('升段'), icon: '📈', tone: 'up' }
+        : { text: `${jobTo} ${starFrom} → ${starTo}星（升段）`, icon: '📈', tone: 'up' }
+    }
+    // 正好掉一小段（编号差 -1、能推出起点名）才敢下「掉段」的结论。
+    // 掉得更多的不是掉段而是赛季重置（编号跳 7~12，实测 26→16 / 16→22），继续 flat 不下结论
+    if (prevName) {
+      return { text: full('掉段'), icon: '📉', tone: 'down' }
+    }
+    return { text: `${jobTo} ${starFrom} → ${starTo}星`, icon: '', tone: 'flat' }
   }
 
   if (starTo !== starFrom) {
