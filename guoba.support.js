@@ -350,6 +350,14 @@ export function supportGuoba () {
           component: 'Switch'
         },
         {
+          field: 'config.teamMutedGroups',
+          label: '不收开黑播报的群',
+          bottomHelpMessage:
+            '勾上的群不收开黑播报（别的群有人发起时不会推到这些群）。' +
+            '和群管理在群里发 #关闭开黑广播 是同一份设置，两处都能改。',
+          component: 'GSelectGroup'
+        },
+        {
           field: 'config.dependencyRegistry',
           label: '依赖 npm 镜像',
           bottomHelpMessage: '装观战/营地消息的依赖时用哪个 npm 镜像。',

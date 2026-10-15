@@ -59,6 +59,16 @@
       color: #6fd39b;
       margin-bottom: 2px;
     }
+    /*
+      时间下面那行：房间号（有）或「QQ 联系」（没有）。
+      金色和上面那个绿时间区分开，扫一眼就知道进房靠哪样。
+    */
+    .team-when .contact {
+      display: block;
+      font-family: Number, sans-serif;
+      color: rgba(245,215,110,0.72);
+      margin-bottom: 3px;
+    }
 
     /* ── 位置排：照王者匹配界面那样一字排开 ── */
     .seat-row { display: flex; gap: 10px; }

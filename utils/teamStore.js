@@ -41,7 +41,7 @@
 import path from 'path'
 import { readYamlFile, writeYamlFile } from '#utils'
 import { quarantineCorrupt } from './safeStore.js'
-import { PluginData } from '#components'
+import { PluginData, Config } from '#components'
 
 const TEAM_FILE = path.join(PluginData, 'TeamUpPush.yaml')
 
@@ -128,35 +128,59 @@ export function saveTeamStore (store) {
 }
 
 /**
+ * 「关掉播报的群」这份名单在哪。
+ *
+ * 2026-10-16 起主源是**锅巴配置** `config.teamMutedGroups` —— 面板上是个群多选
+ * （`GSelectGroup`），主人不用进群发指令就能勾。
+ *
+ * 老版本把它存在 `TeamUpPush.yaml` 的 `offList` 里，那份**继续认**（两边取并集）：
+ * 已经关过的群不会因为换了存储位置就突然又开始收播报。
+ * 新写入一律进配置，所以不会再有新的 yaml 记录产生。
+ */
+function mutedList () {
+  let fromConfig = []
+  try {
+    const list = Config.getDefOrConfig('config')?.teamMutedGroups
+    if (Array.isArray(list)) fromConfig = list
+  } catch {
+    // 配置读不出来（文件坏了 / 宿主没就绪）就当没关过 —— 播报多一条好过整个轮询挂掉
+  }
+  return fromConfig.map(String).filter(Boolean)
+}
+
+/**
  * 开 / 关一个群的开黑广播。重新打开就删记录，不留空壳。
+ *
+ * 两处入口写的是**同一份数据**：群管理发 `#关闭开黑广播`、主人在锅巴面板勾选，
+ * 谁后改谁生效 —— 所以锅巴里取消勾选就等于重新开启 ✔
+ *
  * @returns {{changed: boolean}} changed 为假表示状态本来就是这样
  */
-export function setTeamSub (groupId, enable, extra = {}) {
+export function setTeamSub (groupId, enable) {
   const key = String(groupId || '')
   if (!key) return { changed: false }
 
-  const store = loadTeamStore()
-  const on = !store.offList[key]
+  const list = mutedList()
+  const at = list.indexOf(key)
+  // 不在名单里 = 广播开着。语义与下面 isTeamSub 一致
+  const on = at < 0
   if (on === enable) return { changed: false }
 
-  if (enable) {
-    delete store.offList[key]
-  } else {
-    store.offList[key] = { since: Date.now(), ...extra }
-  }
+  if (enable) list.splice(at, 1)
+  else list.push(key)
 
-  saveTeamStore(store)
+  Config.modify('config', 'teamMutedGroups', list)
   return { changed: true }
 }
 
 /** 本群开着广播吗（没关过就是开着） */
 export function isTeamSub (groupId) {
-  return !loadTeamStore().offList[String(groupId || '')]
+  return !mutedGroups().has(String(groupId || ''))
 }
 
 /** 关掉广播的群号集合。播报时从机器人所在的全部群里减掉它 */
 export function mutedGroups () {
-  return new Set(Object.keys(loadTeamStore().offList))
+  return new Set([...mutedList(), ...Object.keys(loadTeamStore().offList)])
 }
 
 /**

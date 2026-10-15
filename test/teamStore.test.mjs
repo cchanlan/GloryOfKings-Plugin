@@ -154,3 +154,48 @@ test('满员房里的无关群被剔掉，但同一个房的参与群照发', ()
   assert.deepEqual(out.keys, ['222'], '只有参与过的 222 收得到')
   assert.deepEqual(out.ats, ['q2'])
 })
+
+test('群开关写进锅巴配置 —— 面板勾选和 #关闭开黑广播 是同一份数据', () => {
+  const out = inSandbox(`
+    ${PRELUDE}
+    import { setTeamSub, isTeamSub, mutedGroups } from './utils/teamStore.js'
+    import { fakeConfig } from './fake-config.mjs'
+
+    setTeamSub('111', false)   // 111 关掉播报
+    setTeamSub('222', false)
+    setTeamSub('111', true)    // 又开回来 —— 不该在名单里留空壳
+    // 重复关同一个群：状态没变化，调用方靠 changed 判断要不要回复
+    const again = setTeamSub('222', false)
+
+    console.log(JSON.stringify({
+      cfg: fakeConfig().teamMutedGroups,
+      is111: isTeamSub('111'),
+      is222: isTeamSub('222'),
+      muted: [...mutedGroups()],
+      changedAgain: again.changed
+    }))
+  `)
+
+  assert.deepEqual(out.cfg, ['222'], '写进配置的是「关掉的群」名单')
+  assert.equal(out.is111, true, '重新开启的群要能收播报')
+  assert.equal(out.is222, false)
+  assert.deepEqual(out.muted, ['222'])
+  assert.equal(out.changedAgain, false, '状态没变时 changed 必须是 false')
+})
+
+test('老版本存在 yaml offList 里的群继续算数（两处取并集）', () => {
+  const out = inSandbox(`
+    ${PRELUDE}
+    import { setTeamSub, mutedGroups } from './utils/teamStore.js'
+
+    // 老数据：yaml 里关掉的 999
+    fs.writeFileSync(FILE, YAML.stringify({ offList: { 999: { since: 1 } } }))
+    // 新数据：配置里关掉的 888
+    setTeamSub('888', false)
+
+    console.log(JSON.stringify({ muted: [...mutedGroups()].sort() }))
+  `)
+
+  assert.deepEqual(out.muted, ['888', '999'], '换了存储位置，老记录不能失效')
+})
+

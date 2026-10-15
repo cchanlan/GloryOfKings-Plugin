@@ -130,11 +130,6 @@ function needText (needLanes, seats) {
   return seats > 0 ? `${seats} 个位置都行` : ''
 }
 
-/** 「荣耀王者 68 星 · 战力 12345」。两项都没有就返回空串，别留个孤零零的「·」 */
-function identityText (rank, power) {
-  return [rank, power ? `战力 ${power}` : ''].filter(Boolean).join(' · ')
-}
-
 /**
  * 一个位置格。`lane` 认不出时退回「都行」那个图标，绝不留空白徽章。
  *
@@ -216,22 +211,27 @@ function joinHintOf (lane) {
 }
 
 /**
- * 把一个房整理成播报图里的一张卡。
+ * 一个房在图上要用的派生字段。
  *
- * 和列表图用的是同一套位置格，所以这里只是在它外面补两个视图字段：
- *  · `joinHint`  卡片底部那行「发 #加入开黑 XX ___」的空缺示例（缺什么就写什么）
- *  · `seatsText` 右上角的「还差 N 人」
+ * 「列表图」和「播报图」共用同一套卡片，所以两处**必须调同一个函数** ——
+ * 各拼一份必然漂移（改了一处忘了另一处，同一个房在两张图上长得不一样）。
+ *
+ * ⚠️ 位置格**必须另起字段名，不能叫 `seats`** —— 服务端返回的 `room.seats` 是
+ *    「还剩几个空位」的**数字**，覆盖掉之后文字版 `needText(needLanes, room.seats)`
+ *    拿到的就是数组，`seats > 0` 恒为 false，「N 个位置都行」那句兜底永远出不来了。
  */
-function broadcastRoom (room) {
+function roomCardOf (room) {
   const seatList = buildSeats(room)
   const empty = seatList.find(seat => seat.kind === 'empty')
   return {
     ...room,
     seatList,
+    // 只差一个人的房给一条金边，扫一眼就知道这个最该去补
     urgent: room.seats === 1,
     seatsText: room.seats > 0 ? `还差 ${room.seats} 人` : '人齐了',
-    powerText: room.ownerPower ? room.ownerPower.toLocaleString('zh-CN') : '',
-    joinHint: joinHintOf(empty?.lane)
+    joinHint: joinHintOf(empty?.lane),
+    // 时间边上那行：有房间号写房间号，没有就写「QQ 联系」（联系方式靠加进去后私聊）
+    contactText: room.roomNo ? `房间号 ${room.roomNo}` : 'QQ 联系'
   }
 }
 
@@ -246,8 +246,7 @@ function broadcastFullRoom (room) {
 }
 
 function buildNewBroadcast (room) {
-  const who = [room.ownerName, identityText(room.ownerRank, room.ownerPower)]
-    .filter(Boolean).join(' · ')
+  const who = [room.ownerName, room.ownerRank].filter(Boolean).join(' · ')
 
   const lines = [
     `🎮 有人发起开黑 [${room.code}]`,
@@ -257,6 +256,7 @@ function buildNewBroadcast (room) {
   ]
 
   if (room.meetText) lines.push(`约定：${room.meetText}`)
+  lines.push(room.roomNo ? `房间号：${room.roomNo}` : '房间号：没填，加进去后私聊给你')
   if (room.note) lines.push(`备注：${room.note}`)
   if (room.ownerGroupName) lines.push(`来自：${room.ownerGroupName}`)
 
@@ -498,7 +498,7 @@ async function renderBroadcast (fresh, full) {
       laneIcons: LANE_ICON_SVG,
       title: fresh.length ? '有人发起开黑' : '开黑人齐了',
       subText: fresh.length ? `${fresh.length} 个房在招人` : `${full.length} 个房已经满`,
-      rooms: fresh.map(broadcastRoom),
+      rooms: fresh.map(roomCardOf),
       fullRooms: full.map(broadcastFullRoom)
     })
   } catch (error) {
@@ -843,6 +843,8 @@ export class TeamUp extends plugin {
       needLanes: parsed.needLanes,
       size: parsed.size,
       note: parsed.note,
+      // 游戏房间号（可空）。进公开段播到各群 —— 加进来的人照着它进房
+      roomNo: parsed.roomNo,
       expireAt: parsed.meetAt,
       meetText: parsed.meetText,
       ownerGroupId: String(e.group_id || ''),
@@ -861,8 +863,9 @@ export class TeamUp extends plugin {
       `${room.size} 排 · 你玩${room.ownerLane} · 缺${needText(room.needLanes, room.seats)}`
     ]
     if (room.meetText) lines.push(`约定时间：${room.meetText}（到点自动结束）`)
-    const me = identityText(room.ownerRank, room.ownerPower)
-    if (me) lines.push(me)
+    // 只写段位。**总战力不展示**（2026-10-16 主人定）—— 卡片上留英雄战力那个数就够了
+    if (room.ownerRank) lines.push(room.ownerRank)
+    lines.push(room.roomNo ? `房间号：${room.roomNo}` : '房间号：没填，进来后私聊给你')
     lines.push('', `别人发 #加入开黑 ${room.code} [分路] 就能进来`, '有人来了会私聊告诉你')
 
     return e.reply(lines.join('\n'), shouldQuote())
@@ -988,18 +991,7 @@ export class TeamUp extends plugin {
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, LIST_MAX)
 
-    const rooms = open.map(room => ({
-      ...room,
-      // ⚠️ 位置格**必须另起字段名，不能叫 `seats`** —— 服务端返回的 `room.seats` 是
-      //    「还剩几个空位」的**数字**，覆盖掉之后下面 textList 里
-      //    `needText(needLanes, room.seats)` 拿到的就是数组，`seats > 0` 恒为 false，
-      //    「N 个位置都行」那句兜底文案永远出不来（降级路径静默少一行）
-      seatList: buildSeats(room),
-      // 只差一个人的房给一条金边，扫一眼就知道这个最该去补
-      urgent: room.seats === 1,
-      seatsText: room.seats > 0 ? `还差 ${room.seats} 人` : '人齐了',
-      powerText: room.ownerPower ? room.ownerPower.toLocaleString('zh-CN') : ''
-    }))
+    const rooms = open.map(roomCardOf)
 
     const sample = rooms[0]
     const image = await this.shot(rooms, {
@@ -1071,9 +1063,7 @@ export class TeamUp extends plugin {
     }
 
     const enable = e.msg.includes('开启')
-    const { changed } = setTeamSub(e.group_id, enable, {
-      groupName: e.group_name || ''
-    })
+    const { changed } = setTeamSub(e.group_id, enable)
 
     if (!changed) {
       return e.reply(`本群的开黑广播本来就是${enable ? '开着' : '关着'}的`, shouldQuote())

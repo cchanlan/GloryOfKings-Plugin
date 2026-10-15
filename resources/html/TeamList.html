@@ -33,14 +33,13 @@
             <div class="team-name">{{room.ownerName}}</div>
             <div class="team-sub">
               {{if room.ownerRank}}<span class="rank">{{room.ownerRank}}</span>{{/if}}
-              {{if room.ownerRank && room.powerText}}<span class="sep">·</span>{{/if}}
-              {{if room.powerText}}<span>战力 {{room.powerText}}</span>{{/if}}
-              {{if room.ownerRank || room.powerText}}<span class="sep">·</span>{{/if}}
+              {{if room.ownerRank}}<span class="sep">·</span>{{/if}}
               <span>{{room.size}} 排</span>
             </div>
           </div>
           <div class="team-when">
             {{if room.meetText}}<span class="time">{{room.meetText}}</span>{{/if}}
+            <span class="contact">{{room.contactText}}</span>
             {{room.seatsText}}
           </div>
         </div>

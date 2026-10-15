@@ -108,6 +108,28 @@ export function matchSize (raw) {
   return n >= 2 && n <= 5 ? n : 0
 }
 
+/**
+ * 认游戏房间号。
+ *
+ * 两种写法都收：带前缀的（`房间号123456`、`房号 123456`）和**裸的 4~6 位数字** ——
+ * 群友打字不会为这个专门加前缀，而 4 位以上的数字在这个指令里没有别的含义
+ * （「3排」带排字、时间带点或冒号，都不会走到这里）。
+ *
+ * ⚠️ 上限定在 6 位：王者的开黑房间号是 6 位数，更长的多半是别人手机号之类的误输入，
+ *    收进来会变成图上一串莫名其妙的数字。
+ *
+ * @returns {string} 认不出返回空串
+ */
+export function matchRoomNo (raw) {
+  const text = String(raw || '').trim()
+  if (!text) return ''
+  const m = /^(?:房间号?|房号)?\s*(\d{4,6})$/.exec(text)
+  return m ? m[1] : ''
+}
+
+/** 「房间号」这三个字单独出现时，数字在下个词里 */
+const ROOM_PREFIX_RE = /^(房间号|房号|房间)$/
+
 /** 两位补零 */
 function pad (n) {
   return String(n).padStart(2, '0')
@@ -196,8 +218,17 @@ export function parseMeetAt (raw, now = Date.now()) {
 /**
  * 解析 `#发起开黑` 后面那串。
  *
+ * ## 第一个分路是自己的，后面几个是缺的
+ *
+ * `#发起开黑 发育 辅助 打野 3排` = 我玩发育、缺辅助和打野。
+ * 群友就是这么写的（顺序写下来，不写「缺」字），所以第二个及以后的分路一律当缺口 ——
+ * ⚠️ 早先这里只取第一个分路当自己的位置，**其余的被当成备注丢进 `note`**，
+ *    于是「发育 辅助 打野 3排」被解析成「你玩发育路 · 缺 2 个位置都行」，
+ *    图上两个空位都标「都行」—— 群里看着就像机器人没听懂（2026-10-16 主人报的）。
+ * 「都行」不算缺口（它本来就不是分路），继续留在备注里。
+ *
  * @returns {{lane: string, needLanes: string[], size: number, meetAt: number,
- *            meetText: string, note: string}}
+ *            meetText: string, roomNo: string, note: string}}
  */
 export function parseCreate (raw) {
   const tokens = String(raw || '').trim().split(/[\s,，、]+/).filter(Boolean)
@@ -207,6 +238,9 @@ export function parseCreate (raw) {
   let size = 0
   let meetAt = 0
   let meetText = ''
+  let roomNo = ''
+  /** 上一个词是光秃秃的「房间号」，下一个数字要当房间号 */
+  let wantRoomNo = false
   const rest = []
 
   for (const token of tokens) {
@@ -234,14 +268,46 @@ export function parseCreate (raw) {
     // 「马上」这类明确表示「不约时间」的，吃掉但不设值
     if (meet && !meet.at) continue
 
-    const matched = matchLane(token)
-    if (matched && !lane) {
-      lane = matched
+    // 房间号：「房间号123456」/「房号 123456」/ 裸的 4~6 位数字
+    if (wantRoomNo) {
+      const pending = matchRoomNo(token)
+      if (pending) {
+        roomNo = pending
+        wantRoomNo = false
+        continue
+      }
+      wantRoomNo = false
+      // 落空就把它当普通词继续走下面的判断（「房间号 3排」这种写错了也别整条指令作废）
+    }
+    if (!roomNo && ROOM_PREFIX_RE.test(token)) {
+      wantRoomNo = true
       continue
+    }
+    const room = matchRoomNo(token)
+    if (room && !roomNo) {
+      roomNo = room
+      continue
+    }
+
+    const matched = matchLane(token)
+    if (matched) {
+      // 第一个分路是发起人自己的位置
+      if (!lane) {
+        lane = matched
+        continue
+      }
+      // 后面的都是缺的位置（见函数头）
+      if (matched !== LANE_ANY && !needLanes.includes(matched)) {
+        needLanes.push(matched)
+        continue
+      }
     }
 
     rest.push(token)
   }
+
+  // 「N 排」最多只要 N-1 个人，缺口列多了按前几个算
+  if (size && needLanes.length > size - 1) needLanes.length = size - 1
 
   return {
     lane: lane || LANE_ANY,
@@ -249,6 +315,7 @@ export function parseCreate (raw) {
     size,
     meetAt,
     meetText,
+    roomNo,
     note: rest.join(' ').slice(0, 40)
   }
 }
