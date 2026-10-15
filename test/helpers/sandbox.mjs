@@ -120,15 +120,19 @@ export function makeSandbox () {
 
   // 假的 #components：只提供被 import 到的那几个名字。
   // `Config.modify` 是给 teamStore 的群开关用的（它把「关掉的群」写进配置），
-  // 写进上面那个可改的内部状态，测试里读得回来。
+  // 写进上面那个可改的内部状态，测试里读得回来；
+  // `failNextModify` 让下一次写入抛错，用来验「写盘失败」那条路。
   fs.writeFileSync(path.join(root, 'test-components.mjs'), [
-    `import { fakeConfig, setFakeConfig } from './fake-config.mjs'`,
+    `import { fakeConfig, setFakeConfig, takeModifyFailure } from './fake-config.mjs'`,
     `export const PluginPath = ${JSON.stringify(path.join(root, 'PluginRoot'))}`,
     `export const PluginData = ${JSON.stringify(path.join(root, 'PluginRoot', 'data'))}`,
     `export const PluginName = 'GloryOfKings-Plugin-Test'`,
     `export const Config = {`,
     `  getDefOrConfig: () => fakeConfig(),`,
-    `  modify: (name, key, value) => setFakeConfig({ [key]: value })`,
+    `  modify: (name, key, value) => {`,
+    `    if (takeModifyFailure()) throw new Error('测试：写盘失败')`,
+    `    setFakeConfig({ [key]: value })`,
+    `  }`,
     `}`,
     ''
   ].join('\n'), 'utf8')
@@ -137,8 +141,12 @@ export function makeSandbox () {
   //    测试脚本里 `fake.fakeConfig = ...` 会直接抛 TypeError
   fs.writeFileSync(path.join(root, 'fake-config.mjs'), [
     `let cfg = ${JSON.stringify(FAKE_CONFIG)}`,
+    `let failNext = false`,
     'export function fakeConfig () { return { ...cfg } }',
     'export function setFakeConfig (next) { cfg = { ...cfg, ...next } }',
+    '/** 让下一次 Config.modify 抛错（模拟磁盘满 / 文件只读） */',
+    'export function failNextModify (v) { failNext = !!v }',
+    'export function takeModifyFailure () { const v = failNext; failNext = false; return v }',
     ''
   ].join('\n'), 'utf8')
 

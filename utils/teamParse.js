@@ -296,8 +296,10 @@ export function parseCreate (raw) {
         lane = matched
         continue
       }
-      // 后面的都是缺的位置（见函数头）
-      if (matched !== LANE_ANY && !needLanes.includes(matched)) {
+      // 后面的都是缺的位置（见函数头）。
+      // ⚠️ 排除**他自己那个位置**：手滑写两遍「打野 打野 3排」时，
+      //    不能把这个重复项当成「缺打野」——那会和「他玩打野」自相矛盾
+      if (matched !== LANE_ANY && matched !== lane && !needLanes.includes(matched)) {
         needLanes.push(matched)
         continue
       }

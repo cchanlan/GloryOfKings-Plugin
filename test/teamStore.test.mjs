@@ -199,3 +199,41 @@ test('老版本存在 yaml offList 里的群继续算数（两处取并集）', 
   assert.deepEqual(out.muted, ['888', '999'], '换了存储位置，老记录不能失效')
 })
 
+test('老 yaml 里关着的群，重新开启要真的开得回来', () => {  const out = inSandbox(`
+    ${PRELUDE}
+    import { setTeamSub, isTeamSub, mutedGroups } from './utils/teamStore.js'
+
+    // 老数据：yaml 里关掉的 999（只躺在老文件里，配置那份是空的）
+    fs.writeFileSync(FILE, YAML.stringify({ offList: { 999: { since: 1 } } }))
+    const before = isTeamSub('999')
+    const opened = setTeamSub('999', true)
+    const after = isTeamSub('999')
+
+    console.log(JSON.stringify({
+      before, changed: opened.changed, after, muted: [...mutedGroups()]
+    }))
+  `)
+
+  assert.equal(out.before, false, '老记录要认（这个群关着）')
+  assert.equal(out.changed, true, '开启是真变化 —— 不能回一句「本来就是开着的」却啥也没改')
+  assert.equal(out.after, true, '开回来之后真的能收播报了')
+  assert.deepEqual(out.muted, [], '老文件里那条也要清掉，否则并集里还关着')
+})
+
+test('写配置失败要能告诉用户，不能假装成功', () => {
+  const out = inSandbox(`
+    ${PRELUDE}
+    import { setTeamSub, isTeamSub } from './utils/teamStore.js'
+    import { failNextModify } from './fake-config.mjs'
+
+    failNextModify(true)                 // 下一次 Config.modify 抛错
+    const r = setTeamSub('111', false)
+    console.log(JSON.stringify({ r, stillOn: isTeamSub('111') }))
+  `)
+
+  assert.equal(out.r.failed, true, '要如实告诉调用方「没写进去」')
+  assert.equal(out.r.changed, false)
+  assert.equal(out.stillOn, true, '没写进配置就别改状态（下一轮照样收播报，符合事实）')
+})
+
+

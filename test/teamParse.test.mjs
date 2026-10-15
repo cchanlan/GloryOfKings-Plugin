@@ -47,6 +47,13 @@ test('「都行」不算缺口，还是留在备注里', () => {
   assert.equal(r.note, '都行')
 })
 
+test('手滑把自己那个分路写两遍，不该被当成缺的位置', () => {
+  const r = parseCreate('打野 打野 3排')
+
+  assert.equal(r.lane, '打野')
+  assert.deepEqual(r.needLanes, [], '他玩打野，缺的当然不是打野')
+})
+
 test('备注不会被误当成分路或缺口', () => {
   const r = parseCreate('打野 3排 来个大神带飞')
 

@@ -355,7 +355,10 @@ export function supportGuoba () {
           bottomHelpMessage:
             '勾上的群不收开黑播报（别的群有人发起时不会推到这些群）。' +
             '和群管理在群里发 #关闭开黑广播 是同一份设置，两处都能改。',
-          component: 'GSelectGroup'
+          component: 'GSelectGroup',
+          // 群多选默认走整行（label 在上、控件占满），但这个 label 短，
+          // 走常规的「标签左、控件右」才和上下的字段对得齐
+          block: false
         },
         {
           field: 'config.dependencyRegistry',

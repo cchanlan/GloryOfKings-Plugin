@@ -42,7 +42,7 @@
  *     否则这些房会被标成「播过了」而实际一个群都没发出去
  */
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { ApiService, shouldQuote, pickGroupSafe, AT_HEAD, stripAtText, getImgType } from '#utils'
+import { ApiService, shouldQuote, pickGroupSafe, pickMemberSafe, AT_HEAD, stripAtText, getImgType } from '#utils'
 import { PluginName } from '#components'
 import { getCurrentId } from '../utils/localBind.js'
 import { resolveUserData } from '../utils/shareStore.js'
@@ -277,19 +277,34 @@ function buildFullBroadcast (room) {
     ...roster
   ]
   if (room.meetText) lines.push(`约定：${room.meetText}`)
+  if (room.roomNo) lines.push(`房间号：${room.roomNo}`)
 
   return lines.join('\n')
 }
 
 /**
- * at 段。个别框架没把 `segment` 挂到全局时退回纯文本 —— 少一个红点提醒，
- * 总好过整个播报抛掉（同插件别处对宿主 API 一律能力探测 + 兜底）。
+ * at 段。
+ *
+ * ⚠️ 兜底**不发纯文本 @**：`@123456` 会把他的 QQ 号明文写进群，而「群里不出现任何
+ *    QQ 号和营地ID」是这条播报的硬边界（服务端的公开段也是照这个分的）——
+ *    少一个红点提醒，好过把隐私边界从侧面凿穿。
  */
 function atSegment (qq) {
   try {
     if (typeof segment !== 'undefined' && segment?.at) return segment.at(qq)
   } catch {}
-  return `@${qq}`
+  return ''
+}
+
+/**
+ * @ 名单里剔掉**已经不在本群**的人。
+ *
+ * @ 一个不在群里的人，QQ 会把他的号直接显示成 `@123456` —— 和上面那条兜底是同一个
+ * 洞。人会退群，而记录里躺着的号未必还在。
+ */
+function aliveAts (groupId, ats) {
+  if (!Array.isArray(ats) || !ats.length) return []
+  return ats.filter(qq => pickMemberSafe(groupId, qq))
 }
 
 /**
@@ -306,9 +321,11 @@ function buildBroadcastMessage ({ fresh, full, ats }, image) {
   if (full.length) {
     // 一轮里一个群可能同时收到好几个房满员，合成一行
     const codes = full.map(room => `${room.code} 号房`).join('、')
-    // at 段要平铺进数组，别塞成嵌套数组（框架发不出去）
-    const atSegs = ats.length ? [...ats.map(atSegment), ' '] : []
-    message.push('\n', ...atSegs, `${codes}人齐了，去游戏里组队吧`)
+    // at 段要平铺进数组，别塞成嵌套数组（框架发不出去）。
+    // filter(Boolean) 是为了兜掉「拿不到 at 段」的那些人（见 atSegment）
+    const mentions = ats.map(atSegment).filter(Boolean)
+    if (mentions.length) mentions.push(' ')
+    message.push('\n', ...mentions, `${codes}人齐了，去游戏里组队吧`)
   }
 
   // 出图失败时把内容补成文字版（图里本来就写着同样的东西，别发一条只剩 @ 的空消息）
@@ -551,15 +568,35 @@ async function pollOnce () {
     const freshRooms = rooms.filter(room => room.status === 'open' && !store.milestones[roomKey(room)])
     const fullRooms = rooms.filter(room => room.status === 'full' && store.milestones[roomKey(room)] !== 'full')
 
+    /**
+     * 满员之后有人退出 → 服务端把房改回 `open` 继续招人。
+     *
+     * 这时要把本机记的 `full` 里程碑**降回 `new`**：不降的话它下次凑满时
+     * `milestones !== 'full'` 不成立，**第二次「人齐了」永远不会播** ——
+     * 尤其是补上最后那个位置的人的群，它可能连第一次都没赶上（那时它还没参与）。
+     * 降回 `new` 只是让它「可以再播一次满员」，**不会**重播「有人发起」
+     * （那条的条件是「完全没有记录」，不是「记录是 new」）。
+     */
+    const reopenedRooms = rooms.filter(room =>
+      room.status === 'open' && store.milestones[roomKey(room)] === 'full')
+
     const groups = broadcastGroups()
     // 群列表还没就绪（冷启动适配器没连上）→ 这轮不播、**也不推进水位**。
     // 推进了的话下一轮服务端回 unchanged，这些房就永远补不上了
     const canBroadcast = groups.length > 0
 
+    // 这一轮到底有没有**真的发出去**（见下面的 commitTeamStore）
+    let delivered = false
+
     if (canBroadcast && (freshRooms.length || fullRooms.length)) {
       // 收件人决策（新房广播哪些群、满员只发哪些群、每个群 @ 谁）在 teamStore 的
-      // planBroadcast 里 —— 那是纯数据进出，脱机就能单测
-      const plan = planBroadcast(groups, freshRooms, fullRooms, store)
+      // planBroadcast 里 —— 那是纯数据进出，脱机就能单测。
+      //
+      // ⚠️ 这里**现读一次状态**，别用这轮开头那份：`#加入开黑` 是在 HTTP 请求里当场
+      //    落盘的，而本轮开头读快照到现在已经过了渲染+入队的时间 —— 用旧那份的话，
+      //    「刚让这个房满员」的那个群不在名单里，满员播报就漏了，而房满了之后
+      //    里程碑记成 full、再也不会补播（永久丢失）。
+      const plan = planBroadcast(groups, freshRooms, fullRooms, loadTeamStore())
 
       // 按**内容**给待发群分组：绝大多数群收到的内容一样，一轮只渲染一次，不是每群一次。
       // ⚠️ at 段不参与签名 —— 它按群拼（同一个群只 @ 本群的人），
@@ -573,14 +610,17 @@ async function pollOnce () {
         byContent.get(sig).targets.set(groupId, item.ats)
       }
 
+      let sent = 0
       for (const item of byContent.values()) {
         const image = await renderBroadcast(item.fresh, item.full)
-        await broadcast([...item.targets.keys()], groupId => buildBroadcastMessage({
+        sent += await broadcast([...item.targets.keys()], groupId => buildBroadcastMessage({
           fresh: item.fresh,
           full: item.full,
-          ats: item.targets.get(groupId) || []
+          // 名单里可能有已经退群的人，@ 他们要暴露 QQ 号（见 aliveAts）
+          ats: aliveAts(groupId, item.targets.get(groupId))
         }, image))
       }
+      delivered = sent > 0
     }
 
     // ② 本机发起的房：替发起人私聊通知新成员
@@ -605,7 +645,15 @@ async function pollOnce () {
 
     // ④ 落盘：本轮改动套到最新那份上（见 commitTeamStore 的说明）
     commitTeamStore(latest => {
-      if (canBroadcast) {
+      /**
+       * ⚠️ 只有**真的发出去过**才推进水位、打里程碑。
+       *
+       * 发了 0 个群（适配器抽风、风控临时拒绝、发送对象取不到）却记成「播过了」的话，
+       * 这些房下一轮不再是 fresh/full，**永远不会补播** —— 群里一条都没见过。
+       * 条件里的 `canBroadcast` 挡的是冷启动那种（群列表都没就绪，压根没进这里）；
+       * 这里是「进去了、但一条都没发成」。
+       */
+      if (canBroadcast && delivered) {
         latest.rev = Number(result.rev) || latest.rev
         for (const room of freshRooms) {
           const key = roomKey(room)
@@ -613,6 +661,14 @@ async function pollOnce () {
         }
         for (const room of fullRooms) latest.milestones[roomKey(room)] = 'full'
       }
+
+      // 满员后又开了的房：把里程碑降回 new（理由见 reopenedRooms）。
+      // 这一步**不受 delivered 影响** —— 它是本机状态修正，不依赖这轮发没发成功
+      for (const room of reopenedRooms) {
+        const key = roomKey(room)
+        if (latest.milestones[key] === 'full') latest.milestones[key] = 'new'
+      }
+
       Object.assign(latest.notified, notifiedNow)
       for (const key of dropKeys) {
         delete latest.origins[key]
@@ -1045,6 +1101,8 @@ export class TeamUp extends plugin {
       lines.push(head)
       lines.push(`  他玩${room.ownerLane} · 缺${needText(room.needLanes, room.seats)}`)
       if (room.meetText) lines.push(`  约定 ${room.meetText}`)
+      // 有房间号就跟图里一样给出来（没有就不写，文字版每行都重复「QQ 联系」太吵）
+      if (room.roomNo) lines.push(`  房间号 ${room.roomNo}`)
       if ((room.joined || []).length) {
         lines.push(`  已来：${room.joined.map(m => `${m.name}(${m.lane})`).join('、')}`)
       }
@@ -1063,7 +1121,10 @@ export class TeamUp extends plugin {
     }
 
     const enable = e.msg.includes('开启')
-    const { changed } = setTeamSub(e.group_id, enable)
+    const { changed, failed } = setTeamSub(e.group_id, enable)
+
+    // 写盘失败要**说一声**：不然用户以为关掉了，下一轮照样收到播报
+    if (failed) return e.reply('没能把设置写进配置文件，等一下再试', shouldQuote())
 
     if (!changed) {
       return e.reply(`本群的开黑广播本来就是${enable ? '开着' : '关着'}的`, shouldQuote())

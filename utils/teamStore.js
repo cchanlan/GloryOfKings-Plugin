@@ -26,11 +26,14 @@
  *   · `joins`   本机哪个群里的谁加入了（用来挑群 + @ 人）
  * 本机没发起、也没人加入过的房，一条满员播报都不会发出去。
  *
- * ## 群级开关默认开，所以存的是「关掉的群」
+ * ## 群级开关默认开（名单在锅巴配置里）
  *
  * 装了插件、接入了服务端的机器人，**所在的每个群默认都收播报**（主人 2026-10-15 定）。
- * 于是这里存的是**关掉的群**（`offList`），不是开着的群 —— 存开着的群就得在
+ * 所以存的是**关掉的群**而不是开着的群 —— 存开着的群就得在
  * 机器人每进一个新群时补一条，漏一次那个群就永远收不到。
+ *
+ * 这份名单现在主存在**锅巴配置** `config.teamMutedGroups`（面板上是群多选，
+ * 见 `mutedList`）；老版本的 `offList` 继续认，两处取并集。
  *
  * ## 房号会复用，所以指纹必须带建房时间
  *
@@ -154,22 +157,52 @@ function mutedList () {
  * 两处入口写的是**同一份数据**：群管理发 `#关闭开黑广播`、主人在锅巴面板勾选，
  * 谁后改谁生效 —— 所以锅巴里取消勾选就等于重新开启 ✔
  *
- * @returns {{changed: boolean}} changed 为假表示状态本来就是这样
+ * ⚠️ 判断「现在是开是关」必须用**并集**（`isTeamSub`），不能只看配置那份：
+ *    老版本关过的群只躺在 yaml 里，只看配置会得出「它本来就开着」——
+ *    于是用户发 `#开启开黑广播` 得到一句「本来就是开着的」，而那个群其实**一直收不到**。
+ *    同理，开启时**两处都要清**（配置和 yaml 各删一次），否则关它的那条记录还生效。
+ *
+ * @returns {{changed: boolean, failed?: boolean}}
+ *   changed 为假表示状态本来就是这样；failed 为真表示**写盘失败**（要跟用户说一声）
  */
 export function setTeamSub (groupId, enable) {
   const key = String(groupId || '')
   if (!key) return { changed: false }
 
-  const list = mutedList()
-  const at = list.indexOf(key)
-  // 不在名单里 = 广播开着。语义与下面 isTeamSub 一致
-  const on = at < 0
-  if (on === enable) return { changed: false }
+  if (isTeamSub(key) === enable) return { changed: false }
 
-  if (enable) list.splice(at, 1)
-  else list.push(key)
+  /**
+   * 写配置。`Config.modify` 底下是裸的 `fs.writeFileSync`，磁盘满 / 文件只读 /
+   * yaml 坏了都会抛 —— **不能让它装作成功**，那样用户以为关掉了，下一轮照样收到播报。
+   */
+  const write = (list) => {
+    try {
+      Config.modify('config', 'teamMutedGroups', list)
+      return true
+    } catch (error) {
+      globalThis.logger?.error?.(`[开黑] 写群广播开关失败：${error?.message || error}`)
+      return false
+    }
+  }
 
-  Config.modify('config', 'teamMutedGroups', list)
+  if (enable) {
+    const list = mutedList()
+    const at = list.indexOf(key)
+    if (at >= 0 && !write(list.filter((_, i) => i !== at))) return { changed: false, failed: true }
+
+    // 老版本那份也要清掉 —— 不清的话它还在并集里，群照样收不到播报
+    const store = loadTeamStore()
+    if (store.offList[key]) {
+      delete store.offList[key]
+      saveTeamStore(store)
+    }
+  } else {
+    // 走到这里说明它现在开着（上面判过），那两处名单里都不会有它
+    const list = mutedList()
+    list.push(key)
+    if (!write(list)) return { changed: false, failed: true }
+  }
+
   return { changed: true }
 }
 
