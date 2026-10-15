@@ -1,0 +1,232 @@
+/**
+ * 开黑相关的两个模板共用样式：列表图（TeamList.html）和播报图（TeamBroadcast.html）。
+ *
+ * 基础（卡片 / 区块 / 字体 / 底色 / 背景）在 BattleReport.css，这里只放开黑特有的增量。
+ * ⚠️ 两个模板都引这一份 —— 各抄一份必然漂移（改了列表忘了播报，而它们是同一功能的两种视图）。
+ *
+ * 位置格是**定宽**的，不是 flex:1 铺满：铺满的话 2 排的房每格横跨半屏、
+ * 头像孤零零浮在中间，5 排的房格子又很窄，同一个东西在不同房里大小差三倍。
+ */
+    .team-list { display: flex; flex-direction: column; gap: 16px; }
+
+    /* 一个房一张卡 */
+    .team-room {
+      background: rgba(255,255,255,0.035);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 16px 18px 18px;
+    }
+    /* 只差一个人的房给一条金边：扫一眼就知道这个最该去补 */
+    .team-room.urgent {
+      border-color: rgba(245,215,110,0.32);
+      background: linear-gradient(100deg, rgba(245,215,110,0.085), rgba(255,255,255,0.025));
+    }
+
+    .team-head { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; }
+
+    /* 编号是用户要照着打的东西，做成最醒目的一块 */
+    .team-code {
+      font-family: Number, sans-serif;
+      font-size: 25px;
+      line-height: 1;
+      color: #f5d76e;
+      background: rgba(245,215,110,0.12);
+      border: 1px solid rgba(245,215,110,0.3);
+      border-radius: 10px;
+      padding: 7px 11px;
+      flex-shrink: 0;
+    }
+
+    /* 昵称可能很长（营地昵称十几个字），别把右边的时间挤出卡片 */
+    .team-who { flex: 1; min-width: 0; }
+    .team-name {
+      font-size: 16px;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .team-sub { font-size: 12px; color: rgba(255,255,255,0.4); }
+    .team-sub .rank { color: rgba(245,215,110,0.78); }
+    .team-sub .sep { margin: 0 6px; color: rgba(255,255,255,0.2); }
+
+    /* 约定时间：到点房间自动结束，群友得一眼看到 */
+    .team-when { text-align: right; flex-shrink: 0; font-size: 12px; color: rgba(255,255,255,0.38); }
+    .team-when .time {
+      display: block;
+      font-family: Number, sans-serif;
+      font-size: 19px;
+      color: #6fd39b;
+      margin-bottom: 2px;
+    }
+
+    /* ── 位置排：照王者匹配界面那样一字排开 ── */
+    .seat-row { display: flex; gap: 10px; }
+    /*
+      ⚠️ 位置格是**定宽**的，不能 flex:1 铺满整行。
+         铺满的话 2 排的房每格横跨半屏、头像孤零零浮在中间，而 5 排的房格子又很窄 ——
+         同一个东西在不同房里大小差三倍，看着就不像一套界面。
+         定宽之后 2 排和 5 排的格子一样大，靠左排，跟游戏里的匹配位一致。
+    */
+    .seat {
+      width: 132px;
+      flex: none;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 6px 11px;
+      border-radius: 13px;
+      background: rgba(255,255,255,0.035);
+      border: 1px solid rgba(255,255,255,0.07);
+    }
+
+    /* 头像 + 右下角分路徽章 */
+    .seat-pic { position: relative; width: 62px; height: 62px; margin-bottom: 9px; }
+    .seat-pic img {
+      position: relative;
+      width: 62px; height: 62px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(255,255,255,0.14);
+    }
+    /*
+      没头像时垫在底下的昵称首字。img 的 onerror 会把 src 摘掉，
+      它一透明这层就露出来 —— 不用在模板里写两套分支，加载失败和压根没地址都兜住。
+    */
+    /* 首字垫在底层，img 盖在它上面；img 隐藏后它就露出来 */
+    .seat-initial {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.07);
+      border: 2px solid rgba(255,255,255,0.14);
+      font-size: 23px;
+      color: rgba(255,255,255,0.5);
+    }
+    .seat-badge {
+      position: absolute;
+      right: -3px; bottom: -3px;
+      width: 27px; height: 27px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: #141a28;
+      border: 1.5px solid rgba(255,255,255,0.16);
+    }
+    .seat-badge svg { width: 16px; height: 16px; fill: rgba(255,255,255,0.6); }
+
+    .seat-lane { font-size: 12px; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
+    .seat-who {
+      font-size: 13px;
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* 发起人：金色光圈，和后来补位的区分开 */
+    .seat.owner { background: rgba(245,215,110,0.09); border-color: rgba(245,215,110,0.26); }
+    .seat.owner .seat-pic img { border-color: rgba(245,215,110,0.62); }
+    .seat.owner .seat-badge { border-color: rgba(245,215,110,0.5); }
+    .seat.owner .seat-badge svg { fill: #f5d76e; }
+    .seat.owner .seat-lane { color: rgba(245,215,110,0.62); }
+    .seat.owner .seat-who { color: #f5d76e; }
+
+    /* 已补位：绿色 */
+    .seat.taken { background: rgba(111,211,155,0.07); border-color: rgba(111,211,155,0.2); }
+    .seat.taken .seat-pic img { border-color: rgba(111,211,155,0.5); }
+    .seat.taken .seat-badge { border-color: rgba(111,211,155,0.42); }
+    .seat.taken .seat-badge svg { fill: #6fd39b; }
+    .seat.taken .seat-who { color: #6fd39b; }
+
+    /* 空缺：虚线圈 + 加号，缺口感要明显 */
+    .seat.empty { border-style: dashed; border-color: rgba(255,255,255,0.14); }
+    .seat.empty .seat-slot {
+      width: 62px; height: 62px;
+      border-radius: 50%;
+      border: 2px dashed rgba(255,255,255,0.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 27px;
+      line-height: 1;
+      color: rgba(255,255,255,0.22);
+    }
+    .seat.empty .seat-badge { background: #10151f; }
+    .seat.empty .seat-badge svg { fill: rgba(255,255,255,0.52); }
+    .seat.empty .seat-lane { color: rgba(255,255,255,0.42); }
+    .seat.empty .seat-who { color: rgba(255,255,255,0.26); }
+
+    .team-note { margin-top: 11px; font-size: 12px; color: rgba(255,255,255,0.42); }
+    .team-note .from { color: rgba(255,255,255,0.3); }
+
+    .team-usage { padding: 14px 26px; font-size: 13px; color: rgba(255,255,255,0.45); text-align: center; }
+    .team-usage b { color: rgba(245,215,110,0.8); font-weight: normal; }
+
+    .team-empty { padding: 40px 26px; text-align: center; color: rgba(255,255,255,0.4); font-size: 15px; }
+    .team-empty b { color: rgba(245,215,110,0.8); font-weight: normal; }
+
+    /* ── 播报图特有：每张卡底部一行「怎么加入」 ── */
+    .team-join {
+      margin-top: 11px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.52);
+      text-align: center;
+    }
+    .team-join b { color: rgba(245,215,110,0.85); font-weight: normal; }
+    .team-join .join-note { color: rgba(255,255,255,0.3); }
+
+    /* ── 播报图特有：已经人齐的那一段（紧凑一行一个房） ── */
+    .full-list { display: flex; flex-direction: column; gap: 9px; }
+    .full-row {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 9px 14px;
+      border-radius: 11px;
+      background: rgba(111,211,155,0.06);
+      border: 1px solid rgba(111,211,155,0.18);
+    }
+    .full-code {
+      font-family: Number, sans-serif;
+      font-size: 19px;
+      line-height: 1;
+      color: #6fd39b;
+      flex-shrink: 0;
+    }
+    .full-who {
+      flex: 1;
+      min-width: 0;
+      font-size: 13px;
+      color: rgba(255,255,255,0.62);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .full-when { font-size: 12px; color: rgba(255,255,255,0.32); flex-shrink: 0; }
+
+    /* ── 位置格里的「最高战力英雄」那一行（头像 + 名字 + 战力） ── */
+    .seat-hero {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 5px;
+      max-width: 100%;
+      font-size: 11px;
+      color: rgba(255,255,255,0.46);
+    }
+    /* 英雄头像做成小圆角方块：它和上面那个圆形玩家头像要一眼分得开 */
+    .seat-hero .hero-ico {
+      width: 16px; height: 16px;
+      border-radius: 4px;
+      object-fit: cover;
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.06);
+    }
+    .seat-hero .hero-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .seat-hero .hero-power {
+      font-family: Number, sans-serif;
+      color: rgba(245,215,110,0.62);
+      flex-shrink: 0;
+    }

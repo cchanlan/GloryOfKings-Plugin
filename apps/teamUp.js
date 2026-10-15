@@ -38,8 +38,11 @@ import { PluginName } from '#components'
 import { getCurrentId } from '../utils/localBind.js'
 import { resolveUserData } from '../utils/shareStore.js'
 import { summarizeProfile, rankText } from '../utils/profileSummary.js'
+import { getHeroNameMap, heroIconUrl } from '../utils/reportStore.js'
 import { sendPrivate } from '../utils/privateMsg.js'
 import { FAKE_ACCOUNT } from '../utils/masterMsg.js'
+// 分路图标只在 teamIcons 里定义一份，列表图和播报图共用（见那边的说明）
+import { LANE_ICON_KEY, LANE_ICON_ANY, LANE_ICON_SVG } from '../utils/teamIcons.js'
 import {
   teamCreate, teamJoin, teamLeave, teamClose, teamList,
   isTeamReady, TEAM_NOT_READY_HINT
@@ -55,6 +58,13 @@ const POLL_MS = 30 * 1000
 
 /** 启动后多久拉第一轮。别和插件加载抢资源 */
 const FIRST_POLL_MS = 20 * 1000
+
+/**
+ * 没绑营地ID 时的那句话。
+ *
+ * 按「只说做什么、要用户动手的给一条能直接照抄的指令」写，不解释为什么。
+ */
+const NO_CAMP_HINT = '开黑要先绑定营地ID，发 #绑定营地 你的营地ID'
 
 /** 连续失败时的退避上限 */
 const MAX_BACKOFF_MS = 10 * 60 * 1000
@@ -117,38 +127,24 @@ function identityText (rank, power) {
 }
 
 /**
- * 分路 → SVG 图标的 id。
- *
- * 图标是**内联 SVG**（模板顶部的 `<symbol>`），不是图片文件：
- *  · `resources/img/branch_*.png` 那 20 张是**带「金牌打野」字样的长条奖牌**，当不了位置标识
- *  · 营地 APK 的资源里也没有纯分路图标（2026-10-15 翻过 `/root/camp-assets`）
- *  · 外链官方图标会受网络和 CDN 影响，渲染时 404 就是一排空白
- *
- * 英文 id 和插件里既有的分路命名保持一致（见 utils/battleDetailImage.js 的 BRANCH_LANE）。
- */
-const LANE_ICON = {
-  对抗路: 'warrior',
-  中路: 'mid',
-  打野: 'jungle',
-  发育路: 'marksman',
-  辅助: 'roam'
-}
-
-/**
  * 一个位置格。`lane` 认不出时退回「都行」那个图标，绝不留空白徽章。
  *
  * `initial` 是**没有头像时垫在底下的昵称首字**：没绑营地ID 的人查不到 roleIcon，
  * 营地头像的链接也可能加载失败 —— 两种情况下格子里都会是个空灰圈，
  * 五个人并排时根本分不出谁是谁。首字垫底之后至少还认得出人。
  */
-function makeSeat (kind, lane, who, icon) {
+function makeSeat (kind, lane, who, icon, hero = null) {
   return {
     kind,
     lane,
     who,
     icon: icon || '',
-    iconKey: LANE_ICON[lane] || 'any',
-    initial: kind === 'empty' ? '' : firstChar(who)
+    iconKey: LANE_ICON_KEY[lane] || LANE_ICON_ANY,
+    initial: kind === 'empty' ? '' : firstChar(who),
+    // 最高战力英雄。缺了模板就不渲染那一行（老版本加入的成员没有这几个字段）
+    heroName: hero?.name || '',
+    heroPower: hero?.power ? Number(hero.power).toLocaleString('zh-CN') : '',
+    heroIcon: hero?.icon || ''
   }
 }
 
@@ -174,10 +170,18 @@ function firstChar (name) {
  * **绝不留一个没有标注的空格** —— 那种格子用户不知道该报哪个分路。
  */
 function buildSeats (room) {
-  const seats = [makeSeat('owner', room.ownerLane, room.ownerName, room.ownerIcon)]
+  const seats = [makeSeat('owner', room.ownerLane, room.ownerName, room.ownerIcon, {
+    name: room.ownerHeroName,
+    power: room.ownerHeroPower,
+    icon: room.ownerHeroIcon
+  })]
 
   for (const member of room.joined || []) {
-    seats.push(makeSeat('taken', member.lane, member.name, member.icon))
+    seats.push(makeSeat('taken', member.lane, member.name, member.icon, {
+      name: member.heroName,
+      power: member.heroPower,
+      icon: member.heroIcon
+    }))
   }
 
   const taken = new Set(seats.map(seat => seat.lane))
@@ -192,6 +196,46 @@ function buildSeats (room) {
 }
 
 /** 群播报：有人发起开黑 */
+/**
+ * 加入提示里该写哪个分路。
+ *
+ * 空位是「都行」时写成 `[分路]`，不要写「都行」—— 那是**命令示例**，
+ * 写「都行」用户会真去敲这两个字，而它只是个占位。
+ */
+function joinHintOf (lane) {
+  return lane && lane !== LANE_ANY ? lane : '[分路]'
+}
+
+/**
+ * 把一个房整理成播报图里的一张卡。
+ *
+ * 和列表图用的是同一套位置格，所以这里只是在它外面补两个视图字段：
+ *  · `joinHint`  卡片底部那行「发 #加入开黑 XX ___」的空缺示例（缺什么就写什么）
+ *  · `seatsText` 右上角的「还差 N 人」
+ */
+function broadcastRoom (room) {
+  const seatList = buildSeats(room)
+  const empty = seatList.find(seat => seat.kind === 'empty')
+  return {
+    ...room,
+    seatList,
+    urgent: room.seats === 1,
+    seatsText: room.seats > 0 ? `还差 ${room.seats} 人` : '人齐了',
+    powerText: room.ownerPower ? room.ownerPower.toLocaleString('zh-CN') : '',
+    joinHint: joinHintOf(empty?.lane)
+  }
+}
+
+/** 满员的房在播报图里压成一行：编号 + 阵容 + 约定时间 */
+function broadcastFullRoom (room) {
+  const roster = [
+    `${room.ownerLane} ${room.ownerName}`,
+    ...(room.joined || []).map(m => `${m.lane} ${m.name}`)
+  ].join(' · ')
+
+  return { code: room.code, size: room.size, roster, meetText: room.meetText }
+}
+
 function buildNewBroadcast (room) {
   const who = [room.ownerName, identityText(room.ownerRank, room.ownerPower)]
     .filter(Boolean).join(' · ')
@@ -380,6 +424,46 @@ function commitTeamStore (mutate) {
 }
 
 /**
+ * 播报图下面跟的那一行。
+ *
+ * 图里每张卡已经写了「发 #加入开黑 XX 分路」，这句只补一个全局视角 ——
+ * 文案放图**下面**（见 [[plugin-push-copy-below-image]]）。
+ */
+const BROADCAST_CAPTION = '发 #开黑列表 看全部在招人的房'
+
+/**
+ * 渲染播报图。失败返回 null，由调用方回落到文字版。
+ *
+ * 一个群一轮只发**一张图**：这轮所有新房 + 满员合在一起画进去。
+ * 一有变化就一个房一张图的话，5 排房从建到满会往每个群砸 5 张，
+ * 十几台机器人的群全被刷一遍 —— 这功能会先被所有人关掉。
+ */
+async function renderBroadcast (fresh, full) {
+  if (!fresh.length && !full.length) return null
+
+  try {
+    return await puppeteer.screenshot('TeamBroadcast', {
+      imgType: getImgType(),
+      tplFile: 'plugins/GloryOfKings-Plugin/resources/html/TeamBroadcast.html',
+      _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
+      laneIcons: LANE_ICON_SVG,
+      title: fresh.length ? '有人发起开黑' : '开黑人齐了',
+      subText: fresh.length ? `${fresh.length} 个房在招人` : `${full.length} 个房已经满`,
+      rooms: fresh.map(broadcastRoom),
+      fullRooms: full.map(broadcastFullRoom)
+    })
+  } catch (error) {
+    logger.error(`[开黑] 播报出图失败（这轮回落文字）：${error.message}`)
+    return null
+  }
+}
+
+/** 出图挂了时的播报文字版，信息与图一致 */
+function buildBroadcastText (fresh, full) {
+  return [...fresh.map(buildNewBroadcast), ...full.map(buildFullBroadcast)].join('\n\n────────\n\n')
+}
+
+/**
  * 拉一轮。
  * @returns {Promise<boolean>} 这轮成不成（决定下一轮用正常间隔还是退避）
  */
@@ -424,18 +508,26 @@ async function pollOnce () {
     const canBroadcast = groups.length > 0
 
     if (canBroadcast && (freshRooms.length || fullRooms.length)) {
-      // 每个群只收一条：这轮所有新房 + 满员合在一起。
-      // 发起群扣掉自己发起的那个新房（当场已经回复过编号了）；
-      // 满员**不扣发起群**：群里其他人得知道别再加了（发起人自己走私聊）
-      await broadcast(groups, groupId => {
-        const parts = [
-          ...freshRooms
-            .filter(room => store.origins[roomKey(room)] !== groupId)
-            .map(buildNewBroadcast),
-          ...fullRooms.map(buildFullBroadcast)
-        ]
-        return parts.join('\n\n────────\n\n')
-      })
+      // 按**内容**给待发群分组：发起群要扣掉自己发起的那个新房（当场已经回复过编号了），
+      // 满员不扣（群里其他人得知道别再加了）。内容不同的群各渲染一张 ——
+      // 绝大多数时候所有群内容一样，所以一轮只渲染一次，不是每群一次
+      const byContent = new Map()
+      for (const groupId of groups) {
+        const list = freshRooms.filter(room => store.origins[roomKey(room)] !== groupId)
+        if (!list.length && !fullRooms.length) continue
+
+        const sig = `${list.map(roomKey).join(',')}|${fullRooms.map(roomKey).join(',')}`
+        if (!byContent.has(sig)) byContent.set(sig, { fresh: list, groups: [] })
+        byContent.get(sig).groups.push(groupId)
+      }
+
+      for (const item of byContent.values()) {
+        const image = await renderBroadcast(item.fresh, fullRooms)
+        const message = image
+          ? [image, BROADCAST_CAPTION]
+          : buildBroadcastText(item.fresh, fullRooms)
+        await broadcast(item.groups, () => message)
+      }
     }
 
     // ② 本机发起的房：替发起人私聊通知新成员
@@ -551,16 +643,22 @@ function stopPolling () {
 /* ────────────────────────── 查自己的段位 ────────────────────────── */
 
 /**
- * 查发起人/加入人自己的段位和战力，贴到卡片上。
+ * 查发起人/加入人自己的段位、战斗力和**最高战力英雄**，贴到卡片上。
  *
  * 主人定的是「从营地现查」：开黑最关心的就是对方什么水平。
- * 查不到（没绑号、营地抽风、隐私关着）就留空 —— **绝不因此拒绝建房**，
- * 那会把「没绑营地ID 的人不能开黑」这种毫无道理的限制塞进来。
  *
- * @returns {Promise<{campId: string, rank: string, power: number, roleName: string}>}
+ * ⚠️ 英雄取的是营地主页 mod 601「当前最高战力英雄」—— 它**本来就在这一次请求里**，
+ *    不需要另外去拉 `#我的英雄` 的全量列表（`utils/profileSummary.js` 的 `topHero`）。
+ *    英雄名要翻译（营地只给 heroId），走 `getHeroNameMap()`，那张表缓存 6 小时、
+ *    走官网英雄总表、不吃营地配额。
+ *
+ * @returns {Promise<{campId, rank, power, roleName, icon, heroName, heroPower, heroIcon}>}
  */
 async function selfIdentity (userId) {
-  const blank = { campId: '', rank: '', power: 0, roleName: '', icon: '' }
+  const blank = {
+    campId: '', rank: '', power: 0, roleName: '', icon: '',
+    heroName: '', heroPower: 0, heroIcon: ''
+  }
 
   try {
     // 本机没绑的话，顺手问一次共享库（他可能在别的机器人上绑过）
@@ -574,6 +672,14 @@ async function selfIdentity (userId) {
     const summary = summarizeProfile(res?.data)
     if (!summary) return { ...blank, campId }
 
+    // 最高战力英雄：名字要翻译，图标由插件拼（模板算不了）
+    const top = summary.topHero
+    let heroName = ''
+    if (top?.heroId) {
+      const heroMap = await getHeroNameMap()
+      heroName = heroMap?.[String(top.heroId)] || ''
+    }
+
     return {
       campId,
       rank: rankText(summary.rank),
@@ -581,7 +687,10 @@ async function selfIdentity (userId) {
       roleName: summary.roleName || '',
       // ⚠️ 头像只用**营地头像**（roleIcon）。QQ 头像的 URL 里直接带着 QQ 号，
       //    而这个字段会进服务端的公开段、被播到十几个群 —— 等于从侧面凿穿隐私边界
-      icon: summary.roleIcon || ''
+      icon: summary.roleIcon || '',
+      heroName,
+      heroPower: top?.power || 0,
+      heroIcon: heroIconUrl(top?.heroId)
     }
   } catch (error) {
     logger.debug?.(`[开黑] 查 ${userId} 的段位失败（不影响开黑）：${error?.message || error}`)
@@ -659,12 +768,18 @@ export class TeamUp extends plugin {
     }
 
     const self = await selfIdentity(e.user_id)
+    // 没绑营地ID 就不让发起（主人 2026-10-16 定）：这种人卡片上没有头像、没有段位、
+    // 也没有最高战力英雄，别人看不出他什么水平，来的人多半白跑一趟
+    if (!self.campId) return e.reply(NO_CAMP_HINT, shouldQuote())
 
     const result = await teamCreate({
       ownerQq: String(e.user_id),
       ownerName: displayName(e, self.roleName),
       ownerCampId: self.campId,
       ownerIcon: self.icon,
+      ownerHeroName: self.heroName,
+      ownerHeroPower: self.heroPower,
+      ownerHeroIcon: self.heroIcon,
       ownerRank: self.rank,
       ownerPower: self.power,
       ownerLane: parsed.lane,
@@ -710,6 +825,8 @@ export class TeamUp extends plugin {
     }
 
     const self = await selfIdentity(e.user_id)
+    // 同上：没绑营地ID 的不让加入，免得房里挂着一个没有头像和段位、联系上去也说不出水平的人
+    if (!self.campId) return e.reply(NO_CAMP_HINT, shouldQuote())
 
     const result = await teamJoin({
       code,
@@ -717,6 +834,9 @@ export class TeamUp extends plugin {
       name: displayName(e, self.roleName),
       campId: self.campId,
       icon: self.icon,
+      heroName: self.heroName,
+      heroPower: self.heroPower,
+      heroIcon: self.heroIcon,
       rank: self.rank,
       lane
     })
@@ -823,7 +943,7 @@ export class TeamUp extends plugin {
       total: (result.rooms || []).filter(room => room.status === 'open').length,
       sampleCode: sample?.code || '12',
       // 用例里的分路取第一个房真实的空缺，照着抄就能用
-      sampleLane: sample?.seatList.find(seat => seat.kind === 'empty')?.lane || '辅助'
+      sampleLane: joinHintOf(sample?.seatList.find(seat => seat.kind === 'empty')?.lane)
     })
 
     if (image) return e.reply(image, shouldQuote())
@@ -839,6 +959,8 @@ export class TeamUp extends plugin {
         tplFile: 'plugins/GloryOfKings-Plugin/resources/html/TeamList.html',
         // 模板的 CSS / 字体都靠 {{_res_path}} 拼相对路径，漏了这项样式表 404，出的是纯文字图
         _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
+        // 分路图标的雪碧图，模板里 {{@laneIcons}} 原样注入
+        laneIcons: LANE_ICON_SVG,
         title: '正在招人的开黑',
         subText: total > rooms.length
           ? `共 ${total} 个 · 只显示最近 ${rooms.length} 个`

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>{{title}}</title>
+  <!-- 基础样式在 BattleReport.css，开黑特有的一套在 TeamUp.css（与列表图共用） -->
+  <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
+  <link rel="stylesheet" href="{{_res_path}}css/TeamUp.css">
+</head>
+<body>
+<!-- 分路图标的 SVG 雪碧图。定义在 utils/teamIcons.js，两个模板共用那一份 -->
+{{@laneIcons}}
+
+<div class="card">
+  <div class="card-header">
+    <div class="user-info">
+      <h2 class="username">{{title}}</h2>
+    </div>
+    <div class="report-label">
+      开黑组队
+      <span class="sub">{{subText}}</span>
+    </div>
+  </div>
+
+  {{if rooms.length}}
+  <div class="section">
+    <div class="team-list">
+      {{each rooms room}}
+      <div class="team-room {{if room.urgent}}urgent{{/if}}">
+        <div class="team-head">
+          <div class="team-code">{{room.code}}</div>
+          <div class="team-who">
+            <div class="team-name">{{room.ownerName}}</div>
+            <div class="team-sub">
+              {{if room.ownerRank}}<span class="rank">{{room.ownerRank}}</span>{{/if}}
+              {{if room.ownerRank && room.powerText}}<span class="sep">·</span>{{/if}}
+              {{if room.powerText}}<span>战力 {{room.powerText}}</span>{{/if}}
+              {{if room.ownerRank || room.powerText}}<span class="sep">·</span>{{/if}}
+              <span>{{room.size}} 排</span>
+            </div>
+          </div>
+          <div class="team-when">
+            {{if room.meetText}}<span class="time">{{room.meetText}}</span>{{/if}}
+            {{room.seatsText}}
+          </div>
+        </div>
+
+        <div class="seat-row">
+          {{each room.seatList seat}}
+          <div class="seat {{seat.kind}}">
+            <div class="seat-pic">
+              {{if seat.kind === 'empty'}}
+              <div class="seat-slot">+</div>
+              {{else}}
+              <div class="seat-initial">{{seat.initial}}</div>
+              <!-- onerror 必须 display:none，只摘 src 会留个破损图片小图标盖住首字 -->
+              <img src="{{seat.icon}}" alt="" onerror="this.onerror=null;this.style.display='none'">
+              {{/if}}
+              <span class="seat-badge">
+                <svg><use href="#lane-{{seat.iconKey}}"></use></svg>
+              </span>
+            </div>
+            <div class="seat-lane">{{seat.lane}}</div>
+            <div class="seat-who">{{seat.who}}</div>
+            {{if seat.heroName}}
+            <div class="seat-hero">
+              <img class="hero-ico" src="{{seat.heroIcon}}" alt="" onerror="this.onerror=null;this.style.display='none'">
+              <span class="hero-name">{{seat.heroName}}</span>
+              {{if seat.heroPower}}<span class="hero-power">{{seat.heroPower}}</span>{{/if}}
+            </div>
+            {{/if}}
+          </div>
+          {{/each}}
+        </div>
+
+        <div class="team-join">
+          想去发 <b>#加入开黑 {{room.code}} {{room.joinHint}}</b>
+          {{if room.note}}<span class="join-note">· {{room.note}}</span>{{/if}}
+        </div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+
+  {{if fullRooms.length}}
+  <div class="section">
+    <div class="section-title">
+      已经人齐
+      <span class="tip">这些房别再往里加了</span>
+    </div>
+    <div class="full-list">
+      {{each fullRooms room}}
+      <div class="full-row">
+        <span class="full-code">{{room.code}}</span>
+        <span class="full-who">{{room.roster}}</span>
+        {{if room.meetText}}<span class="full-when">{{room.meetText}}</span>{{/if}}
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/if}}
+</div>
+</body>
+</html>
