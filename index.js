@@ -17,7 +17,7 @@
 import path from 'node:path'
 import { writeYamlFile } from './utils/yamlUtils.js'
 import { guardApps } from './utils/blackList.js'
-import { fillDefaultShareUrl, migrateLegacyShareToken } from './utils/shareDefaults.js'
+import { fillDefaultShareUrl, fillDefaultDistUrl, migrateLegacyShareToken } from './utils/shareDefaults.js'
 import { PluginName, PluginData } from './components/Path.js'
 import fs from 'node:fs/promises'
 import chalk from 'chalk'
@@ -172,8 +172,12 @@ await checkAndCreatePaths()
  */
 try {
   const filled = fillDefaultShareUrl()
+  // 分发服务地址也补默认值：只接过共享库的那批人只差这一格，
+  // 补上他们就能直接用开黑（令牌三套共用一把，早就有了）
+  const filledDist = fillDefaultDistUrl()
   const moved = migrateLegacyShareToken()
   if (filled) logger.info(`[${PluginName}] 已补上共享库地址（老配置里那格是空的）`)
+  if (filledDist) logger.info(`[${PluginName}] 已补上分发服务地址（老配置里那格是空的）`)
   if (moved) logger.info(`[${PluginName}] 已把旧配置里的接入令牌搬到锅巴认的那一格`)
 } catch (error) {
   logger.warn(`[${PluginName}] 补共享库默认值失败（不影响使用）：${error?.message || error}`)

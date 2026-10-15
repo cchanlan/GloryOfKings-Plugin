@@ -324,7 +324,7 @@ export function supportGuoba () {
         {
           field: 'config.distUrl',
           label: '分发服务地址',
-          bottomHelpMessage: '观战和营地消息的服务端从这里下载。留空 = 还没接入，进群 972915804 找主人要。',
+          bottomHelpMessage: '观战、营地消息的服务端从这里下载，开黑房间也走它。已填好公共入口，一般不用改。',
           component: 'Input',
           componentProps: {
             placeholder: 'http://你的域名:6868'

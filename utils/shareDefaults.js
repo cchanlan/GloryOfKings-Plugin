@@ -1,5 +1,5 @@
 /**
- * 「共享库地址 / 令牌」的默认值补齐与老配置迁移。
+ * 「共享库地址 / 分发服务地址 / 令牌」的默认值补齐与老配置迁移。
  *
  * ## 为什么需要这个文件
  *
@@ -51,6 +51,29 @@ export function fillDefaultShareUrl () {
   const fallback = templateValue('shareApiUrl')
   if (!fallback) return false
   Config.modify('config', 'shareApiUrl', fallback)
+  return true
+}
+
+/**
+ * 用户没填过「分发服务地址」时，用模板里的默认值补上。
+ *
+ * 分发服务是主人提供的**公共入口**：观战 / 营地消息的服务端代码从它下载，
+ * 开黑的房间池也跑在它上面。地址本身不是秘密，所以可以当默认值 ——
+ * **令牌不行**，那个还得主人签（`#营地共享库令牌 <令牌>`，`permission: master`）。
+ *
+ * 补这一格主要为了**只接过共享库的那批人**：令牌三套共用一把，他们其实早就握着，
+ * 只差地址这一格 —— 补上之后 `#发起开黑` 直接能用，不用再找主人问一遍地址。
+ *
+ * ⚠️ 只补**空**的那种，理由同 `fillDefaultShareUrl`：用户填过的（哪怕另一个地址）
+ *    一律不动，清空 = 不自动接入也是合法状态。
+ *
+ * @returns {boolean} 真的补了才返回 true
+ */
+export function fillDefaultDistUrl () {
+  if (userValue('distUrl')) return false
+  const fallback = templateValue('distUrl')
+  if (!fallback) return false
+  Config.modify('config', 'distUrl', fallback)
   return true
 }
 
