@@ -341,6 +341,14 @@ export function supportGuoba () {
           }
         },
         {
+          field: 'config.teamUpEnabled',
+          label: '跨机器人开黑',
+          bottomHelpMessage:
+            '接了上面的分发服务就能用 #发起开黑 / #加入开黑，和别的机器人共享房间池。' +
+            '开着时每个群默认都收播报，不想收的群让群管理发 #关闭开黑广播。',
+          component: 'Switch'
+        },
+        {
           field: 'config.dependencyRegistry',
           label: '依赖 npm 镜像',
           bottomHelpMessage: '装观战/营地消息的依赖时用哪个 npm 镜像。',

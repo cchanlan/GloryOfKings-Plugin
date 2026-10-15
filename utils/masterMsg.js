@@ -21,8 +21,11 @@
  */
 import { Config } from '#components'
 
-/** 框架自带的假账号（不是真 QQ，发过去只会报错，还会占掉「第一个主人」这个位置） */
-const FAKE_ACCOUNT = /^(stdin|mock|sandbox)/i
+/**
+ * 框架自带的假账号（不是真 QQ，发过去只会报错，还会占掉「第一个主人」这个位置）。
+ * 开黑播报遍历群列表时也用它跳过假账号的群 —— 判据只留这一份，别在别处另写。
+ */
+export const FAKE_ACCOUNT = /^(stdin|mock|sandbox)/i
 
 /**
  * 所有主人（去重后的 QQ 列表）。

@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>{{title}}</title>
+  <!-- 卡片 / 区块的基础样式都在 BattleReport.css，这里只补开黑特有的增量 -->
+  <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
+  <style>
+    .team-list { display: flex; flex-direction: column; gap: 16px; }
+
+    /* 一个房一张卡 */
+    .team-room {
+      background: rgba(255,255,255,0.035);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 16px 18px 18px;
+    }
+    /* 只差一个人的房给一条金边：扫一眼就知道这个最该去补 */
+    .team-room.urgent {
+      border-color: rgba(245,215,110,0.32);
+      background: linear-gradient(100deg, rgba(245,215,110,0.085), rgba(255,255,255,0.025));
+    }
+
+    .team-head { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; }
+
+    /* 编号是用户要照着打的东西，做成最醒目的一块 */
+    .team-code {
+      font-family: Number, sans-serif;
+      font-size: 25px;
+      line-height: 1;
+      color: #f5d76e;
+      background: rgba(245,215,110,0.12);
+      border: 1px solid rgba(245,215,110,0.3);
+      border-radius: 10px;
+      padding: 7px 11px;
+      flex-shrink: 0;
+    }
+
+    /* 昵称可能很长（营地昵称十几个字），别把右边的时间挤出卡片 */
+    .team-who { flex: 1; min-width: 0; }
+    .team-name {
+      font-size: 16px;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .team-sub { font-size: 12px; color: rgba(255,255,255,0.4); }
+    .team-sub .rank { color: rgba(245,215,110,0.78); }
+    .team-sub .sep { margin: 0 6px; color: rgba(255,255,255,0.2); }
+
+    /* 约定时间：到点房间自动结束，群友得一眼看到 */
+    .team-when { text-align: right; flex-shrink: 0; font-size: 12px; color: rgba(255,255,255,0.38); }
+    .team-when .time {
+      display: block;
+      font-family: Number, sans-serif;
+      font-size: 19px;
+      color: #6fd39b;
+      margin-bottom: 2px;
+    }
+
+    /* ── 位置排：照王者匹配界面那样一字排开 ── */
+    .seat-row { display: flex; gap: 10px; }
+    /*
+      ⚠️ 位置格是**定宽**的，不能 flex:1 铺满整行。
+         铺满的话 2 排的房每格横跨半屏、头像孤零零浮在中间，而 5 排的房格子又很窄 ——
+         同一个东西在不同房里大小差三倍，看着就不像一套界面。
+         定宽之后 2 排和 5 排的格子一样大，靠左排，跟游戏里的匹配位一致。
+    */
+    .seat {
+      width: 132px;
+      flex: none;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 6px 11px;
+      border-radius: 13px;
+      background: rgba(255,255,255,0.035);
+      border: 1px solid rgba(255,255,255,0.07);
+    }
+
+    /* 头像 + 右下角分路徽章 */
+    .seat-pic { position: relative; width: 62px; height: 62px; margin-bottom: 9px; }
+    .seat-pic img {
+      position: relative;
+      width: 62px; height: 62px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(255,255,255,0.14);
+    }
+    /*
+      没头像时垫在底下的昵称首字。img 的 onerror 会把 src 摘掉，
+      它一透明这层就露出来 —— 不用在模板里写两套分支，加载失败和压根没地址都兜住。
+    */
+    /* 首字垫在底层，img 盖在它上面；img 隐藏后它就露出来 */
+    .seat-initial {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.07);
+      border: 2px solid rgba(255,255,255,0.14);
+      font-size: 23px;
+      color: rgba(255,255,255,0.5);
+    }
+    .seat-badge {
+      position: absolute;
+      right: -3px; bottom: -3px;
+      width: 27px; height: 27px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: #141a28;
+      border: 1.5px solid rgba(255,255,255,0.16);
+    }
+    .seat-badge svg { width: 16px; height: 16px; fill: rgba(255,255,255,0.6); }
+
+    .seat-lane { font-size: 12px; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
+    .seat-who {
+      font-size: 13px;
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* 发起人：金色光圈，和后来补位的区分开 */
+    .seat.owner { background: rgba(245,215,110,0.09); border-color: rgba(245,215,110,0.26); }
+    .seat.owner .seat-pic img { border-color: rgba(245,215,110,0.62); }
+    .seat.owner .seat-badge { border-color: rgba(245,215,110,0.5); }
+    .seat.owner .seat-badge svg { fill: #f5d76e; }
+    .seat.owner .seat-lane { color: rgba(245,215,110,0.62); }
+    .seat.owner .seat-who { color: #f5d76e; }
+
+    /* 已补位：绿色 */
+    .seat.taken { background: rgba(111,211,155,0.07); border-color: rgba(111,211,155,0.2); }
+    .seat.taken .seat-pic img { border-color: rgba(111,211,155,0.5); }
+    .seat.taken .seat-badge { border-color: rgba(111,211,155,0.42); }
+    .seat.taken .seat-badge svg { fill: #6fd39b; }
+    .seat.taken .seat-who { color: #6fd39b; }
+
+    /* 空缺：虚线圈 + 加号，缺口感要明显 */
+    .seat.empty { border-style: dashed; border-color: rgba(255,255,255,0.14); }
+    .seat.empty .seat-slot {
+      width: 62px; height: 62px;
+      border-radius: 50%;
+      border: 2px dashed rgba(255,255,255,0.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 27px;
+      line-height: 1;
+      color: rgba(255,255,255,0.22);
+    }
+    .seat.empty .seat-badge { background: #10151f; }
+    .seat.empty .seat-badge svg { fill: rgba(255,255,255,0.52); }
+    .seat.empty .seat-lane { color: rgba(255,255,255,0.42); }
+    .seat.empty .seat-who { color: rgba(255,255,255,0.26); }
+
+    .team-note { margin-top: 11px; font-size: 12px; color: rgba(255,255,255,0.42); }
+    .team-note .from { color: rgba(255,255,255,0.3); }
+
+    .team-usage { padding: 14px 26px; font-size: 13px; color: rgba(255,255,255,0.45); text-align: center; }
+    .team-usage b { color: rgba(245,215,110,0.8); font-weight: normal; }
+
+    .team-empty { padding: 40px 26px; text-align: center; color: rgba(255,255,255,0.4); font-size: 15px; }
+    .team-empty b { color: rgba(245,215,110,0.8); font-weight: normal; }
+  </style>
+</head>
+<body>
+<!--
+  分路图标用内联 SVG，不用图片文件：
+   · resources/img/branch_*.png 那 20 张是带「金牌打野」字样的长条奖牌，当不了位置标识
+   · 营地 APK 的资源里也没有纯分路图标
+   · 外链官方图标受网络和 CDN 影响，渲染时 404 就是一排空白
+  形状按各分路的辨识物来：剑=对抗、星芒=中路、爪印=打野、箭=发育、盾=辅助、四向点=都行
+-->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="lane-warrior" viewBox="0 0 24 24">
+    <path d="M12 1.2 15.2 6.8 15.2 14.4 12 17 8.8 14.4 8.8 6.8Z"/>
+    <rect x="5.2" y="15" width="13.6" height="2.6" rx="0.9"/>
+    <rect x="10.7" y="17.6" width="2.6" height="5.2" rx="0.9"/>
+  </symbol>
+  <symbol id="lane-mid" viewBox="0 0 24 24">
+    <path d="M12 1.4 14.6 9.4 22.6 12 14.6 14.6 12 22.6 9.4 14.6 1.4 12 9.4 9.4Z"/>
+  </symbol>
+  <symbol id="lane-jungle" viewBox="0 0 24 24">
+    <ellipse cx="6.4" cy="8.6" rx="2.1" ry="3"/>
+    <ellipse cx="12" cy="6.4" rx="2.2" ry="3.3"/>
+    <ellipse cx="17.6" cy="8.6" rx="2.1" ry="3"/>
+    <path d="M12 11.4c-3.9 0-6.3 2.9-6.3 5.4 0 2.6 2.7 4.2 6.3 4.2s6.3-1.6 6.3-4.2c0-2.5-2.4-5.4-6.3-5.4Z"/>
+  </symbol>
+  <symbol id="lane-marksman" viewBox="0 0 24 24">
+    <path d="M7.4 1.8C13.4 6 13.4 18 7.4 22.2L9.8 22.2C15.4 17.8 15.4 6.2 9.8 1.8Z"/>
+    <rect x="6.3" y="1.8" width="1.9" height="20.4" rx="0.9"/>
+    <rect x="5.2" y="10.9" width="12.4" height="2.2" rx="0.9"/>
+    <path d="M16.4 8.4 22.4 12 16.4 15.6Z"/>
+  </symbol>
+  <symbol id="lane-roam" viewBox="0 0 24 24">
+    <path d="M12 1.6 20.4 4.8V12c0 5-3.6 8.6-8.4 10.4C7.2 20.6 3.6 17 3.6 12V4.8Z"/>
+  </symbol>
+  <symbol id="lane-any" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="3.3"/>
+    <circle cx="12" cy="3.7" r="1.8"/>
+    <circle cx="12" cy="20.3" r="1.8"/>
+    <circle cx="3.7" cy="12" r="1.8"/>
+    <circle cx="20.3" cy="12" r="1.8"/>
+  </symbol>
+</svg>
+
+<div class="card">
+  <div class="card-header">
+    <div class="user-info">
+      <h2 class="username">{{title}}</h2>
+    </div>
+    <div class="report-label">
+      开黑组队
+      <span class="sub">{{subText}}</span>
+    </div>
+  </div>
+
+  {{if rooms.length}}
+  <div class="section">
+    <div class="team-list">
+      {{each rooms room}}
+      <div class="team-room {{if room.urgent}}urgent{{/if}}">
+        <div class="team-head">
+          <div class="team-code">{{room.code}}</div>
+          <div class="team-who">
+            <div class="team-name">{{room.ownerName}}</div>
+            <div class="team-sub">
+              {{if room.ownerRank}}<span class="rank">{{room.ownerRank}}</span>{{/if}}
+              {{if room.ownerRank && room.powerText}}<span class="sep">·</span>{{/if}}
+              {{if room.powerText}}<span>战力 {{room.powerText}}</span>{{/if}}
+              {{if room.ownerRank || room.powerText}}<span class="sep">·</span>{{/if}}
+              <span>{{room.size}} 排</span>
+            </div>
+          </div>
+          <div class="team-when">
+            {{if room.meetText}}<span class="time">{{room.meetText}}</span>{{/if}}
+            {{room.seatsText}}
+          </div>
+        </div>
+
+        <div class="seat-row">
+          {{each room.seatList seat}}
+          <div class="seat {{seat.kind}}">
+            <div class="seat-pic">
+              {{if seat.kind === 'empty'}}
+              <div class="seat-slot">+</div>
+              {{else}}
+              <div class="seat-initial">{{seat.initial}}</div>
+              <!--
+                ⚠️ onerror 要 **display:none**，不能只 removeAttribute('src')：
+                   摘掉 src 之后 img 元素还占着位，浏览器会在左上角画一个
+                   破损图片的小图标，正好盖在垫底的首字上。
+              -->
+              <img src="{{seat.icon}}" alt="" onerror="this.onerror=null;this.style.display='none'">
+              {{/if}}
+              <span class="seat-badge">
+                <svg><use href="#lane-{{seat.iconKey}}"></use></svg>
+              </span>
+            </div>
+            <div class="seat-lane">{{seat.lane}}</div>
+            <div class="seat-who">{{seat.who}}</div>
+          </div>
+          {{/each}}
+        </div>
+
+        {{if room.note || room.ownerGroupName}}
+        <div class="team-note">
+          {{if room.note}}{{room.note}}{{/if}}
+          {{if room.note && room.ownerGroupName}} · {{/if}}
+          {{if room.ownerGroupName}}<span class="from">来自 {{room.ownerGroupName}}</span>{{/if}}
+        </div>
+        {{/if}}
+      </div>
+      {{/each}}
+    </div>
+  </div>
+
+  <div class="team-usage">
+    发 <b>#加入开黑 {{sampleCode}} {{sampleLane}}</b> 加入 · 到约定时间房间自动结束
+  </div>
+  {{else}}
+  <div class="team-empty">
+    现在没人开黑<br>
+    发 <b>#发起开黑 打野 缺辅助 3排 20:30</b> 来开一个
+  </div>
+  {{/if}}
+</div>
+</body>
+</html>
