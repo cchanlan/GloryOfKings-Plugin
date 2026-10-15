@@ -95,7 +95,9 @@ const pollState = (globalThis[POLL_STATE_KEY] ||= {})
 for (const [k, v] of Object.entries({
   timer: null,
   polling: false,
-  failStreak: 0
+  failStreak: 0,
+  // 当前是哪一代在跑。见 startPolling 的说明
+  generation: null
 })) {
   if (pollState[k] === undefined) pollState[k] = v
 }
@@ -485,16 +487,34 @@ function backoffMs (streak) {
 }
 
 /**
- * 启动轮询（幂等）。
+ * 本模块这一代的身份。JiuLi 每次热重载都会把整张模块图重新求值，这里每次都是新的 Symbol。
+ */
+const GENERATION = Symbol('teamUp')
+
+/**
+ * 启动轮询：**这一代直接接管**，旧一代的链自己退出。
  *
- * 定时器一直转，每拍先过 `shouldPoll` 那道闸 —— 没接入时**零请求零日志**，
- * 只是空转一个 setTimeout。这样主人一填好地址和令牌，下一拍（最多 30 秒）就自动开始拉，
- * 不用重启也不用重新挂钩子。
+ * ⚠️⚠️ 不能写成「全局上已经有定时器就 return」，也不能指望 `onUnload` 去停旧链（2026-10-15 线上踩到）。
+ *    JiuLi 的 `loader.loadPlugin` 用**插件目录名**当 key 存 `initInstances`，47 个 app 挨个 set、
+ *    后一个覆盖前一个，热重载时只回调**最后加载的那一个**实例的 `onUnload` —— TeamUp 的基本轮不到。
+ *    于是旧链从没被停过，新一代看到全局上有定时器就 return，**线上一直跑着旧代码**：
+ *    主人测试时旧代码只往「开着的群」名单里播（那份名单是空的），一个群都没收到，
+ *    还把状态文件写回了旧格式。
+ *
+ *    现在不依赖卸载回调：新一代来了就清掉旧定时器、记下自己的身份；
+ *    旧链如果正在跑，醒来对一下身份发现不是自己，就不再续下一拍。
+ *    同一代构造两次（loader 会 new 两个实例）时第二次直接返回。
  */
 function startPolling () {
-  if (pollState.timer) return
+  if (pollState.generation === GENERATION && pollState.timer) return
+
+  if (pollState.timer) clearTimeout(pollState.timer)
+  pollState.generation = GENERATION
 
   const tick = async () => {
+    // 已经有更新的一代接管了：这条旧链到此为止
+    if (pollState.generation !== GENERATION) return
+
     // ⚠️ 定时器里**绝不能把异常抛出去** —— 会掀掉整个云崽进程（同 gameRecordPush 的规矩）
     let ok = true
     try {
@@ -510,6 +530,8 @@ function startPolling () {
       pollState.failStreak += 1
     }
 
+    // 播报可能跑了好几分钟，这期间新一代可能已经接管了，别把它的定时器顶掉
+    if (pollState.generation !== GENERATION) return
     pollState.timer = setTimeout(tick, ok ? POLL_MS : backoffMs(pollState.failStreak))
     pollState.timer.unref?.()
   }
@@ -518,11 +540,12 @@ function startPolling () {
   pollState.timer.unref?.()
 }
 
-/** 停掉轮询（onUnload 调，热重载时把定时器交还给框架） */
+/** 停掉轮询。只停**自己这一代**的，别把新一代刚接管的链也停了 */
 function stopPolling () {
+  if (pollState.generation !== GENERATION) return
   if (pollState.timer) clearTimeout(pollState.timer)
   pollState.timer = null
-  pollState.polling = false
+  pollState.generation = null
 }
 
 /* ────────────────────────── 查自己的段位 ────────────────────────── */
