@@ -234,9 +234,24 @@
       flex-shrink: 0;
       background: rgba(255,255,255,0.06);
     }
-    .seat-hero .hero-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /*
+      ⚠️ 字号和下边距**必须显式写**：`BattleReport.css`（本页也引了它）里有一条全局的
+      `.hero-name { font-size: 15px; margin-bottom: 6px }` —— 那是战绩报告里配 42px 大圆头像用的。
+      不覆盖的话这里的英雄名会被它吃掉：字比 16px 的头像还大，还被那 6px 的下边距往上顶，
+      整行看着就是「头像和名字没排在一行」（主人 2026-10-16 报的，实测偏上 3px、字大 4px）。
+      line-height: 1 让行盒贴着字号走，和头像才能在一条中线上。
+    */
+    .seat-hero .hero-name {
+      font-size: 11px;
+      line-height: 1;
+      margin-bottom: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .seat-hero .hero-power {
       font-family: Number, sans-serif;
+      line-height: 1;
       color: rgba(245,215,110,0.62);
       flex-shrink: 0;
     }

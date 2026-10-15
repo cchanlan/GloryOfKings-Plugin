@@ -43,7 +43,6 @@
  */
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { ApiService, shouldQuote, pickGroupSafe, pickMemberSafe, AT_HEAD, stripAtText, getImgType } from '#utils'
-import { PluginName } from '#components'
 import { getCurrentId } from '../utils/localBind.js'
 import { resolveUserData } from '../utils/shareStore.js'
 import { summarizeProfile, rankText } from '../utils/profileSummary.js'
@@ -384,6 +383,20 @@ function broadcastGroups () {
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 /**
+ * 群列表**就绪**了吗（哪怕一个可播的群都没有）。
+ *
+ * 冷启动时 `Bot.gl` 还是空的，这跟「就绪、但所有群都关了广播或机器人不在任何群」
+ * 得分清楚：前者**不能**推进轮询水位（推了那些房就永远补不上），后者可以。
+ */
+function groupListReady () {
+  try {
+    return Boolean(Bot?.gl?.size)
+  } catch {
+    return false
+  }
+}
+
+/**
  * 群发。每个群的内容可以不一样（发起群要扣掉自己发起的那个房、满员要按群 @ 参与的人），
  * 由 `build` 按群生成。
  *
@@ -400,7 +413,17 @@ async function broadcast (groups, build) {
   let lastError = ''
 
   for (const groupId of groups) {
-    const message = build(groupId)
+    // ⚠️ `build` 也要裹在 try 里：它一抛，**后面所有群一个都发不出去**，
+    //    而调用方那轮还会因为「一个都没发成」而不落里程碑 —— 已经收到的群
+    //    下一轮会再收到一条同样的播报（群里出现两条）
+    let message
+    try {
+      message = build(groupId)
+    } catch (error) {
+      failed += 1
+      lastError = `群 ${groupId} 组装消息失败：${error?.message || error}`
+      continue
+    }
     if (!message) continue
     if (Array.isArray(message) && !message.some(Boolean)) continue
 
@@ -581,8 +604,7 @@ async function pollOnce () {
       room.status === 'open' && store.milestones[roomKey(room)] === 'full')
 
     const groups = broadcastGroups()
-    // 群列表还没就绪（冷启动适配器没连上）→ 这轮不播、**也不推进水位**。
-    // 推进了的话下一轮服务端回 unchanged，这些房就永远补不上了
+    // 有群可播吗 —— 没有就不渲染、不发送。**水位推不推进是另一回事**，见 canAdvance
     const canBroadcast = groups.length > 0
 
     // 这一轮到底有没有**真的发出去**（见下面的 commitTeamStore）
@@ -643,17 +665,24 @@ async function pollOnce () {
       ...Object.keys(store.notified)
     ])].filter(key => !live.has(key) && now - createdAtOf(key) > DROP_GRACE_MS)
 
+    /**
+     * 水位（`rev`）和里程碑要不要推进。
+     *
+     * 三种情况逐个说：
+     *   · **群列表还没就绪**（冷启动，适配器没连上）→ 不推进：那些房会被标成
+     *     「播过了」而实际一个群都没收到，下轮服务端回 `unchanged`，**永远补不上**
+     *   · **有房要播、却一个群都没发出去**（适配器抽风 / 风控拒绝 / 取不到发送对象）
+     *     → 不推进，下轮重试。推进了同样永远补不上
+     *   · 其余（没有房要播、或没有可播的群、或已经发出去了）→ **推进**。
+     *     尤其「群就绪但一个可播群都没有」那种（所有群都关了广播），不推进的话
+     *     每 30 秒都全量拉一次列表，纯空转
+     */
+    const stuck = canBroadcast && (freshRooms.length || fullRooms.length) && !delivered
+    const canAdvance = groupListReady() && !stuck
+
     // ④ 落盘：本轮改动套到最新那份上（见 commitTeamStore 的说明）
     commitTeamStore(latest => {
-      /**
-       * ⚠️ 只有**真的发出去过**才推进水位、打里程碑。
-       *
-       * 发了 0 个群（适配器抽风、风控临时拒绝、发送对象取不到）却记成「播过了」的话，
-       * 这些房下一轮不再是 fresh/full，**永远不会补播** —— 群里一条都没见过。
-       * 条件里的 `canBroadcast` 挡的是冷启动那种（群列表都没就绪，压根没进这里）；
-       * 这里是「进去了、但一条都没发成」。
-       */
-      if (canBroadcast && delivered) {
+      if (canAdvance) {
         latest.rev = Number(result.rev) || latest.rev
         for (const room of freshRooms) {
           const key = roomKey(room)

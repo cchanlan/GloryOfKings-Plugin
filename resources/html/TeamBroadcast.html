@@ -75,6 +75,12 @@
         <div class="team-join">
           想去发 <b>#加入开黑 {{room.code}} {{room.joinHint}}</b>
           {{if room.note}}<span class="join-note">· {{room.note}}</span>{{/if}}
+          <!--
+            「来自 X 群」列表图一直有，播报图早先漏了 —— 而文字版（出图失败时的兜底）
+            里写着「来自：X」，于是两张图/两种形态里信息量对不上。
+            ownerGroupName 是发起方带上来的公开字段，跨群播报时正好用来认门。
+          -->
+          {{if room.ownerGroupName}}<span class="join-note">· 来自 {{room.ownerGroupName}}</span>{{/if}}
         </div>
       </div>
       {{/each}}
