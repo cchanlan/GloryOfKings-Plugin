@@ -58,7 +58,10 @@ const COPY_FILES = [
   // hiddenProfiles 依赖 fileUtils 的 readJsonFile/writeJsonFile 与 safeStore 的 quarantineCorrupt，
   // 两个都必须在清单里，少一个就是 ERR_MODULE_NOT_FOUND。
   'utils/hiddenProfiles.js',
-  'utils/fileUtils.js'
+  'utils/fileUtils.js',
+  // 开黑的本地状态表（test/teamStore.test.mjs 用）。import 了 #utils 的 yaml 读写
+  // 与 safeStore 的 quarantineCorrupt，后者已经在上面
+  'utils/teamStore.js'
 ]
 
 /** 测试用的假配置。地址/令牌都是假的，绝不碰真凭证 */
@@ -134,8 +137,13 @@ export function makeSandbox () {
     ''
   ].join('\n'), 'utf8')
 
-  // 假的 #utils（unit 测试目前用不到，留着防未来 import）
-  fs.writeFileSync(path.join(root, 'test-utils.mjs'), 'export function shouldQuote () { return false }\n', 'utf8')
+  // 假的 #utils：单测用得到的只有 yaml 读写（开黑状态表走它）。
+  // 转的是沙箱里那份真 yamlUtils，所以读写的还是真实现。
+  fs.writeFileSync(path.join(root, 'test-utils.mjs'), [
+    `export { readYamlFile, writeYamlFile } from './utils/yamlUtils.js'`,
+    'export function shouldQuote () { return false }',
+    ''
+  ].join('\n'), 'utf8')
 
   // 假的 node-fetch：只保证 import 成功，被调用就抛（测试不该发真请求）
   fs.writeFileSync(path.join(root, 'test-node-fetch.mjs'), [

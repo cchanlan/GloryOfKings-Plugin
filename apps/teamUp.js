@@ -22,6 +22,15 @@
  *    一个 5 排房要是每次加人都播，群里会刷 5 条，这功能会先刷炸群再被所有人关掉。
  * 2. **群里不出现任何 QQ 号和营地ID**。播报只有昵称和段位，联系方式走私聊
  *    （服务端那边也是这么分的，见 team.mjs 的 `toPublic`）。
+ *    满员那条会 @ 参与的人 —— at 段内部带 QQ，但群里显示的是他的群昵称，
+ *    而且 @ 的一定是**在本群发过指令的人**（本机记录过），所以号码不会露出来。
+ *
+ * ## 满员播报只发参与过的群
+ *
+ * 「有人发起」要广播到所有群（那是招人，人越多越容易凑齐）；
+ * 「人齐了」只发**本机参与过这个房的群**（发起群 + 有人加入的群），并 @ 上参与的人
+ * （主人 2026-10-16 定）。没发起过、也没人加入过的群不用知道哪个房满了 —— 那是噪音。
+ * 依据就是本地那两张表（`origins` 发起群 + `joins` 加入群），本机没参与过就一条都不发。
  *
  * ## 群级开关默认开
  *
@@ -49,7 +58,7 @@ import {
 } from '../utils/teamClient.js'
 import {
   loadTeamStore, saveTeamStore, setTeamSub, mutedGroups,
-  markOrigin, roomKey
+  markOrigin, markJoin, roomKey, planBroadcast
 } from '../utils/teamStore.js'
 import { parseCreate, parseJoin, LANE_ANY } from '../utils/teamParse.js'
 
@@ -272,6 +281,43 @@ function buildFullBroadcast (room) {
   return lines.join('\n')
 }
 
+/**
+ * at 段。个别框架没把 `segment` 挂到全局时退回纯文本 —— 少一个红点提醒，
+ * 总好过整个播报抛掉（同插件别处对宿主 API 一律能力探测 + 兜底）。
+ */
+function atSegment (qq) {
+  try {
+    if (typeof segment !== 'undefined' && segment?.at) return segment.at(qq)
+  } catch {}
+  return `@${qq}`
+}
+
+/**
+ * 一条播报消息：图 + 满员那句 at + 图下面那行说明。
+ *
+ * @param {{fresh: Array, full: Array, ats: string[]}} item
+ *   `full` 是**这个群**参与过的满员房（不是全部）；`ats` 是这些房里本机在这个群的参与者
+ * @param {Buffer|null} image 出图为 null 时补文字版，不能只发一句 at
+ */
+function buildBroadcastMessage ({ fresh, full, ats }, image) {
+  const message = []
+  if (image) message.push(image)
+
+  if (full.length) {
+    // 一轮里一个群可能同时收到好几个房满员，合成一行
+    const codes = full.map(room => `${room.code} 号房`).join('、')
+    // at 段要平铺进数组，别塞成嵌套数组（框架发不出去）
+    const atSegs = ats.length ? [...ats.map(atSegment), ' '] : []
+    message.push('\n', ...atSegs, `${codes}人齐了，去游戏里组队吧`)
+  }
+
+  // 出图失败时把内容补成文字版（图里本来就写着同样的东西，别发一条只剩 @ 的空消息）
+  if (!image) message.push(...(message.length ? ['\n'] : []), buildBroadcastText(fresh, full))
+
+  message.push('\n', BROADCAST_CAPTION)
+  return message
+}
+
 /* ────────────────────────── 轮询 ────────────────────────── */
 
 /**
@@ -321,13 +367,15 @@ function broadcastGroups () {
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 /**
- * 群发。每个群的内容可以不一样（发起群要扣掉自己发起的那个房），由 `build` 按群生成。
+ * 群发。每个群的内容可以不一样（发起群要扣掉自己发起的那个房、满员要按群 @ 参与的人），
+ * 由 `build` 按群生成。
  *
  * 失败**只汇总一条日志**：默认开之后群多，官bot 这类发不了主动消息的号会每群报一次错，
  * 一轮就是几十行 error，正经的报错反而被淹掉。
  *
  * @param {string[]} groups
- * @param {(groupId: string) => string} build 返回空串表示这个群这轮不用发
+ * @param {(groupId: string) => string|Array|null} build
+ *   返回空串 / 空数组 / null 表示这个群这轮不用发；数组用于「图 + 文字 + at 段」这种消息
  */
 async function broadcast (groups, build) {
   let sent = 0
@@ -337,6 +385,7 @@ async function broadcast (groups, build) {
   for (const groupId of groups) {
     const message = build(groupId)
     if (!message) continue
+    if (Array.isArray(message) && !message.some(Boolean)) continue
 
     // 发完一个群再等，第一个群不用等
     if (sent + failed > 0) await wait(BROADCAST_GAP_MS)
@@ -508,25 +557,29 @@ async function pollOnce () {
     const canBroadcast = groups.length > 0
 
     if (canBroadcast && (freshRooms.length || fullRooms.length)) {
-      // 按**内容**给待发群分组：发起群要扣掉自己发起的那个新房（当场已经回复过编号了），
-      // 满员不扣（群里其他人得知道别再加了）。内容不同的群各渲染一张 ——
-      // 绝大多数时候所有群内容一样，所以一轮只渲染一次，不是每群一次
-      const byContent = new Map()
-      for (const groupId of groups) {
-        const list = freshRooms.filter(room => store.origins[roomKey(room)] !== groupId)
-        if (!list.length && !fullRooms.length) continue
+      // 收件人决策（新房广播哪些群、满员只发哪些群、每个群 @ 谁）在 teamStore 的
+      // planBroadcast 里 —— 那是纯数据进出，脱机就能单测
+      const plan = planBroadcast(groups, freshRooms, fullRooms, store)
 
-        const sig = `${list.map(roomKey).join(',')}|${fullRooms.map(roomKey).join(',')}`
-        if (!byContent.has(sig)) byContent.set(sig, { fresh: list, groups: [] })
-        byContent.get(sig).groups.push(groupId)
+      // 按**内容**给待发群分组：绝大多数群收到的内容一样，一轮只渲染一次，不是每群一次。
+      // ⚠️ at 段不参与签名 —— 它按群拼（同一个群只 @ 本群的人），
+      //    所以 targets 存的是「群号 -> 要 @ 的 QQ」
+      const byContent = new Map()
+      for (const [groupId, item] of plan) {
+        const sig = `${item.fresh.map(roomKey).join(',')}|${item.full.map(roomKey).join(',')}`
+        if (!byContent.has(sig)) {
+          byContent.set(sig, { fresh: item.fresh, full: item.full, targets: new Map() })
+        }
+        byContent.get(sig).targets.set(groupId, item.ats)
       }
 
       for (const item of byContent.values()) {
-        const image = await renderBroadcast(item.fresh, fullRooms)
-        const message = image
-          ? [image, BROADCAST_CAPTION]
-          : buildBroadcastText(item.fresh, fullRooms)
-        await broadcast(item.groups, () => message)
+        const image = await renderBroadcast(item.fresh, item.full)
+        await broadcast([...item.targets.keys()], groupId => buildBroadcastMessage({
+          fresh: item.fresh,
+          full: item.full,
+          ats: item.targets.get(groupId) || []
+        }, image))
       }
     }
 
@@ -544,8 +597,11 @@ async function pollOnce () {
     //    刚建的房可能是这轮列表生成之后才建的，不在列表里不代表结束了
     const live = new Set(rooms.filter(r => r.status === 'open' || r.status === 'full').map(roomKey))
     const now = Date.now()
-    const dropKeys = [...new Set([...Object.keys(store.origins), ...Object.keys(store.notified)])]
-      .filter(key => !live.has(key) && now - createdAtOf(key) > DROP_GRACE_MS)
+    const dropKeys = [...new Set([
+      ...Object.keys(store.origins),
+      ...Object.keys(store.joins),
+      ...Object.keys(store.notified)
+    ])].filter(key => !live.has(key) && now - createdAtOf(key) > DROP_GRACE_MS)
 
     // ④ 落盘：本轮改动套到最新那份上（见 commitTeamStore 的说明）
     commitTeamStore(latest => {
@@ -560,6 +616,7 @@ async function pollOnce () {
       Object.assign(latest.notified, notifiedNow)
       for (const key of dropKeys) {
         delete latest.origins[key]
+        delete latest.joins[key]
         delete latest.notified[key]
       }
     })
@@ -795,7 +852,8 @@ export class TeamUp extends plugin {
     if (!result.ok) return e.reply(result.message || '发起失败，稍后再试', shouldQuote())
 
     const room = result.room
-    if (e.group_id) markOrigin(room, e.group_id)
+    // 记下发起群和发起人：满员时这个群要收到播报、并 @ 发起人
+    if (e.group_id) markOrigin(room, e.group_id, e.user_id)
 
     const lines = [
       `✅ 开黑已发起，编号 ${room.code}`,
@@ -842,6 +900,11 @@ export class TeamUp extends plugin {
     })
 
     if (!result.ok) return e.reply(result.message || '加入失败，稍后再试', shouldQuote())
+
+    // 记下「本机这个群里的谁进了这个房」：满员时只往这些群播、并 @ 这些人。
+    // ⚠️ `createdAt` 是 roomKey 的一半（房号会循环复用），服务端没给就宁可不记 ——
+    //    记成 `12:0` 的话满员时对不上，那个群会一条播报都收不到
+    if (e.group_id && result.room?.createdAt) markJoin(result.room, e.group_id, e.user_id)
 
     const contact = result.contact || {}
 
@@ -1018,7 +1081,7 @@ export class TeamUp extends plugin {
 
     return e.reply(
       enable
-        ? '已开启本群开黑广播\n别的群有人发起开黑时会在本群播报，发 #加入开黑 [编号] [分路] 就能跨群组队'
+        ? '已开启本群开黑广播\n别的群有人发起开黑时会在本群播报；人齐了只播给参与过这个房的群\n发 #加入开黑 [编号] [分路] 就能跨群组队'
         : '已关闭本群开黑广播',
       shouldQuote()
     )
