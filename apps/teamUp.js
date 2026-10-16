@@ -27,19 +27,27 @@
  *
  * ## 满员播报只发参与过的群
  *
- * 「有人发起」要广播到所有群（那是招人，人越多越容易凑齐）；
+ * 「有人发起」发到所有开着广播的群（那是招人，人越多越容易凑齐）；
  * 「人齐了」只发**本机参与过这个房的群**（发起群 + 有人加入的群），并 @ 上参与的人
  * （主人 2026-10-16 定）。没发起过、也没人加入过的群不用知道哪个房满了 —— 那是噪音。
  * 依据就是本地那两张表（`origins` 发起群 + `joins` 加入群），本机没参与过就一条都不发。
+ * 两条都只发开着广播的群：没开的群哪怕参与过，也只走私聊。
  *
- * ## 群级开关默认开
+ * ## 群级开关默认关（白名单）
  *
- * 接入了服务端的机器人，**所在的每个群默认都收播报**（主人 2026-10-15 定）；
- * 不想收的群由群管理发 `#关闭开黑广播`。默认开的代价是群发量，所以播报做了三层收敛：
+ * 播报**默认不发到任何群**，只发白名单里的群（主人 2026-10-16 定，推翻了 10-15 的默认开）：
+ * 群管理在群里发 `#开启开黑广播`，或者主人在锅巴「收开黑播报的群」里勾上。
+ * 白名单里的群多了照样是群发，所以播报做了三层收敛：
  *   · 一轮轮询里的所有新房 / 满员**合并成一条**发，每个群每轮最多收一条
  *   · 群与群之间隔 `BROADCAST_GAP_MS` 再发，别在同一秒往几十个群砸消息（风控）
  *   · 群列表还没就绪（冷启动适配器没连上）时**这轮不播也不记账**，下轮补上 ——
  *     否则这些房会被标成「播过了」而实际一个群都没发出去
+ *
+ * ## 重启不重播
+ *
+ * 每发成一个群就记一笔发送账（`recordSent`），整轮播完才记里程碑。一轮播到一半被重启，
+ * 重启后只补还没收到的群 —— 群多的号一轮要播好几分钟，原来这期间一重启，
+ * 前面收过的群会再收一遍（2026-10-16 主人报的「重启会重新发一遍已经发过的广播」）。
  */
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { ApiService, shouldQuote, pickGroupSafe, pickMemberSafe, AT_HEAD, stripAtText, getImgType } from '#utils'
@@ -56,8 +64,9 @@ import {
   isTeamReady, TEAM_NOT_READY_HINT
 } from '../utils/teamClient.js'
 import {
-  loadTeamStore, saveTeamStore, setTeamSub, mutedGroups,
-  markOrigin, markJoin, roomKey, planBroadcast
+  loadTeamStore, saveTeamStore, setTeamSub, enabledGroups,
+  markOrigin, markJoin, roomKey, planBroadcast,
+  recordSent, clearSent, settledRooms
 } from '../utils/teamStore.js'
 import { parseCreate, parseJoin, LANE_ANY } from '../utils/teamParse.js'
 
@@ -80,7 +89,7 @@ const MAX_BACKOFF_MS = 10 * 60 * 1000
 /**
  * 群发时群与群之间隔多久。
  *
- * 播报默认发到机器人所在的每个群，群多的号一轮可能是几十上百条 ——
+ * 开着广播的群多的号，一轮可能是几十上百条 ——
  * 同一秒里全砸出去是 QQ 风控最典型的触发条件。1.5 秒一群，一百个群两分半发完，
  * 下一轮轮询要等这轮发完才排（`tick` 是 await 完才排下一拍），不会叠起来。
  */
@@ -339,7 +348,8 @@ function buildBroadcastMessage ({ fresh, full, ats }, image) {
 /**
  * 该不该拉这一轮。
  *
- * 只看接没接入：群级开关默认开，接入了的机器人几乎总有群要播。
+ * 只看接没接入：哪怕一个群都没开广播也要拉 —— 替发起人私聊「谁加进来了」
+ * 走的也是这一轮（`mine` 段）。
  * 没接入的机器一次请求都不发 —— 不该每 30 秒去敲一次空门
  * （营地消息那边踩过：没接入的机器把日志刷满 fetch failed）。
  */
@@ -348,7 +358,7 @@ function shouldPoll () {
 }
 
 /**
- * 这一轮要播的群：机器人所在的全部群，减掉发过 `#关闭开黑广播` 的。
+ * 这一轮要播的群：开着广播的群（白名单），且机器人现在还在里面。
  *
  * 跳过两类：
  *  · 频道 / 公会（有 `guild` 字段）—— 不是群，同 groupIndex 的处理
@@ -356,9 +366,12 @@ function shouldPoll () {
  *    判据用 masterMsg 的 `FAKE_ACCOUNT`，不另写一份。Miao 单账号的 `gl` 没有 `bot_id`，
  *    那种情况也不存在假账号，直接放行
  *
- * @returns {string[]} 冷启动适配器还没连上时是空数组，调用方据此判断「这轮先别播」
+ * @returns {string[]} 一个群都没开、或冷启动适配器还没连上时是空数组
  */
 function broadcastGroups () {
+  const enabled = enabledGroups()
+  if (!enabled.size) return []
+
   let groupMap
   try {
     groupMap = typeof Bot !== 'undefined' ? Bot.gl : null
@@ -368,11 +381,10 @@ function broadcastGroups () {
   }
   if (!groupMap?.size) return []
 
-  const muted = mutedGroups()
   const out = []
   for (const [groupId, info] of groupMap) {
     const gid = String(groupId ?? '').trim()
-    if (!gid || muted.has(gid)) continue
+    if (!gid || !enabled.has(gid)) continue
     if (info?.guild) continue
     if (info?.bot_id && FAKE_ACCOUNT.test(String(info.bot_id))) continue
     out.push(gid)
@@ -385,7 +397,7 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 /**
  * 群列表**就绪**了吗（哪怕一个可播的群都没有）。
  *
- * 冷启动时 `Bot.gl` 还是空的，这跟「就绪、但所有群都关了广播或机器人不在任何群」
+ * 冷启动时 `Bot.gl` 还是空的，这跟「就绪、但一个群都没开广播或机器人不在任何群」
  * 得分清楚：前者**不能**推进轮询水位（推了那些房就永远补不上），后者可以。
  */
 function groupListReady () {
@@ -400,14 +412,15 @@ function groupListReady () {
  * 群发。每个群的内容可以不一样（发起群要扣掉自己发起的那个房、满员要按群 @ 参与的人），
  * 由 `build` 按群生成。
  *
- * 失败**只汇总一条日志**：默认开之后群多，官bot 这类发不了主动消息的号会每群报一次错，
+ * 失败**只汇总一条日志**：群多的时候，官bot 这类发不了主动消息的号会每群报一次错，
  * 一轮就是几十行 error，正经的报错反而被淹掉。
  *
  * @param {string[]} groups
  * @param {(groupId: string) => string|Array|null} build
  *   返回空串 / 空数组 / null 表示这个群这轮不用发；数组用于「图 + 文字 + at 段」这种消息
+ * @param {(groupId: string) => void} [onSent] 每发成一个群回调一次（记发送账）
  */
-async function broadcast (groups, build) {
+async function broadcast (groups, build, onSent) {
   let sent = 0
   let failed = 0
   let lastError = ''
@@ -442,13 +455,20 @@ async function broadcast (groups, build) {
     } catch (error) {
       failed += 1
       lastError = `群 ${groupId}：${error?.message || error}`
+      continue
+    }
+
+    // 记账失败（磁盘满之类）不能拖垮这一轮：消息已经发出去了，后面的群照发。
+    // 代价只是这一轮中途被重启的话，这个群会再收一次
+    try {
+      onSent?.(groupId)
+    } catch (error) {
+      logger.warn(`[开黑] 群 ${groupId} 的发送账没记上：${error?.message || error}`)
     }
   }
 
   if (failed) logger.warn(`[开黑] 播报发出 ${sent} 个群，失败 ${failed} 个（最后一个：${lastError}）`)
   else if (sent) logger.mark(`[开黑] 播报已发到 ${sent} 个群`)
-
-  return sent
 }
 
 /**
@@ -501,9 +521,9 @@ function createdAtOf (key) {
 /**
  * 状态落盘：**现读、改、写，中间没有 await**。
  *
- * ⚠️ 不能拿轮询开头读的那份整份写回。播报默认发到所有群，一轮可能跑好几分钟，
- *    这期间群管理发的 `#关闭开黑广播`、有人当场 `#发起开黑` 记下的发起群都已经落盘了 ——
- *    拿旧那份覆盖，关了的广播会自己弹回来（skinNews 踩过同一个坑，见那边的注释）。
+ * ⚠️ 不能拿轮询开头读的那份整份写回。群多的号一轮可能跑好几分钟，这期间有人当场
+ *    `#发起开黑` / `#加入开黑` 记下的发起群、加入群都已经落盘了，发送账也是边发边记的 ——
+ *    拿旧那份覆盖，这些就全丢了（skinNews 踩过同一个坑，见那边的注释）。
  *    所以轮询只把**本轮自己的改动**套到最新那份上。
  */
 function commitTeamStore (mutate) {
@@ -599,26 +619,27 @@ async function pollOnce () {
      * 尤其是补上最后那个位置的人的群，它可能连第一次都没赶上（那时它还没参与）。
      * 降回 `new` 只是让它「可以再播一次满员」，**不会**重播「有人发起」
      * （那条的条件是「完全没有记录」，不是「记录是 new」）。
+     *
+     * 同理，「人齐了」那条**没播完的发送账**也作废：房又开了，下次凑满是新的一条，
+     * 参与的群都要再收 —— 不清的话账上记过的群会被当成「收过了」跳过。
      */
-    const reopenedRooms = rooms.filter(room =>
-      room.status === 'open' && store.milestones[roomKey(room)] === 'full')
+    const openRooms = rooms.filter(room => room.status === 'open')
 
     const groups = broadcastGroups()
-    // 有群可播吗 —— 没有就不渲染、不发送。**水位推不推进是另一回事**，见 canAdvance
-    const canBroadcast = groups.length > 0
 
-    // 这一轮到底有没有**真的发出去**（见下面的 commitTeamStore）
-    let delivered = false
+    // 这一轮每个群要发什么。没有群可播、或者没有房要播就是空的 ——
+    // **水位推不推进是另一回事**，见下面的 canAdvance
+    let plan = new Map()
 
-    if (canBroadcast && (freshRooms.length || fullRooms.length)) {
-      // 收件人决策（新房广播哪些群、满员只发哪些群、每个群 @ 谁）在 teamStore 的
-      // planBroadcast 里 —— 那是纯数据进出，脱机就能单测。
+    if (groups.length && (freshRooms.length || fullRooms.length)) {
+      // 收件人决策（新房发哪些群、满员只发哪些群、每个群 @ 谁、哪些群重启前已经收过）
+      // 在 teamStore 的 planBroadcast 里 —— 那是纯数据进出，脱机就能单测。
       //
       // ⚠️ 这里**现读一次状态**，别用这轮开头那份：`#加入开黑` 是在 HTTP 请求里当场
       //    落盘的，而本轮开头读快照到现在已经过了渲染+入队的时间 —— 用旧那份的话，
       //    「刚让这个房满员」的那个群不在名单里，满员播报就漏了，而房满了之后
       //    里程碑记成 full、再也不会补播（永久丢失）。
-      const plan = planBroadcast(groups, freshRooms, fullRooms, loadTeamStore())
+      plan = planBroadcast(groups, freshRooms, fullRooms, loadTeamStore())
 
       // 按**内容**给待发群分组：绝大多数群收到的内容一样，一轮只渲染一次，不是每群一次。
       // ⚠️ at 段不参与签名 —— 它按群拼（同一个群只 @ 本群的人），
@@ -632,17 +653,20 @@ async function pollOnce () {
         byContent.get(sig).targets.set(groupId, item.ats)
       }
 
-      let sent = 0
       for (const item of byContent.values()) {
         const image = await renderBroadcast(item.fresh, item.full)
-        sent += await broadcast([...item.targets.keys()], groupId => buildBroadcastMessage({
-          fresh: item.fresh,
-          full: item.full,
-          // 名单里可能有已经退群的人，@ 他们要暴露 QQ 号（见 aliveAts）
-          ats: aliveAts(groupId, item.targets.get(groupId))
-        }, image))
+        await broadcast(
+          [...item.targets.keys()],
+          groupId => buildBroadcastMessage({
+            fresh: item.fresh,
+            full: item.full,
+            // 名单里可能有已经退群的人，@ 他们要暴露 QQ 号（见 aliveAts）
+            ats: aliveAts(groupId, item.targets.get(groupId))
+          }, image),
+          // 每发成一个群就记一笔：播到一半被重启，重启后只补没收到的群
+          groupId => commitTeamStore(latest => recordSent(latest, groupId, item.fresh, item.full))
+        )
       }
-      delivered = sent > 0
     }
 
     // ② 本机发起的房：替发起人私聊通知新成员
@@ -662,46 +686,58 @@ async function pollOnce () {
     const dropKeys = [...new Set([
       ...Object.keys(store.origins),
       ...Object.keys(store.joins),
+      ...Object.keys(store.sent),
       ...Object.keys(store.notified)
     ])].filter(key => !live.has(key) && now - createdAtOf(key) > DROP_GRACE_MS)
 
     /**
-     * 水位（`rev`）和里程碑要不要推进。
+     * 哪些房这轮算播完了（记里程碑）、水位（`rev`）能不能推进。
      *
-     * 三种情况逐个说：
-     *   · **群列表还没就绪**（冷启动，适配器没连上）→ 不推进：那些房会被标成
+     *   · **群列表还没就绪**（冷启动，适配器没连上）→ 什么都不记：那些房会被标成
      *     「播过了」而实际一个群都没收到，下轮服务端回 `unchanged`，**永远补不上**
-     *   · **有房要播、却一个群都没发出去**（适配器抽风 / 风控拒绝 / 取不到发送对象）
-     *     → 不推进，下轮重试。推进了同样永远补不上
-     *   · 其余（没有房要播、或没有可播的群、或已经发出去了）→ **推进**。
-     *     尤其「群就绪但一个可播群都没有」那种（所有群都关了广播），不推进的话
-     *     每 30 秒都全量拉一次列表，纯空转
+     *   · **有群要发、却一个群都没收到**的房（适配器抽风 / 风控拒绝 / 取不到发送对象）
+     *     → 不记，水位也不推进，下轮重试。推进了同样永远补不上
+     *   · 其余（没有群要发、或至少一个群收到了）→ **记**。尤其「一个群都没开广播」
+     *     那种，不记的话每 30 秒都全量拉一次列表，纯空转
+     *
+     * ⚠️ 「收到没有」看的是发送账，要**现读** —— 它是这一轮边发边记的
      */
-    const stuck = canBroadcast && (freshRooms.length || fullRooms.length) && !delivered
-    const canAdvance = groupListReady() && !stuck
+    const ready = groupListReady()
+    const ledger = loadTeamStore()
+    const freshDone = ready ? settledRooms(freshRooms, 'new', plan, ledger) : []
+    const fullDone = ready ? settledRooms(fullRooms, 'full', plan, ledger) : []
+    const canAdvance = ready &&
+      freshDone.length === freshRooms.length && fullDone.length === fullRooms.length
 
     // ④ 落盘：本轮改动套到最新那份上（见 commitTeamStore 的说明）
     commitTeamStore(latest => {
-      if (canAdvance) {
-        latest.rev = Number(result.rev) || latest.rev
-        for (const room of freshRooms) {
-          const key = roomKey(room)
-          if (!latest.milestones[key]) latest.milestones[key] = 'new'
-        }
-        for (const room of fullRooms) latest.milestones[roomKey(room)] = 'full'
+      if (canAdvance) latest.rev = Number(result.rev) || latest.rev
+
+      // 播完的那条记里程碑，它的发送账随之清掉（里程碑已经挡住重播了）
+      for (const room of freshDone) {
+        const key = roomKey(room)
+        if (!latest.milestones[key]) latest.milestones[key] = 'new'
+        clearSent(latest, key, 'new')
+      }
+      for (const room of fullDone) {
+        const key = roomKey(room)
+        latest.milestones[key] = 'full'
+        clearSent(latest, key, 'full')
       }
 
-      // 满员后又开了的房：把里程碑降回 new（理由见 reopenedRooms）。
-      // 这一步**不受 delivered 影响** —— 它是本机状态修正，不依赖这轮发没发成功
-      for (const room of reopenedRooms) {
+      // 满员后又开了的房（理由见 openRooms）。这一步**不看这轮播没播成** ——
+      // 它是本机状态修正
+      for (const room of openRooms) {
         const key = roomKey(room)
         if (latest.milestones[key] === 'full') latest.milestones[key] = 'new'
+        clearSent(latest, key, 'full')
       }
 
       Object.assign(latest.notified, notifiedNow)
       for (const key of dropKeys) {
         delete latest.origins[key]
         delete latest.joins[key]
+        delete latest.sent[key]
         delete latest.notified[key]
       }
     })
@@ -1146,13 +1182,13 @@ export class TeamUp extends plugin {
   /** `#开启开黑广播` / `#关闭开黑广播` —— 群管理或主人（permission: 'admin' 已拦） */
   async toggle (e) {
     if (!e.isGroup) {
-      return e.reply('开黑广播要在群里开关（播报发到本群）', shouldQuote())
+      return e.reply('在要收播报的群里发这条指令，或者在锅巴「王者插件 → 服务端接入 → 收开黑播报的群」里勾选', shouldQuote())
     }
 
     const enable = e.msg.includes('开启')
     const { changed, failed } = setTeamSub(e.group_id, enable)
 
-    // 写盘失败要**说一声**：不然用户以为关掉了，下一轮照样收到播报
+    // 写盘失败要**说一声**：不然用户以为开了，实际一条播报都收不到
     if (failed) return e.reply('没能把设置写进配置文件，等一下再试', shouldQuote())
 
     if (!changed) {

@@ -119,7 +119,7 @@ export function makeSandbox () {
   )
 
   // 假的 #components：只提供被 import 到的那几个名字。
-  // `Config.modify` 是给 teamStore 的群开关用的（它把「关掉的群」写进配置），
+  // `Config.modify` 是给 teamStore 的群开关用的（它把「开着的群」写进配置），
   // 写进上面那个可改的内部状态，测试里读得回来；
   // `failNextModify` 让下一次写入抛错，用来验「写盘失败」那条路。
   fs.writeFileSync(path.join(root, 'test-components.mjs'), [
