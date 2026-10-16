@@ -63,7 +63,7 @@ const QR_CANCELED_HINT = '营地登录已取消，请重新发起'
 const QR_TIMEOUT_SCANNED_HINT = '已扫码，但长时间未确认，营地登录已超时，请重新发起'
 const QR_TIMEOUT_HINT = '营地登录等待超时，请重新发起'
 /** 两条扫码登录共用的后半段引导（只有开头那句要不要点明「手机 QQ」不一样） */
-const SCAN_LOGIN_TAIL = '\n登录成功后会自动保存登录态并绑定这个营地号，发 #营地观战 就能看你营地好友里谁在打。'
+const SCAN_LOGIN_TAIL = '\n登录成功后会自动保存登录态并绑定这个营地号，之后就能查数据了。'
 
 /**
  * 进行中的扫码登录任务：botUserId → { taskId, qrMessageId, ... }。只活在进程内存里。
@@ -960,7 +960,7 @@ export class AccountManager extends plugin {
       '登录成功，已绑定这个营地号。',
       `\n营地ID：${savedAccount.userId || '未获取'}`,
       `\n昵称：${savedAccount.nickname || savedAccount.userName || '未命名'}`,
-      '\n发送 #营地观战 看你营地好友里谁在打。',
+      '\n现在可以查数据了。',
       '\n有效期约 30 天，失效了重发这条指令。'
     ]
     // 池子大小只报给主人：他要靠这个数判断请求摊得够不够开，普通用户看了没用
