@@ -84,12 +84,12 @@
         }
 
         .th .col-num {
-            width: 130px;
+            width: 104px;
             text-align: center;
         }
 
         .th .col-power {
-            width: 160px;
+            width: 148px;
             text-align: center;
         }
 
@@ -217,7 +217,7 @@
         }
 
         .hero-item .col-num {
-            width: 130px;
+            width: 104px;
             font-size: 26px;
             font-weight: bold;
             color: #c8d0dd;
@@ -228,7 +228,7 @@
         }
 
         .hero-item .col-power {
-            width: 160px;
+            width: 148px;
             font-size: 28px;
             font-weight: bold;
         }
@@ -256,7 +256,8 @@
         <div class="col-hero">英雄</div>
         <div class="col-num">场次</div>
         <div class="col-num">胜率</div>
-        <div class="col-power">{{powerLabel}}</div>
+        <div class="col-power">历史最高</div>
+        <div class="col-power">本赛季</div>
     </div>
 
     {{each heroes hero index}}
@@ -280,14 +281,15 @@
         </div>
         <div class="col-num">{{hero.playNum}}</div>
         <div class="col-num rate">{{hero.winRate}}</div>
-        <div class="col-power" style="color: {{hero.fightColor}};">{{hero.fightPower}}</div>
+        <div class="col-power" style="color: {{hero.historyColor}};">{{if hero.historyPower}}{{hero.historyPower}}{{else}}—{{/if}}</div>
+        <div class="col-power" style="color: {{hero.seasonColor}};">{{hero.seasonPower}}</div>
     </div>
     {{/each}}
 
     <div class="footer">
         GloryOfKings-Plugin · 我的英雄 ·
-        {{if powerLabel === '最高战力'}}战力为历史最高值，称号为拿到该战力时的{{else}}战力与称号为当前值{{/if}} ·
-        按战力取前 {{shownCount}}（#我的英雄 20 可改数量）
+        历史最高为历史赛季峰值（称号为拿到该战力时的）；本赛季为当前战力 ·
+        按历史最高取前 {{shownCount}}（#我的英雄 20 可改数量）
     </div>
 </body>
 

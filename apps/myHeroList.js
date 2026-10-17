@@ -1,7 +1,7 @@
 // 我的英雄：主表取自游戏侧 /play/h5getherolist（全部竞技模式的生涯累计），一次请求拿全量英雄。
 // 和 heroList.js 的区别：那边走营地赛季页只有当前赛季 top5，这里是账号拥有的全部英雄（实测一个号 132 条）。
 //
-// 「战力」列是**历史最高战力**（营地 App 那页右上角「⇄ 历史赛季」的口径），
+// 「历史最高」列是**历史最高战力**（营地 App 那页右上角「⇄ 历史赛季」的口径），
 // 来自营地侧 /hero/getseasonusaullyherolist（seasonId=0），不是 h5getherolist 里的当前值。
 // 那个接口顺带把「拿历史最高时的荣耀称号」也放在 honorTitle 里给了，于是以前那套逐英雄拉
 // pagedetails 扫称号的流程整个去掉了 —— 实测历史口径的称号是当前口径的超集：
@@ -9,10 +9,14 @@
 // 当前已掉榜的（戈娅）历史接口照样给得出来；而 honorTitle 为 null 的，pagedetails 实测也一律为空。
 // 顺带 #我的英雄 15 从十几秒（15 个英雄串行请求）降到 2 个请求。
 //
+// 「本赛季」列是 h5getherolist 的 heroFightPower（当前战力）。营地**不提供当前赛季的峰值**
+// （getseasonusaullyherolist 传当前赛季号时 maxHeroFightPower 恒 0），所以这一列只能显示当前值，
+// 不要改叫「赛季最高」。
+//
 // 两个接口靠 heroId 关联，主表必须用 h5getherolist：它有 winNum 能算总胜率，
 // playNum 也是营地那页的口径（孙权 2201），而历史接口的 playNum 是另一套（同英雄 1182），
 // 所以只从历史接口补 maxHeroFightPower 与称号两个字段。
-// 历史接口拿不到时（没绑角色 / 接口异常）退回显示当前战力，模板列名也跟着变，保证图还能出。
+// 历史接口拿不到时（没绑角色 / 接口异常）历史列显示「—」，排序退回当前战力，保证图还能出。
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { getImgType, ApiService, readYamlFile, getLocalImage, Button, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote } from '#utils'
 import path from 'path'
@@ -115,6 +119,13 @@ export class MyHeroList extends plugin {
       const maxPower = Number(hit?.maxPower) || 0
       return {
         ...hero,
+        // 历史最高（营地「历史赛季」口径）。0 = 接口没取到，图上显示「—」，
+        // 不能拿当前值冒充历史值 —— 两列会变成一模一样。
+        historyPower: maxPower,
+        // 本赛季战力：h5getherolist 的 heroFightPower（当前值）。
+        // 营地当前赛季不返回赛季峰值（maxHeroFightPower 恒 0），只能给当前值。
+        seasonPower: Number(hero.heroFightPower) || 0,
+        // 排序用：历史值优先，取不到时按当前值排，保证图还能正常出
         displayPower: maxPower || Number(hero.heroFightPower) || 0,
         honorText: hit?.honor || ''
       }
@@ -139,8 +150,6 @@ export class MyHeroList extends plugin {
       heroCount: played.length,
       ownCount: Number(res?.data?.hasData?.heroNum) || played.length,
       shownCount: heroes.length,
-      // 历史接口拿不到时图上要如实标成当前口径，不能默认写「最高战力」
-      powerLabel: history.ok ? '最高战力' : '战力',
       totalPlay,
       totalRate: totalPlay ? `${((totalWin / totalPlay) * 100).toFixed(1)}%` : '—',
       heroes
@@ -209,7 +218,11 @@ export class MyHeroList extends plugin {
       // 这个接口的 winRate 已经是 "53.8%" 这种字符串，不用再换算
       winRate: hero.winRate || '—',
       fightPower: hero.displayPower,
-      fightColor: fightColor(hero.displayPower)
+      fightColor: fightColor(hero.displayPower),
+      historyPower: hero.historyPower,
+      historyColor: fightColor(hero.historyPower),
+      seasonPower: hero.seasonPower,
+      seasonColor: fightColor(hero.seasonPower)
     }
   }
 
