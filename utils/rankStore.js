@@ -265,9 +265,11 @@ function writeSnapshot(snapshot) {
  * @param {object} [options]
  * @param {boolean} [options.force=false] 忽略快照有效期强制刷新
  * @param {number}  [options.ttl=SNAPSHOT_TTL] 快照有效期（毫秒）
+ * @param {Map<string,string>} [options.extraTargets] 额外的营地ID（campId -> 归属QQ），
+ *        来自共享库的跨机器人绑定；本机已绑定的号优先，不会被覆盖
  * @returns {Promise<{updatedAt:number, entries:object, fromCache:boolean, failed:number}>}
  */
-export async function collectRankData({ force = false, ttl = SNAPSHOT_TTL } = {}) {
+export async function collectRankData({ force = false, ttl = SNAPSHOT_TTL, extraTargets = null } = {}) {
   const snapshot = readSnapshot()
   const fresh = Date.now() - snapshot.updatedAt < ttl
 
@@ -277,6 +279,12 @@ export async function collectRankData({ force = false, ttl = SNAPSHOT_TTL } = {}
 
   // 同一个营地ID可能被多人绑定，去重后只拉一次
   const targets = dedupeTargets()
+
+  // 共享库补进来的号：本机没绑过才加，归属 QQ 只用于回显和「认自己」
+  for (const [campId, qq] of extraTargets || []) {
+    if (!campId || targets.has(campId)) continue
+    targets.set(String(campId), String(qq || ''))
+  }
 
   const entries = {}
   let failed = 0

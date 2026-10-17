@@ -1,13 +1,53 @@
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { getImgType, readYamlFile, Button, getUserAvatar, shouldQuote } from '#utils'
+import { getImgType, readYamlFile, Button, getUserAvatar, shouldQuote, isShareReady, querySharedBind } from '#utils'
 import { collectRankData, buildRankList, getAllBindings, dedupeTargets, readSnapshot, SNAPSHOT_TTL } from '../utils/rankStore.js'
+import { mapConcurrent } from '../utils/parallel.js'
 import { estimateRequestSeconds } from '../utils/api.js'
 import { PluginData } from '#components'
 
 /** 榜单最多展示多少人，太长图片会非常高 */
 const MAX_ROWS_GROUP = 10
 const MAX_ROWS_GLOBAL = 30
+
+/** 共享库查询结果缓存：本机 QQ 集合没变就 5 分钟内复用 */
+const SHARED_CACHE_TTL_MS = 5 * 60 * 1000
+let sharedCache = { key: '', at: 0, map: new Map() }
+
+/**
+ * 从共享库补拉「本机 QQ 在其他机器人上绑定过」的营地 ID。
+ *
+ * 共享库只提供按 QQ 查询（服务端存的是 QQ 哈希，枚举不了未知 QQ），
+ * 所以只能用本机出现过的 QQ 逐个问；查不到的 QQ 不影响整张榜。
+ *
+ * @param {Array<{campId:string, botUserId:string}>} bindings 本机绑定
+ * @returns {Promise<Map<string,string>>} campId -> 归属QQ
+ */
+async function fetchSharedCampIds(bindings) {
+  const qqs = [...new Set(bindings.map(item => String(item.botUserId)).filter(Boolean))]
+  const key = qqs.slice().sort().join(',')
+
+  if (sharedCache.key === key && Date.now() - sharedCache.at < SHARED_CACHE_TTL_MS) {
+    return sharedCache.map
+  }
+
+  const found = new Map()
+
+  await mapConcurrent(qqs, async qq => {
+    try {
+      const result = await querySharedBind(qq)
+      for (const id of result?.campIds || []) {
+        const campId = String(id)
+        if (campId && !found.has(campId)) found.set(campId, qq)
+      }
+    } catch {
+      // 单个 QQ 查询失败只少一个号，不能拖垮整张榜
+    }
+  }, { concurrency: 3 })
+
+  sharedCache = { key, at: Date.now(), map: found }
+  return found
+}
 
 export class RankList extends plugin {
   constructor() {
@@ -18,6 +58,7 @@ export class RankList extends plugin {
       priority: 1,
       rule: [
         { reg: '^#(排位|巅峰)总排名\\s*(刷新)?$', fnc: 'globalRank' },
+        { reg: '^#(排位|巅峰)bot排名\\s*(刷新)?$', fnc: 'botRank' },
         { reg: '^#(排位|巅峰)排名\\s*(刷新)?$', fnc: 'groupRank' }
       ]
     })
@@ -29,7 +70,7 @@ export class RankList extends plugin {
     const force = e.msg.includes('刷新')
 
     if (!e.isGroup) {
-      await e.reply('本群排名只能在群里使用，私聊请用 #排位总排名 / #巅峰总排名')
+      await e.reply('本群排名只能在群里使用，私聊请用 #排位bot排名 / #排位总排名')
       return
     }
 
@@ -39,7 +80,7 @@ export class RankList extends plugin {
       memberIds = [...memberMap.keys()].map(String)
     } catch (error) {
       logger.warn(`[王者排名] 获取群成员失败: ${error.message}`)
-      await e.reply('获取群成员列表失败，可改用 #排位总排名 查看全局排名')
+      await e.reply('获取群成员列表失败，可改用 #排位bot排名 查看本机排名')
       return
     }
 
@@ -64,8 +105,8 @@ export class RankList extends plugin {
     })
   }
 
-  /** #排位总排名 / #巅峰总排名：统计全部绑定用户 */
-  async globalRank(e) {
+  /** #排位bot排名 / #巅峰bot排名：只统计本机绑定 */
+  async botRank(e) {
     const type = e.msg.includes('巅峰') ? 'peak' : 'rank'
     const force = e.msg.includes('刷新')
     const bindings = getAllBindings()
@@ -82,26 +123,68 @@ export class RankList extends plugin {
       type,
       force,
       bindings,
-      scope: '全服',
+      scope: '本机',
       isGlobal: true,
-      title: `${type === 'peak' ? '巅峰分' : '排位'}总排行榜`
+      title: `本机${type === 'peak' ? '巅峰分' : '排位'}排行榜`
     })
   }
 
-  async render(e, { type, force, bindings, scope, title, isGlobal = false }) {
+  /** #排位总排名 / #巅峰总排名：本机绑定 + 共享库里所有可查到的营地ID */
+  async globalRank(e) {
+    const type = e.msg.includes('巅峰') ? 'peak' : 'rank'
+    const force = e.msg.includes('刷新')
+    const bindings = getAllBindings()
+
+    // 共享库只认 QQ 查询，用本机绑定过的 QQ 尽量把跨机器人的号补齐
+    let extraTargets = new Map()
+    if (isShareReady()) {
+      extraTargets = await fetchSharedCampIds(bindings)
+    }
+
+    if (!bindings.length && !extraTargets.size) {
+      await e.reply([
+        isShareReady()
+          ? '本机和共享库里都没有可用的营地ID，先发送 #绑定营地 [营地ID] 加入排名吧'
+          : '还没有人绑定营地ID，先发送 #绑定营地 [营地ID] 加入排名吧',
+        Button.bind()
+      ])
+      return
+    }
+
+    // 共享库补进来的号如果还没进快照，这次必须重采，否则 12 小时内都看不到它们
+    const snapshot = readSnapshot()
+    const missingShared = [...extraTargets.keys()].some(campId => !snapshot.entries[String(campId)])
+
+    await this.render(e, {
+      type,
+      force: force || missingShared,
+      bindings,
+      extraTargets,
+      scope: '全库',
+      isGlobal: true,
+      title: `全库${type === 'peak' ? '巅峰分' : '排位'}排行榜`
+    })
+  }
+
+  async render(e, { type, force, bindings, extraTargets = null, scope, title, isGlobal = false }) {
     // 采集要逐个拉接口，命中缓存时很快，需要刷新时先给个提示。
     // 预估耗时按「去重后的账号数」算：同一个营地ID 被多人绑定时只拉一次，
     // 拿 bindings.length 会高估；节奏和并发度都由 api.js 决定，不能在这写死
     const needFetch = force || Date.now() - readSnapshot().updatedAt >= SNAPSHOT_TTL
     if (needFetch) {
-      const targetCount = dedupeTargets(bindings).size
+      const localTargets = dedupeTargets(bindings)
+      let extraCount = 0
+      for (const campId of extraTargets?.keys() || []) {
+        if (!localTargets.has(String(campId))) extraCount++
+      }
+      const targetCount = localTargets.size + extraCount
       const seconds = estimateRequestSeconds(targetCount)
       await e.reply(`正在更新 ${targetCount} 个账号的数据，约需 ${seconds} 秒，请稍候...`)
     }
 
     let snapshot
     try {
-      snapshot = await collectRankData({ force })
+      snapshot = await collectRankData({ force, extraTargets })
     } catch (error) {
       logger.error(`[王者排名] 采集失败: ${error.message}`)
       await e.reply('排行榜数据采集失败，请稍后再试')
@@ -124,10 +207,19 @@ export class RankList extends plugin {
       }
     }
 
-    const full = buildRankList(snapshot.entries, type, {
-      campIds: bindings.map(item => item.campId),
-      ownerMap
-    })
+    // 共享库补进来的号也要能认出归属 QQ（前三名头像、查自己那行都要用）
+    for (const [campId, qq] of extraTargets || []) {
+      const key = String(campId)
+      if (!ownerMap[key]) ownerMap[key] = []
+      if (qq && !ownerMap[key].includes(String(qq))) ownerMap[key].push(String(qq))
+    }
+
+    const campIds = [...new Set([
+      ...bindings.map(item => String(item.campId)),
+      ...(extraTargets ? [...extraTargets.keys()].map(String) : [])
+    ])]
+
+    const full = buildRankList(snapshot.entries, type, { campIds, ownerMap })
 
     if (!full.length) {
       await e.reply(type === 'peak'
