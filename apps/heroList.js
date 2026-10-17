@@ -6,6 +6,7 @@ import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { getImgType, ApiService, readYamlFile, getLocalImage, Button, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote } from '#utils'
 import path from 'path'
 import { PluginData, PluginPath } from '#components'
+import { reportHeroPowers } from '../utils/heroPowerShare.js'
 
 // 英雄头像图（营地战斗页头像，裁成横图），比赛季页给的横版立绘更贴脸，优先用它
 const HERO_IMG_BASE = 'https://game-1255653016.file.myqcloud.com/battle_skin_1250-326'
@@ -136,6 +137,17 @@ export class HeroList extends plugin {
     }
 
     const heroes = await Promise.all(picked.heroes.map(hero => this.buildHeroCard(hero)))
+
+    // 顺手把这几只英雄的战力传给共享库，供别的机器人查 #英雄名总排名。
+    // fire-and-forget：共享库是别人的服务，挂了不能影响这张图（连 await 都不要）
+    reportHeroPowers(String(e.user_id), picked.heroes.map(hero => ({
+      campId: ID,
+      heroId: hero.heroId,
+      heroName: hero.rawName,
+      power: hero.fightPower,
+      nick: roleName,
+      area: roleArea
+    }))).catch(() => {})
 
     const img = await puppeteer.screenshot('HeroList', {
       imgType: getImgType(),

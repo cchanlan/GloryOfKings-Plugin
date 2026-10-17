@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>英雄战力总排名</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 1000px;
+            font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+            background: linear-gradient(160deg, #0d1117 0%, #131a26 50%, #0d1117 100%);
+            color: #eef2f8;
+            padding: 40px 36px 28px;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 22px;
+            margin-bottom: 28px;
+        }
+
+        .hero-icon {
+            width: 120px;
+            height: 76px;
+            object-fit: cover;
+            border-radius: 14px;
+            border: 2px solid rgba(245, 215, 110, 0.45);
+            background: rgba(255, 255, 255, 0.06);
+            flex-shrink: 0;
+        }
+
+        .title-box h1 {
+            font-size: 38px;
+            font-weight: bold;
+            color: #f5d76e;
+            letter-spacing: 2px;
+        }
+
+        .title-box .sub {
+            margin-top: 6px;
+            font-size: 18px;
+            color: #9aa7bd;
+        }
+
+        .title-box .sub b {
+            color: #57c98a;
+        }
+
+        .rank-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .rank-row {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            padding: 16px 22px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 14px;
+        }
+
+        .rank-row.top1 {
+            background: rgba(245, 215, 110, 0.12);
+            border-color: rgba(245, 215, 110, 0.4);
+        }
+
+        .rank-row.top2 {
+            background: rgba(200, 208, 221, 0.1);
+            border-color: rgba(200, 208, 221, 0.32);
+        }
+
+        .rank-row.top3 {
+            background: rgba(208, 139, 91, 0.1);
+            border-color: rgba(208, 139, 91, 0.32);
+        }
+
+        .col-rank {
+            width: 64px;
+            flex-shrink: 0;
+            font-size: 26px;
+            font-weight: bold;
+            text-align: center;
+            color: #6f7c92;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .rank-row.top1 .col-rank { color: #f5d76e; }
+        .rank-row.top2 .col-rank { color: #c8d0dd; }
+        .rank-row.top3 .col-rank { color: #d08b5b; }
+
+        .col-nick {
+            flex: 1;
+            min-width: 0;
+            font-size: 24px;
+            font-weight: bold;
+            color: #eef2f8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .col-area {
+            width: 300px;
+            flex-shrink: 0;
+            font-size: 16px;
+            color: #7f8da3;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .col-power {
+            width: 150px;
+            flex-shrink: 0;
+            text-align: right;
+            font-size: 28px;
+            font-weight: bold;
+            color: #f5d76e;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .footer {
+            margin-top: 26px;
+            text-align: center;
+            font-size: 15px;
+            color: #6f7c92;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        {{if heroIcon}}<img class="hero-icon" src="{{heroIcon}}" onerror="this.style.display='none'">{{/if}}
+        <div class="title-box">
+            <h1>{{heroName}}</h1>
+            <div class="sub">战力总排名 · 共 <b>{{total}}</b> 人在榜</div>
+        </div>
+    </div>
+
+    <div class="rank-list">
+        {{each list item}}
+        <div class="rank-row{{if item.rank === 1}} top1{{else if item.rank === 2}} top2{{else if item.rank === 3}} top3{{/if}}">
+            <div class="col-rank">{{item.rank}}</div>
+            <div class="col-nick">{{item.nick}}</div>
+            <div class="col-area">{{item.area}}</div>
+            <div class="col-power">{{item.power}}</div>
+        </div>
+        {{/each}}
+    </div>
+
+    <div class="footer">GloryOfKings-Plugin · 数据来自营地ID共享库各接入方上报</div>
+</body>
+
+</html>
