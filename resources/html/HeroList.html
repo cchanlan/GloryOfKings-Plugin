@@ -213,7 +213,7 @@
         }
 
         .hero-item .col-mode .none {
-            font-size: 24px;
+            font-size: 17px;
             color: #5b6679;
         }
 
@@ -268,7 +268,7 @@
             <div class="cnt">{{hero.rankCnt}}</div>
             <div class="rate">{{hero.rankRate}}</div>
             {{else}}
-            <div class="none">—</div>
+            <div class="none">未进前5</div>
             {{/if}}
         </div>
         {{if showModes}}
@@ -277,7 +277,7 @@
             <div class="cnt">{{hero.peakCnt}}</div>
             <div class="rate">{{hero.peakRate}}</div>
             {{else}}
-            <div class="none">—</div>
+            <div class="none">未进前5</div>
             {{/if}}
         </div>
         {{/if}}
@@ -285,7 +285,7 @@
     </div>
     {{/each}}
 
-    <div class="footer">GloryOfKings-Plugin · 常用英雄{{if showModes}} · 排位/巅峰常用英雄按战力取前 {{heroCount}}{{/if}}</div>
+    <div class="footer">GloryOfKings-Plugin · 常用英雄{{if showModes}} · 排位/巅峰按战力取前 {{heroCount}} · 各模式只统计场次前 5 的英雄，未进前 5 不代表没打过{{/if}}</div>
 </body>
 
 </html>
