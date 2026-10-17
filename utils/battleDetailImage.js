@@ -494,6 +494,12 @@ function getMeData (myRoles, head) {
     meRatings,
     meGroups,
     meHeroName: me?.battleRecords?.usedHero?.heroName || head?.heroName || '',
+    // 左侧竖栏：本局英雄头像 + KDA + 评分，跟战力胶囊竖着排在一起（见模板 me-profile）
+    meHeroIcon: me?.battleRecords?.usedHero?.heroIcon || '',
+    meKill: bs.killCnt ?? 0,
+    meDead: bs.deadCnt ?? 0,
+    meAssist: bs.assistCnt ?? 0,
+    meGrade: bs.gradeGame || '',
     meFightPower: Number(bs.fightPower) || 0,
     meFightPowerDelta: delta,
     meFightPowerDeltaText: delta > 0 ? `+${delta}` : String(delta)

@@ -631,18 +631,86 @@
         }
 
         /* ===== 我的本场表现（只给查询者本人出，见 getMeData 的注释） ===== */
+        /* 两栏：左边竖栏是「头像 + 战力胶囊 + KDA + 评分」，右边是五维评级和三大类。
+           跟营地那页一样把头像和战力放在一起，扫一眼就知道这局谁打的、战力涨了多少。 */
+        .me-body {
+            display: flex;
+            gap: 24px;
+            align-items: stretch;
+        }
+
+        .me-profile {
+            width: 200px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            padding: 20px 16px;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+        }
+
+        .me-avatar {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.28);
+            object-fit: cover;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        /* 战力胶囊：深色玻璃底 + 绿色增量，跟整张图的配色一致 */
         .me-power {
-            font-size: 16px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 18px;
+            border-radius: 999px;
+            background: rgba(111, 142, 245, 0.16);
+            border: 1px solid rgba(111, 142, 245, 0.38);
+            font-size: 17px;
+            font-weight: 600;
+            color: #eef2f8;
+            line-height: 1.35;
+            white-space: nowrap;
+        }
+
+        .me-power .label {
             font-weight: normal;
-            color: #9aa7bd;
+            color: #a8b6cc;
         }
 
         .me-power .delta {
-            font-weight: bold;
+            font-weight: 700;
         }
 
         .me-power .delta.up { color: #57c98a; }
         .me-power .delta.down { color: #ff5b7c; }
+
+        .me-kda {
+            font-size: 22px;
+            font-weight: 600;
+            color: #eef2f8;
+            letter-spacing: 1px;
+        }
+
+        .me-grade {
+            font-size: 34px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .me-grade.grade-s { color: #ff5b7c; }
+        .me-grade.grade-a { color: #f5d76e; }
+        .me-grade.grade-b { color: #6f8ef5; }
+        .me-grade.grade-c { color: #9aa7bd; }
+
+        .me-detail {
+            flex: 1;
+            min-width: 0;
+        }
 
         /* 五维评级：五个等宽格子，档位大字 + 项名小字 */
         .rating-row {
@@ -834,33 +902,43 @@
 
     {{if hasMeDetail}}
     <div class="stats-card">
-        <div class="section-title">我的本场表现{{if meHeroName}} · {{meHeroName}}{{/if}}{{if meFightPower}}<span class="me-power">战力 {{meFightPower}}{{if meFightPowerDelta}} <span class="delta {{meFightPowerDelta > 0 ? 'up' : 'down'}}">{{meFightPowerDeltaText}}</span>{{/if}}</span>{{/if}}</div>
-        {{if meRatings.length}}
-        <div class="rating-row">
-            {{each meRatings r}}
-            <div class="rating-item">
-                <div class="rating-tier tier-{{r.tier}}">{{r.tier}}</div>
-                <div class="rating-name">{{r.name}}</div>
+        <div class="section-title">我的本场表现{{if meHeroName}} · {{meHeroName}}{{/if}}</div>
+        <div class="me-body">
+            <div class="me-profile">
+                {{if meHeroIcon}}<img class="me-avatar" src="{{meHeroIcon}}" alt="{{meHeroName}}" onerror="this.style.visibility='hidden'">{{/if}}
+                {{if meFightPower}}<span class="me-power"><span class="label">战力</span>{{meFightPower}}{{if meFightPowerDelta}}<span class="delta {{meFightPowerDelta > 0 ? 'up' : 'down'}}">{{meFightPowerDeltaText}}</span>{{/if}}</span>{{/if}}
+                <div class="me-kda">{{meKill}} / {{meDead}} / {{meAssist}}</div>
+                {{if meGrade}}<div class="me-grade {{meGrade >= 10 ? 'grade-s' : meGrade >= 8 ? 'grade-a' : meGrade >= 6 ? 'grade-b' : 'grade-c'}}">{{meGrade}}</div>{{/if}}
             </div>
-            {{/each}}
-        </div>
-        {{/if}}
-        {{if meGroups.length}}
-        <div class="behavior-row">
-            {{each meGroups g}}
-            <div class="behavior-card">
-                <div class="behavior-title">{{g.title}}</div>
-                {{each g.items it}}
-                <div class="behavior-item">
-                    <span class="bi-name">{{it.name}}</span>
-                    <span class="bi-value{{it.highlight ? ' hl' : ''}}">{{it.value}}</span>
-                    {{if it.note}}<span class="bi-note{{it.noteHighlight ? ' hl' : ''}}">前 {{it.note}}</span>{{/if}}
+            <div class="me-detail">
+                {{if meRatings.length}}
+                <div class="rating-row">
+                    {{each meRatings r}}
+                    <div class="rating-item">
+                        <div class="rating-tier tier-{{r.tier}}">{{r.tier}}</div>
+                        <div class="rating-name">{{r.name}}</div>
+                    </div>
+                    {{/each}}
                 </div>
-                {{/each}}
+                {{/if}}
+                {{if meGroups.length}}
+                <div class="behavior-row">
+                    {{each meGroups g}}
+                    <div class="behavior-card">
+                        <div class="behavior-title">{{g.title}}</div>
+                        {{each g.items it}}
+                        <div class="behavior-item">
+                            <span class="bi-name">{{it.name}}</span>
+                            <span class="bi-value{{it.highlight ? ' hl' : ''}}">{{it.value}}</span>
+                            {{if it.note}}<span class="bi-note{{it.noteHighlight ? ' hl' : ''}}">前 {{it.note}}</span>{{/if}}
+                        </div>
+                        {{/each}}
+                    </div>
+                    {{/each}}
+                </div>
+                {{/if}}
             </div>
-            {{/each}}
         </div>
-        {{/if}}
     </div>
     {{/if}}
 
