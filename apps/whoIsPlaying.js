@@ -36,7 +36,7 @@ import { membersOfGroup, isIndexReady, refreshGroupIndex } from '../utils/groupI
 import { mapConcurrent } from '../utils/parallel.js'
 // 现刷并发锁跨热重载共享：模块级 `let` 在热重载后是新变量，锁会被架空（见 utils/hotState.js）
 import { hotBox } from '../utils/hotState.js'
-import { getImgType, Button, shouldQuote, getUserAvatar, getGroupAvatar, isBlackUser, isProfileHidden, getCurrentId, ApiService } from '#utils'
+import { getImgType, Button, shouldQuote, getUserAvatar, getGroupAvatar, isBlackUser, isProfileHidden, getCurrentId } from '#utils'
 import { heroIconUrl } from '../utils/reportStore.js'
 
 /** 快照超过这个时长就在文案里标「数据较旧」，单位毫秒。对着常驻轮询那档封顶（十分钟一轮）定的 */
@@ -309,18 +309,8 @@ export class WhoIsPlaying extends plugin {
     S.refreshing = true
     try {
       // 一个人一秒多，串行拉完要好一会儿，不先说一声群里会以为机器人卡死了。
-      // 注意请求是**按账号并发**的（N 个号 N 路并行），秒数要按账号数折算，
-      // 不然多账号的部署会被自己的提示吓到（明明 5 秒能刷完，写着 20 秒）。
-      // 只有发起人一个人时不报秒数：他多半就是私聊发了条指令，几秒内就出图，
-      // 「正在刷新 1 人的在线状态，约需 1 秒」纯属噪音。
-      const workers = Math.max(1, Math.min(ApiService.usableAccountCount(), picked.length))
-      const eta = Math.max(1, Math.ceil(picked.length * 1.5 / workers))
-      await e.reply(
-        picked.length === 1 && selfEntry
-          ? '正在读取你的最新状态'
-          : `正在刷新 ${picked.length} 人的在线状态，约需 ${eta} 秒`,
-        shouldQuote()
-      )
+      // 只发固定文案，不报人数和秒数（主人明确不要数量）。
+      await e.reply('正在更新数据，请稍候...', shouldQuote())
 
       // 本轮**真刷到**的人。收尾续期只能遍历它，不能遍历 `out` ——
       // `out` 里还混着上面「门限内直接复用」的那批人（282-285 行），

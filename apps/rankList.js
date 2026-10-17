@@ -1,9 +1,8 @@
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { getImgType, readYamlFile, Button, getUserAvatar, shouldQuote, isShareReady, querySharedBind } from '#utils'
-import { collectRankData, buildRankList, getAllBindings, dedupeTargets, readSnapshot, SNAPSHOT_TTL } from '../utils/rankStore.js'
+import { collectRankData, buildRankList, getAllBindings, readSnapshot, SNAPSHOT_TTL } from '../utils/rankStore.js'
 import { mapConcurrent } from '../utils/parallel.js'
-import { estimateRequestSeconds } from '../utils/api.js'
 import { PluginData } from '#components'
 
 /** 榜单最多展示多少人，太长图片会非常高 */
@@ -168,18 +167,10 @@ export class RankList extends plugin {
 
   async render(e, { type, force, bindings, extraTargets = null, scope, title, isGlobal = false }) {
     // 采集要逐个拉接口，命中缓存时很快，需要刷新时先给个提示。
-    // 预估耗时按「去重后的账号数」算：同一个营地ID 被多人绑定时只拉一次，
-    // 拿 bindings.length 会高估；节奏和并发度都由 api.js 决定，不能在这写死
+    // 刷新时先给个回执，避免群里以为机器人没反应
     const needFetch = force || Date.now() - readSnapshot().updatedAt >= SNAPSHOT_TTL
     if (needFetch) {
-      const localTargets = dedupeTargets(bindings)
-      let extraCount = 0
-      for (const campId of extraTargets?.keys() || []) {
-        if (!localTargets.has(String(campId))) extraCount++
-      }
-      const targetCount = localTargets.size + extraCount
-      const seconds = estimateRequestSeconds(targetCount)
-      await e.reply(`正在更新 ${targetCount} 个账号的数据，约需 ${seconds} 秒，请稍候...`)
+      await e.reply('正在更新数据，请稍候...')
     }
 
     let snapshot

@@ -26,7 +26,6 @@ import {
   MAX_MEMBERS
 } from '../utils/groupReportStore.js'
 import { loadPushList, subGroups, sleep, REQUEST_INTERVAL } from '../utils/pushStore.js'
-import { estimateRequestSeconds } from '../utils/api.js'
 // 并发锁跨热重载共享：模块级 `let` 在热重载后是新变量，锁会被架空（见 utils/hotState.js）
 import { hotBox } from '../utils/hotState.js'
 import { getImgType, shouldQuote, Button, getGroupAvatar, pickGroupSafe } from '#utils'
@@ -110,13 +109,8 @@ export class GroupReport extends plugin {
       ], shouldQuote())
     }
 
-    // 每个号至少一次请求，人多就是几十秒，先给个回执。
-    // 秒数交给 estimateRequestSeconds 算：请求按账号并发，池里有几个号就快几倍
-    const seconds = estimateRequestSeconds(targets.length)
-    await e.reply(
-      `正在汇总本群 ${targets.length} 个账号的${label}数据，约需 ${seconds} 秒，请稍候...`,
-      shouldQuote()
-    )
+    // 每个号至少一次请求，人多就是几十秒，先给个回执
+    await e.reply('正在更新数据，请稍候...', shouldQuote())
 
     const view = await this.buildView(kind, {
       memberIds,

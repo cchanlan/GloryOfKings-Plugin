@@ -304,6 +304,24 @@
         text-align: center;
     }
 
+    /* 第 4 名起的游戏头像（营地头像 roleIcon），与前三名头像统一成圆形 */
+    .row-avatar {
+        width: 28rem;
+        height: 28rem;
+        flex-shrink: 0;
+        border-radius: 50%;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1rem solid var(--c-border-soft);
+    }
+
+    .row-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
     .row-name {
         flex: 1;
         min-width: 0;
@@ -403,6 +421,7 @@
                     {{each rest item}}
                     <div class="row">
                         <div class="row-index">{{item.index}}</div>
+                        <div class="row-avatar"><img src="{{item.roleIcon}}" onerror="this.style.display='none'"></div>
                         <div class="row-name">{{item.roleName}}</div>
                         <div class="row-value">
                             {{if isPeak}}{{item.peakScore}}<span class="unit">分</span>{{else}}{{item.rankName}}
@@ -419,6 +438,7 @@
                     <div class="list">
                         <div class="row is-self">
                             <div class="row-index">{{self.index}}</div>
+                            <div class="row-avatar"><img src="{{self.roleIcon}}" onerror="this.style.display='none'"></div>
                             <div class="row-name">{{self.roleName}}</div>
                             <div class="row-value">
                                 {{if isPeak}}{{self.peakScore}}<span class="unit">分</span>{{else}}{{self.rankName}}
