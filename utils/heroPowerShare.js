@@ -30,7 +30,7 @@ export function isHeroPowerReady () {
  * 上报一批英雄战力。逐条 PUT，失败的跳过，整体永不抛。
  *
  * @param {string} qq 上报人的 QQ（服务端只存它的哈希）
- * @param {Array<{campId:string, heroId:number, heroName:string, power:number, nick?:string, area?:string}>} items
+ * @param {Array<{campId:string, heroId:number, heroName:string, power:number, nick?:string, area?:string, roleIcon?:string}>} items
  * @returns {Promise<{sent:number, skipped:number}>}
  */
 export async function reportHeroPowers (qq, items) {
@@ -60,7 +60,8 @@ export async function reportHeroPowers (qq, items) {
           heroName: String(item.heroName || ''),
           power: Number(item.power) || 0,
           nick: String(item.nick || ''),
-          area: String(item.area || '')
+          area: String(item.area || ''),
+          roleIcon: String(item.roleIcon || '')
         }),
         signal: AbortSignal.timeout(REPORT_TIMEOUT_MS)
       })

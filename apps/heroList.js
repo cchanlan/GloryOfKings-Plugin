@@ -146,7 +146,8 @@ export class HeroList extends plugin {
       heroName: hero.rawName,
       power: hero.fightPower,
       nick: roleName,
-      area: roleArea
+      area: roleArea,
+      roleIcon: roleIcon
     }))).catch(() => {})
 
     const img = await puppeteer.screenshot('HeroList', {
