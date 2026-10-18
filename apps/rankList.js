@@ -7,19 +7,6 @@ import { PluginData } from '#components'
 
 /** 榜单最多展示多少人，太长图片会非常高 */
 const MAX_ROWS_GROUP = 10
-// 进了共享库的机器人要主动上报全量营地ID：启动 15 秒后一次，之后每小时一次。
-// 排位/巅峰/英雄榜刷新时还会各自触发（shareStore 内有 10 分钟节流）。
-// 用 globalThis 标记防热重载重复起定时器，unref 不拖住进程退出。
-const ROSTER_REPORT_INTERVAL_MS = 60 * 60 * 1000
-if (!globalThis.__gokRosterReportStarted) {
-  globalThis.__gokRosterReportStarted = true
-  const report = () => { uploadLocalBindings().catch(() => {}) }
-  const first = setTimeout(report, 15000)
-  first.unref?.()
-  const timer = setInterval(report, ROSTER_REPORT_INTERVAL_MS)
-  timer.unref?.()
-}
-
 const MAX_ROWS_GLOBAL = 30
 
 /** 共享库查询结果缓存：本机 QQ 集合没变就 5 分钟内复用 */

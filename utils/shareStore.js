@@ -996,11 +996,17 @@ export async function uploadLocalBindings (force = false) {
       const ids = entry.ids.map(String).filter(id => /^\d{5,12}$/.test(id))
       if (!ids.length) continue
 
+      // 服务端单个 QQ 上限 20 个营地ID；超过就截前 20，别让一个人把整批顶掉
+      if (ids.length > 20) {
+        warnOnce(`roster-limit:${qq}`, `[营地共享] ${qq} 绑定超过 20 个营地ID，只上报前 20 个`)
+      }
+
       const index = Number(entry.current) || 0
+      const campIds = ids.slice(0, 20)
       binds.push({
         qq: String(qq),
-        campIds: ids,
-        current: ids[index] || ids[0]
+        campIds,
+        current: campIds.includes(ids[index]) ? ids[index] : campIds[0]
       })
     }
 
@@ -1010,25 +1016,37 @@ export async function uploadLocalBindings (force = false) {
       return { ok: true, count: 0 }
     }
 
+    // 请求体上限 64KB、接口单次上限 500 条；按 100 条分片，第一片带 replace 做全量快照，
+    // 后续分片追加。这样本机解绑/删号后，库里不会一直留着旧营地ID。
+    const CHUNK = 100
+    let entries = 0
+    let count = 0
+
     try {
-      const response = await fetch(`${cfg.apiUrl}/api/v1/binds`, {
-        method: 'PUT',
-        headers: shareHeaders(cfg.token),
-        body: JSON.stringify({ binds }),
-        signal: AbortSignal.timeout(10 * 1000)
-      })
+      for (let offset = 0; offset < binds.length; offset += CHUNK) {
+        const chunk = binds.slice(offset, offset + CHUNK)
+        const response = await fetch(`${cfg.apiUrl}/api/v1/binds`, {
+          method: 'PUT',
+          headers: shareHeaders(cfg.token),
+          body: JSON.stringify({ binds: chunk, replace: offset === 0 }),
+          signal: AbortSignal.timeout(10 * 1000)
+        })
 
-      if (response.status === 401 || response.status === 403) {
-        return { ok: false, message: '共享库拒绝了批量上报，检查一下令牌' }
-      }
-      if (!response.ok) {
-        return { ok: false, message: `共享库返回 ${response.status}` }
+        if (response.status === 401 || response.status === 403) {
+          return { ok: false, message: '共享库拒绝了批量上报，检查一下令牌' }
+        }
+        if (!response.ok) {
+          return { ok: false, message: `共享库返回 ${response.status}` }
+        }
+
+        const payload = await response.json().catch(() => ({}))
+        entries += Number(payload.entries) || chunk.length
+        count += Number(payload.count) || chunk.reduce((n, item) => n + item.campIds.length, 0)
       }
 
-      const payload = await response.json().catch(() => ({}))
       rosterUploadState.at = Date.now()
       rosterUploadState.lastCount = binds.length
-      return { ok: true, count: binds.length, entries: Number(payload.entries) || binds.length }
+      return { ok: true, count, entries }
     } catch (error) {
       warnOnce('rosterUpload', `[营地共享] 批量上报失败：${error?.message || error}`)
       return { ok: false, message: '连不上共享库' }
@@ -1237,4 +1255,19 @@ export function getCacheInfo (userId) {
     expireAt: entry.until,
     expired: entry.until <= Date.now()
   }
+}
+
+
+// 进了共享库的机器人要主动上报全量营地ID：启动 15 秒后一次，之后每小时一次。
+// 挂在 shareStore 而不是某个 app 上：只要插件用到共享库就会加载本模块，
+// 不依赖有没有人发排位/英雄指令。globalThis 标记防热重载重复起定时器，
+// unref 不拖住进程退出；上传本身有 10 分钟节流。
+const ROSTER_REPORT_INTERVAL_MS = 60 * 60 * 1000
+if (!globalThis.__gokRosterReportStarted) {
+  globalThis.__gokRosterReportStarted = true
+  const report = () => { uploadLocalBindings().catch(() => {}) }
+  const first = setTimeout(report, 15000)
+  first.unref?.()
+  const timer = setInterval(report, ROSTER_REPORT_INTERVAL_MS)
+  timer.unref?.()
 }
