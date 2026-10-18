@@ -23,7 +23,7 @@ import { isHeroPowerReady, queryHeroPowerRank } from '../utils/heroPowerShare.js
 const HERO_IMG_BASE = 'https://game-1255653016.file.myqcloud.com/battle_skin_1250-326'
 
 /** 最多展示多少人 */
-const MAX_ROWS = 50
+const MAX_ROWS = 20
 
 /** 现查结果缓存：24 个绑定扫一遍实测 28 秒左右，5 分钟内重复查直接复用 */
 const CACHE_TTL_MS = 5 * 60 * 1000
