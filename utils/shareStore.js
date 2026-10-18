@@ -8,9 +8,11 @@
  *
  * ## 三条硬约束
  *
- * 1. **只在「用户当场发的查询指令」里生效**。推送、排行榜、`#谁在打游戏`、日报周报
+ * 1. **默认只在「用户当场发的查询指令」里生效**。推送、订阅、`#谁在打游戏`、日报周报
  *    一律只认本地绑定：那些路径要么在同步的 read-modify-write 块里（插 `await` 会让它
  *    变成可交错、整表覆盖丢写），要么会把解析出的营地ID 固化进订阅文件。
+ *    例外是 `#排位总排名` / `#巅峰总排名`：它们明确要跨机器人合并，走全库营地ID清单
+ *    （`fetchSharedRoster`），只读不写回本地绑定。
  * 2. **绝不抛异常、绝不阻塞指令**。共享库是别人搭的、随时可能下线，它挂了只能是
  *    「这次查不到」，不能是「王者插件用不了」。所以全程 catch + 熔断 + 缓存兜底。
  * 3. **本地绑定永远优先**。本机绑过的人连一次网络请求都不会发。
@@ -69,6 +71,11 @@ const CACHE_TTL_MS = 5000
 
 /** 读请求超时。用户指令在等，宁可查不到也不能卡住 */
 const READ_TIMEOUT_MS = 1500
+/** 全库营地ID清单（管理接口）超时给宽一点：一次要回几十上百个 ID */
+const ROSTER_TIMEOUT_MS = 3000
+/** 清单 60 秒内复用：排位榜连发两次不必打两遍管理接口 */
+const ROSTER_TTL_MS = 60 * 1000
+let rosterCache = { at: 0, campIds: [] }
 
 /** 写请求（上传/撤销）是用户主动触发的，可以多等一会儿 */
 const WRITE_TIMEOUT_MS = 5000
@@ -944,6 +951,99 @@ export async function pushBind (userId, campIds, currentCampId = '') {
 }
 
 /**
+ * 机器人级批量上报：把本机 `UserData.yaml` 里**自己绑的**整表传到共享库。
+ *
+ * 跟 `pushBind` 的区别：
+ *   · `pushBind` 是用户手动 `#开启营地ID共享` 时传单个 QQ；
+ *   · 这里是机器人主人级别的一次性全量上报，目的是让 `#排位总排名` /
+ *     `#巅峰总排名` 能合并所有接入机器人的用户，而不是只合并开了共享的那几个。
+ *
+ * **必须排除 `fromShare: true` 的条目**：那些是从共享库借到本机的别人的号，
+ * 再传回去会把「借来的」洗成「本机绑的」，污染来源、也会让撤销失效。
+ *
+ * 10 分钟节流 + 并发合并：排位榜连发不会反复打接口，也不占 write 配额。
+ *
+ * @param {boolean} [force] 跳过节流（测试/手动同步用）
+ * @returns {Promise<{ok: boolean, count?: number, skipped?: boolean, message?: string}>}
+ */
+const ROSTER_UPLOAD_MIN_GAP_MS = 10 * 60 * 1000
+const rosterUploadState = (() => {
+  const key = '__gokRosterUploadState'
+  if (!globalThis[key]) globalThis[key] = { at: 0, running: null, lastCount: 0 }
+  return globalThis[key]
+})()
+
+export async function uploadLocalBindings (force = false) {
+  const cfg = readShareConfig()
+  if (!cfg.enabled || !cfg.apiUrl || !cfg.token) {
+    return { ok: false, message: '还没接入共享库' }
+  }
+
+  if (!force && Date.now() - rosterUploadState.at < ROSTER_UPLOAD_MIN_GAP_MS) {
+    return { ok: true, skipped: true, count: rosterUploadState.lastCount }
+  }
+  if (rosterUploadState.running) return rosterUploadState.running
+
+  const task = (async () => {
+    const data = readUserData()
+    const binds = []
+
+    for (const [qq, entry] of Object.entries(data || {})) {
+      if (!entry || entry.fromShare === true) continue
+      if (!Array.isArray(entry.ids) || !entry.ids.length) continue
+      if (!/^\d{5,12}$/.test(String(qq))) continue
+
+      const ids = entry.ids.map(String).filter(id => /^\d{5,12}$/.test(id))
+      if (!ids.length) continue
+
+      const index = Number(entry.current) || 0
+      binds.push({
+        qq: String(qq),
+        campIds: ids,
+        current: ids[index] || ids[0]
+      })
+    }
+
+    if (!binds.length) {
+      rosterUploadState.at = Date.now()
+      rosterUploadState.lastCount = 0
+      return { ok: true, count: 0 }
+    }
+
+    try {
+      const response = await fetch(`${cfg.apiUrl}/api/v1/binds`, {
+        method: 'PUT',
+        headers: shareHeaders(cfg.token),
+        body: JSON.stringify({ binds }),
+        signal: AbortSignal.timeout(10 * 1000)
+      })
+
+      if (response.status === 401 || response.status === 403) {
+        return { ok: false, message: '共享库拒绝了批量上报，检查一下令牌' }
+      }
+      if (!response.ok) {
+        return { ok: false, message: `共享库返回 ${response.status}` }
+      }
+
+      const payload = await response.json().catch(() => ({}))
+      rosterUploadState.at = Date.now()
+      rosterUploadState.lastCount = binds.length
+      return { ok: true, count: binds.length, entries: Number(payload.entries) || binds.length }
+    } catch (error) {
+      warnOnce('rosterUpload', `[营地共享] 批量上报失败：${error?.message || error}`)
+      return { ok: false, message: '连不上共享库' }
+    }
+  })()
+
+  rosterUploadState.running = task
+  try {
+    return await task
+  } finally {
+    rosterUploadState.running = null
+  }
+}
+
+/**
  * 撤销共享。**必须真的调服务端删掉**，不能只是「以后不再上传」——
  * 不然别的实例还会一直查到这份数据，用户以为自己已经取消了。
  *
@@ -1054,6 +1154,51 @@ export async function querySharedBind (userId) {
   } catch (error) {
     warnOnce('lookup', `[营地共享] 查询失败：${error?.message || error}`)
     return { found: false, error: '连不上共享库' }
+  }
+}
+
+/**
+ * 拉共享库里**所有**出现过的营地ID（管理面只读接口）。
+ *
+ * 排行榜专用：各机器人本地只知道自己绑过的人，靠 QQ 逐个问永远补不全 ——
+ * 别的机器人独有的用户，本机根本没出现过那个 QQ，问不到。
+ * 这个接口直接回全库并集，客户端再逐个拉营地资料。
+ *
+ * 需要 `shareAdminSecret`（服务端 `GOK_ADMIN_SECRET`）；没配就退回按 QQ 查。
+ * 故意不抛异常：共享库挂了只能是「这次没补到人」，不能是排行榜用不了。
+ *
+ * @returns {Promise<{ok: boolean, campIds: string[], total?: number, error?: string}>}
+ */
+export async function fetchSharedRoster () {
+  const cfg = readShareConfig()
+  if (!cfg.enabled || !cfg.apiUrl || !cfg.adminSecret) {
+    return { ok: false, campIds: [], error: '没配管理密钥' }
+  }
+
+  const now = Date.now()
+  if (rosterCache.campIds.length && now - rosterCache.at < ROSTER_TTL_MS) {
+    return { ok: true, campIds: rosterCache.campIds, total: rosterCache.campIds.length }
+  }
+
+  try {
+    const response = await fetch(`${cfg.apiUrl}/api/v1/admin/roster`, {
+      method: 'GET',
+      headers: { 'X-Admin-Secret': cfg.adminSecret },
+      signal: AbortSignal.timeout(ROSTER_TIMEOUT_MS)
+    })
+
+    // 老服务端没这个接口：静默退回按 QQ 查，不打扰用户
+    if (response.status === 404) return { ok: false, campIds: [], error: '服务端版本旧' }
+    if (response.status === 401) return { ok: false, campIds: [], error: '管理密钥无效' }
+    if (!response.ok) return { ok: false, campIds: [], error: `共享库返回 ${response.status}` }
+
+    const data = await response.json()
+    const campIds = Array.isArray(data?.campIds) ? data.campIds.map(String).filter(Boolean) : []
+    rosterCache = { at: now, campIds }
+    return { ok: true, campIds, total: Number(data?.total) || campIds.length }
+  } catch (error) {
+    warnOnce('roster', `[营地共享] 拉全库营地ID失败：${error?.message || error}`)
+    return { ok: false, campIds: [], error: '连不上共享库' }
   }
 }
 
