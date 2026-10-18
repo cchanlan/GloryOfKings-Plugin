@@ -252,7 +252,8 @@ export function readSnapshot() {
 
   return {
     updatedAt: Number(snapshot.updatedAt) || 0,
-    entries: snapshot.entries && typeof snapshot.entries === 'object' ? snapshot.entries : {}
+    entries: snapshot.entries && typeof snapshot.entries === 'object' ? snapshot.entries : {},
+    signature: String(snapshot.signature || '')
   }
 }
 
@@ -269,11 +270,14 @@ function writeSnapshot(snapshot) {
  *        来自共享库的跨机器人绑定；本机已绑定的号优先，不会被覆盖
  * @returns {Promise<{updatedAt:number, entries:object, fromCache:boolean, failed:number}>}
  */
-export async function collectRankData({ force = false, ttl = SNAPSHOT_TTL, extraTargets = null } = {}) {
+export async function collectRankData({ force = false, ttl = SNAPSHOT_TTL, extraTargets = null, signature = null } = {}) {
   const snapshot = readSnapshot()
   const fresh = Date.now() - snapshot.updatedAt < ttl
+  // 名单签名没变才吃缓存：隐藏主页/采集失败的号不会进 entries，不能拿「缺人」当重采依据，
+  // 否则只要名单里有隐藏号，每次排位都会全量重采
+  const sameRoster = signature === null || String(snapshot.signature || '') === String(signature)
 
-  if (!force && fresh && Object.keys(snapshot.entries).length) {
+  if (!force && fresh && sameRoster && Object.keys(snapshot.entries).length) {
     return { ...snapshot, fromCache: true, failed: 0 }
   }
 
@@ -314,7 +318,11 @@ export async function collectRankData({ force = false, ttl = SNAPSHOT_TTL, extra
     }
   })
 
-  const result = { updatedAt: Date.now(), entries }
+  const result = {
+    updatedAt: Date.now(),
+    entries,
+    signature: signature === null ? String(snapshot.signature || '') : String(signature)
+  }
   writeSnapshot(result)
 
   return { ...result, fromCache: false, failed, hidden }

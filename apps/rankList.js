@@ -7,6 +7,19 @@ import { PluginData } from '#components'
 
 /** 榜单最多展示多少人，太长图片会非常高 */
 const MAX_ROWS_GROUP = 10
+// 进了共享库的机器人要主动上报全量营地ID：启动 15 秒后一次，之后每小时一次。
+// 排位/巅峰/英雄榜刷新时还会各自触发（shareStore 内有 10 分钟节流）。
+// 用 globalThis 标记防热重载重复起定时器，unref 不拖住进程退出。
+const ROSTER_REPORT_INTERVAL_MS = 60 * 60 * 1000
+if (!globalThis.__gokRosterReportStarted) {
+  globalThis.__gokRosterReportStarted = true
+  const report = () => { uploadLocalBindings().catch(() => {}) }
+  const first = setTimeout(report, 15000)
+  first.unref?.()
+  const timer = setInterval(report, ROSTER_REPORT_INTERVAL_MS)
+  timer.unref?.()
+}
+
 const MAX_ROWS_GLOBAL = 30
 
 /** 共享库查询结果缓存：本机 QQ 集合没变就 5 分钟内复用 */
@@ -137,6 +150,7 @@ export class RankList extends plugin {
     // 优先拉「全库营地ID」：按本机 QQ 逐个问只能补到本机出现过的人，
     // 别的机器人独有的用户永远问不到。老服务端没这个接口时再退回按 QQ 查。
     let extraTargets = new Map()
+    let rosterSignature = null
     if (isShareReady()) {
       // 先把本机本地绑定整表推上去，再拉全库清单 —— 否则别的机器人刚绑的人要等下一轮才进榜。
       // 最多等 3 秒：共享库是外部依赖，它慢不能把排位榜一起拖死，没传完就下一轮再说。
@@ -151,6 +165,7 @@ export class RankList extends plugin {
       const roster = await fetchSharedRoster()
       if (roster.ok && roster.campIds.length) {
         for (const campId of roster.campIds) extraTargets.set(String(campId), '')
+        rosterSignature = roster.campIds.slice().sort().join(',')
       } else {
         extraTargets = await fetchSharedCampIds(bindings)
       }
@@ -166,22 +181,25 @@ export class RankList extends plugin {
       return
     }
 
-    // 共享库补进来的号如果还没进快照，这次必须重采，否则 12 小时内都看不到它们
-    const snapshot = readSnapshot()
-    const missingShared = [...extraTargets.keys()].some(campId => !snapshot.entries[String(campId)])
+    // 全库名单变了才重采；名单没变就吃 12 小时缓存。
+    // 不能按「某个号不在 entries 里」判断：隐藏主页/采集失败的号永远进不了 entries，
+    // 那样每次排位都会全量重采。
+    const signatureMismatch = rosterSignature !== null &&
+      String(readSnapshot().signature || '') !== rosterSignature
 
     await this.render(e, {
       type,
-      force: force || missingShared,
+      force: force || signatureMismatch,
       bindings,
       extraTargets,
+      signature: rosterSignature,
       scope: '全库',
       isGlobal: true,
       title: `全库${type === 'peak' ? '巅峰分' : '排位'}排行榜`
     })
   }
 
-  async render(e, { type, force, bindings, extraTargets = null, scope, title, isGlobal = false }) {
+  async render(e, { type, force, bindings, extraTargets = null, signature = null, scope, title, isGlobal = false }) {
     // 采集要逐个拉接口，命中缓存时很快，需要刷新时先给个提示。
     // 刷新时先给个回执，避免群里以为机器人没反应
     const needFetch = force || Date.now() - readSnapshot().updatedAt >= SNAPSHOT_TTL
@@ -191,7 +209,7 @@ export class RankList extends plugin {
 
     let snapshot
     try {
-      snapshot = await collectRankData({ force, extraTargets })
+      snapshot = await collectRankData({ force, extraTargets, signature })
     } catch (error) {
       logger.error(`[王者排名] 采集失败: ${error.message}`)
       await e.reply('排行榜数据采集失败，请稍后再试')

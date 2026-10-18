@@ -1,5 +1,5 @@
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { getImgType, shouldQuote, stripAtText } from '#utils'
+import { getImgType, shouldQuote, stripAtText, fetchSharedRoster, uploadLocalBindings } from '#utils'
 import ApiService from '../utils/api.js'
 import { dedupeTargets } from '../utils/rankStore.js'
 import { isHeroPowerReady, queryHeroPowerRank } from '../utils/heroPowerShare.js'
@@ -93,12 +93,35 @@ async function scanOne (campId, botUserId, heroName) {
  * 营地那边的登录池打满。分批是这两个约束的折中。
  */
 async function scanBindings (heroName) {
-  const targets = [...dedupeTargets()]
+  const targets = new Map(dedupeTargets())
+
+  // 英雄榜也要覆盖别的机器人的人：先把本机绑定整表推上去，再拉全库营地ID 名单。
+  // 共享库挂了就只扫本机，不能影响出图。
+  try {
+    await Promise.race([
+      uploadLocalBindings().catch(() => {}),
+      new Promise(resolve => {
+        const timer = setTimeout(resolve, 3000)
+        timer.unref?.()
+      })
+    ])
+
+    const roster = await fetchSharedRoster()
+    if (roster.ok) {
+      for (const campId of roster.campIds) {
+        if (!targets.has(String(campId))) targets.set(String(campId), '')
+      }
+    }
+  } catch {
+    // 共享库不可用，按本机绑定查
+  }
+
+  const list = [...targets]
   const rows = []
   const CONCURRENCY = 3
 
-  for (let i = 0; i < targets.length; i += CONCURRENCY) {
-    const batch = targets.slice(i, i + CONCURRENCY)
+  for (let i = 0; i < list.length; i += CONCURRENCY) {
+    const batch = list.slice(i, i + CONCURRENCY)
     const results = await Promise.all(
       batch.map(([campId, botUserId]) => scanOne(campId, botUserId, heroName))
     )
