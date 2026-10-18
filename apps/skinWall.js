@@ -1,9 +1,15 @@
 // 皮肤墙功能：营地皮肤列表接口调用逻辑参考自 https://github.com/KimigaiiWuyi/WzryUID
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import common from '../../../lib/common/common.js'
-import { getImgType, ApiService, readYamlFile, getLocalImage, getUserAvatar, getPvpSkinCover, Button, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote, resolveMemberName, isQQNumber, SZ_ORDER, normalizeSzClass, tierRank, pickTierText, QUALITY_STATS, countQuality, cleanImageCache, resolveCacheMaxBytes } from '#utils'
+import { getImgType, ApiService, readYamlFile, getLocalImage, sniffImageMime, getUserAvatar, getPvpSkinCover, Button, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote, resolveMemberName, isQQNumber, SZ_ORDER, normalizeSzClass, tierRank, pickTierText, QUALITY_STATS, countQuality, cleanImageCache, resolveCacheMaxBytes } from '#utils'
 import path from 'path'
 import { PluginData } from '#components'
+
+// 官方角标兜底：联名款（奥特曼/柯南/死神/三丽鸥…）的专属角标已从营地 CDN 下架（404），
+// 但「珍品传说」这个品质的通用官方角标还在。自家图挂了就退到它，别退回自绘文字标。
+const LABEL_FALLBACK = {
+  '珍品传说': 'https://game-1255653016.file.myqcloud.com/manage/custom_wzry_skin_label/label_limited_suncezhenpin.png'
+}
 
 const PAGE_SIZE = 50
 // 皮肤墙截图质量。原来出 JPEG 时满页 50 张大图在 q90 下可达 8MB+、部分适配器发送失败，
@@ -238,9 +244,7 @@ export class SkinWall extends plugin {
       if (!url) return ''
       const img = await getLocalImage(url)
       if (Buffer.isBuffer(img)) {
-        const ext = path.extname(new URL(url).pathname).toLowerCase()
-        const mime = ext === '.png' ? 'image/png' : 'image/jpeg'
-        return `data:${mime};base64,${img.toString('base64')}`
+        return `data:${sniffImageMime(img, url)};base64,${img.toString('base64')}`
       }
       return url
     }
@@ -281,18 +285,23 @@ export class SkinWall extends plugin {
         if (!url) continue
         const img = await getLocalImage(url)
         if (!Buffer.isBuffer(img)) continue
-        result[idx].imgUrl = `data:image/jpeg;base64,${img.toString('base64')}`
+        result[idx].imgUrl = `data:${sniffImageMime(img, url)};base64,${img.toString('base64')}`
         // 只剩 180x280 的卡面图可用，标记低清：大图位要放大到 2.6 倍，会明显发虚
         result[idx].lowRes = si === sources.length - 1
         break
       }
-      if (skin.labelUrl) {
-        const labelImg = await getLocalImage(skin.labelUrl)
-        if (Buffer.isBuffer(labelImg)) {
-          const ext = path.extname(new URL(skin.labelUrl).pathname).toLowerCase()
-          const mime = ext === '.png' ? 'image/png' : 'image/jpeg'
-          result[idx].labelUrl = `data:${mime};base64,${labelImg.toString('base64')}`
-        }
+      // 先试这张皮肤自己的角标，下不到再退到同品质的通用官方角标。
+      // 角标是一皮肤一张（珍品传说/珍品无双尤其明显），所以不能直接拿别的皮肤的图顶。
+      const labelSources = []
+      if (skin.labelUrl) labelSources.push(skin.labelUrl)
+      const fallback = LABEL_FALLBACK[skin.tierText]
+      if (fallback && fallback !== skin.labelUrl) labelSources.push(fallback)
+
+      for (const labelSrc of labelSources) {
+        const labelImg = await getLocalImage(labelSrc)
+        if (!Buffer.isBuffer(labelImg)) continue
+        result[idx].labelUrl = `data:${sniffImageMime(labelImg, labelSrc)};base64,${labelImg.toString('base64')}`
+        break
       }
     })
     await batch(skinTasks, 8)

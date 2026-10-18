@@ -61,6 +61,31 @@ function isPlaceholder (buffer) {
 }
 
 /**
+ * 按文件头判断图片 MIME；认不出来再按 URL 后缀兜底。
+ *
+ * 营地的皮肤图/品质角标并不总是 jpg：角标有 png/webp，个别老图还是 svg。
+ * 写死 `image/jpeg` 会让浏览器把这些 data URL 当坏图，角标加载失败就退回自绘文字标。
+ */
+export function sniffImageMime (buffer, url = '') {
+  if (Buffer.isBuffer(buffer) && buffer.length >= 12) {
+    if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return 'image/png'
+    if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg'
+    if (buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') return 'image/webp'
+    if (buffer.toString('ascii', 0, 3) === 'GIF') return 'image/gif'
+    const head = buffer.toString('utf8', 0, 256).trimStart().toLowerCase()
+    if (head.startsWith('<svg') || head.startsWith('<?xml')) return 'image/svg+xml'
+  }
+
+  let ext = ''
+  try { ext = path.extname(new URL(url).pathname).toLowerCase() } catch {}
+  if (ext === '.png') return 'image/png'
+  if (ext === '.webp') return 'image/webp'
+  if (ext === '.svg') return 'image/svg+xml'
+  if (ext === '.gif') return 'image/gif'
+  return 'image/jpeg'
+}
+
+/**
  * 远程图片本地化：首次下载缓存到 data/imgCache，之后直接读本地。
  * - 成功下载：缓存 7 天，过期自动重新拉取
  * - 下载失败（404等）：写空文件标记，7天后重试（CDN可能已补图）
