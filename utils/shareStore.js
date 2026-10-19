@@ -1182,15 +1182,16 @@ export async function querySharedBind (userId) {
  * 别的机器人独有的用户，本机根本没出现过那个 QQ，问不到。
  * 这个接口直接回全库并集，客户端再逐个拉营地资料。
  *
- * 需要 `shareAdminSecret`（服务端 `GOK_ADMIN_SECRET`）；没配就退回按 QQ 查。
+ * 鉴权用**普通令牌**（`distToken`）：名单里没有 QQ、没有来源 client，是全库共享的公共数据。
+ * 老的 `shareAdminSecret` 只在服务端不支持新接口时作退路，不再是必需项。
  * 故意不抛异常：共享库挂了只能是「这次没补到人」，不能是排行榜用不了。
  *
  * @returns {Promise<{ok: boolean, campIds: string[], total?: number, error?: string}>}
  */
 export async function fetchSharedRoster () {
   const cfg = readShareConfig()
-  if (!cfg.enabled || !cfg.apiUrl || !cfg.adminSecret) {
-    return { ok: false, campIds: [], error: '没配管理密钥' }
+  if (!cfg.enabled || !cfg.apiUrl || !cfg.token) {
+    return { ok: false, campIds: [], error: '还没接入共享库' }
   }
 
   const now = Date.now()
@@ -1199,15 +1200,30 @@ export async function fetchSharedRoster () {
   }
 
   try {
-    const response = await fetch(`${cfg.apiUrl}/api/v1/admin/roster`, {
+    // ⚠️⚠️ 全库名单是**公共数据**，必须走普通令牌接口（`GET /api/v1/roster`）。
+    //    原先只认 `GET /api/v1/admin/roster` + 管理密钥，结果是「只有配了密钥的那一台
+    //    能拉全库」——别人机器人的总排名只能退回按本机 QQ 逐个问，永远只有自己那点人。
+    //    管理密钥能签令牌/吊销/删库，不可能发给每个接入方，所以这个口子必须开在令牌上。
+    //    老服务端没有新接口（404）：配了密钥就退回 admin 接口，只是向后兼容的退路。
+    let response = await fetch(`${cfg.apiUrl}/api/v1/roster`, {
       method: 'GET',
-      headers: { 'X-Admin-Secret': cfg.adminSecret },
+      headers: shareHeaders(cfg.token),
       signal: AbortSignal.timeout(ROSTER_TIMEOUT_MS)
     })
 
+    if (response.status === 404 && cfg.adminSecret) {
+      response = await fetch(`${cfg.apiUrl}/api/v1/admin/roster`, {
+        method: 'GET',
+        headers: { 'X-Admin-Secret': cfg.adminSecret },
+        signal: AbortSignal.timeout(ROSTER_TIMEOUT_MS)
+      })
+    }
+
     // 老服务端没这个接口：静默退回按 QQ 查，不打扰用户
     if (response.status === 404) return { ok: false, campIds: [], error: '服务端版本旧' }
-    if (response.status === 401) return { ok: false, campIds: [], error: '管理密钥无效' }
+    if (response.status === 401 || response.status === 403) {
+      return { ok: false, campIds: [], error: '令牌无效或已吊销' }
+    }
     if (!response.ok) return { ok: false, campIds: [], error: `共享库返回 ${response.status}` }
 
     const data = await response.json()
