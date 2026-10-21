@@ -140,6 +140,10 @@ export class AccountManager extends plugin {
           reg: '^#清除隐藏主页\\s*(.*)$',
           fnc: 'clearHiddenProfiles',
           permission: 'master'
+        },
+        {
+          reg: new RegExp('^#王者添加tk(?:\\s+.*)?$', 'i'),
+          fnc: 'addCampToken'
         }
       ]
     })
@@ -971,6 +975,53 @@ export class AccountManager extends plugin {
   }
 
   // ══════════════════ ⑤ 账号池运维（主人指令） ══════════════════
+
+  // 手动添加营地登录态：脚本抓到的 token 直接发进来，归属发送者
+  // 群里只提醒私聊，避免 token 泄露；私聊才真正处理
+  async addCampToken (e) {
+    // 教程文案只对每个用户提示第一次
+    const { userData: tkUserData, filePath: tkUserFile } = this.#loadUserData(e.user_id)
+    const firstTime = !tkUserData[e.user_id].tkPrompted
+    if (firstTime) {
+      tkUserData[e.user_id].tkPrompted = true
+      writeYamlFile(tkUserFile, tkUserData)
+    }
+    const promo = firstTime ? '\n\n教程不公开，想要的进群 972915804' : ''
+    const isGroup = e.isGroup || e.message_type === 'group' || !!e.group_id
+    if (isGroup) {
+      return e.reply('请私聊机器人发送：\n#王者添加tk <营地ID> <token>\n群里发会让 token 泄露。' + promo)
+    }
+    const msg = stripAtText(e.msg || '').trim()
+    const match = /^#王者添加tk\s+(\d{5,})\s+(\S{16,})$/.exec(msg)
+    if (!match) {
+      return e.reply('格式：\n#王者添加tk <营地ID> <token>\n\n营地ID 和 token 由共存脚本最后一行直接给出。' + promo)
+    }
+    const userId = match[1]
+    const token = match[2]
+    try {
+      const res = await fetch('https://kohcamp.qq.com/user/getcampfriends', {
+        method: 'POST',
+        headers: { token, userId, 'Content-Type': 'application/json' },
+        body: '{}',
+        signal: AbortSignal.timeout(15000)
+      })
+      const data = await res.json()
+      if (data.returnCode !== 0) {
+        return e.reply(`token 无效：${data.returnMsg || data.returnCode}`)
+      }
+    } catch (err) {
+      return e.reply(`验证失败：${err.message || err}`)
+    }
+    const account = authStore.upsertAccount({
+      userId,
+      token,
+      ownerBotUserId: e.user_id,
+      loginPlatform: 'app',
+      resetAuthState: true
+    })
+    if (authStore.bindCampUserId) authStore.bindCampUserId(e.user_id, userId)
+    return e.reply(`已添加营地账号 ${userId}（${account.nickname || account.userName || '未知昵称'}），归属：${e.user_id}${promo}`)
+  }
 
   async showAuthPool(e) {
     const overviewData = this.#collectAuthPoolOverview()
