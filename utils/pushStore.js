@@ -1313,8 +1313,14 @@ export function describeCrossBandDropNames (job, jobNumFrom, jobNumTo, starTo) {
   if (!m) return null
   const idx = SMALL_RANK_ROMAN.indexOf(m[2])
 
-  // 名字是该大段最低的 V：名字是起点，终点是上一大段的 I
+  // 名字是该大段最低的 V。两种来源：
+  // - 名字是起点（X V 再掉一局 → 下一大段 I），归档里保留的旧名多半是这种
+  // - 名字是终点（从王者掉出 → 星耀V，营地名字被刷成查询时的当前段位）
+  // 王者编号恒为 16（KING_ROLE_JOB），起点编号是 16 就只可能是掉出王者
   if (idx === 4 && band > 1) {
+    if (band === 6 && toInt(jobNumFrom) === KING_ROLE_JOB) {
+      return { from: KING_LOW_STAR_TITLE, to: name }
+    }
     return { from: name, to: `${RANK_BAND_NAMES[band - 2]}I` }
   }
 
@@ -1732,8 +1738,10 @@ export function resolveOnlineSince (onlineTime, nowSec, observed = false) {
  * @param {number|string} sinceTime 起始时间戳（秒），一般是本次上线时刻
  * @returns {{count:number, win:number, lose:number, scoreFrom:number, scoreTo:number,
  *            jobFrom:string, starFrom:number, jobNumFrom:number,
- *            jobTo:string, jobNumTo:number, starTo:number}}
- *   jobFrom/starFrom 与 jobTo/starTo 是本次在线前后的段位与星数，全娱乐模式（无排位场次）时 jobTo 为空
+ *            jobTo:string, jobNumTo:number, starTo:number, jobSwitchWin:number}}
+ *   jobFrom/starFrom 与 jobTo/starTo 是本次在线前后的段位与星数，全娱乐模式（无排位场次）时 jobTo 为空；
+ *   jobSwitchWin 是「编号变成终点编号那一局」的胜负（1 胜 / 2 负 / 0 取不到），
+ *   用来判升段还是掉段——只看首尾星数会被「升段后又赢几局」骗到
  */
 export function summarizeSession (list = [], sinceTime = 0) {
   const since = toInt(sinceTime)
@@ -1779,6 +1787,24 @@ export function summarizeSession (list = [], sinceTime = 0) {
     jobNumFrom = toInt(snapshot.roleJob)
   }
 
+  // 跨段方向：找窗口内「段位编号从起点变成终点」的那一局，用它的胜负判升降。
+  // 只比首尾星数会被「升段后又赢了几局、终点星数反而更大」骗到
+  // （2026-10-22 实测：星耀I 3星 → 王者 4星，被误报成「最强王者 → 至尊星耀V」掉段）
+  const endJobNum = toInt(lastRanked?.roleJob)
+  let jobSwitchWin = 0
+  if (jobNumFrom && endJobNum && jobNumFrom !== endJobNum) {
+    let prevJob = 0
+    for (let i = played.length - 1; i >= 0; i -= 1) {
+      const job = toInt(played[i]?.roleJob)
+      if (!job) continue
+      if (prevJob && job !== prevJob && job === endJobNum) {
+        jobSwitchWin = toInt(played[i]?.gameresult)
+        break
+      }
+      prevJob = job
+    }
+  }
+
   return {
     count: played.length,
     win,
@@ -1790,7 +1816,8 @@ export function summarizeSession (list = [], sinceTime = 0) {
     jobNumFrom,
     jobTo: lastRanked ? resolveBattleRankName(lastRanked, lastPrev) : '',
     jobNumTo: toInt(lastRanked?.roleJob),
-    starTo: toInt(lastRanked?.stars)
+    starTo: toInt(lastRanked?.stars),
+    jobSwitchWin
   }
 }
 
@@ -1843,34 +1870,49 @@ export function formatStarChange (session = {}) {
   // 同名段但 roleJob 小编号变了（旧体系 5 星一小段）：起止星数不可比，按编号报升降段。
   // 起点段位名靠 resolvePrevRankName 推（营地给的历史局名字恒等于终点名，见那个函数的说明）
   if (jobNumFrom && jobNumTo && jobNumFrom !== jobNumTo) {
-    // 同名 + 编号跨了大段 + 星数下降 = 跨大段升段。名字可能停在终点（已刷新）
-    // 也可能停在起点（滞后），靠 describeCrossBandNames 的端点形态补齐另一边
-    if (starTo < starFrom) {
+    // 方向优先看「跨段那一局的胜负」，不能只看首尾星数：
+    // 升段后继续赢几局，终点星数可能反而更大（实测 星耀I 3星 → 王者 4星，
+    // 被星数变大的判据误报成「最强王者 → 至尊星耀V」掉段）。
+    // jobSwitchWin 取不到（赛季重置/数据缺口）时才退回星数判据
+    const switchWin = toInt(session.jobSwitchWin)
+    const up = switchWin === 1 || (switchWin === 0 && starTo < starFrom)
+    const down = switchWin === 2 || (switchWin === 0 && starTo > starFrom)
+
+    // 升段：名字可能停在终点（已刷新）也可能停在起点（滞后），
+    // 靠 describeCrossBandNames 的端点形态补齐另一边
+    if (up) {
       const cross = describeCrossBandNames(jobTo, jobNumFrom, jobNumTo, starTo)
       if (cross) {
         return { text: `段位 ${cross.from} → ${cross.to}（${starTo}星）`, icon: '📈', tone: 'up' }
       }
     }
-    // 星数变大 = 掉段后重置到 4/5 星。名字可能停在起点（滞后）也可能停在终点（已刷新）
-    if (starTo > starFrom) {
+    // 掉段：名字可能停在起点（滞后）也可能停在终点（已刷新）
+    if (down) {
       const cross = describeCrossBandDropNames(jobTo, jobNumFrom, jobNumTo, starTo)
       if (cross) {
         return { text: `段位 ${cross.from} → ${cross.to}（${starTo}星）`, icon: '📉', tone: 'down' }
       }
     }
+
     const prevName = resolvePrevRankName(jobTo, jobNumFrom, jobNumTo)
     // 推得出起点名就把两边写全（「至尊星耀II 3星 → 至尊星耀I 0星（升段）」），
     // 推不出（跨大段/赛季重置）就退回旧的半截文案，只报当前段位
     const full = (tag) => `${prevName} ${starFrom}星 → ${jobTo} ${starTo}星（${tag}）`
-    if (jobNumTo > jobNumFrom) {
+    if (up) {
       return prevName
         ? { text: full('升段'), icon: '📈', tone: 'up' }
         : { text: `${jobTo} ${starFrom} → ${starTo}星（升段）`, icon: '📈', tone: 'up' }
     }
     // 正好掉一小段（编号差 -1、能推出起点名）才敢下「掉段」的结论。
     // 掉得更多的不是掉段而是赛季重置（编号跳 7~12，实测 26→16 / 16→22），继续 flat 不下结论
-    if (prevName) {
+    if (down && prevName) {
       return { text: full('掉段'), icon: '📉', tone: 'down' }
+    }
+    // 方向取不到时才用旧体系判据：编号变大表示升段
+    if (switchWin === 0 && jobNumTo > jobNumFrom) {
+      return prevName
+        ? { text: full('升段'), icon: '📈', tone: 'up' }
+        : { text: `${jobTo} ${starFrom} → ${starTo}星（升段）`, icon: '📈', tone: 'up' }
     }
     return { text: `${jobTo} ${starFrom} → ${starTo}星`, icon: '', tone: 'flat' }
   }
