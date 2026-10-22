@@ -73,7 +73,7 @@ const SCAN_LOGIN_TAIL = '\n登录成功后会自动保存登录态并绑定这�
  *    plugins/ 下每个模块追加 `?jiuli_reload=<代数>` 重新求值（见 utils/hotState.js）——
  *    模块级 Map 每代都变成新的空 Map，锁被架空：同一个人可以再发一条指令、两个扫码
  *    登录并行，各自往同一个人身上 upsert 账号，用户看到的回执与最终生效的号可能不是同一个。
- *    同仓的 campRenew / campIm / watchBattle / pushStore 都按这个约定锚了 globalThis。
+ *    同仓的 campIm / watchBattle / pushStore 都按这个约定锚了 globalThis。
  */
 const pendingWechatLoginMap = (globalThis.__gokPendingWechatLoginMap ||= new Map())
 

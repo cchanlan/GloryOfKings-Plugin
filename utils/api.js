@@ -3118,26 +3118,6 @@ class ApiService {
 
     return new TextDecoder('gb18030').decode(await response.arrayBuffer())
   }
-
-  /* ======================================================== 七、账号维护 */
-
-  /**
-   * **保活**：用指定账号调一次最轻的接口，让营地那边的登录态「动一下」。
-   *
-   * 为什么需要它：营地 token **没有固定过期时间**（`/user/login` 恒返回 `expires=0`），
-   * 也没有「刷新」接口（老的 `/user/refreshweixintoken` 已下线，现在报 rpc invalid）——
-   * 它是**用则续命、闲置才死**（记忆里的实例：闲置 29 天就报 `-30003` 登录态失效）。
-   * 所以「天天在用的号不会过期，用得少的号会被忘掉」，定期戳一下就能把用得少的也保住。
-   *
-   * ⚠️ 只做查询、不改任何状态，也**不会换掉 token**（实测调完 token 原样不动，
-   *    观战服务那几个正在用的号也不受影响）。
-   *
-   * @param {string} targetUserId 用哪个账号去调（账号池里的 userId）
-   */
-  async keepAlive (targetUserId) {
-    // 重试 1 次而不是 2 次：保活是定时任务，失败了下轮再来，没必要退避着耗时间
-    return this.#transport.requestWithCandidates('POST', '/user/getcampfriends', {}, {}, 1, targetUserId)
-  }
 }
 
 /** 单例。起个名字是因为下面 estimateRequestSeconds 要用它（default export 是匿名的） */

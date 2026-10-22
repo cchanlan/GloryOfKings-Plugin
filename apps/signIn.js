@@ -76,7 +76,7 @@ const GAP_MS = 1500
 /**
  * 互斥锁锚在 `globalThis` 上，**不用实例私有字段**。
  *
- * 原因同 `apps/campRenew.js` 的 renewLock：JiuLi 热重载会给 `plugins/` 下每个模块
+ * 原因同 `apps/campIm.js` 的 pollState：JiuLi 热重载会给 `plugins/` 下每个模块
  * 追加 `?jiuli_reload=<代数>` 重新求值整张模块图，实例私有字段跨模块代次完全独立 ——
  * 老代次那个已经在跑的不会被新代次的锁挡住，而一轮签到几十秒的窗口足够重叠。
  */

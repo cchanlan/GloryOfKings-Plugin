@@ -233,44 +233,6 @@ async function loginCampByOpenSdk(tokens) {
 }
 
 /**
- * ⭐ **免扫码续期**：拿账号池里存着的三件套重新登录一次，换一份新的营地登录态。
- *
- * ## 为什么可行
- *
- * 营地的 `/user/login` 的 `openSdk` 分支**只吃三件套**（accessToken + openId + payToken），
- * 全程不需要 `code`。而三件套是 YSDK 签发的、**有效期 60 天**，比营地自己的 token（约 30 天）长 ——
- * 所以营地 token 到期时，拿三件套重登一次就能续上，**用户完全不用再扫码**。
- *
- * 2026-09-18 实测：`payToken` 传空串照样 `returnCode=0`（营地不校验它），
- * 所以**连 payToken 都不用存**，光靠 `accessToken + appOpenid` 就能续。
- *
- * ## ⚠️ 两条必须守住的规矩
- *
- * 1. **重登会顶掉旧 token**（实测：重放成功后旧 token 立刻变 `-30003`）。
- *    所以调用方拿到新凭证后**必须立刻写回账号池**，中间不能失败 ——
- *    否则旧票被作废、新票又没存，那个号就彻底废了。
- * 2. **别在请求热路径里调**：每次重登都要打营地接口，且会换掉 token（正在飞的请求可能刚好用旧票）。
- *    交给定时任务提前续（见 apps/campRenew.js）。
- *
- * @param {object} account 账号池里的一条账号记录（要带 accessToken / appOpenid）
- * @returns {Promise<object>} 新的账号数据（交给 authStore.upsertAccount 写回）
- */
-export async function reloginQQAccount (account) {
-  const accessToken = String(account?.accessToken || '')
-  const openId = String(account?.appOpenid || account?.openId || '')
-  if (!accessToken || !openId) {
-    throw new Error('这个号没存三件套（accessToken / openId），续不了，得重新扫码一次')
-  }
-
-  return await loginCampByOpenSdk({
-    accessToken,
-    openId,
-    payToken: String(account?.payToken || ''),
-    refreshToken: String(account?.refreshToken || '')
-  })
-}
-
-/**
  * 用宿主复用的浏览器开一个 QQ 登录会话，等到二维码出现。
  * @param {object} [e] 消息事件对象，用来取宿主的渲染器（外置渲染机器上必须传）
  * @returns {Promise<{browser, page, qrcodeBuffer, waitForCode, close}>}

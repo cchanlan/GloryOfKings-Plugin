@@ -531,8 +531,7 @@ class AuthStore {
    *    不能加内存缓存假装没这回事——省掉的是写，不是读。
    *
    * ⚠️ `lastSuccessAt` 剩余的唯一语义是「大概最后一次成功」（锅巴面板展示用，
-   *    grep 过全仓库没有任何逻辑消费它的新鲜度，campRenew 的注释也明确告诫
-   *    别拿它当覆盖率指标），所以**节流写盘**：距上次落盘不足
+   *    没有任何逻辑消费它的新鲜度，别拿它当覆盖率指标），所以**节流写盘**：距上次落盘不足
    *    `LAST_SUCCESS_FLUSH_MS` 就只在内存里攒着，到点随下一次成功一起写。
    */
   markAuthSuccess (userId) {
@@ -895,7 +894,7 @@ class AuthStore {
     // ⚠️⚠️ 这里**不要再 rotate**：api.js 的 `#getAuthCandidates` 已经转过一次了。
     //   两处都转 = 每次请求队首前进 **2** 格，池子大小是偶数时「奇数位永远当不上队首」
     //   → **一半的账号从来不会被用到**（2026-09-19 实测：8 个号实际只用到 4 个，
-    //   另一半一直闲置到登录态失效，保活也救不到它们）。
+    //   另一半一直闲置到登录态失效）。
     //   轮转的活儿交给调用方做（api.js 那边有游标和日志），这里只负责「给全 + 排好序」。
     for (const globalAccount of globalAccounts) {
       pushCandidate(globalAccount, 'global', `全局账号 ${globalAccount.userId}`)

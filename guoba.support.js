@@ -73,7 +73,7 @@ function restoreMaskedAccounts (accounts) {
         continue
       }
       // ⚠️ 提交值里带 `...` 却又对不上库值的掩码：这是「面板打开期间凭证被后台换过」
-      //    （campRenew 换 token、扫码换 userSig）—— 表单里还是打开那一刻的旧掩码串，
+      //    （扫码换 token / userSig）—— 表单里还是打开那一刻的旧掩码串，
       //    等值比较自然失配。把它当真值写回会把凭证整个覆写成一串掩码、账号当场报废。
       //    这种保留库里的现值并告警；只有不带省略号的真正手填新值才会走到下面放行。
       //    ⚠️ 还要求**库里有值**（maskSecret 非空）：库里是空串时 maskSecret 也是空串，
@@ -222,7 +222,7 @@ export function supportGuoba () {
         {
           field: 'config.masterNotify',
           label: '主人通知收件人',
-          bottomHelpMessage: '运维提醒（登录态失效、被限流、保活结果等）发给谁。留空 = 只发第一个主人。',
+          bottomHelpMessage: '运维提醒（登录态失效、被限流等）发给谁。留空 = 只发第一个主人。',
           // ⚠️ 用 `Select` 而不是 `GTags`（2026-10-06 修）：锅巴把 GTags 归进
           //    BLOCK_COMPONENTS（「整行大组件」），label 会改成**竖排**、说明文字
           //    （bottomHelpMessage）跟着顶到表单最左边 —— 实测左边缘 24px，
@@ -598,15 +598,6 @@ export function supportGuoba () {
           label: '签到后顺手做福利任务',
           bottomHelpMessage: '签到时把福利中心的「浏览资讯」「点赞」「分享」也做掉，再把奖励领回来（各 25 营地币）。⚠️「点赞」是拿你的号真去点别人的内容，介意就关掉。（「分享」只上报状态、不会真发出去。）',
           component: 'Switch'
-        },
-        {
-          field: 'config.campRenewCron',
-          label: '登录态保活时间（cron）',
-          bottomHelpMessage: '定期给每个号续一下登录态，默认每天 5:13。留空 = 关掉定时。',
-          component: 'Input',
-          componentProps: {
-            placeholder: "默认 0 13 5 * * *（秒 分 时 日 月 周）"
-          }
         },
         {
           component: 'Divider',
