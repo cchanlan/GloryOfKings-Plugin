@@ -1437,6 +1437,11 @@ export function formatScoreChange (item, prev) {
 
   const diff = stars - prevStars
   if (diff > 0) {
+    // 输了星数反而变大 = 掉段（王者以下掉段直接重置到 4 星：0/1 星输一局 → 4 星）。
+    // 编号缺失或没变时会走到这里，不能按星数差报「上了 N 星」——方向正好是反的
+    if (item?.gameresult === 2) {
+      return { text: `${job} ${prevStars} → ${stars}星（掉段）`, tone: 'down' }
+    }
     return { text: `${job} ${prevStars} → ${stars}星（上了${diff}星）`, tone: 'up' }
   }
   if (diff < 0) {
