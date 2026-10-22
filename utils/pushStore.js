@@ -1151,6 +1151,44 @@ export function resolvePrevRankName (jobTo, jobNumFrom, jobNumTo) {
   return m[1] + SMALL_RANK_ROMAN[prevIdx]
 }
 
+/** 当前赛季王者段的 roleJob 编号：最强/非凡/无双/绝世/至圣/荣耀王者统一是 16 */
+const KING_ROLE_JOB = 16
+/** 刚升到王者、名字还滞后的那几颗星，称号固定是「最强王者」 */
+const KING_LOW_STAR_TITLE = '最强王者'
+const KING_LOW_STAR_MAX = 8
+
+/**
+ * 单场战绩的段位名，修掉营地「名字比编号慢一拍」的滞后。
+ *
+ * 实测（2026-10-22，主人号 campId 1580886057）：22:03 那局赢了、从星耀I 4星升到王者1星，
+ * 接口返回的却是 `{ roleJobName: '至尊星耀I', roleJob: 16, stars: 1 }` ——
+ * 编号和星数已经是新段位，名字还停在上一段；同一局下一轮轮询才变成「最强王者」。
+ * 而归档只增不改（battleArchive.mergeIntoCache 遇到同 gameSeq 直接跳过），
+ * 所以推送和收工文案读到的永远是那个滞后名。
+ *
+ * 判据是「赢了 + 名字没变 + 星数反而少了」：段内星数不会因为赢而减少，
+ * 只可能是升段（段内星重置）。这时 roleJob 已经换成新段位编号，16 是王者段；
+ * 刚升上去星数很小，称号按赛季固定是「最强王者」。
+ *
+ * ⚠️ 不能无条件把 roleJob=16 都当王者：归档里还有「永恒钻石IV + 编号 16 + 11~14 星」
+ * 的样本（切角色混桶/名字长期不对），所以只认上面那组升段信号；
+ * 星数超过 KING_LOW_STAR_MAX（升段后跨了小称号）就不猜，保持原样。
+ *
+ * @param {object} item 场次
+ * @param {object} [prev] 时间上更早的一场
+ * @returns {string} 校正后的段位名，取不到或无需校正时返回原值
+ */
+export function resolveBattleRankName (item, prev) {
+  const job = String(item?.roleJobName || '').trim()
+  if (!job || rankBand(job) === 7) return job
+  if (toInt(item?.gameresult) !== 1 || !prev) return job
+  if (String(prev?.roleJobName || '').trim() !== job) return job
+  if (toInt(item?.roleJob) !== KING_ROLE_JOB) return job
+  if (toInt(item?.stars) >= toInt(prev?.stars)) return job
+  if (toInt(item?.stars) > KING_LOW_STAR_MAX) return job
+  return KING_LOW_STAR_TITLE
+}
+
 /**
  * 一场战绩的分数变化。巅峰赛给巅峰分，排位给段位星数，都拿不到就返回空。
  *
@@ -1182,7 +1220,7 @@ export function formatScoreChange (item, prev) {
     }
   }
 
-  const job = String(item?.roleJobName || '').trim()
+  const job = resolveBattleRankName(item, prev)
   if (!job) return null
 
   const stars = toInt(item?.stars)
@@ -1549,6 +1587,10 @@ export function summarizeSession (list = [], sinceTime = 0) {
   const ranked = played.filter(item => String(item?.roleJobName || '').trim())
   const firstRanked = ranked[ranked.length - 1]
   const lastRanked = ranked[0]
+  // 最新一局的名字也可能滞后（见 resolveBattleRankName），拿更早一场当判据
+  const listArr = Array.isArray(list) ? list : []
+  const lastIdx = lastRanked ? listArr.findIndex(x => x === lastRanked) : -1
+  const lastPrev = lastIdx >= 0 ? listArr[lastIdx + 1] : undefined
   let jobFrom = ''
   let starFrom = 0
   let jobNumFrom = 0
@@ -1576,7 +1618,7 @@ export function summarizeSession (list = [], sinceTime = 0) {
     jobFrom,
     starFrom,
     jobNumFrom,
-    jobTo: lastRanked ? String(lastRanked.roleJobName).trim() : '',
+    jobTo: lastRanked ? resolveBattleRankName(lastRanked, lastPrev) : '',
     jobNumTo: toInt(lastRanked?.roleJob),
     starTo: toInt(lastRanked?.stars)
   }
