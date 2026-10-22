@@ -1279,6 +1279,77 @@ export function describeCrossBandChange (item, prev) {
 }
 
 /**
+ * 掉大段时还原起止段位名，形态与升段镜像：
+ * **起点一定是该大段的 V，终点一定是上一大段的 I**（掉出王者除外）。
+ * 名字停在哪一端，就补另一端：
+ *
+ * - 名字是「X V」→ 名字是**起点**，终点 = 上一大段 I
+ * - 名字是「Y I」→ 名字是**终点**，起点 = 下一大段 V
+ * - 名字是王者 → 名字是**起点**（掉出王者），终点 = 至尊星耀V
+ * - 名字是 II/III/IV → 不是掉大段的端点（多半是同段掉小段或切角色），不猜
+ * - 名字是星耀I → 起点是王者，称号随星数变化且区间跨赛季重叠，不猜
+ *
+ * 实测样本（归档 26 对「输 + 同名 + 星数变大」）：至尊星耀V | 22→15 共 5 对
+ * （星耀V→钻石I，名字是起点）、永恒钻石I | 22→15 共 1 对（名字是终点）、
+ * 至尊星耀I | 16→26 共 1 对（掉出王者，名字是终点，起点称号不可考 → 不猜）。
+ *
+ * @param {string} job 营地给的段位名
+ * @param {number} jobNumFrom 起点 roleJob 编号
+ * @param {number} jobNumTo 终点 roleJob 编号
+ * @param {number} starTo 终点星数
+ * @returns {{from:string,to:string}|null} 推不出时返回 null
+ */
+export function describeCrossBandDropNames (job, jobNumFrom, jobNumTo, starTo) {
+  const name = String(job || '').trim()
+  const band = rankBand(name)
+  if (!band) return null
+  const diff = toInt(jobNumTo) - toInt(jobNumFrom)
+  if (Math.abs(diff) < CROSS_BAND_JOB_GAP) return null
+
+  // 名字是王者：掉出王者，名字是起点，终点固定星耀V
+  if (band === 7) return { from: name, to: `${RANK_BAND_NAMES[5]}V` }
+
+  const m = name.match(/^(.*?)(I{1,3}|IV|V)$/)
+  if (!m) return null
+  const idx = SMALL_RANK_ROMAN.indexOf(m[2])
+
+  // 名字是该大段最低的 V：名字是起点，终点是上一大段的 I
+  if (idx === 4 && band > 1) {
+    return { from: name, to: `${RANK_BAND_NAMES[band - 2]}I` }
+  }
+
+  // 名字是该大段最高的 I：名字是终点，起点是下一大段的 V。
+  // 星耀I 的起点是王者，具体称号随星数变化且区间跨赛季重叠、不可考，
+  // 只用大段名「王者」保住方向，不编一个假称号
+  if (idx === 0) {
+    return { from: band === 6 ? '王者' : `${RANK_BAND_NAMES[band]}V`, to: name }
+  }
+
+  return null
+}
+
+/**
+ * 单场战绩里的跨大段掉段文案。
+ * 判据「输了 + 名字没变 + 星数反而变多」：掉段后星数重置到 4/5 星，
+ * 段内正常输一局星数是变少的，只有掉段会变大。
+ *
+ * @param {object} item 场次
+ * @param {object} [prev] 时间上更早的一场
+ * @returns {{text:string,tone:'down'}|null} 不是跨大段掉段时返回 null
+ */
+export function describeCrossBandDrop (item, prev) {
+  if (toInt(item?.gameresult) !== 2 || !prev) return null
+  const job = String(item?.roleJobName || '').trim()
+  if (!job || String(prev?.roleJobName || '').trim() !== job) return null
+  const stars = toInt(item?.stars)
+  if (stars <= toInt(prev?.stars)) return null
+
+  const cross = describeCrossBandDropNames(job, prev?.roleJob, item?.roleJob, stars)
+  if (!cross || cross.from === cross.to) return null
+  return { text: `段位 ${cross.from} → ${cross.to}（${stars}星）`, tone: 'down' }
+}
+
+/**
  * 一场战绩的分数变化。巅峰赛给巅峰分，排位给段位星数，都拿不到就返回空。
  *
  * 巅峰分：列表项自带 oldMasterMatchScore / newMasterMatchScore。
@@ -1311,6 +1382,8 @@ export function formatScoreChange (item, prev) {
 
   const crossBand = describeCrossBandChange(item, prev)
   if (crossBand) return crossBand
+  const crossDrop = describeCrossBandDrop(item, prev)
+  if (crossDrop) return crossDrop
 
   const job = resolveBattleRankName(item, prev)
   if (!job) return null
@@ -1770,6 +1843,13 @@ export function formatStarChange (session = {}) {
       const cross = describeCrossBandNames(jobTo, jobNumFrom, jobNumTo, starTo)
       if (cross) {
         return { text: `段位 ${cross.from} → ${cross.to}（${starTo}星）`, icon: '📈', tone: 'up' }
+      }
+    }
+    // 星数变大 = 掉段后重置到 4/5 星。名字可能停在起点（滞后）也可能停在终点（已刷新）
+    if (starTo > starFrom) {
+      const cross = describeCrossBandDropNames(jobTo, jobNumFrom, jobNumTo, starTo)
+      if (cross) {
+        return { text: `段位 ${cross.from} → ${cross.to}（${starTo}星）`, icon: '📉', tone: 'down' }
       }
     }
     const prevName = resolvePrevRankName(jobTo, jobNumFrom, jobNumTo)
