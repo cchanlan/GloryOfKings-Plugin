@@ -1802,7 +1802,8 @@ export function summarizeSession (list = [], sinceTime = 0) {
  * 说明跨了小段（起止星数不可比）、编号下降可能是赛季重置而不是掉段。详见文件头第 3 点。
  *
  * @param {object} session summarizeSession 的返回（或同形状的对象）
- * @returns {{text:string, icon:string, tone:'up'|'down'|'flat'}|null} 没有可报的变化时返回 null
+ * @returns {{text:string, icon:string, tone:'up'|'down'|'flat', stars?:number}|null}
+ *   没有可报的变化时返回 null；stars 是净星数变化，只在同段可比时给出
  */
 export function formatStarChange (session = {}) {
   const { jobFrom, jobTo, starFrom, starTo, jobNumFrom, jobNumTo } = session
@@ -1879,13 +1880,16 @@ export function formatStarChange (session = {}) {
     return {
       text: `${jobTo} ${starFrom} → ${starTo}星（${diff > 0 ? `上了${diff}` : `掉了${-diff}`}星）`,
       icon: diff > 0 ? '📈' : '📉',
-      tone: diff > 0 ? 'up' : 'down'
+      tone: diff > 0 ? 'up' : 'down',
+      // 净星数变化，供周报「上分之王」按一颗星 = 10 巅峰分折算。
+      // 只有走到这里（同名段同 jobNum）星数差才可比，其它分支不给这个字段
+      stars: diff
     }
   }
 
   // 净变化为 0（赢几局又输几局、或全程保星）也要给个说法：一行都不显示会和
   // 「取不到数据」长得一模一样，而这条推送的意义就是「今晚上了还是掉了」
-  return { text: `${jobTo} ${starTo}星（星数没变）`, icon: '⭐', tone: 'flat' }
+  return { text: `${jobTo} ${starTo}星（星数没变）`, icon: '⭐', tone: 'flat', stars: 0 }
 }
 
 /**

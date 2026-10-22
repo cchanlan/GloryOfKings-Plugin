@@ -448,6 +448,27 @@ export { getHeroNameMap }
 
 /* ------------------------------------------------------------------ 群汇总 */
 
+/** 周报「上分之王」的折算口径：一颗星按 10 巅峰分算 */
+const STAR_POINTS = 10
+
+/**
+ * 上分之王的展示文案：折算后哪边更大就报哪边，和排序用的是同一把尺子。
+ */
+function riseAwardText (row) {
+  const score = Number.isFinite(row.scoreDelta) ? row.scoreDelta : -Infinity
+  const star = Number.isFinite(row.starDelta) ? row.starDelta * STAR_POINTS : -Infinity
+  return star > score ? `上了 ${row.starDelta} 星` : `巅峰分 +${row.scoreDelta}`
+}
+
+/**
+ * 血亏之王的展示文案：掉星折算后哪边更惨就报哪边，和排序用的是同一把尺子。
+ */
+function dropAwardText (row) {
+  const score = Number.isFinite(row.scoreDelta) ? row.scoreDelta : Infinity
+  const star = Number.isFinite(row.starDelta) ? row.starDelta * STAR_POINTS : Infinity
+  return star < score ? `掉了 ${-row.starDelta} 星` : `巅峰分 ${row.scoreDelta}`
+}
+
 /**
  * 一个成员这段时间的「涨跌」，供群榜的进步榜/掉分榜排序。
  *
@@ -456,8 +477,9 @@ export { getHeroNameMap }
  * 所以段位那边只产出「升没升段」这个布尔性质的结论（rankUpText），不参与数值排序。
  *
  * @param {object} report summarizeReport 的结果
- * @returns {{scoreDelta:number|null, scoreText:string, rankUpText:string}}
- *   scoreDelta 为 null 表示这段时间没打巅峰赛（或分数没动），不该进这两个榜
+ * @returns {{scoreDelta:number|null, starDelta:number|null, scoreText:string, rankUpText:string}}
+ *   scoreDelta 为 null 表示这段时间没打巅峰赛（或分数没动）；
+ *   starDelta 为 null 表示星数差不可比（跨段 / 跨小段）或没打排位
  */
 function pickProgress (report) {
   const delta = formatScoreDelta(report?.score)
@@ -472,6 +494,8 @@ function pickProgress (report) {
 
   return {
     scoreDelta: delta ? to - from : null,
+    // 同段内的净星数变化；跨段时星数不可比，给 null 不参与周报折算
+    starDelta: Number.isFinite(star?.stars) ? star.stars : null,
     scoreText: delta ? delta.text : '',
     rankUpText: star?.tone === 'up' && jobFrom && jobTo && jobFrom !== jobTo
       ? `${jobFrom} → ${jobTo}`
@@ -546,6 +570,21 @@ export function summarizeGroup (members = []) {
     }))
     .sort((a, b) => b.count - a.count || b.winRate - a.winRate)
 
+  // 「上分之王」把巅峰分和「上星数 × 10」放在同一把尺子上，取大的那项。
+  // starDelta 同段内才可比，跨段的人是 null，就只剩巅峰分参与
+  const risePoints = row => {
+    const score = Number.isFinite(row.scoreDelta) ? row.scoreDelta : -Infinity
+    const star = Number.isFinite(row.starDelta) ? row.starDelta * STAR_POINTS : -Infinity
+    return Math.max(score, star)
+  }
+
+  // 血亏之王同理，只是方向反过来：取折算后更惨的那项
+  const dropPoints = row => {
+    const score = Number.isFinite(row.scoreDelta) ? row.scoreDelta : Infinity
+    const star = Number.isFinite(row.starDelta) ? row.starDelta * STAR_POINTS : Infinity
+    return Math.min(score, star)
+  }
+
   return {
     rows,
     memberCount: rows.length,
@@ -569,12 +608,12 @@ export function summarizeGroup (members = []) {
     // 最长连败也值一个称号，群里就爱看这个
     topStreak: rows.filter(r => r.streak?.type === 'win' && r.streak.count >= 3)
       .sort((a, b) => b.streak.count - a.streak.count)[0] || null,
-    // 巅峰分涨得最多 / 掉得最多。只认巅峰分（口径见 pickProgress），
-    // 没人打巅峰赛时两个都是 null，称号栏自动不占位
-    topRise: rows.filter(r => Number(r.scoreDelta) > 0)
-      .sort((a, b) => b.scoreDelta - a.scoreDelta)[0] || null,
-    topDrop: rows.filter(r => Number(r.scoreDelta) < 0)
-      .sort((a, b) => a.scoreDelta - b.scoreDelta)[0] || null,
+    // 涨得最多 / 掉得最多：段位星数按一颗 10 分折算后和巅峰分比，
+    // 涨榜取大的那项、跌榜取小的那项；两边都没数据时是 null，称号栏自动不占位
+    topRise: rows.filter(r => risePoints(r) > 0)
+      .sort((a, b) => risePoints(b) - risePoints(a))[0] || null,
+    topDrop: rows.filter(r => dropPoints(r) < 0)
+      .sort((a, b) => dropPoints(a) - dropPoints(b))[0] || null,
     // 升段的人。段位跨段没法和别人比数值，所以不排序，谁先升到就先列谁
     topRankUp: rows.filter(r => r.rankUpText)[0] || null
   }
@@ -823,8 +862,8 @@ export function buildGroupView (group, {
   award('MVP 收割机', group.topMvp, r => `${r.name} · ${r.mvp} 次`)
   award('尽力局长', group.topLoseMvp, r => `${r.name} · 败方 MVP ${r.loseMvp} 次`)
   award('连胜之星', group.topStreak, r => `${r.name} · ${r.streak.count} 连胜`)
-  award('上分之王', group.topRise, r => `${r.name} · 巅峰分 +${r.scoreDelta}`)
-  award('血亏之王', group.topDrop, r => `${r.name} · 巅峰分 ${r.scoreDelta}`)
+  award('上分之王', group.topRise, r => `${r.name} · ${riseAwardText(r)}`)
+  award('血亏之王', group.topDrop, r => `${r.name} · ${dropAwardText(r)}`)
   award('升段之星', group.topRankUp, r => `${r.name} · ${r.rankUpText}`)
 
   const heroTop = group.heroes?.[0]?.count || 1
