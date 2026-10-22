@@ -1189,6 +1189,95 @@ export function resolveBattleRankName (item, prev) {
   return KING_LOW_STAR_TITLE
 }
 
+/** 大段全名，下标 + 1 = rankBand（1 青铜 … 7 王者） */
+const RANK_BAND_NAMES = ['倔强青铜', '秩序白银', '荣耀黄金', '尊贵铂金', '永恒钻石', '至尊星耀', '最强王者']
+/** 编号差多少算跨了大段。与 rankTrend.js 的 JUMP_TOLERANCE 同口径 */
+const CROSS_BAND_JOB_GAP = 3
+
+/**
+ * 由营地带回来的那一个段位名 + 起止编号，还原跨大段的起止段位名。
+ *
+ * 营地对一批战绩只给一个名字（见 resolvePrevRankName），跨大段时另一边必然丢失。
+ * 但跨大段有固定形态：**起点一定是上一大段的 I，终点一定是下一大段的 V**
+ * （升王者除外，王者没有小段）。所以看名字停在哪一边就能把另一边补出来：
+ *
+ * - 名字是「X I」→ 名字是**起点**（该大段最高小段），终点 = 下一大段 V / 王者
+ * - 名字是「Y V」且编号跨了大段 → 名字是**终点**，起点 = 上一大段 I
+ * - 名字是王者 → 名字是**终点**（王者之上没有大段），起点 = 至尊星耀I
+ * - 名字是 II/III/IV → 不是跨大段的端点（起点必 I、终点必 V），多半是切角色/旧体系，不猜
+ *
+ * 实测样本（归档 61 对「赢 + 同名 + 星降」）：至尊星耀V | 15→22 共 9 对（钻石I→星耀V，
+ * 名字是终点）、至尊星耀I | 26→16 共 3 对（星耀I→王者，名字是起点）、最强王者 | 26→16
+ * 共 3 对（星耀I→王者，名字是终点）。编号在账号之间并不唯一（同一编号在不同号上是
+ * 不同小段），所以**不能查表**，只能靠这个形态特征反推。
+ *
+ * @param {string} job 营地给的段位名
+ * @param {number} jobNumFrom 起点 roleJob 编号
+ * @param {number} jobNumTo 终点 roleJob 编号
+ * @param {number} starTo 终点星数
+ * @returns {{from:string,to:string}|null} 推不出时返回 null，调用方保持原有保守文案
+ */
+export function describeCrossBandNames (job, jobNumFrom, jobNumTo, starTo) {
+  const name = String(job || '').trim()
+  const band = rankBand(name)
+  if (!band) return null
+  const diff = toInt(jobNumTo) - toInt(jobNumFrom)
+  const stars = toInt(starTo)
+
+  // 王者之上没有大段，名字只能是终点；16→16 是王者内换称号/星数，
+  // 25→26 这类小差是旧体系王者段内循环，都不是跨大段
+  if (band === 7) {
+    if (Math.abs(diff) < CROSS_BAND_JOB_GAP) return null
+    const to = stars > 0 && stars <= KING_LOW_STAR_MAX ? KING_LOW_STAR_TITLE : name
+    return { from: `${RANK_BAND_NAMES[5]}I`, to }
+  }
+
+  const m = name.match(/^(.*?)(I{1,3}|IV|V)$/)
+  if (!m) return null
+  const idx = SMALL_RANK_ROMAN.indexOf(m[2])
+
+  // 名字是该大段最高的 I。大跳才是「名字=起点名、跨大段升走」；
+  // 只差一小段时名字是终点名（星耀II→星耀I），交给原逻辑反推起点
+  if (idx === 0) {
+    if (Math.abs(diff) < CROSS_BAND_JOB_GAP) return null
+    const next = band + 1
+    if (next === 7) {
+      // 王者称号随星数变（9 星起换非凡王者），星数不小就不硬猜
+      if (stars <= 0 || stars > KING_LOW_STAR_MAX) return null
+      return { from: name, to: KING_LOW_STAR_TITLE }
+    }
+    return { from: name, to: `${RANK_BAND_NAMES[next - 1]}V` }
+  }
+
+  // 名字是该大段最低的 V，且编号跨了大段：名字是终点，起点是上一大段的 I
+  if (idx === 4 && Math.abs(diff) >= CROSS_BAND_JOB_GAP && band > 1) {
+    return { from: `${RANK_BAND_NAMES[band - 2]}I`, to: name }
+  }
+
+  return null
+}
+
+/**
+ * 单场战绩里的跨大段升段文案。
+ * 判据「赢了 + 名字没变 + 星数反而变少」同 resolveBattleRankName：
+ * 段内星数不会因为赢而减少，只可能是升段（段内星重置）。
+ *
+ * @param {object} item 场次
+ * @param {object} [prev] 时间上更早的一场
+ * @returns {{text:string,tone:'up'}|null} 不是跨大段升段时返回 null
+ */
+export function describeCrossBandChange (item, prev) {
+  if (toInt(item?.gameresult) !== 1 || !prev) return null
+  const job = String(item?.roleJobName || '').trim()
+  if (!job || String(prev?.roleJobName || '').trim() !== job) return null
+  const stars = toInt(item?.stars)
+  if (stars >= toInt(prev?.stars)) return null
+
+  const cross = describeCrossBandNames(job, prev?.roleJob, item?.roleJob, stars)
+  if (!cross || cross.from === cross.to) return null
+  return { text: `段位 ${cross.from} → ${cross.to}（${stars}星）`, tone: 'up' }
+}
+
 /**
  * 一场战绩的分数变化。巅峰赛给巅峰分，排位给段位星数，都拿不到就返回空。
  *
@@ -1219,6 +1308,9 @@ export function formatScoreChange (item, prev) {
       tone: diff > 0 ? 'up' : 'down'
     }
   }
+
+  const crossBand = describeCrossBandChange(item, prev)
+  if (crossBand) return crossBand
 
   const job = resolveBattleRankName(item, prev)
   if (!job) return null
@@ -1672,6 +1764,14 @@ export function formatStarChange (session = {}) {
   // 同名段但 roleJob 小编号变了（旧体系 5 星一小段）：起止星数不可比，按编号报升降段。
   // 起点段位名靠 resolvePrevRankName 推（营地给的历史局名字恒等于终点名，见那个函数的说明）
   if (jobNumFrom && jobNumTo && jobNumFrom !== jobNumTo) {
+    // 同名 + 编号跨了大段 + 星数下降 = 跨大段升段。名字可能停在终点（已刷新）
+    // 也可能停在起点（滞后），靠 describeCrossBandNames 的端点形态补齐另一边
+    if (starTo < starFrom) {
+      const cross = describeCrossBandNames(jobTo, jobNumFrom, jobNumTo, starTo)
+      if (cross) {
+        return { text: `段位 ${cross.from} → ${cross.to}（${starTo}星）`, icon: '📈', tone: 'up' }
+      }
+    }
     const prevName = resolvePrevRankName(jobTo, jobNumFrom, jobNumTo)
     // 推得出起点名就把两边写全（「至尊星耀II 3星 → 至尊星耀I 0星（升段）」），
     // 推不出（跨大段/赛季重置）就退回旧的半截文案，只报当前段位
