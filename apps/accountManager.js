@@ -50,6 +50,8 @@ const OVERVIEW_OWNER_LIMIT = 60
 const USER_DATA_FILE = 'UserData.yaml'
 /** 未绑定时的教程图，裸发 #绑定营地 和本机没绑过的 #营地ID 都回它 */
 const CAMP_ID_GUIDE_IMG = '营地ID获取.png'
+/** 教程图配的文案：光有图用户不知道该发什么，格式和示例都得写出来 */
+const CAMP_ID_GUIDE_HINT = '绑定方式：#绑定营地 + 营地ID（纯数字）\n示例：#绑定营地 123456'
 
 /** 已有登录任务在跑时的统一挡回文案 */
 const LOGIN_BUSY_HINT = '当前已有一个营地登录任务在进行中，请先完成当前二维码或稍后再试'
@@ -661,6 +663,7 @@ export class AccountManager extends plugin {
   /** 「营地ID 从哪看」那张教程图 + 绑定按钮，两处回复共用同一份载荷 */
   #campIdGuidePayload() {
     return [
+      CAMP_ID_GUIDE_HINT,
       segment.image(path.join(PluginPath, 'resources', 'img', CAMP_ID_GUIDE_IMG)),
       Button.bind()
     ]
