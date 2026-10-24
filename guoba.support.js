@@ -531,7 +531,14 @@ export function supportGuoba () {
             //
             // ⚠️ 只挪得了表格本身：下面那段说明文字（bottomHelpMessage）挂在 FormItem
             //    上、不在组件里，够不着，仍会留在最左边。
-            style: 'margin-left: 160px',
+            //
+            // ⚠️⚠️ **窄屏必须归零**（2026-10-24 修）。锅巴在 ≤768px 会把整张表单调成
+            //    竖排（`appStore.isMobile`，同样的 `MOBILE_QUERY`），label 独占一行、
+            //    控件从卡片左边缘开始，表格已经跟上下项对齐了；再推 160px，可用宽度
+            //    只剩「操作」列那 120px，营地号列被压成一个字、收消息列直接消失。
+            //    所以改成按视口宽度取值：≤768px 取 0，宽屏取 160px。
+            //    `* 1000` 只是把 768→768.16px 的过渡压到看不见，避免平板宽度下出现半截偏移。
+            style: 'margin-left: clamp(0px, calc((100vw - 768px) * 1000), 160px)',
             schemas: [
               {
                 field: 'userId',
