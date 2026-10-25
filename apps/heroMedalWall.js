@@ -22,6 +22,7 @@ import {
 import { fetchHeroMedals, parseMedal, pendingMedalCount } from '../utils/heroMedals.js'
 import { loadPushList } from '../utils/pushStore.js'
 import { heroIconUrl } from '../utils/reportStore.js'
+import { getNickMap, nickOf, withGroupNick } from '../utils/groupNick.js'
 
 /** 默认扫多少个英雄。20 秒左右，再多用户就该以为指令死了 */
 const SCAN_COUNT = 15
@@ -160,7 +161,11 @@ function parseArgs (input = '') {
 /** 展示名兜底：推送轮询缓存的营地昵称 → 群名片 → QQ 号，都不额外发请求 */
 async function displayName (e, userId) {
   const cached = String(loadPushList()[String(userId)]?.roleName || '').trim()
-  if (cached) return cached
+  if (cached) {
+    // 群里发的图，游戏名后面补该群的群名片；私聊不加
+    const nick = e?.isGroup ? nickOf(await getNickMap(e.group_id, e.group), userId) : ''
+    return withGroupNick(cached, nick)
+  }
   try {
     // ⚠️ 传 `e.group` 而不是 `e`（2026-10-06 修）：resolveMemberName 的形参是**群对象**
     //    （内部走 `group?.pickMember?.()`），而消息事件上并没有 pickMember ——

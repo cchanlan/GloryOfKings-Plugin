@@ -1743,7 +1743,7 @@ export function resolveOnlineSince (onlineTime, nowSec, observed = false) {
  *   jobSwitchWin 是「编号变成终点编号那一局」的胜负（1 胜 / 2 负 / 0 取不到），
  *   用来判升段还是掉段——只看首尾星数会被「升段后又赢几局」骗到
  */
-export function summarizeSession (list = [], sinceTime = 0) {
+export function summarizeSession (list = [], sinceTime = 0, prevSnapshot = null) {
   const since = toInt(sinceTime)
   const played = since > 0
     ? (Array.isArray(list) ? list : []).filter(item => toInt(item?.dtEventTime) >= since)
@@ -1779,7 +1779,12 @@ export function summarizeSession (list = [], sinceTime = 0) {
     // 判据只能是「有没有段位名」，不能拿 stars 真值判：**段内 0 星是真实值**
     // （实测 30 场里出现 2 次，1 星再输一局就是 0 星），用 `||` 兜会把它当成取不到，
     // 起点被顶成第一局打完后的星数，整段差值少算一颗
-    const snapshot = String(prev?.roleJobName || '').trim() ? prev : firstRanked
+    // 起点快照优先用调用方给的「区间之前那一局」（collectBattles 会顺手带回来）：
+    // 群报/日报传进来的 list 已经按区间裁过，list[idx+1] 必然是 undefined，
+    // 不补这一条的话每个人第一局的星数变化都会漏算
+    const outside = String(prevSnapshot?.roleJobName || '').trim() ? prevSnapshot : null
+    const snapshot = outside ||
+      (String(prev?.roleJobName || '').trim() ? prev : firstRanked)
     jobFrom = String(snapshot.roleJobName).trim()
     starFrom = toInt(snapshot.stars)
     // 回退到 firstRanked 时编号也要跟着取，漏了会让 jobNumFrom=0，

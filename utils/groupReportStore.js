@@ -214,11 +214,12 @@ export function resolveMemberIdentity (campId, qq, { snapshot = readSnapshot(), 
  * @param {number} opts.fromSec 区间起点
  * @param {number} [opts.toSec] 区间终点（秒），0 = 到现在。周报统计上一整周时要给
  * @param {Array<string>} opts.memberIds 群成员 bot user_id 列表
+ * @param {Object<string,string>} [opts.nickMap] QQ → 群名片/昵称，报表里跟在游戏名后面
  * @param {number} [opts.limit] 成员上限
  * @returns {Promise<{group:object|null, scanned:number, bound:number, coveredFrom:number, truncated:boolean}>}
  *   group 为 null 表示这个区间群里一场都没打（不出空图）
  */
-export async function collectGroupReport ({ kind = 'daily', fromSec = 0, toSec = 0, memberIds = [], limit = MAX_MEMBERS } = {}) {
+export async function collectGroupReport ({ kind = 'daily', fromSec = 0, toSec = 0, memberIds = [], nickMap = {}, limit = MAX_MEMBERS } = {}) {
   const { targets, bound } = resolveGroupTargets(memberIds, { limit })
   if (!targets.length) return { group: null, scanned: 0, bound: 0, coveredFrom: 0, truncated: false }
 
@@ -253,11 +254,13 @@ export async function collectGroupReport ({ kind = 'daily', fromSec = 0, toSec =
 
     if (!collected.battles.length) continue
 
-    const report = summarizeReport(collected.battles, { fromSec, toSec, heroMap })
+    const report = summarizeReport(collected.battles, { fromSec, toSec, heroMap, prevSnapshot: collected.prevSnapshot })
     if (!report.count) continue
 
     members.push({
       ...resolveMemberIdentity(campId, qq, { snapshot, pushList }),
+      // 群名片单独存，不并进 name：榜里要按游戏名排序和去重，昵称只是展示用
+      nick: String(nickMap[String(qq)] || '').trim(),
       campId,
       qq,
       report,

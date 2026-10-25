@@ -30,6 +30,7 @@ import { loadPushList, subGroups, sleep, REQUEST_INTERVAL } from '../utils/pushS
 import { hotBox } from '../utils/hotState.js'
 import { getImgType, shouldQuote, Button, getGroupAvatar, pickGroupSafe } from '#utils'
 import { Config } from '#components'
+import { getNickMap } from '../utils/groupNick.js'
 
 /** 三路的中文名 */
 const LABEL = { daily: '日报', weekly: '周报', monthly: '月报' }
@@ -99,7 +100,7 @@ export class GroupReport extends plugin {
       return e.reply(`群${label}只能在群里使用，私聊请发送 #王者${label} 看自己的`, shouldQuote())
     }
 
-    const { memberIds, degraded } = await this.resolveMembers(e.group_id, e.group)
+    const { memberIds, nickMap, degraded } = await this.resolveMembers(e.group_id, e.group)
     const { targets, bound } = resolveGroupTargets(memberIds)
 
     if (!targets.length) {
@@ -114,6 +115,7 @@ export class GroupReport extends plugin {
 
     const view = await this.buildView(kind, {
       memberIds,
+      nickMap,
       groupName: e.group_name || String(e.group_id),
       groupAvatar: await getGroupAvatar(e.group_id, e.group, 640),
       degraded,
@@ -150,32 +152,29 @@ export class GroupReport extends plugin {
    * @returns {Promise<{memberIds:Array<string>, degraded:boolean}>}
    */
   async resolveMembers (groupId, group) {
-    try {
-      const map = await group.getMemberMap()
-      const ids = [...map.keys()].map(String)
-      if (ids.length) return { memberIds: ids, degraded: false }
-    } catch (error) {
-      logger.warn(`[王者群报] 取群 ${groupId} 成员失败: ${error.message}`)
+    const nickMap = await getNickMap(groupId, group)
+    if (nickMap?.size) {
+      return { memberIds: [...nickMap.keys()], nickMap, degraded: false }
     }
 
     const ids = Object.entries(loadPushList())
       .filter(([, sub]) => subGroups(sub).includes(String(groupId)))
       .map(([qq]) => String(qq))
 
-    return { memberIds: ids, degraded: true }
+    return { memberIds: ids, nickMap: {}, degraded: true }
   }
 
   /**
    * 组装群报的模板数据。
    * @returns {Promise<object|null>} 区间内全群零对局时返回 null（不出空图）
    */
-  async buildView (kind, { memberIds = [], groupName = '', groupAvatar = '', degraded = false, bound = 0 } = {}) {
+  async buildView (kind, { memberIds = [], nickMap = {}, groupName = '', groupAvatar = '', degraded = false, bound = 0 } = {}) {
     const nowMs = Date.now()
     const { fromSec, toSec, scopeText } = resolveRange(kind, nowMs)
 
     let collected
     try {
-      collected = await collectGroupReport({ kind, fromSec, toSec, memberIds })
+      collected = await collectGroupReport({ kind, fromSec, toSec, memberIds, nickMap })
     } catch (error) {
       logger.error(`[王者群${LABEL[kind]}] 采集失败: ${error.message}`)
       return null
@@ -332,7 +331,7 @@ export class GroupReport extends plugin {
       return
     }
 
-    const { memberIds, degraded } = await this.resolveMembers(groupId, group)
+    const { memberIds, nickMap, degraded } = await this.resolveMembers(groupId, group)
     const { targets, bound } = resolveGroupTargets(memberIds)
     if (!targets.length) {
       logger.debug(`[王者群${label}] 群 ${groupId} 没有绑定账号，跳过`)
@@ -341,6 +340,7 @@ export class GroupReport extends plugin {
 
     const view = await this.buildView(kind, {
       memberIds,
+      nickMap,
       groupName: sub.groupName || String(groupId),
       groupAvatar: await getGroupAvatar(groupId, group, 640),
       degraded,

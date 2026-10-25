@@ -30,6 +30,7 @@ import {
   isMonthlyPushDay
 } from '../utils/reportStore.js'
 import { loadPushList, savePushList, mergeSubState, disableSubFlag, subGroups, withSubGroup, withoutSubGroup, sweepLeftGroups, sleep, REQUEST_INTERVAL } from '../utils/pushStore.js'
+import { getNickMap, nickOf, withGroupNick } from '../utils/groupNick.js'
 import { fetchRoleNames } from '../utils/roleName.js'
 // 并发锁跨热重载共享：模块级 `let` 在热重载后是新变量，锁会被架空（见 utils/hotState.js）
 import { hotBox } from '../utils/hotState.js'
@@ -207,8 +208,17 @@ export class BattleReport extends plugin {
     if (!collected.battles.length) return null
 
     const heroMap = await getHeroNameMap()
-    const report = summarizeReport(collected.battles, { fromSec, toSec, heroMap })
+    const report = summarizeReport(collected.battles, { fromSec, toSec, heroMap, prevSnapshot: collected.prevSnapshot })
     if (!report.count) return null
+
+    // 发到群里的报告，游戏名后面补群名片；私聊没有群名片，保持原样。
+    // 推送是多群共用一张图，只能取主群的名片（和 gameRecordPush 的口径一致）
+    const baseName = roleName || this.cachedName(ownerQQ || qq)
+    let displayName = baseName
+    if (e?.isGroup) {
+      const nickMap = await getNickMap(e.group_id, e.group)
+      displayName = withGroupNick(baseName, nickOf(nickMap, ownerQQ || qq))
+    }
 
     return buildReportView(report, {
       kind,
@@ -218,7 +228,7 @@ export class BattleReport extends plugin {
       nowMs,
       coveredFrom: collected.coveredFrom,
       truncated: collected.truncated,
-      roleName: roleName || this.cachedName(ownerQQ || qq),
+      roleName: displayName,
       // 营地头像要多一次 profile 请求，日报的重点是战绩不是头像，用平台头像就够。
       // 走 getUserAvatar 而不是裸拼 qlogo：官方机器人的 user_id 是 openid，拼出来是张默认图
       roleIcon: await getUserAvatar(e, ownerQQ || qq, 100)
@@ -438,8 +448,9 @@ export class BattleReport extends plugin {
     const view = await this.buildView(String(campId), String(qq), kind, {
       roleName: sub.roleName || '',
       qq,
-      // 推送没有真实消息事件，拿群拼个最小壳子够 getUserAvatar 用
-      e: { group: targets[0].group }
+      // 推送没有真实消息事件，拿群拼个最小壳子够 getUserAvatar 和群名片用。
+      // isGroup/group_id 是给 buildView 判断「要贴群名片」用的
+      e: { isGroup: true, group_id: targets[0].id, group: targets[0].group }
     })
 
     // 这段时间没打就不发。推一张「0 场」的图纯属刷屏

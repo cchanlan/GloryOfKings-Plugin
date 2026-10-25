@@ -3,6 +3,7 @@ import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { getImgType, ApiService, readYamlFile, Button, parsePerfArgs, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote } from '#utils'
 import { PluginData, PluginPath } from '#components'
 import { privacyScope } from '../utils/seasonFallback.js'
+import { getNickMap, nickOf, withGroupNick } from '../utils/groupNick.js'
 
 // 默认一屏放几个赛季总结。营地那边是全部赛季无限滚动，这里默认按 3 个赛季控制图片长度，
 // 指令后可跟数量（#全部排位表现5）或 all（#全部排位表现all）覆盖
@@ -144,6 +145,12 @@ export class AllSeasonPerformance extends plugin {
     }))
 
     const hc = data.headCard || {}
+    // 群里发的图，游戏名后面补该群的群名片；私聊不加
+    let roleName = hc.roleName || '召唤师'
+    if (e.isGroup) {
+      const nickMap = await getNickMap(e.group_id, e.group)
+      roleName = withGroupNick(roleName, nickOf(nickMap, userId))
+    }
     const img = await puppeteer.screenshot('AllSeasonPerformance', {
       imgType: getImgType(),
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/AllSeasonPerformance.html',
@@ -151,7 +158,7 @@ export class AllSeasonPerformance extends plugin {
       mode,
       modeLabel: mode === '巅峰' ? '巅峰赛' : '排位赛',
       isPeak: mode === '巅峰',
-      roleName: hc.roleName || '召唤师',
+      roleName,
       roleIcon: hc.roleIcon || '',
       serverName: hc.serverName || hc.areaName || '王者荣耀',
       topJob: hc.jobName ? `${hc.jobName}${hc.rankingStar ? ` ${hc.rankingStar}星` : ''}` : '—',

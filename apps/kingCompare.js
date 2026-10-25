@@ -22,6 +22,7 @@ import {
 } from '#utils'
 import { summarizeProfile, rankText, compareRank } from '../utils/profileSummary.js'
 import { getHeroNameMap } from '../utils/pushStore.js'
+import { getNickMap, nickOf, withGroupNick } from '../utils/groupNick.js'
 
 /**
  * 对比项。cmp 返回 >0 表示左边赢；text 负责把值渲染成人话。
@@ -189,6 +190,18 @@ export class KingCompare extends plugin {
     const heroMap = await getHeroNameMap()
     for (const side of [a, b]) {
       if (side.topHero?.heroId) side.topHero.heroName = heroMap[side.topHero.heroId] || ''
+    }
+
+    // 群里对比时名字后面补群名片。只有「这个号确实绑在对应 QQ 名下」才加，
+    // 显式传营地ID 时 owner 是发起人，加自己的名片会张冠李戴
+    if (e.isGroup) {
+      const nickMap = await getNickMap(e.group_id, e.group)
+      if (nickMap?.size) {
+        const ownerNick = (owner, campId) =>
+          getBoundIds(owner).includes(String(campId)) ? nickOf(nickMap, owner) : ''
+        a.roleName = withGroupNick(a.roleName, ownerNick(leftOwner, left))
+        b.roleName = withGroupNick(b.roleName, ownerNick(rightOwner, right))
+      }
     }
 
     return e.reply([

@@ -4,6 +4,7 @@ import { getImgType, ApiService, readYamlFile, Button, parsePerfArgs, seasonNo, 
 import { PluginData, PluginPath } from '#components'
 import { loadArchive } from '../utils/battleArchive.js'
 import { buildDailyTrend } from '../utils/scoreTrend.js'
+import { getNickMap, nickOf, withGroupNick } from '../utils/groupNick.js'
 
 // branchType：0=全部分路 1=对抗路 2=中路 3=发育路 4=打野 5=游走
 const BRANCH_NAME = { 0: '全部', 1: '对抗路', 2: '中路', 3: '发育路', 4: '打野', 5: '游走' }
@@ -61,7 +62,12 @@ export class PeakPerformance extends plugin {
     }
 
     const roleData = (profileData.data.roleList || []).find(r => r.roleId === roleId) || {}
-    const roleName = roleData.roleName || '召唤师'
+    let roleName = roleData.roleName || '召唤师'
+    // 群里发的图，游戏名后面补该群的群名片；私聊不加
+    if (e.isGroup) {
+      const nickMap = await getNickMap(e.group_id, e.group)
+      roleName = withGroupNick(roleName, nickOf(nickMap, userId))
+    }
     const roleIcon = roleData.roleIcon || ''
     const serverName = roleData.roleText || roleData.areaName || '王者荣耀'
     const who = { roleId, userId, campId, roleName, roleIcon, serverName }

@@ -4,6 +4,7 @@ import { getImgType, ApiService, readYamlFile, Button, AT_HEAD, AT_TAIL, stripAt
 import path from 'path'
 import { PluginData, PluginPath } from '#components'
 import moment from 'moment'
+import { getNickMap, nickOf, withGroupNick } from '../utils/groupNick.js'
 
 /** 营地在线状态码 → 中文（营地用 0/1/2，不是布尔） */
 const ONLINE_TEXT = {
@@ -109,11 +110,11 @@ function parseFlagPag (flagPag) {
  * @param {object} headData 响应里的 head 段
  * @returns {object} 渲染模板用的数据
  */
-function buildHomepageData (profileData, roleData, headData) {
+function buildHomepageData (profileData, roleData, headData, roleNameOverride = '') {
   // mods 也可能整个缺失（营地偶尔不给 head.mods），兜成空数组
   const mods = Array.isArray(headData?.mods) ? headData.mods : []
   const {
-    roleName, // 昵称
+    roleName: rawRoleName, // 昵称
     roleIcon, // 头像
     gameLevel, // 等级
     gameOnline: onlineCode, // 在线状态 【1:在线 0:离线】
@@ -122,6 +123,7 @@ function buildHomepageData (profileData, roleData, headData) {
     onlineTime: onlineTimestamp, // 最近一次上线
     offlineTime: offlineTimestamp // 最近一次离线
   } = roleData
+  const roleName = roleNameOverride || rawRoleName
 
   const gameOnline = ONLINE_TEXT[onlineCode]
   // ⚠️⚠️ 时间戳为 0 / 缺失时必须给「—」，不能让 moment 去格式化（2026-10-06 修）。
@@ -315,6 +317,10 @@ export class MyKingHomepage extends plugin {
       await e.reply(`本次查询包含${IDs.length}个ID，请稍候...`)
     }
 
+    // 群名片只给「确实属于这个查询者」的营地ID用：显式查别人ID时不能贴发起人的名片
+    const nickMap = e.isGroup ? await getNickMap(e.group_id, e.group) : null
+    const boundIds = new Set((((await this.getUserInfo(userId))?.ids) || []).map(String))
+
     const imgBuffers = []
     const failedResults = []
     const pushFailure = (id, message) => {
@@ -382,7 +388,8 @@ export class MyKingHomepage extends plugin {
           continue
         }
 
-        const data = buildHomepageData(profileData, roleData, headData)
+        const nick = nickMap && boundIds.has(String(ID)) ? nickOf(nickMap, userId) : ''
+        const data = buildHomepageData(profileData, roleData, headData, withGroupNick(roleData.roleName, nick))
         // ⚠️ 只收真图（2026-10-06 修）：screenshot 渲染失败是**返回 false 而不抛错**
         //    （renderers/puppeteer/lib/puppeteer.js 末尾 `if (ret.length === 0 || !ret[0]) return false`），
         //    而原来无条件 push 进 imgBuffers —— 下面 `e.reply([...imgBuffers, button])` 会把

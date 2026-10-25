@@ -290,7 +290,7 @@ export async function collectBattles (campId, qq, fromSec, { maxPages = 12, toSe
   // 返回空区间而不是抛错——日报/周报/群报/趋势本来就按「这段没数据」处理，
   // coveredFrom 给 0 也不会把调用方的「最差水位」拉低。
   if (isProfileHidden(key)) {
-    return { battles: [], coveredFrom: 0, truncated: false, fetched: 0 }
+    return { battles: [], prevSnapshot: null, coveredFrom: 0, truncated: false, fetched: 0 }
   }
   const inRange = list => list.filter(item => {
     const at = toInt(item?.dtEventTime)
@@ -384,8 +384,15 @@ export async function collectBattles (campId, qq, fromSec, { maxPages = 12, toSe
   // 空 list 不算 failed（那是「确实没有更早的了」，第 335 行已把 reached 定成 from）。
   const incomplete = from > 0 && fetched === 0
 
+  // 区间开始前最近的一场：summarizeSession 拿它当「这段开始前的段位快照」，
+  // 否则起点只能退到区间第一场打完后的星数，每人第一局的变化都会漏算。
+  // 归档是倒序，第一条早于 from 的就是区间外最近的一场
+  const archive = loadArchive(key)
+  const prevSnapshot = archive.find(item => toInt(item?.dtEventTime) < from) || null
+
   return {
-    battles: inRange(loadArchive(key)),
+    battles: inRange(archive),
+    prevSnapshot,
     coveredFrom: finalMark > 0 ? Math.max(finalMark, from) : from,
     truncated,
     fetched,

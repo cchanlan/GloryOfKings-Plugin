@@ -74,6 +74,7 @@ import { fetchRoleNames } from '../utils/roleName.js'
 // 锁 / 游标 / 退避 / 安静期 / 盯梢闸必须跨热重载共享，否则会被热重载架空（见 utils/hotState.js）
 import { hotBox } from '../utils/hotState.js'
 import { getAllBindings } from '../utils/rankStore.js'
+import { getNickMap, nickOf, withGroupNick } from '../utils/groupNick.js'
 import { getCurrentId, getLocalImage, Button, shouldQuote, pickGroupSafe, resolveMemberName, isBlackUser, ApiService, isProfileHidden } from '#utils'
 import { Config } from '#components'
 
@@ -948,6 +949,8 @@ export class GameRecordPush extends plugin {
     // 三条播报（打完、开局、上下线）现在都不 @ 本人，一律把玩家名写进文案。
     // @ 会给订阅者刷一条红点提醒，而他自己刚打完那局最清楚，真正需要认人的是群里其他人。
     const name = await this.resolveDisplayName(qq, sub)
+    // 战绩播报和上下线补群名片；开局提醒（sendHint）不补——那段文案被 #营地开播 的引用匹配依赖
+    const nameWithNick = withGroupNick(name, await this.groupNickOf(qq, sub))
 
     // 两件事凑在同一轮时合并成一条消息发。
     // 连着打排位时「上一局结算」和「下一局开局」几乎总是同一轮被读到，
@@ -956,7 +959,7 @@ export class GameRecordPush extends plugin {
     const blocks = []
     if (fresh.length) {
       // 出了图就用精简文案：KDA / 评分 / 时长图里都有，文字只留图上没有的巅峰分与段位变化
-      blocks.push(this.buildBattleMessage(fresh, data.list, heroMap, !!detailImage, name))
+      blocks.push(this.buildBattleMessage(fresh, data.list, heroMap, !!detailImage, nameWithNick))
     }
     if (needGaming) {
       blocks.push(`${fresh.length ? '—— 又开了一局 ——\n' : ''}${formatGamingText(data.gaming, heroMap, fresh.length ? '' : name)}`)
@@ -1026,8 +1029,10 @@ export class GameRecordPush extends plugin {
       return
     }
 
-    // 上下线都是给群友看的，不 @ 本人，名字写进文案
-    const name = roleName || await this.resolveDisplayName(qq, sub)
+    // 上下线都是给群友看的，不 @ 本人，名字写进文案。
+    // 群里再加上该群的群名片：不 @ 的时候群名片比营地昵称更好认
+    const baseName = roleName || await this.resolveDisplayName(qq, sub)
+    const name = withGroupNick(baseName, await this.groupNickOf(qq, sub))
 
     let text
     if (kind === 'online') {
@@ -1582,6 +1587,16 @@ export class GameRecordPush extends plugin {
     // 官bot 的群号是 openid、user_id 是 appid:openid，Number() 一律 NaN
     // 多群订阅取第一个群问名字就够——群名片可能各群不同，但这只是拿不到营地昵称时的兜底
     return resolveMemberName(pickGroupSafe(subGroups(sub)[0]), qq)
+  }
+
+  /**
+   * 这个 QQ 在主群的群名片。多群订阅时只取第一个群（和上面 resolveDisplayName 同口径），
+   * 因为一条推送只算一份文案、发到所有群。
+   */
+  async groupNickOf (qq, sub) {
+    const groupId = subGroups(sub)[0]
+    if (!groupId) return ''
+    return nickOf(await getNickMap(groupId, pickGroupSafe(groupId)), qq)
   }
 }
 

@@ -7,6 +7,7 @@ import { getImgType, ApiService, readYamlFile, getLocalImage, Button, AT_HEAD, s
 import path from 'path'
 import { PluginData, PluginPath } from '#components'
 import { reportHeroPowers } from '../utils/heroPowerShare.js'
+import { getNickMap, nickOf, withGroupNick } from '../utils/groupNick.js'
 
 // 英雄头像图（营地战斗页头像，裁成横图），比赛季页给的横版立绘更贴脸，优先用它
 const HERO_IMG_BASE = 'https://game-1255653016.file.myqcloud.com/battle_skin_1250-326'
@@ -111,6 +112,12 @@ export class HeroList extends plugin {
 
     const roleData = (profile.data.roleList || []).find(r => r.roleId === roleId) || {}
     const roleName = roleData.roleName || String(ID)
+    // 群里出图时用「游戏名（群名片）」；roleName 原值要留给上报共享库，不能用带名片的版本
+    const boundIds = new Set((userInfo?.ids || []).map(String))
+    const groupNick = e.isGroup && boundIds.has(String(ID))
+      ? nickOf(await getNickMap(e.group_id, e.group), userId)
+      : ''
+    const displayName = withGroupNick(roleName, groupNick)
     const roleIcon = roleData.roleIcon || ''
     // 分区/区服（如“微信/安卓”“QQ/苹果”），用于标明常用英雄数据所属地区
     const roleArea = [roleData.areaName, roleData.roleText].filter(Boolean).join(' · ')
@@ -155,7 +162,7 @@ export class HeroList extends plugin {
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/HeroList.html',
       _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
       ydId: String(ID),
-      roleName,
+      roleName: displayName,
       roleIcon,
       roleArea,
       scopeName: picked.scopeName,

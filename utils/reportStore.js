@@ -6,6 +6,7 @@
  * 小编号回绕、赛季切换、0 星是真实值这些坑已经在那边踩平了，不重写一遍。
  */
 import { summarizeSession, getHeroNameMap, formatOnlineDuration, formatDuration, formatStarChange, formatScoreDelta } from './pushStore.js'
+import { rankStarTotal, rankBand, rankBandShort, rankSegLabel } from './rankTrend.js'
 
 const toInt = value => {
   const num = Number(value)
@@ -336,7 +337,7 @@ export function rankHeroes (battles = [], heroMap = {}) {
  * @param {Record<string,string>} [options.heroMap] heroId -> 英雄名
  * @returns {object} 给模板用的汇总结果
  */
-export function summarizeReport (battles = [], { fromSec = 0, toSec = 0, heroMap = {} } = {}) {
+export function summarizeReport (battles = [], { fromSec = 0, toSec = 0, heroMap = {}, prevSnapshot = null } = {}) {
   const all = Array.isArray(battles) ? battles : []
   // 上界在这里再兜一道：调用方大多传的是 collectBattles 过滤好的列表，
   // 但这个模块是纯函数层，脱机测和群报都直接喂原始归档
@@ -346,8 +347,9 @@ export function summarizeReport (battles = [], { fromSec = 0, toSec = 0, heroMap
   const decided = win + lose
 
   // 段位星数与巅峰分直接复用推送那套：它的口径是「dtEventTime >= since 到最新」，
-  // 和日报/周报的「区间起点到现在」完全一致
-  const session = summarizeSession(list, fromSec)
+  // 和日报/周报的「区间起点到现在」完全一致。prevSnapshot 是区间开始前最近的一局，
+  // 传进来才能算准每个人第一局的星数变化
+  const session = summarizeSession(list, fromSec, prevSnapshot)
 
   const modes = new Map()
   let totalSec = 0
@@ -448,57 +450,103 @@ export { getHeroNameMap }
 
 /* ------------------------------------------------------------------ 群汇总 */
 
-/** 周报「上分之王」的折算口径：一颗星按 10 巅峰分算 */
+/** 血亏之王里「一星当多少巅峰分」的折算口径，只用于掉分榜，和上分榜无关 */
 const STAR_POINTS = 10
 
+/** 段位短名 + 小段，如「至尊星耀III」→「星耀III」、「最强王者」→「王者」 */
+function shortRank (jobName) {
+  if (!jobName) return ''
+  return `${rankBandShort(jobName)}${rankSegLabel(jobName)}`
+}
+
+/** 起止段位快照，如「星耀I 3★」；段位认不出时给空串 */
+function rankSnapshotText (jobName, stars) {
+  if (!jobName) return ''
+  return `${shortRank(jobName)} ${toInt(stars)}★`
+}
+
 /**
- * 上分之王的展示文案：折算后哪边更大就报哪边，和排序用的是同一把尺子。
+ * 上分之王的展示文案。星数与排位场次明显对不上时不报数字、只报段位变化：
+ * 归档里偶有「历史局段位名被后一次抓取改写成当时最新段位」的记录，
+ * 首尾快照算出来的累计差会被这种记录撑大（实测 18 胜 5 负显示 +38 星）。
+ * 排序仍用这个累计差——首尾两点本身是真实的，只是中间过程不可信。
  */
 function riseAwardText (row) {
-  const score = Number.isFinite(row.scoreDelta) ? row.scoreDelta : -Infinity
-  const star = Number.isFinite(row.starDelta) ? row.starDelta * STAR_POINTS : -Infinity
-  return star > score ? `上了 ${row.starDelta} 星` : `巅峰分 +${row.scoreDelta}`
+  if (row.starSuspect) return row.rankChangeText || `上了 ${row.starDelta} 星`
+  return `上了 ${row.starDelta} 星`
 }
 
 /**
  * 血亏之王的展示文案：掉星折算后哪边更惨就报哪边，和排序用的是同一把尺子。
+ * 跨段掉星也参与，但换算异常的记录直接不用星数，免得赛季重置那种 -50 星刷榜。
  */
 function dropAwardText (row) {
   const score = Number.isFinite(row.scoreDelta) ? row.scoreDelta : Infinity
-  const star = Number.isFinite(row.starDelta) ? row.starDelta * STAR_POINTS : Infinity
+  const star = Number.isFinite(row.starDelta) && !row.starSuspect && row.starDelta >= -30
+    ? row.starDelta * STAR_POINTS
+    : Infinity
   return star < score ? `掉了 ${-row.starDelta} 星` : `巅峰分 ${row.scoreDelta}`
 }
 
 /**
- * 一个成员这段时间的「涨跌」，供群榜的进步榜/掉分榜排序。
+ * 一个成员这段时间的「涨跌」，供群榜的上分榜/掉分榜排序。
  *
- * 只拿**巅峰分**做可比的数值：巅峰分是一条全服连续刻度，谁涨 30 谁掉 20 直接可比。
- * 段位星数不行——星耀的 1 星和最强王者的 1 星难度差着量级，跨人相减没有意义，
- * 所以段位那边只产出「升没升段」这个布尔性质的结论（rankUpText），不参与数值排序。
+ * 净星数用 rankStarTotal 折算成一条连续刻度，跨段也能相减
+ * （星耀I 4星 → 王者1星 = +2 星）。只有段位名认不出小段时才退回 null。
+ *
+ * 场次上限校验：一局排位最多净涨 1 星，再加 5 星的加星卡余量。超了就说明
+ * 归档里那条段位名是后来补抓时被改写的（单局跳 25 星），标 starSuspect，
+ * 排序仍按累计刻度（首尾快照是真实的），但文案只报段位不报星数。
  *
  * @param {object} report summarizeReport 的结果
- * @returns {{scoreDelta:number|null, starDelta:number|null, scoreText:string, rankUpText:string}}
- *   scoreDelta 为 null 表示这段时间没打巅峰赛（或分数没动）；
- *   starDelta 为 null 表示星数差不可比（跨段 / 跨小段）或没打排位
+ * @returns {{scoreDelta:number|null, starDelta:number|null, starSuspect:boolean,
+ *   scoreText:string, rankChangeText:string, rankUp:boolean, rankUpText:string}}
  */
 function pickProgress (report) {
   const delta = formatScoreDelta(report?.score)
   const from = toInt(report?.score?.scoreFrom)
   const to = toInt(report?.score?.scoreTo)
 
-  // 段位：只报「升段」这一种结论。formatStarChange 的 tone 已经把
-  // 「同名段跨小段」「赛季重置导致编号下降」这些坑判过了，别在这里重写判据
-  const star = formatStarChange(report?.stars)
-  const jobFrom = String(report?.stars?.jobFrom || '')
-  const jobTo = String(report?.stars?.jobTo || '')
+  const jobFrom = String(report?.stars?.jobFrom || '').trim()
+  const jobTo = String(report?.stars?.jobTo || '').trim()
+  const starFrom = toInt(report?.stars?.starFrom)
+  const starTo = toInt(report?.stars?.starTo)
+
+  // 净星数：段位名认得出小段就用累计刻度（跨段可比），否则只在同名段时直接相减
+  const totalFrom = rankStarTotal(jobFrom, starFrom)
+  const totalTo = rankStarTotal(jobTo, starTo)
+  let starDelta = null
+  if (totalFrom !== null && totalTo !== null) starDelta = totalTo - totalFrom
+  else if (jobFrom && jobFrom === jobTo) starDelta = starTo - starFrom
+
+  const rankedCount = (report?.modes || []).find(m => m.name === '排位赛')?.count || 0
+  const starSuspect = Number.isFinite(starDelta) && rankedCount > 0 &&
+    Math.abs(starDelta) > rankedCount + 5
+
+  const bandFrom = rankBand(jobFrom)
+  const bandTo = rankBand(jobTo)
+  const segFrom = rankSegLabel(jobFrom)
+  const segTo = rankSegLabel(jobTo)
+  // 真的升了一个台阶才算升段：跨大段，或同大段换了小段。
+  // 王者段的称号随星数变（非凡王者 → 绝世王者），名字不同但只是升星，不是升段
+  const stepUp = Boolean(jobFrom && jobTo) && (
+    bandTo > bandFrom ||
+    (bandTo === bandFrom && bandTo > 0 && Boolean(segFrom) && Boolean(segTo) && segFrom !== segTo)
+  )
+  const rankUp = stepUp && Number.isFinite(starDelta) && starDelta > 0
 
   return {
     scoreDelta: delta ? to - from : null,
-    // 同段内的净星数变化；跨段时星数不可比，给 null 不参与周报折算
-    starDelta: Number.isFinite(star?.stars) ? star.stars : null,
+    starDelta,
+    starSuspect,
     scoreText: delta ? delta.text : '',
-    rankUpText: star?.tone === 'up' && jobFrom && jobTo && jobFrom !== jobTo
-      ? `${jobFrom} → ${jobTo}`
+    // 「A → B」：段位真的换了一档才给，王者段内升星不算
+    rankChangeText: stepUp ? `${shortRank(jobFrom)} → ${shortRank(jobTo)}` : '',
+    rankUp,
+    // 升段之星的主文案：起止星数都带上。星差与场次明显对不上（starSuspect）时
+    // 只报起止快照、不报净升，免得拿污染过的数据吹一个不可能的星数
+    rankUpText: rankUp
+      ? `${shortRank(jobFrom)} ${starFrom}★ → ${shortRank(jobTo)} ${starTo}★${starSuspect ? '' : `（+${starDelta}★）`}`
       : ''
   }
 }
@@ -510,30 +558,43 @@ function pickProgress (report) {
  * 是单人口径，混着算出来的星数变化没有任何意义；群榜要的是「谁打得多、谁胜率高」，
  * 逐人汇总再排行就够了。
  *
- * @param {Array<{name:string, icon:string, report:object}>} members
+ * @param {Array<{name:string, icon:string, nick?:string, report:object}>} members
  * @returns {object} 给 buildGroupView 用的聚合结果
  */
 export function summarizeGroup (members = []) {
   const rows = members
     .filter(m => m?.report?.count > 0)
-    .map(m => ({
-      name: m.name || '召唤师',
-      icon: m.icon || '',
-      count: m.report.count,
-      win: m.report.win,
-      lose: m.report.lose,
-      winRate: m.report.winRate,
-      totalSec: m.report.totalSec,
-      totalTimeText: m.report.totalTimeText,
-      mvp: m.report.mvp,
-      loseMvp: m.report.loseMvp,
-      topHero: m.report.topHero
-        ? { heroId: m.report.topHero.heroId, name: m.report.topHero.name, count: m.report.topHero.count }
-        : null,
-      streak: m.report.streak || { type: '', count: 0 },
-      // 进步榜/掉分榜要用的两个量，口径见 pickProgress
-      ...pickProgress(m.report)
-    }))
+    .map(m => {
+      const name = m.name || '召唤师'
+      // 群名片限 6 个字：称号格和排行榜行都是单行 nowrap，
+      // 「AAA.龙哥智商批发（全网进货中）」这种长名片会把称号内容直接挤成省略号
+      const rawNick = String(m.nick || '').trim()
+      const chars = [...rawNick]
+      const nick = rawNick === name
+        ? ''
+        : (chars.length > 6 ? `${chars.slice(0, 6).join('')}…` : rawNick)
+      return {
+        name,
+        nick,
+        // 榜单和称号统一用这个：游戏名（群昵称）
+        displayName: nick ? `${name}（${nick}）` : name,
+        icon: m.icon || '',
+        count: m.report.count,
+        win: m.report.win,
+        lose: m.report.lose,
+        winRate: m.report.winRate,
+        totalSec: m.report.totalSec,
+        totalTimeText: m.report.totalTimeText,
+        mvp: m.report.mvp,
+        loseMvp: m.report.loseMvp,
+        topHero: m.report.topHero
+          ? { heroId: m.report.topHero.heroId, name: m.report.topHero.name, count: m.report.topHero.count }
+          : null,
+        streak: m.report.streak || { type: '', count: 0 },
+        // 进步榜/掉分榜要用的两个量，口径见 pickProgress
+        ...pickProgress(m.report)
+      }
+    })
     .sort((a, b) => b.count - a.count || b.winRate - a.winRate)
 
   const totalCount = rows.reduce((s, r) => s + r.count, 0)
@@ -570,18 +631,19 @@ export function summarizeGroup (members = []) {
     }))
     .sort((a, b) => b.count - a.count || b.winRate - a.winRate)
 
-  // 「上分之王」把巅峰分和「上星数 × 10」放在同一把尺子上，取大的那项。
-  // starDelta 同段内才可比，跨段的人是 null，就只剩巅峰分参与
-  const risePoints = row => {
-    const score = Number.isFinite(row.scoreDelta) ? row.scoreDelta : -Infinity
-    const star = Number.isFinite(row.starDelta) ? row.starDelta * STAR_POINTS : -Infinity
-    return Math.max(score, star)
-  }
+  // 上分之王只看段位净升星（跨段已按累计刻度换算），巅峰分另开一个「巅峰之王」。
+  // 原来把两者乘个数混在一起比，升了大段却没打巅峰赛的人会直接落选
+  // （2026-10 月报：10 个跨段升段的人因为净星不可比被整体排除）。
+  const risePoints = row => Number.isFinite(row.starDelta) ? row.starDelta : -Infinity
+  const peakPoints = row => Number.isFinite(row.scoreDelta) ? row.scoreDelta : -Infinity
 
-  // 血亏之王同理，只是方向反过来：取折算后更惨的那项
+  // 血亏之王：取折算后更惨的那项。星数与场次明显对不上（starSuspect）的不参与星数比较，
+  // 否则赛季重置那种 -50 星会年年霸榜
   const dropPoints = row => {
     const score = Number.isFinite(row.scoreDelta) ? row.scoreDelta : Infinity
-    const star = Number.isFinite(row.starDelta) ? row.starDelta * STAR_POINTS : Infinity
+    const star = Number.isFinite(row.starDelta) && !row.starSuspect && row.starDelta >= -30
+      ? row.starDelta * STAR_POINTS
+      : Infinity
     return Math.min(score, star)
   }
 
@@ -608,14 +670,17 @@ export function summarizeGroup (members = []) {
     // 最长连败也值一个称号，群里就爱看这个
     topStreak: rows.filter(r => r.streak?.type === 'win' && r.streak.count >= 3)
       .sort((a, b) => b.streak.count - a.streak.count)[0] || null,
-    // 涨得最多 / 掉得最多：段位星数按一颗 10 分折算后和巅峰分比，
-    // 涨榜取大的那项、跌榜取小的那项；两边都没数据时是 null，称号栏自动不占位
+    // 上分之王：段位净升星最多，同星数看场次
     topRise: rows.filter(r => risePoints(r) > 0)
-      .sort((a, b) => risePoints(b) - risePoints(a))[0] || null,
+      .sort((a, b) => risePoints(b) - risePoints(a) || b.count - a.count)[0] || null,
+    // 巅峰之王：巅峰分涨得最多
+    topPeak: rows.filter(r => peakPoints(r) > 0)
+      .sort((a, b) => peakPoints(b) - peakPoints(a) || b.count - a.count)[0] || null,
     topDrop: rows.filter(r => dropPoints(r) < 0)
       .sort((a, b) => dropPoints(a) - dropPoints(b))[0] || null,
-    // 升段的人。段位跨段没法和别人比数值，所以不排序，谁先升到就先列谁
-    topRankUp: rows.filter(r => r.rankUpText)[0] || null
+    // 升段之星：段位名真的变了且净升星为正的人里，升得最多的（原来按场次排，谁打得多谁拿）
+    topRankUp: rows.filter(r => r.rankUp)
+      .sort((a, b) => risePoints(b) - risePoints(a) || b.count - a.count)[0] || null
   }
 }
 
@@ -842,6 +907,8 @@ export function buildGroupView (group, {
   const topCount = group.rows[0]?.count || 1
   const rows = group.rows.slice(0, rowLimit).map((r, idx) => ({
     ...r,
+    // 模板只用 name 一个字段，这里直接换成「游戏名（群昵称）」，不用改 HTML
+    name: r.displayName || r.name,
     rank: idx + 1,
     topHeroIcon: r.topHero ? heroIconUrl(r.topHero.heroId) : '',
     barWidth: Math.max(6, Math.round((r.count / topCount) * 100)),
@@ -856,15 +923,16 @@ export function buildGroupView (group, {
   // 称号栏：只列存在的，空的不占位
   const awards = []
   const award = (key, row, fmt) => row && awards.push({ key, val: fmt(row), icon: row.icon })
-  award('肝帝', group.topGrinder, r => `${r.name} · ${r.count} 场`)
-  award('胜场王', group.topWinner, r => `${r.name} · ${r.win} 胜`)
-  award('胜率王', group.topRate, r => `${r.name} · ${r.winRate}%（${r.count} 场）`)
-  award('MVP 收割机', group.topMvp, r => `${r.name} · ${r.mvp} 次`)
-  award('尽力局长', group.topLoseMvp, r => `${r.name} · 败方 MVP ${r.loseMvp} 次`)
-  award('连胜之星', group.topStreak, r => `${r.name} · ${r.streak.count} 连胜`)
-  award('上分之王', group.topRise, r => `${r.name} · ${riseAwardText(r)}`)
-  award('血亏之王', group.topDrop, r => `${r.name} · ${dropAwardText(r)}`)
-  award('升段之星', group.topRankUp, r => `${r.name} · ${r.rankUpText}`)
+  award('肝帝', group.topGrinder, r => `${r.displayName} · ${r.count} 场`)
+  award('胜场王', group.topWinner, r => `${r.displayName} · ${r.win} 胜`)
+  award('胜率王', group.topRate, r => `${r.displayName} · ${r.winRate}%（${r.count} 场）`)
+  award('MVP 收割机', group.topMvp, r => `${r.displayName} · ${r.mvp} 次`)
+  award('尽力局长', group.topLoseMvp, r => `${r.displayName} · 败方 MVP ${r.loseMvp} 次`)
+  award('连胜之星', group.topStreak, r => `${r.displayName} · ${r.streak.count} 连胜`)
+  award('上分之王', group.topRise, r => `${r.displayName} · ${riseAwardText(r)}`)
+  award('巅峰之王', group.topPeak, r => `${r.displayName} · 巅峰分 +${r.scoreDelta}`)
+  award('血亏之王', group.topDrop, r => `${r.displayName} · ${dropAwardText(r)}`)
+  award('升段之星', group.topRankUp, r => `${r.displayName} · ${r.rankUpText}`)
 
   const heroTop = group.heroes?.[0]?.count || 1
   const heroes = (group.heroes || []).slice(0, heroLimit).map((h, idx) => ({

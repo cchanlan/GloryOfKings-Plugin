@@ -105,6 +105,49 @@ export function isKingBand (jobName) {
   return rankBand(jobName) === 7
 }
 
+/** 小段罗马数字从低到高。各段的小段数不同，见 rankStarTotal 的注释 */
+const SEG_ORDER = ['V', 'IV', 'III', 'II', 'I']
+/** 各大段第一小段之前的累计星数（青铜III 0 星起算） */
+const RANK_BASE = { 1: 0, 2: 9, 3: 18, 4: 34, 5: 50, 6: 75, 7: 100 }
+/** 每小段满星：青铜/白银 3 星、黄金/铂金 4 星、钻石/星耀 5 星 */
+const SEG_FULL = { 1: 3, 2: 3, 3: 4, 4: 4, 5: 5, 6: 5 }
+/** 各大段有几个小段：青铜/白银 III~I、黄金/铂金 IV~I、钻石/星耀 V~I */
+const SEG_COUNT = { 1: 3, 2: 3, 3: 4, 4: 4, 5: 5, 6: 5 }
+
+/**
+ * 段位累计星数：把「大段 + 小段 + 段内星」折算成从青铜III 0 星起算的一条连续刻度，
+ * 让跨段的净升星可以相减（星耀I 4星 → 王者1星 = 99 → 101 = +2 星）。
+ *
+ * 为什么不能直接用 roleJob 编号：真实归档里编号会乱跳（同一个「永恒钻石IV」出现过
+ * job=20/21，「至尊星耀V」出现过 15/22），而段位名里的小段罗马数字是稳定阶梯。
+ *
+ * ⚠️ 只用于报表排序和文案，不写回任何数据。营地给历史局的 roleJobName 偶尔会被
+ * 后一次抓取改写成「抓取那一刻的段位」（2026-10-25 实测 1807995411 在 26 分钟里
+ * 从钻石V 2星变成星耀V 2星），那种记录算出来的单段星差是假的，
+ * 调用方要拿「排位场次 + 5」做上限校验，见 reportStore.pickProgress。
+ *
+ * @param {string} jobName 段位名，如「至尊星耀III」「最强王者」
+ * @param {number} stars 段内星数（王者段本身就是累计星数）
+ * @returns {number|null} 累计星数；段位认不出或缺少小段时返回 null
+ */
+export function rankStarTotal (jobName, stars) {
+  const band = rankBand(jobName)
+  if (!band) return null
+  const star = toInt(stars)
+  if (band === 7) return RANK_BASE[7] + star
+  const m = String(jobName || '').trim().match(/(IV|V|III|II|I)$/)
+  if (!m) return null
+  // 各段的小段数不同（青铜/白银从 III 起、钻石/星耀从 V 起），先对齐到「离本段底几格」
+  const segIdx = SEG_ORDER.indexOf(m[1]) - (5 - SEG_COUNT[band])
+  if (segIdx < 0) return null
+  return RANK_BASE[band] + segIdx * SEG_FULL[band] + star
+}
+
+/** 段位名里的小段标签（「至尊星耀III」→「III」，「最强王者」→ 空串） */
+export function rankSegLabel (jobName) {
+  return String(jobName || '').trim().match(/(IV|V|III|II|I)$/)?.[1] || ''
+}
+
 /** 排位赛才改变段位。巅峰赛改的是巅峰分，娱乐模式什么都不改 */
 export function isRankedBattle (item) {
   return String(item?.mapName || '').includes('排位')

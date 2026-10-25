@@ -38,6 +38,7 @@ import { mapConcurrent } from '../utils/parallel.js'
 import { hotBox } from '../utils/hotState.js'
 import { getImgType, Button, shouldQuote, getUserAvatar, getGroupAvatar, isBlackUser, isProfileHidden, getCurrentId } from '#utils'
 import { heroIconUrl } from '../utils/reportStore.js'
+import { getNickMap, nickOf, withGroupNick } from '../utils/groupNick.js'
 
 /** 快照超过这个时长就在文案里标「数据较旧」，单位毫秒。对着常驻轮询那档封顶（十分钟一轮）定的 */
 const STALE_MS = 15 * 60 * 1000
@@ -237,6 +238,17 @@ export class WhoIsPlaying extends plugin {
     // ⚠️ 跨组不去重：一个人若同时出现在「正在对局」和「离线」里，那是数据的错，
     // 不是重名，这里只在一组内部去重，别把跨组的情况也吞掉。
     for (const list of [playing, justEnded, inGameIdle, online, offline, unknown]) dedupeByName(list)
+
+    // 群里发的名单补群名片。放在去重**之后**：去重是按游戏名判断「同一个人被两个 QQ 共用」，
+    // 先拼名片会让同一个营地身份变成两个不同的名字，共号去重就失效了
+    if (e.isGroup) {
+      const nickMap = await getNickMap(e.group_id, e.group)
+      if (nickMap?.size) {
+        for (const list of [playing, justEnded, inGameIdle, online, offline, unknown]) {
+          for (const row of list) row.name = withGroupNick(row.name, nickOf(nickMap, row.qq))
+        }
+      }
+    }
 
     const groups = { playing, justEnded, inGameIdle, online, offline, unknown }
     const img = await this.shot(e, groups, here)

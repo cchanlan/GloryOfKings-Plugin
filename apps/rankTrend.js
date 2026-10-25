@@ -32,6 +32,7 @@ import {
 } from '../utils/rankTrend.js'
 import { getHeroNameMap, loadPushList } from '../utils/pushStore.js'
 import { heroIconUrl } from '../utils/reportStore.js'
+import { getNickMap, nickOf, withGroupNick } from '../utils/groupNick.js'
 
 const CMD = '(段位趋势|段位曲线|排位趋势|段位走势)'
 
@@ -163,7 +164,11 @@ function parseArgs (input = '') {
 /** 展示名兜底：推送订阅里缓存的营地昵称 → 群名片 → QQ 号，都不额外发请求 */
 async function displayName (e, userId) {
   const cached = String(loadPushList()[String(userId)]?.roleName || '').trim()
-  if (cached) return cached
+  if (cached) {
+    // 群里发的图，游戏名后面补该群的群名片；私聊不加
+    const nick = e?.isGroup ? nickOf(await getNickMap(e.group_id, e.group), userId) : ''
+    return withGroupNick(cached, nick)
+  }
   try {
     // ⚠️ 第一个形参是**群对象**（utils/adapter.js 里是 `group?.pickMember?.(uid)`），传消息事件 e
     //    取不到群名片、静默退化成 QQ 号（2026-10-06 修）。同仓其余 5 处调用传的都是 e.group。

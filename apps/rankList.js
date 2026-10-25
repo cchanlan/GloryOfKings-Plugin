@@ -2,6 +2,7 @@ import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { getImgType, readYamlFile, Button, getUserAvatar, shouldQuote, isShareReady, querySharedBind, fetchSharedRoster, uploadLocalBindings } from '#utils'
 import { collectRankData, buildRankList, getAllBindings, readSnapshot, SNAPSHOT_TTL } from '../utils/rankStore.js'
+import { getNickMap, nickOf, withGroupNick } from '../utils/groupNick.js'
 import { mapConcurrent } from '../utils/parallel.js'
 import { PluginData } from '#components'
 
@@ -232,6 +233,19 @@ export class RankList extends plugin {
     ])]
 
     const full = buildRankList(snapshot.entries, type, { campIds, ownerMap })
+
+    // 群里发的榜，游戏名后面补该群的群名片（私聊没有群名片，不加）。
+    // 一个营地号被多人绑定时，取**第一个在这个群里**的绑定人
+    if (e.isGroup) {
+      const nickMap = await getNickMap(e.group_id, e.group)
+      if (nickMap?.size) {
+        for (const item of full) {
+          const owners = (item.botUserIds?.length ? item.botUserIds : [item.botUserId]).map(String)
+          const owner = owners.find(qq => nickOf(nickMap, qq))
+          item.roleName = withGroupNick(item.roleName, owner ? nickOf(nickMap, owner) : '')
+        }
+      }
+    }
 
     if (!full.length) {
       await e.reply(type === 'peak'
