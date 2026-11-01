@@ -202,10 +202,17 @@ export function supportGuoba () {
       iconPath: `${PluginPath}/resources/th.png`
     },
     configInfo: {
+      // ⭐ 配置按模块分组（2026-11-01 主人要求，对齐 DF 插件的横向标签页）：
+      //    每个 `SOFT_GROUP_BEGIN` 开一个新 Tab，label 就是标签名 ——
+      //    锅巴前端（web/src/utils/schema.ts 的 splitGroups）按它把扁平列表切组，
+      //    组内所有字段仍共用一个表单模型，保存逻辑完全不受影响。
+      //    ⚠️ 第一个元素**必须**就是 SOFT_GROUP_BEGIN：标记之前的内容会被切成
+      //    「分组 1」（没名字）的默认页，这正是改造前的样子。
+      //    使用锅巴现成的分组协议，不改公共前端；这里只在 JiuLi 上验证过。
       schemas: [
         {
-          component: 'Divider',
-          label: '插件设置'
+          component: 'SOFT_GROUP_BEGIN',
+          label: '基础设置'
         },
         {
           field: 'config.onlineReminder',
@@ -237,6 +244,10 @@ export function supportGuoba () {
             options: masterOptions,
             placeholder: '留空 = 只发给第一个主人'
           }
+        },
+        {
+          component: 'SOFT_GROUP_BEGIN',
+          label: '战绩推送'
         },
         {
           field: 'config.battleResultCron',
@@ -318,7 +329,7 @@ export function supportGuoba () {
           }
         },
         {
-          component: 'Divider',
+          component: 'SOFT_GROUP_BEGIN',
           label: '服务端接入'
         },
         {
@@ -338,6 +349,24 @@ export function supportGuoba () {
           component: 'Input',
           componentProps: {
             placeholder: 'gok_1_xxxxxxxx'
+          }
+        },
+        {
+          field: 'config.distAdminSecret',
+          label: '分发服务管理密钥（主人用）',
+          bottomHelpMessage: '签令牌、看接入方、吊销要用它。本机部署了分发服务时不用填。',
+          component: 'Input',
+          componentProps: {
+            placeholder: '64 位十六进制'
+          }
+        },
+        {
+          field: 'config.distRepoUrl',
+          label: '分发服务代码仓库',
+          bottomHelpMessage: '部署分发服务时从哪个仓库拉代码。一般不用改。',
+          component: 'Input',
+          componentProps: {
+            placeholder: '留空 = 用默认的私库'
           }
         },
         {
@@ -415,25 +444,7 @@ export function supportGuoba () {
           }
         },
         {
-          field: 'config.distAdminSecret',
-          label: '分发服务管理密钥（主人用）',
-          bottomHelpMessage: '签令牌、看接入方、吊销要用它。本机部署了分发服务时不用填。',
-          component: 'Input',
-          componentProps: {
-            placeholder: '64 位十六进制'
-          }
-        },
-        {
-          field: 'config.distRepoUrl',
-          label: '分发服务代码仓库',
-          bottomHelpMessage: '部署分发服务时从哪个仓库拉代码。一般不用改。',
-          component: 'Input',
-          componentProps: {
-            placeholder: '留空 = 用默认的私库'
-          }
-        },
-        {
-          component: 'Divider',
+          component: 'SOFT_GROUP_BEGIN',
           label: '营地观战'
         },
         {
@@ -464,7 +475,35 @@ export function supportGuoba () {
           }
         },
         {
-          component: 'Divider',
+          field: 'config.watchHintEnabled',
+          label: '开播引导',
+          bottomHelpMessage: '订阅上下线提醒的人进对局后，往群里发一条「要不要开播」的提示。',
+          component: 'Switch'
+        },
+        {
+          field: 'config.watchHintAfterMin',
+          label: '开局多少分钟后提示',
+          bottomHelpMessage: '进对局满这么多分钟才发提示。',
+          component: 'InputNumber',
+          componentProps: {
+            min: 1,
+            max: 30,
+            placeholder: '默认 3'
+          }
+        },
+        {
+          field: 'config.watchHintPollMs',
+          label: '盯梢轮询间隔（毫秒）',
+          bottomHelpMessage: '盯梢时多久查一次对局状态。别调太小，会被营地限流。',
+          component: 'InputNumber',
+          componentProps: {
+            min: 5000,
+            step: 1000,
+            placeholder: '默认 15000'
+          }
+        },
+        {
+          component: 'SOFT_GROUP_BEGIN',
           label: '营地消息'
         },
         {
@@ -564,32 +603,8 @@ export function supportGuoba () {
           }
         },
         {
-          field: 'config.watchHintEnabled',
-          label: '开播引导',
-          bottomHelpMessage: '订阅上下线提醒的人进对局后，往群里发一条「要不要开播」的提示。',
-          component: 'Switch'
-        },
-        {
-          field: 'config.watchHintAfterMin',
-          label: '开局多少分钟后提示',
-          bottomHelpMessage: '进对局满这么多分钟才发提示。',
-          component: 'InputNumber',
-          componentProps: {
-            min: 1,
-            max: 30,
-            placeholder: '默认 3'
-          }
-        },
-        {
-          field: 'config.watchHintPollMs',
-          label: '盯梢轮询间隔（毫秒）',
-          bottomHelpMessage: '盯梢时多久查一次对局状态。别调太小，会被营地限流。',
-          component: 'InputNumber',
-          componentProps: {
-            min: 5000,
-            step: 1000,
-            placeholder: '默认 15000'
-          }
+          component: 'SOFT_GROUP_BEGIN',
+          label: '王者签到'
         },
         {
           field: 'config.campSignCron',
@@ -607,8 +622,8 @@ export function supportGuoba () {
           component: 'Switch'
         },
         {
-          component: 'Divider',
-          label: '出图'
+          component: 'SOFT_GROUP_BEGIN',
+          label: '出图缓存'
         },
         {
           field: 'config.imgType',
@@ -623,10 +638,6 @@ export function supportGuoba () {
               { label: 'WebP（体积小，微信下会变成文件）', value: 'webp' }
             ]
           }
-        },
-        {
-          component: 'Divider',
-          label: '图片缓存'
         },
         {
           field: 'config.imgCacheMaxMB',
@@ -650,8 +661,8 @@ export function supportGuoba () {
           }
         },
         {
-          component: 'Divider',
-          label: '皮肤上新'
+          component: 'SOFT_GROUP_BEGIN',
+          label: '资讯推送'
         },
         {
           field: 'config.skinNewsCron',
@@ -664,12 +675,8 @@ export function supportGuoba () {
           }
         },
         {
-          component: 'Divider',
-          label: '王者公告'
-        },
-        {
           field: 'config.gameNewsCron',
-          label: '公告检查时间',
+          label: '王者公告检查时间',
           bottomHelpMessage: '按这个时间查一次官网公告，推给订阅的群。留空 = 只保留指令。',
           helpMessage: '修改后重启生效',
           component: 'EasyCron',
@@ -678,7 +685,7 @@ export function supportGuoba () {
           }
         },
         {
-          component: 'Divider',
+          component: 'SOFT_GROUP_BEGIN',
           label: '黑名单'
         },
         {
@@ -708,7 +715,7 @@ export function supportGuoba () {
         },
         {
           component: 'SOFT_GROUP_BEGIN',
-          label: '账号鉴权管理'
+          label: '账号鉴权'
         },
         {
           component: 'Divider',
