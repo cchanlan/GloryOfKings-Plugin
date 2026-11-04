@@ -713,8 +713,10 @@ export class AccountManager extends plugin {
     }
 
     await this.#recallMessage(e, pending.qrMessageId)
+    await this.#recallMessage(e, pending.qrPromptMessageId)
     await this.#recallMessage(e, pending.scanStatusMessageId)
     pending.qrMessageId = ''
+    pending.qrPromptMessageId = ''
     pending.scanStatusMessageId = ''
     // ⚠️⚠️ 置空前**必须先 clearTimeout**（2026-10-05 修）。
     //    收尾的 `#clearPendingLogin` 是拿 `if (pending.scanStatusRecallTimer)` 判的，
@@ -794,30 +796,41 @@ export class AccountManager extends plugin {
 
     const taskId = `${botUserId}:${taskIdSuffix}${Date.now()}`
     let qrReply = null
+    let qrPromptReply = null
     try {
-      qrReply = await e.reply([
-        ...qrPromptLines,
-        '\n',
-        segment.image(`base64://${session.qrcodeBuffer.toString('base64')}`)
-      ])
+      // JiuLi 实收官 bot 回流的图文消息中，图片链接只剩 https:；其他框架尚未实跑。
+      // 文案与图片分开发，二维码保持纯图片消息；不依赖某个适配器的私有上传接口。
+      qrPromptReply = await e.reply(qrPromptLines.join(''), false)
+      if (qrPromptReply === false) throw new Error('登录提示发送失败')
+      // 新版 puppeteer 的截图可能是 Uint8Array，先转 Buffer 才能正确编码 base64。
+      qrReply = await e.reply(
+        segment.image(`base64://${Buffer.from(session.qrcodeBuffer).toString('base64')}`),
+        false
+      )
+      if (qrReply === false) throw new Error('二维码发送失败')
     } catch (error) {
+      await this.#recallMessage(e, qrPromptReply?.message_id)
+      logger.error(`${logTag} 发送二维码失败: ${error.message}`)
       if (!closeSessionOnReplyFail) throw error
       await session.close()
-      logger.error(`${logTag} 发送二维码失败: ${error.message}`)
       return null
     }
 
     const pendingInfo = {
       taskId,
       qrMessageId: qrReply?.message_id || '',
+      qrPromptMessageId: qrPromptReply?.message_id || '',
       scanStatusMessageId: '',
       hasScanned: false,
       scanStatusRecallTimer: null,
       recallTimer: setTimeout(() => {
-        void this.#recallMessage(e, pendingInfo.qrMessageId)
-          .finally(() => {
-            pendingInfo.qrMessageId = ''
-          })
+        void Promise.all([
+          this.#recallMessage(e, pendingInfo.qrMessageId),
+          this.#recallMessage(e, pendingInfo.qrPromptMessageId)
+        ]).finally(() => {
+          pendingInfo.qrMessageId = ''
+          pendingInfo.qrPromptMessageId = ''
+        })
       }, LOGIN_QR_RECALL_SECONDS * 1000)
     }
     pendingWechatLoginMap.set(botUserId, pendingInfo)
