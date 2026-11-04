@@ -347,30 +347,48 @@ export async function createQQLoginSession(e) {
       throw new Error('未能获取登录二维码，请稍后重试')
     }
 
-    // 优先在页面内把二维码读成 base64 —— 不走截图。
-    // 截图依赖渲染后端（外置渲染/远程 chromium 上 clip、deviceScaleFactor 都可能不靠谱），
-    // 而页面内的图片本来就是同源请求，直接 fetch 回来最稳，体积也更小。
+    // QQ 原图实测是 1-bit 灰度 PNG，而帮助/教程图是 RGB JPEG。
+    // 官 bot 中转对原图返回空图片链接；拆分消息无效，需先统一图片编码。
+    // 在同一个登录页面内转成白底 JPEG，不改变二维码内容、尺寸或登录会话，
+    // 也不依赖本机 sharp / 外置渲染器截图参数。仅在 Linux JiuLi 真机验证过。
     let qrcodeBuffer = await page.evaluate(async () => {
       const el = document.querySelector('#qrlogin_img, .qrlogin_img, img[src*="ptqrshow"], img[src*="qrcode"], canvas#qrlogin_canvas, .qrlogin canvas')
       if (!el) {
         return null
       }
       try {
-        if (el.tagName === 'CANVAS') {
-          return el.toDataURL('image/png')
+        const encodeImage = image => {
+          const canvas = document.createElement('canvas')
+          canvas.width = image.naturalWidth || image.width
+          canvas.height = image.naturalHeight || image.height
+          if (!canvas.width || !canvas.height) throw new Error('二维码图片尺寸为空')
+          const ctx = canvas.getContext('2d')
+          ctx.fillStyle = '#fff'
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
+          ctx.drawImage(image, 0, 0)
+          return canvas.toDataURL('image/jpeg', 1)
         }
+        if (el.tagName === 'CANVAS') return encodeImage(el)
         const src = el.currentSrc || el.src || el.getAttribute('data-src')
         if (!src) {
           return null
         }
         const response = await fetch(src, { credentials: 'include' })
+        if (!response.ok) return null
         const blob = await response.blob()
-        return await new Promise(resolve => {
-          const reader = new FileReader()
-          reader.onload = () => resolve(reader.result)
-          reader.onerror = () => resolve(null)
-          reader.readAsDataURL(blob)
-        })
+        const url = URL.createObjectURL(blob)
+        try {
+          const image = new Image()
+          await new Promise((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error('二维码图片解码超时')), 10000)
+            image.onload = () => { clearTimeout(timer); resolve() }
+            image.onerror = () => { clearTimeout(timer); reject(new Error('二维码图片解码失败')) }
+            image.src = url
+          })
+          return encodeImage(image)
+        } finally {
+          URL.revokeObjectURL(url)
+        }
       } catch (error) {
         return null
       }
@@ -382,6 +400,8 @@ export async function createQQLoginSession(e) {
       // 兜底：页面里读不到（版式特殊）才截图；区域截图失败再退整页
       logger.warn('[营地QQ登录] 页面内未读到二维码图片，改用截图')
       qrcodeBuffer = await page.screenshot({
+        type: 'jpeg',
+        quality: 100,
         clip: {
           x: Math.max(0, box.x - 12),
           y: Math.max(0, box.y - 12),
@@ -390,7 +410,7 @@ export async function createQQLoginSession(e) {
         }
       }).catch(async error => {
         logger.warn(`[营地QQ登录] 二维码区域截图失败，改用整页截图: ${error.message}`)
-        return page.screenshot().catch(() => null)
+        return page.screenshot({ type: 'jpeg', quality: 100 }).catch(() => null)
       })
     }
 
