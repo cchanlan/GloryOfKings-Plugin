@@ -12,7 +12,7 @@ function pickMessageId (result) {
   return ''
 }
 
-function confirmed (result) {
+export function isConfirmedReceipt (result) {
   return Boolean(result && typeof result === 'object' && !result.error &&
     (result.status === undefined || result.status === 'ok') &&
     (result.retcode === undefined || result.retcode === 0) && pickMessageId(result))
@@ -40,7 +40,7 @@ export async function sendPrivate (userId, message, { bot, groupId } = {}) {
     const friend = api?.pickFriend?.(target)
     if (typeof friend?.sendMsg === 'function') {
       const result = await friend.sendMsg(message)
-      if (confirmed(result)) return { ok: true, via: 'friend', messageId: pickMessageId(result) }
+      if (isConfirmedReceipt(result)) return { ok: true, via: 'friend', messageId: pickMessageId(result) }
       reason = receiptReason(result)
     }
   } catch (error) {
@@ -60,7 +60,7 @@ export async function sendPrivate (userId, message, { bot, groupId } = {}) {
         group_id: Number(groupId),
         message: [{ type: 'text', data: { text: String(message) } }]
       })
-      if (confirmed(result)) {
+      if (isConfirmedReceipt(result)) {
         return { ok: true, via: 'group_temp', messageId: pickMessageId(result) }
       }
       reason = receiptReason(result)
