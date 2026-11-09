@@ -1093,7 +1093,9 @@ export async function getHeroNameMap () {
  */
 export async function fetchOnlineState (campId, qq) {
   try {
-    const res = await ApiService.getProfile(String(campId), String(qq))
+    // 在线状态是公开资料，不需要营地的自我豁免 —— 显式要求轮转，别把本人号
+    // 全天钉在推送轮询上（2026-11-09 教训：自查自的订阅把本人号打到 -30107，静默 12 小时）。
+    const res = await ApiService.getProfile(String(campId), String(qq), { selfFirst: false })
     const code = Number(res?.returnCode || 0)
 
     // ⚠️ 和 fetchLatest 同一口径：两个码都表示「这个号在营地侧取不到数据」
