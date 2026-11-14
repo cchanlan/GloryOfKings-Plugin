@@ -3,7 +3,7 @@
 // 注意只有传具体 seasonId 时才带 heroFightPower/honorTitle，seasonId=0 的 historyList 里这两个字段是空的。
 // 生涯累计榜（/game/profile/herolist）作为赛季无数据时的兜底，字段参考自 https://github.com/KimigaiiWuyi/WzryUID
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { getImgType, ApiService, readYamlFile, getLocalImage, Button, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote } from '#utils'
+import { getImgType, ApiService, readYamlFile, getLocalImage, Button, campIdGuidePayload, CAMP_ID_GUIDE_HINT, CAMP_ID_SUFFIX_HINT, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote } from '#utils'
 import path from 'path'
 import { PluginData, PluginPath } from '#components'
 import { reportHeroPowers } from '../utils/heroPowerShare.js'
@@ -83,7 +83,7 @@ export class HeroList extends plugin {
       : null)
 
     if (!ID) {
-      await e.reply(['未查询到营地ID，请先使用 #绑定营地 绑定营地ID，或在指令后附带营地ID', Button.bind()])
+      await e.reply(campIdGuidePayload(`${CAMP_ID_SUFFIX_HINT}\n${CAMP_ID_GUIDE_HINT}`), shouldQuote())
       return
     }
 

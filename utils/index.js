@@ -38,6 +38,7 @@ import {
   decodeEncodeResUserKey
 } from './wechatLogin.js'
 import Button from './button.js'
+import { CAMP_ID_GUIDE_HINT, CAMP_ID_SUFFIX_HINT, campIdGuidePayload } from './campIdGuide.js'
 import {
   getBlackList,
   isBlackUser,
@@ -108,6 +109,10 @@ export {
   waitForWechatLogin,
   decodeEncodeResUserKey,
   Button,
+  // 「还没绑定营地ID」的统一回复：示例文案 + 教程图 + 绑定按钮（utils/campIdGuide.js）
+  CAMP_ID_GUIDE_HINT,
+  CAMP_ID_SUFFIX_HINT,
+  campIdGuidePayload,
   getBlackList,
   isBlackUser,
   isBlockedEvent,

@@ -1,6 +1,6 @@
 import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { getImgType, ApiService, readYamlFile, Button, parsePerfArgs, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote } from '#utils'
+import { getImgType, ApiService, readYamlFile, Button, campIdGuidePayload, parsePerfArgs, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote } from '#utils'
 import { PluginData, PluginPath } from '#components'
 import { privacyScope } from '../utils/seasonFallback.js'
 import { getNickMap, nickOf, withGroupNick } from '../utils/groupNick.js'
@@ -60,10 +60,7 @@ export class AllSeasonPerformance extends plugin {
     const campId = args.campId || userInfo?.ids?.[userInfo.current ?? 0]
 
     if (!campId) {
-      await e.reply([
-        segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')),
-        Button.bind()
-      ], shouldQuote())
+      await e.reply(campIdGuidePayload(), shouldQuote())
       return
     }
 

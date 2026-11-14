@@ -12,7 +12,7 @@ import path from 'path'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import {
   getImgType,
-  ApiService, Button, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData,
+  ApiService, Button, campIdGuidePayload, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData,
   shouldQuote, getUserAvatar, resolveMemberName, isQQNumber
 } from '#utils'
 import { PluginPath } from '#components'
@@ -92,10 +92,7 @@ export class HeroDetail extends plugin {
     }
 
     if (!campId) {
-      await e.reply([
-        segment.image(path.join(PluginPath, 'resources', 'img', '营地ID获取.png')),
-        Button.bind()
-      ], shouldQuote())
+      await e.reply(campIdGuidePayload(), shouldQuote())
       return
     }
 

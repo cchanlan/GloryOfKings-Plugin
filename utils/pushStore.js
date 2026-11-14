@@ -1455,6 +1455,119 @@ export function describeCrossBandDrop (item, prev) {
   return { text: `段位 ${cross.from} → ${cross.to}（${stars}星）`, tone: 'down' }
 }
 
+/** 段位名拆成「前缀 + 小段罗马数字」；王者这类没有小段的返回 null */
+function splitSmallRankName (name) {
+  const m = String(name || '').trim().match(/^(.*?)(I{1,3}|IV|V)$/)
+  if (!m) return null
+  const idx = SMALL_RANK_ROMAN.indexOf(m[2])
+  return idx < 0 ? null : { prefix: m[1], idx }
+}
+
+/**
+ * 由「较新一局的名字」推「较旧一局的名字」。
+ *
+ * 营地一次查询只返回一个 roleJobName —— **查询时刻的当前段位**，不是每局结束时的段位
+ * （见 resolvePrevRankName 的说明）。所以只有最新一局的名字可信，更早的局只能拿
+ * roleJob 编号往回退。
+ *
+ * 编号规律（rankTrend.js 文件头实测，同一账号内）：同一大段内单调递增
+ * （星耀 V/IV/III/II/I = 22~26），跨大段不连续（钻石 I = 15、王者恒 16 都比星耀小），所以：
+ * - 编号相同 → 同一小段
+ * - 编号差 1~2 档 → 小段降几档（补推漏掉几局时会出现差 2 档）
+ * - 编号大跳 → 只能落在端点上：较新是「X V」→ 上一大段 I；较新是「X I」→ 下一大段顶端
+ * - 王者往回跳 → 星耀 I（王者之上没有小段）
+ *
+ * @param {string} nameNew 较新一局的段位名（可信）
+ * @param {number} jobNew 较新一局 roleJob 编号
+ * @param {number} jobOld 较旧一局 roleJob 编号
+ * @returns {string} 较旧一局的段位名，推不出来返回空串
+ */
+function stepRankNameBack (nameNew, jobNew, jobOld) {
+  const name = String(nameNew || '').trim()
+  const band = rankBand(name)
+  const jn = toInt(jobNew)
+  const jo = toInt(jobOld)
+  if (!band || !jn || !jo) return ''
+  if (jn === jo) return name
+
+  const diff = jn - jo
+
+  // 王者段：新体系编号恒为 16，编号一变就是跨段。旧体系王者段内还有 25→26 这种小差
+  // （见 describeCrossBandNames），小差不敢判，留空让调用方走保守文案
+  if (band === 7) return Math.abs(diff) >= CROSS_BAND_JOB_GAP ? `${RANK_BAND_NAMES[5]}I` : ''
+
+  const small = splitSmallRankName(name)
+  if (!small) return ''
+
+  // 同一大段内回退：编号少几档就退几档
+  if (diff > 0 && diff < CROSS_BAND_JOB_GAP) {
+    if (small.idx + diff <= 4) return small.prefix + SMALL_RANK_ROMAN[small.idx + diff]
+    return band > 1 ? `${RANK_BAND_NAMES[band - 2]}I` : ''
+  }
+
+  // 跨大段：较新必须停在大段端点，才能确定较旧落在哪一端
+  if (small.idx === 4) {
+    // 较新是「X V」，往回是升大段之前 → 上一大段 I。
+    // 例外：较旧编号正好是王者 16，说明那是从王者掉下来的一局，称号不可考，只写「王者」
+    if (band < 7 && jo === KING_ROLE_JOB) return '王者'
+    return band > 1 ? `${RANK_BAND_NAMES[band - 2]}I` : ''
+  }
+  if (small.idx === 0) {
+    // 较新是「X I」，往回是大段顶端掉下来 → 下一大段（星耀 I 往回是王者，王者没有小段）
+    if (band === 6) return '王者'
+    return band < 6 ? `${RANK_BAND_NAMES[band]}V` : ''
+  }
+  return ''
+}
+
+/**
+ * 校正一整批（同一次查询返回、按时间倒序）对局的段位名。
+ *
+ * 营地一次查询只给一个 roleJobName —— 查询时刻的当前段位（见 resolvePrevRankName）。
+ * 实时播报里 (item, prev) 来自同一批，名字恒等，导致：
+ * - formatScoreChange 里「段位 A → B」那条分支永远走不到；
+ * - 补推多局、或玩家无缝连打时，所有历史局都被写成「当前段位」——
+ *   刚升王者，前面几局星耀会被播成「最强王者 3 → 4星（上了1星）」。
+ *
+ * 这里只信最新一局的名字（它刚打完，名字就是该局结束时的段位），更早的局用
+ * stepRankNameBack 按 roleJob 编号逐级回退。推不出来就留空串，调用方保持原有保守文案：
+ * 宁可少写名字，不写错名字。
+ *
+ * @param {Array<object>} list 同一批对局，时间倒序（和接口返回顺序一致）
+ * @returns {Array<string>} 与 list 等长；取不到段位名的位置是空串
+ */
+export function resolveBatchRankNames (list = []) {
+  const arr = Array.isArray(list) ? list : []
+  const names = new Array(arr.length).fill('')
+
+  let anchor = -1
+  for (let i = 0; i < arr.length; i += 1) {
+    if (String(arr[i]?.roleJobName || '').trim() && toInt(arr[i]?.roleJob)) {
+      anchor = i
+      break
+    }
+  }
+  if (anchor < 0) return names
+
+  // 最新一局的名字也可能「慢一拍」（升王者那局名字还停在星耀，见 resolveBattleRankName）
+  const anchorName = resolveBattleRankName(arr[anchor], arr[anchor + 1])
+  // 名字是王者、编号却不是 16：升王者那局还没进列表，这一批的锚点本身超前，
+  // 任何一局的名字都不可信 —— 整批放弃校正，交给原来的保守文案
+  if (rankBand(anchorName) === 7 && toInt(arr[anchor]?.roleJob) !== KING_ROLE_JOB) return names
+
+  names[anchor] = anchorName
+  let newer = anchor
+  for (let i = anchor + 1; i < arr.length; i += 1) {
+    const job = toInt(arr[i]?.roleJob)
+    if (!job) continue
+    const name = stepRankNameBack(names[newer], arr[newer]?.roleJob, job)
+    names[i] = name
+    if (!name) break
+    newer = i
+  }
+  return names
+}
+
 /**
  * 一场战绩的分数变化。巅峰赛给巅峰分，排位给段位星数，都拿不到就返回空。
  *
@@ -1514,12 +1627,17 @@ export function formatScoreChange (item, prev) {
   )) return current
 
   // 段位名变了：stars 两边不同口径，减出来的差没意义，只报段位变化。
-  // 方向按大段层级判（星耀 → 王者是升），认不出段位名就不带方向
+  // 方向优先按大段层级判（星耀 → 王者是升）；同一大段内换小段时层级相同，
+  // 再看 roleJob 编号（同一大段内编号与段位同向递增，见 rankTrend.js 文件头），
+  // 不然「星耀II → 星耀I」这种升小段会被判成 flat
   if (prevJob !== job) {
     const gap = rankBand(job) - rankBand(prevJob)
+    const dir = gap !== 0
+      ? Math.sign(gap)
+      : (jobNum && prevJobNum && jobNum !== prevJobNum ? Math.sign(jobNum - prevJobNum) : 0)
     return {
       text: `段位 ${prevJob} → ${job}（${stars}星）`,
-      tone: gap > 0 ? 'up' : gap < 0 ? 'down' : 'flat'
+      tone: dir > 0 ? 'up' : dir < 0 ? 'down' : 'flat'
     }
   }
 
