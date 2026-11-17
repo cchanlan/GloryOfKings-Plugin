@@ -1,0 +1,42 @@
+{
+  "app": "com.tencent.miniapp.lua",
+  "desc": "",
+  "view": "miniapp",
+  "bizsrc": "miniapp.nativeshare",
+  "ver": "0.0.0.1",
+  "prompt": "[微信小程序]王者营地",
+  "appID": "",
+  "sourceName": "",
+  "actionData": "",
+  "actionData_A": "",
+  "sourceUrl": "",
+  "meta": {
+    "miniapp": {
+      "tag": "微信小程序",
+      "tagIcon": "https://miniapp.gtimg.cn/public/miniwx.png",
+      "title": "王者营地",
+      "source": "王者营地",
+      "sourcelogo": "https://miniapp.gtimg.cn/generated-icon/wx898cb4b08963dccb.png",
+      "preview": "https://pubminishare-30161.picsz.qpic.cn/d427e0bf-5bd2-43d0-91ce-358db45dc25e",
+      "jumpUrl": "https://m.q.qq.com/a/s/1bacb484aaf1419520802da0b1204504",
+      "pcJumpUrl": "miniapp://open/1036?url=https%3A%2F%2Fm.q.qq.com%2Fa%2Fs%2F1bacb484aaf1419520802da0b1204504",
+      "ark_reserved1": "{\"mini_app_id\":\"wx898cb4b08963dccb\",\"mini_app_type\":0,\"applet_source\":2}"
+    }
+  },
+  "config": {
+    "autosize": 0,
+    "collect": 1,
+    "ctime": 1794922511,
+    "forward": 1,
+    "height": 631,
+    "reply": 1,
+    "round": 1,
+    "token": "2560fc17e524e31211cb910854f3410c",
+    "type": "normal",
+    "width": 526
+  },
+  "text": "",
+  "extraApps": [],
+  "sourceAd": "",
+  "extra": ""
+}

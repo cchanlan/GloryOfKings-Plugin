@@ -38,7 +38,7 @@ import {
   decodeEncodeResUserKey
 } from './wechatLogin.js'
 import Button from './button.js'
-import { CAMP_ID_GUIDE_HINT, CAMP_ID_SUFFIX_HINT, campIdGuidePayload } from './campIdGuide.js'
+import { CAMP_ID_GUIDE_HINT, CAMP_ID_SUFFIX_HINT, campIdGuidePayload, replyCampIdGuide } from './campIdGuide.js'
 import {
   getBlackList,
   isBlackUser,
@@ -113,6 +113,7 @@ export {
   CAMP_ID_GUIDE_HINT,
   CAMP_ID_SUFFIX_HINT,
   campIdGuidePayload,
+  replyCampIdGuide,
   getBlackList,
   isBlackUser,
   isBlockedEvent,

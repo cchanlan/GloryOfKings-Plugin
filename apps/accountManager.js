@@ -20,7 +20,7 @@
  * 外，类内其余方法一律 `#` 私有：它们没有任何外部调用方，名字只是内部实现细节。
  */
 import path from 'path'
-import { getImgType, writeYamlFile, readYamlFile, Button, campIdGuidePayload, AT_HEAD, AT_TAIL, stripAtText, resolveTargetUserId, shouldQuote, invalidateShareCache, querySharedBind, listHiddenProfiles, clearHiddenProfile, clearAllHiddenProfiles } from '#utils'
+import { getImgType, writeYamlFile, readYamlFile, Button, replyCampIdGuide, AT_HEAD, AT_TAIL, stripAtText, resolveTargetUserId, shouldQuote, invalidateShareCache, querySharedBind, listHiddenProfiles, clearHiddenProfile, clearAllHiddenProfiles } from '#utils'
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { PluginData, PluginPath } from '#components'
 import authStore from '../utils/authStore.js'
@@ -643,7 +643,7 @@ export class AccountManager extends plugin {
         ], shouldQuote())
       }
 
-      return e.reply(campIdGuidePayload(), shouldQuote())
+      return replyCampIdGuide(e, undefined, shouldQuote())
     }
 
     const nameMap = await fetchRoleNames(userData[userId].ids, userId)
@@ -653,7 +653,7 @@ export class AccountManager extends plugin {
 
   // 营地ID获取教程：示例文案 + 图 + 按钮统一从 utils/campIdGuide.js 取
   async #replyCampIdGuide(e) {
-    await e.reply(campIdGuidePayload(), shouldQuote())
+    await replyCampIdGuide(e, undefined, shouldQuote())
   }
 
   // ══════════════════ ④ 扫码登录（微信 / QQ） ══════════════════

@@ -1,6 +1,6 @@
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import common from '../../../lib/common/common.js'
-import { getImgType, ApiService, readYamlFile, Button, campIdGuidePayload, AT_HEAD, AT_TAIL, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote } from '#utils'
+import { getImgType, ApiService, readYamlFile, Button, replyCampIdGuide, AT_HEAD, AT_TAIL, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote } from '#utils'
 import path from 'path'
 import { PluginData, PluginPath } from '#components'
 import moment from 'moment'
@@ -268,7 +268,7 @@ export class MyKingHomepage extends plugin {
     // 原来一律先判 ids.length，把带 ID 的人也弹成教程图
     const usesSlot = !input || (/^\d+$/.test(input) && Number(input) <= 9999)
     if (!ids.length && usesSlot) {
-      await e.reply(campIdGuidePayload(), shouldQuote())
+      await replyCampIdGuide(e, undefined, shouldQuote())
       return
     }
 
@@ -297,7 +297,7 @@ export class MyKingHomepage extends plugin {
     const ids = userInfo?.ids || []
 
     if (!ids.length) {
-      await e.reply(campIdGuidePayload(), shouldQuote())
+      await replyCampIdGuide(e, undefined, shouldQuote())
       return
     }
 
