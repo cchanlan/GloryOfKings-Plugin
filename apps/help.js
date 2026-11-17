@@ -15,8 +15,53 @@ import { getImgType, Button, shouldQuote } from '#utils'
  * ⚠️ 新加指令时记住这条链：默认图（本数组）→ 子帮助（`subHelpSections`）→ 文字兜底
  *    （`renderTextHelp`）→ README。缺一环用户就找不到。
  */
-const helpSections = [
-  {
+/**
+ * 主帮助图（`#王者帮助`）只列各模块入口，发 `<入口>帮助` 才渲染那一块的具体指令。
+ *
+ * 入口表 `SUB_HELP_WORDS` 是唯一来源：主图入口卡由它生成、子帮助正则也由它拼，
+ * 不会出现「图上写了入口、实际却发不出来」的半截状态。
+ *
+ * ⚠️ 新增指令时的链条：子帮助板块（`detailSections` / `subHelpSections`）→ 入口表
+ *    （`SUB_HELP_WORDS`）→ 文字兜底（`renderTextHelp`）→ README。缺一环用户就找不到。
+ *    「主人指令 / 系统指令」留在主图：只有主人私聊能看到，维护类指令放二级入口只会更难找。
+ */
+const SUB_HELP_WORDS = [
+  // 账号管理在主图直接展开（见 accountSection），入口清单里不再重复出卡，但 #账号帮助 仍可单独发
+  { key: 'account', word: '账号', label: '账号', section: '账号管理', hidden: true, desc: '绑定与切换营地账号、扫码登录、签到与自动签到' },
+  { key: 'record', word: '查询战绩', label: '查询战绩', desc: '战绩、赛季表现、巅峰与段位趋势' },
+  { key: 'hero', word: '英雄(?:相关)?', label: '英雄相关', desc: '英雄详情、战力、梯度、攻略与称号墙' },
+  { key: 'skin', word: '皮肤', label: '皮肤', desc: '皮肤查询、皮肤墙、缺失统计与上新' },
+  { key: 'query', word: '主页', label: '主页', section: '数据查询', desc: '王者主页、全部主页与两人账号对比' },
+  { key: 'rank', word: '排行榜', label: '排行榜', section: '排行榜', desc: '本群 / 本机 / 全库的排位与巅峰排名' },
+  { key: 'notice', word: '王者公告', label: '王者公告', section: '王者公告', desc: '官网最新公告与公告列表' },
+  { key: 'camp', word: '营地', label: '营地', section: '营地相关', desc: '营地币余额、兑换与隐私设置' },
+  { key: 'share', word: '营地(?:ID)?共享', label: '营地ID共享', desc: '换机器人不用重新绑定营地ID' },
+  { key: 'watch', word: '(?:营地)?观战', label: '营地观战', desc: '看营地好友谁在打，挑一个开直播' },
+  { key: 'im', word: '营地消息', label: '营地消息', desc: '营地好友发的文字和图片转到 QQ 私信，也能主动发' },
+  { key: 'team', word: '开黑', label: '开黑', section: '开黑组队', desc: '跨机器人找队友、开黑房间与播报' },
+  { key: 'push', word: '战绩推送', label: '战绩推送', desc: '打完自动播报、日周月报、上下线提醒' },
+  { key: 'groupReport', word: '群战绩报告', label: '群战绩报告', desc: '本群成员的战绩排行榜' }
+].map(item => ({ ...item, reg: new RegExp(`^#?${item.word}帮助$`, 'i') }))
+
+const SUB_HELP_REG = new RegExp(`^#?(?:${SUB_HELP_WORDS.map(i => `${i.word}帮助`).join('|')})$`, 'i')
+
+/** 主图入口板块：由入口表生成，保证「图上写的」和「实际能发的」永远一致 */
+function buildIndexSection () {
+  return {
+    title: '功能模块',
+    desc: '点入口看该模块的全部指令',
+    theme: 'gold',
+    icon: '模块',
+    index: true,
+    list: SUB_HELP_WORDS.filter(item => !item.hidden).map(item => ({ cmd: `#${item.label}帮助`, desc: item.desc }))
+  }
+}
+
+/**
+ * 账号管理是高频刚需（新用户第一步就是绑定 / 扫码登录 / 签到），主图直接展开全部指令；
+ * 其余模块仍收成入口。`#账号帮助` 子帮助保留，想单独看这一块时仍可发。
+ */
+const accountSection = {
     title: '账号管理',
     desc: '绑定与切换营地账号',
     theme: 'gold',
@@ -45,96 +90,12 @@ const helpSections = [
       { cmd: '#开启王者自动签到', alias: ['#打开王者自动签到', '#启用王者自动签到'], desc: '打开每天自动签到（默认 7:30），开启后当场先签一次；报告出图发在你发这条指令的地方' },
       { cmd: '#关闭王者自动签到', alias: ['#关掉王者自动签到', '#停用王者自动签到'], desc: '关掉每天自动签到，之后不再自动签（还能手动发 #王者签到）' }
     ]
-  },
-  {
-    title: '数据查询',
-    desc: '主页与对比，细分看下面的入口',
-    theme: 'blue',
-    icon: '查询',
-    list: [
-      { cmd: '#王者主页', alias: ['#王者卡片', '#王者信息'], args: '[序号/营地ID]', desc: '查看当前营地ID的主页' },
-      { cmd: '#全部王者主页', alias: ['#全部主页'], desc: '查看已绑定全部营地ID的主页' },
-      { cmd: '#王者对比', args: '@某人 / [营地ID]', desc: '两个账号九项数据横向对比' },
-      { cmd: '#查询战绩帮助', desc: '战绩、赛季表现、巅峰与段位趋势' },
-      { cmd: '#英雄相关帮助', desc: '英雄详情、战力、梯度、攻略与称号墙' },
-      { cmd: '#皮肤帮助', desc: '皮肤查询、皮肤墙、缺失统计与上新' }
-    ]
-  },
-  {
-    title: '排行榜',
-    desc: '绑定用户与共享库里的排名比拼',
-    theme: 'gold',
-    icon: '排名',
-    list: [
-      // 排位 / 巅峰一共三组口径（本群 / 本机 / 全库），每组只占一张卡，
-      // 另一个模式挂在别名上（同 #观战 的处理，见 subHelpSections.watch）。
-      // 说明里把口径写清楚，不然用户以为三条是一回事。
-      { cmd: '#排位排名', alias: ['#巅峰排名'], args: '[刷新]', desc: '本群成员的排位星数 / 巅峰分排名' },
-      { cmd: '#排位bot排名', alias: ['#巅峰bot排名'], args: '[刷新]', desc: '只统计本机绑定的排位星数 / 巅峰分排名' },
-      { cmd: '#排位总排名', alias: ['#巅峰总排名'], args: '[刷新]', desc: '本机绑定 + 共享库所有可查营地ID的排位 / 巅峰分排名' },
-      { cmd: '#英雄名总排名', desc: '跨机器人查该英雄的战力排名（数据来自营地ID共享库）' }
-    ]
-  },
-  {
-    title: '王者公告',
-    desc: '官网公告与资讯',
-    theme: 'blue',
-    icon: '公告',
-    list: [
-      { cmd: '#王者公告', alias: ['#王者资讯'], desc: '最新一期公告的完整正文' },
-      { cmd: '#王者公告列表', alias: ['#王者资讯列表'], desc: '最近的公告标题清单' }
-    ]
-  },
-  {
-    title: '营地相关',
-    desc: '营地ID共享 / 观战 / 消息，发下面的指令看详细',
-    theme: 'green',
-    icon: '营地',
-    list: [
-      { cmd: '#营地币', alias: ['#营地余额'], desc: '查营地币余额（签到与营地任务的奖励就是这个），没余额的号不显示' },
-      { cmd: '#营地兑换', alias: ['#营地兑换 3'], desc: '看营地币能换什么；发编号看确认、加「确认」才真换' },
-      // ⚠️ 说明里**必须写「私聊发」**：这几条是改自己账号的设置，群里发会被直接拒 ——
-      //    不写的话用户在群里发一次、收一句拒绝，以为功能坏了。
-      //    （不标 ownerOnly：功能本身人人可用，没有不让群友知道的道理）
-      // ⚠️ 这里**只留这一张入口卡**：`#隐私隐藏/公开 <编号>`、`#隐藏我的战绩` 这些
-      //    具体指令全写在 `#隐私帮助` 出的那张图里（`resources/html/CampPrivacy.html`
-      //    底部的用法区 + `#usageLines()` 的文字兜底），首页再列一遍是重复
-      //    （2026-10-14 主人要求把 `#隐藏我的战绩` 从首页挪回隐私图）。
-      { cmd: '#隐私帮助', alias: ['#隐私设置', '#隐私状态'], desc: '战绩/在线状态/皮肤对谁可见，改它也从这儿发（私聊）' },
-      { cmd: '#营地ID共享帮助', desc: '换机器人不用重新绑定营地ID' },
-      { cmd: '#营地观战帮助', desc: '看营地好友谁在打，挑一个开直播' },
-      { cmd: '#营地消息帮助', desc: '营地好友发的文字和图片转到 QQ 私信，也能主动发' }
-    ]
-  },
-  {
-    title: '开黑组队',
-    desc: '跨机器人找队友，一个群凑不齐就去别的群找',
-    theme: 'purple',
-    icon: '开黑',
-    list: [
-      // ⚠️ 别名要写全：正则认 `#发起开黑|#开黑招人`、`#加入开黑|#加开黑`、
-      //    `#开黑列表|#开黑房间`，文档只写一个等于另一个对用户不存在
-      // ⚠️ desc 要压在一行内：模板对说明有宽度上限，超了会截成「…」——
-      //    这两条恰好是最关键的用法说明，被截掉后半句等于没写
-      //    （「参数顺序随便写」这条信息挪到 README，图上先保住「到点自动结束」）
-      { cmd: '#发起开黑', alias: ['#开黑招人'], args: '[分路] [缺的分路] [几排] [时间] [房间号]', desc: '如 #发起开黑 发育 辅助 打野 3排 20:30，到点自动结束' },
-      { cmd: '#加入开黑', alias: ['#加开黑'], args: '<编号> [你的分路]', desc: '如 #加入开黑 12 辅助，对方联系方式私聊发你' },
-      { cmd: '#开黑列表', alias: ['#开黑房间'], desc: '现在有哪些房在招人' },
-      { cmd: '#退出开黑', args: '[编号]', desc: '把位置让给别人' },
-      { cmd: '#取消开黑', desc: '取消自己发起的那个房' },
-      { cmd: '#开启开黑广播', alias: ['#关闭开黑广播'], desc: '本群要不要收开黑播报（群管理发，默认关）' }
-    ]
-  },
-  {
-    title: '战绩推送',
-    desc: '打完自动推战绩、日报周报，本群排行榜',
-    theme: 'blue',
-    icon: '推送',
-    list: [
-      { cmd: '#战绩推送帮助', desc: '打完自动播报、日周月报、上下线提醒' },
-      { cmd: '#群战绩报告帮助', desc: '本群成员的战绩排行榜' }
-    ]
-  },
+  }
+
+/** 主图：账号管理（展开） + 模块入口 + 主人/系统指令 */
+const helpSections = [
+  accountSection,
+  buildIndexSection(),
   {
     title: '主人指令',
     desc: '仅限主人使用',
@@ -184,6 +145,87 @@ const helpSections = [
       { cmd: '#王者帮助', alias: ['#王者help'], desc: '显示本帮助面板' },
       { cmd: '#王者更新', alias: ['#王者强制更新'], desc: '更新插件到最新版本' },
       { cmd: '#王者更新日志', alias: ['#王者更新记录'], desc: '查看插件更新日志' }
+    ]
+  }
+]
+
+/**
+ * 子帮助数据源（按模块）：主图入口点进来渲染的就是这里。
+ * `SUB_HELP_WORDS` 的 `section` 字段按 title 从这里取板块。
+ * 字段与主图完全一致，渲染走同一个模板 `help.html`。
+ */
+const detailSections = [
+  {
+    title: '数据查询',
+    desc: '主页与账号对比',
+    theme: 'blue',
+    icon: '查询',
+    list: [
+      { cmd: '#王者主页', alias: ['#王者卡片', '#王者信息'], args: '[序号/营地ID]', desc: '查看当前营地ID的主页' },
+      { cmd: '#全部王者主页', alias: ['#全部主页'], desc: '查看已绑定全部营地ID的主页' },
+      { cmd: '#王者对比', args: '@某人 / [营地ID]', desc: '两个账号九项数据横向对比' }
+    ]
+  },
+  {
+    title: '排行榜',
+    desc: '绑定用户与共享库里的排名比拼',
+    theme: 'gold',
+    icon: '排名',
+    list: [
+      // 排位 / 巅峰一共三组口径（本群 / 本机 / 全库），每组只占一张卡，
+      // 另一个模式挂在别名上（同 #观战 的处理，见 subHelpSections.watch）。
+      // 说明里把口径写清楚，不然用户以为三条是一回事。
+      { cmd: '#排位排名', alias: ['#巅峰排名'], args: '[刷新]', desc: '本群成员的排位星数 / 巅峰分排名' },
+      { cmd: '#排位bot排名', alias: ['#巅峰bot排名'], args: '[刷新]', desc: '只统计本机绑定的排位星数 / 巅峰分排名' },
+      { cmd: '#排位总排名', alias: ['#巅峰总排名'], args: '[刷新]', desc: '本机绑定 + 共享库所有可查营地ID的排位 / 巅峰分排名' },
+      { cmd: '#英雄名总排名', desc: '跨机器人查该英雄的战力排名（数据来自营地ID共享库）' }
+    ]
+  },
+  {
+    title: '王者公告',
+    desc: '官网公告与资讯',
+    theme: 'blue',
+    icon: '公告',
+    list: [
+      { cmd: '#王者公告', alias: ['#王者资讯'], desc: '最新一期公告的完整正文' },
+      { cmd: '#王者公告列表', alias: ['#王者资讯列表'], desc: '最近的公告标题清单' }
+    ]
+  },
+  {
+    title: '营地相关',
+    desc: '营地币、兑换与隐私设置',
+    theme: 'green',
+    icon: '营地',
+    list: [
+      { cmd: '#营地币', alias: ['#营地余额'], desc: '查营地币余额（签到与营地任务的奖励就是这个），没余额的号不显示' },
+      { cmd: '#营地兑换', alias: ['#营地兑换 3'], desc: '看营地币能换什么；发编号看确认、加「确认」才真换' },
+      // ⚠️ 说明里**必须写「私聊发」**：这几条是改自己账号的设置，群里发会被直接拒 ——
+      //    不写的话用户在群里发一次、收一句拒绝，以为功能坏了。
+      //    （不标 ownerOnly：功能本身人人可用，没有不让群友知道的道理）
+      // ⚠️ 这里**只留这一张入口卡**：`#隐私隐藏/公开 <编号>`、`#隐藏我的战绩` 这些
+      //    具体指令全写在 `#隐私帮助` 出的那张图里（`resources/html/CampPrivacy.html`
+      //    底部的用法区 + `#usageLines()` 的文字兜底），首页再列一遍是重复
+      //    （2026-10-14 主人要求把 `#隐藏我的战绩` 从首页挪回隐私图）。
+      { cmd: '#隐私帮助', alias: ['#隐私设置', '#隐私状态'], desc: '战绩/在线状态/皮肤对谁可见，改它也从这儿发（私聊）' }
+    ]
+  },
+  {
+    title: '开黑组队',
+    desc: '跨机器人找队友，一个群凑不齐就去别的群找',
+    theme: 'purple',
+    icon: '开黑',
+    list: [
+      // ⚠️ 别名要写全：正则认 `#发起开黑|#开黑招人`、`#加入开黑|#加开黑`、
+      //    `#开黑列表|#开黑房间`，文档只写一个等于另一个对用户不存在
+      // ⚠️ desc 要压在一行内：模板对说明有宽度上限，超了会截成「…」——
+      //    这两条恰好是最关键的用法说明，被截掉后半句等于没写
+      //    （「参数顺序随便写」这条信息挪到 README，图上先保住「到点自动结束」）
+      { cmd: '#发起开黑', alias: ['#开黑招人'], args: '[分路] [缺的分路] [几排] [时间] [房间号]', desc: '如 #发起开黑 发育 辅助 打野 3排 20:30，到点自动结束' },
+      { cmd: '#加入开黑', alias: ['#加开黑'], args: '<编号> [你的分路]', desc: '如 #加入开黑 12 辅助，对方联系方式私聊发你' },
+      { cmd: '#开黑列表', alias: ['#开黑房间'], desc: '现在有哪些房在招人' },
+      { cmd: '#退出开黑', args: '[编号]', desc: '把位置让给别人' },
+      { cmd: '#取消开黑', desc: '取消自己发起的那个房' },
+      { cmd: '#开启开黑广播', alias: ['#关闭开黑广播'], desc: '本群要不要收开黑播报（群管理发，默认关）' }
     ]
   }
 ]
@@ -363,25 +405,6 @@ const subHelpSections = {
   }
 }
 
-/**
- * 子帮助入口词（**不含** `#` 前缀和「帮助」后缀）。
- *
- * ⚠️ 只在这里写一次 —— 下面的 `SUB_HELP_REG`（注册规则用）和运行时解析都由它拼出来，
- *    加一条入口只改这个数组，不会出现「注册了但解析不出来」的半截状态。
- */
-const SUB_HELP_WORDS = [
-  { key: 'record', word: '查询战绩' },
-  { key: 'hero', word: '英雄(?:相关)?' },
-  { key: 'skin', word: '皮肤' },
-  { key: 'share', word: '营地(?:ID)?共享' },
-  { key: 'watch', word: '(?:营地)?观战' },
-  { key: 'im', word: '营地消息' },
-  { key: 'push', word: '战绩推送' },
-  { key: 'groupReport', word: '群战绩报告' }
-].map(item => ({ ...item, reg: new RegExp(`^#?${item.word}帮助$`, 'i') }))
-
-const SUB_HELP_REG = new RegExp(`^#?(?:${SUB_HELP_WORDS.map(i => `${i.word}帮助`).join('|')})$`, 'i')
-
 export class Help extends plugin {
   constructor() {
     super({
@@ -415,7 +438,8 @@ export class Help extends plugin {
 
   async showHelp (e) {
     const keyword = (e.msg.match(/^#?王者(?:荣耀|农药)?(?:插件|plugin)?(?:帮助|help)\s*(.*)$/i)?.[1] || '').trim()
-    let sections = keyword ? filterSections(helpSections, keyword) : helpSections
+    // 无关键词 → 主图（入口清单）；带关键词 → 在全部明细里搜，直接出命中的详细条目
+    let sections = keyword ? filterSections(searchableSections(), keyword) : helpSections
 
     // 「主人指令」「系统指令」只在主人私聊里出现。群聊里贴出去等于把主人专属指令的
     // 名字和用法广播给全群；普通用户更不需要看这些。过滤放在关键词筛选之后，
@@ -432,17 +456,23 @@ export class Help extends plugin {
     await this.renderHelp(e, sections, keyword)
   }
 
-  /** 子帮助：`#查询战绩帮助` / `#英雄相关帮助` / `#皮肤帮助` / `#营地观战帮助` 等 */
+  /** 子帮助：`#查询战绩帮助` / `#账号帮助` / `#营地观战帮助` 等 */
   async showSubHelp (e) {
     const text = String(e.msg || '').trim()
-    const key = SUB_HELP_WORDS.find(item => item.reg.test(text))?.key
-    const section = subHelpSections[key]
+    const entry = SUB_HELP_WORDS.find(item => item.reg.test(text))
+    if (!entry) return false
+
+    // 独立定义的子帮助（战绩/英雄/皮肤…）直接查表；
+    // 从主图拆出来的板块（账号/主页/排行/公告/营地/开黑）按标题去 detailSections 取
+    const section = subHelpSections[entry.key]
+      || detailSections.find(s => s.title === entry.section)
+      || helpSections.find(s => !s.index && s.title === entry.section)
     if (!section) return false
 
     const sections = stripOwnerOnly([section], e)
     if (!sections.length) return e.reply('这条指令只有主人私聊能用', shouldQuote())
 
-    await this.renderHelp(e, sections)
+    await this.renderHelp(e, sections, '', `王者荣耀插件 · ${section.title}`, section.desc)
   }
 
   async showMasterPanel (e) {
@@ -450,7 +480,7 @@ export class Help extends plugin {
   }
 
   /** 出帮助图；出图失败退化成纯文字列表 */
-  async renderHelp (e, sections, keyword = '') {
+  async renderHelp (e, sections, keyword = '', pageTitle = '', pageSub = '') {
     try {
       const inventoryImage = await puppeteer.screenshot('help', {
         tplFile: 'plugins/GloryOfKings-Plugin/resources/html/help.html',
@@ -458,6 +488,8 @@ export class Help extends plugin {
         imgType: getImgType(),
         sections,
         keyword,
+        pageTitle: pageTitle || '王者荣耀插件',
+        pageSub: pageSub || (keyword ? `GloryOfKings-Plugin · 搜索「${keyword}」` : 'GloryOfKings-Plugin · 指令帮助'),
         generatedAt: new Date().toLocaleString()
       })
       if (!inventoryImage) throw new Error('截图返回空')
@@ -469,6 +501,21 @@ export class Help extends plugin {
       await e.reply(renderTextHelp(sections, keyword), shouldQuote())
     }
   }
+}
+
+/**
+ * 关键词搜索池：所有子帮助板块（独立子帮助 + 从主图拆出的明细板块）
+ * 加上主图里的主人 / 系统指令。
+ *
+ * 主图的入口板块**不进**搜索 —— 搜「签到」要直接出账号管理里的 #王者签到，
+ * 而不是只给一张「#账号帮助」入口卡。
+ */
+function searchableSections () {
+  return [
+    ...Object.values(subHelpSections),
+    ...detailSections,
+    ...helpSections.filter(s => !s.index)
+  ]
 }
 
 /**
