@@ -35,9 +35,9 @@ const scanCache = new Map()
  * `#英雄名总排名` 一次要扫本机绑定 + 共享库全库名单（2026-11-18 实测 83 + 118 个），
  * 每个号一次 `h5getherolist`；而营地这个端点的配额是整机共享的，昨晚连着查十几个英雄
  * = 两小时上千次，直接把端点打到 -32002（换账号都没用）。战力变化很慢，
- * 1 小时内换英雄查直接复用同一份列表，不必重扫。
+ * 24 小时内换英雄查直接复用同一份列表，每个号每天只拉一次。
  */
-const HERO_LIST_TTL_MS = 60 * 60 * 1000
+const HERO_LIST_TTL_MS = 24 * 60 * 60 * 1000
 const heroListCache = new Map()
 
 async function getHeroListCached (campId, botUserId) {
