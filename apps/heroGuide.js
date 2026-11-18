@@ -71,8 +71,8 @@ async function runHeroGuide (e) {
   } catch (error) {
     logger.error(`[英雄攻略] ${heroName} 获取失败: ${error.message}`)
     // ⚠️ 不能把 error.message 原样甩给用户（2026-10-06 修）：getHeroGuide 链上抛的可能是
-    //    api 层的技术文案（「获取官网装备表失败。错误: HTTP 503…」），而且鉴权类错误里可能
-    //    带账号/登录态线索。全项目 15 处异常回复都走 formatUserFacingError，这里漏了。
+    //    api 层的技术文案，而且鉴权类错误里可能带账号/登录态线索。
+    //    全项目 15 处异常回复都走 formatUserFacingError，这里漏了。
     await e.reply(ApiService.formatUserFacingError(error, {
       isMaster: Boolean(e.isMaster),
       scene: '英雄攻略查询异常'

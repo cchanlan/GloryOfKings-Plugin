@@ -1224,6 +1224,13 @@ class CampAuthSession {
       return true
     }
 
+    // JSON 解析错误的文案里有 `Unexpected token '}'`——这里的 token 是 JS 语法术语，
+    // 不是登录态。不排除的话，官网总表返回脏数据会被误报成「营地鉴权异常」
+    // （2026-11-18 实测：herolist.json 的 isLimitHero 值缺失，非主人收到让找主人重新登录）
+    if (/unexpected token|is not valid json|json\.parse\(|syntaxerror/i.test(message)) {
+      return false
+    }
+
     return /营地登录态|全局账号|目标账号|token|userKey|encodeRes|登录失效|重新登录|未找到可用的营地登录态|鉴权|安全参数/i.test(message)
   }
 
@@ -2936,14 +2943,17 @@ class ApiService {
    *
    * 四个「官网总表」类接口（英雄 / 皮肤 / 装备 / 爆料站）原先各写一份
    * try/catch + 一样的错误消息，这里合并成一处；`label` 同时决定日志前缀
-   * 和错误文案（`[${label}] 接口请求失败` / `${label}失败。错误: ...`）。
+   * 和错误文案（`[${label}] 接口请求失败` / `${label}失败，请稍后再试`）。
+   *
+   * ⚠️ 对用户只给「稍后再试」：这些是外站公开 JSON，失败原因（5xx / 超时 /
+   *    返回脏数据）对群友没有任何可操作性，技术原因由上面那条 logger.error 留档。
    */
   async #fetchExternalTable (url, label, timeoutMs = EXTERNAL_TIMEOUT_MS) {
     try {
       return await this.#fetchExternalJson(url, timeoutMs)
     } catch (error) {
       logger.error(`[${label}] 接口请求失败`, error)
-      throw new Error(`${label}失败。错误: ${error.message || error}`)
+      throw new Error(`${label}失败，请稍后再试`)
     }
   }
 
