@@ -29,6 +29,29 @@ const MAX_ROWS = 20
 const CACHE_TTL_MS = 5 * 60 * 1000
 const scanCache = new Map()
 
+/**
+ * 全量英雄列表按 **campId** 缓存。
+ *
+ * `#英雄名总排名` 一次要扫本机绑定 + 共享库全库名单（2026-11-18 实测 83 + 118 个），
+ * 每个号一次 `h5getherolist`；而营地这个端点的配额是整机共享的，昨晚连着查十几个英雄
+ * = 两小时上千次，直接把端点打到 -32002（换账号都没用）。战力变化很慢，
+ * 1 小时内换英雄查直接复用同一份列表，不必重扫。
+ */
+const HERO_LIST_TTL_MS = 60 * 60 * 1000
+const heroListCache = new Map()
+
+async function getHeroListCached (campId, botUserId) {
+  const key = String(campId)
+  const hit = heroListCache.get(key)
+  if (hit && Date.now() - hit.at < HERO_LIST_TTL_MS) return hit.list
+
+  const res = await ApiService.getGameHeroList(campId, botUserId)
+  const list = res?.data?.heroList || []
+  // 空列表不缓存：可能只是这次被限流/隐私异常，下次还要重试
+  if (list.length) heroListCache.set(key, { at: Date.now(), list })
+  return list
+}
+
 /** 元流之子五个分身的缩写展开 */
 const YUAN_FORMS = { 法: '法师', 射: '射手', 辅: '辅助', 坦: '坦克', 刺: '刺客' }
 
@@ -62,9 +85,9 @@ async function scanOne (campId, botUserId, heroName) {
     const roleId = profile?.data?.targetRoleId
     if (!roleId) return null
 
-    const heroList = await ApiService.getGameHeroList(campId, botUserId)
+    const heroList = await getHeroListCached(campId, botUserId)
     const want = normHeroName(heroName)
-    const hit = (heroList?.data?.heroList || []).find(
+    const hit = heroList.find(
       hero => normHeroName(hero.name) === want
     )
     const power = Number(hit?.heroFightPower) || 0
