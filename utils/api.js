@@ -1,6 +1,8 @@
 import crypto from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
 import fetch from 'node-fetch'
-import { Config } from '#components'
+import { Config, PluginData } from '#components'
 import { decrypt as xxteaDecrypt, encrypt as xxteaEncrypt } from './xxtea.js'
 import authStore, { isUsableAuth } from './authStore.js'
 import { notifyAccountRateLimited } from './rateLimitNotice.js'
@@ -144,6 +146,12 @@ const RATE_LIMIT_SILENCE_MS = 12 * 60 * 60 * 1000
  * 也不私信主人：批量任务（#英雄名总排名 / #称号墙）偶尔会撞上，每次都通知只会变成噪音。
  */
 const ENDPOINT_RATE_LIMIT_SILENCE_MS = 12 * 60 * 60 * 1000
+
+/**
+ * 端点频控状态落盘：只在内存的话一重启就清零，下一条查询会立刻再去撞一次，
+ * 把刚冷静下来的惩罚又续上（2026-11-18 一天重启了 6 次）。只存端点 → 截止时间戳。
+ */
+const ENDPOINT_COOLDOWN_FILE = path.join(PluginData, 'EndpointCooldown.json')
 
 /**
  * 单次营地请求的超时。**只计「发车之后」**，不含排队等待——
@@ -526,6 +534,7 @@ class CampRateLimiter {
    * 按账号记会误伤池子里其实没问题的号。
    */
   #endpointCooldownUntil = new Map()
+  #endpointStateLoaded = false
 
   /**
    * 最近一次真命中 -30107 的时刻（ms），0 = 从没命中过。
@@ -617,8 +626,31 @@ class CampRateLimiter {
     return RATE_LIMIT_SILENCE_MS
   }
 
+  #loadEndpointCooldown () {
+    if (this.#endpointStateLoaded) return
+    this.#endpointStateLoaded = true
+    try {
+      const raw = JSON.parse(fs.readFileSync(ENDPOINT_COOLDOWN_FILE, 'utf8'))
+      const now = Date.now()
+      for (const [key, until] of Object.entries(raw || {})) {
+        if (Number(until) > now) this.#endpointCooldownUntil.set(key, Number(until))
+      }
+    } catch {
+      // 没有文件 / 内容坏了就当没有冷却
+    }
+  }
+
+  #saveEndpointCooldown () {
+    try {
+      fs.writeFileSync(ENDPOINT_COOLDOWN_FILE, JSON.stringify(Object.fromEntries(this.#endpointCooldownUntil)), 'utf8')
+    } catch (error) {
+      logger.error(`[王者接口] 端点冷却状态写盘失败: ${error.message}`)
+    }
+  }
+
   /** 这个端点还剩多少毫秒冷却（0 = 可正常请求） */
   endpointCooldownLeft (endpoint) {
+    this.#loadEndpointCooldown()
     return Math.max(0, (this.#endpointCooldownUntil.get(endpoint) || 0) - Date.now())
   }
 
@@ -629,7 +661,9 @@ class CampRateLimiter {
    * @returns {number} 本次静默毫秒数
    */
   markEndpointRateLimited (endpoint) {
+    this.#loadEndpointCooldown()
     this.#endpointCooldownUntil.set(endpoint, Date.now() + ENDPOINT_RATE_LIMIT_SILENCE_MS)
+    this.#saveEndpointCooldown()
     this.#lastRateLimitAt = Date.now()
     logger.warn(`[王者接口] 端点 ${endpoint} 命中频控 -32002，静默 ${Math.round(ENDPOINT_RATE_LIMIT_SILENCE_MS / 60000)} 分钟`)
     return ENDPOINT_RATE_LIMIT_SILENCE_MS
