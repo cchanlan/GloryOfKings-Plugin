@@ -1,5 +1,8 @@
 import puppeteer from '../../../lib/puppeteer/puppeteer.js'
 import { getImgType, shouldQuote, stripAtText, fetchSharedRoster, uploadLocalBindings } from '#utils'
+import fs from 'node:fs'
+import path from 'node:path'
+import { PluginData } from '#components'
 import ApiService from '../utils/api.js'
 import { dedupeTargets } from '../utils/rankStore.js'
 import { isHeroPowerReady, queryHeroPowerRank } from '../utils/heroPowerShare.js'
@@ -40,15 +43,58 @@ const scanCache = new Map()
 const HERO_LIST_TTL_MS = 24 * 60 * 60 * 1000
 const heroListCache = new Map()
 
+// 缓存落盘：只放内存的话每次重启都清空，第一次总排名又会全量扫 200 个号，
+// 正好把刚恢复的端点再打限流（2026-11-18 一天重启了好几次）。
+const HERO_LIST_CACHE_FILE = path.join(PluginData, 'HeroListCache.json')
+let heroListCacheLoaded = false
+let heroListSaveTimer = null
+
+function loadHeroListCache () {
+  if (heroListCacheLoaded) return
+  heroListCacheLoaded = true
+  try {
+    const raw = JSON.parse(fs.readFileSync(HERO_LIST_CACHE_FILE, 'utf8'))
+    for (const [key, item] of Object.entries(raw || {})) {
+      if (Array.isArray(item?.list) && Date.now() - Number(item.at) < HERO_LIST_TTL_MS) {
+        heroListCache.set(key, { at: Number(item.at), list: item.list })
+      }
+    }
+  } catch {
+    // 没有缓存文件 / 内容坏了都当空缓存，重新扫就是
+  }
+}
+
+function scheduleSaveHeroListCache () {
+  if (heroListSaveTimer) return
+  heroListSaveTimer = setTimeout(() => {
+    heroListSaveTimer = null
+    try {
+      fs.writeFileSync(HERO_LIST_CACHE_FILE, JSON.stringify(Object.fromEntries(heroListCache)), 'utf8')
+    } catch (error) {
+      logger.error(`[英雄战力排名] 英雄列表缓存写盘失败: ${error.message}`)
+    }
+  }, 2000)
+  heroListSaveTimer.unref?.()
+}
+
 async function getHeroListCached (campId, botUserId) {
   const key = String(campId)
+  loadHeroListCache()
   const hit = heroListCache.get(key)
   if (hit && Date.now() - hit.at < HERO_LIST_TTL_MS) return hit.list
 
   const res = await ApiService.getGameHeroList(campId, botUserId)
-  const list = res?.data?.heroList || []
+  // 只留 scanOne 用到的字段：完整 133 条 × 全部字段落盘会有好几 MB
+  const list = (res?.data?.heroList || []).map(hero => ({
+    name: hero.name,
+    heroId: hero.heroId,
+    heroFightPower: hero.heroFightPower
+  }))
   // 空列表不缓存：可能只是这次被限流/隐私异常，下次还要重试
-  if (list.length) heroListCache.set(key, { at: Date.now(), list })
+  if (list.length) {
+    heroListCache.set(key, { at: Date.now(), list })
+    scheduleSaveHeroListCache()
+  }
   return list
 }
 
