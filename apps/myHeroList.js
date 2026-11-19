@@ -1,24 +1,8 @@
-// 我的英雄：主表取自游戏侧 /play/h5getherolist（全部竞技模式的生涯累计），一次请求拿全量英雄。
-// 和 heroList.js 的区别：那边走营地赛季页只有当前赛季 top5，这里是账号拥有的全部英雄（实测一个号 132 条）。
-//
-// 「历史最高」列是**历史最高战力**（营地 App 那页右上角「⇄ 历史赛季」的口径），
-// 来自营地侧 /hero/getseasonusaullyherolist（seasonId=0），不是 h5getherolist 里的当前值。
-// 那个接口顺带把「拿历史最高时的荣耀称号」也放在 honorTitle 里给了，于是以前那套逐英雄拉
-// pagedetails 扫称号的流程整个去掉了 —— 实测历史口径的称号是当前口径的超集：
-// 有 honorTitle 的英雄，历史那条必定不比 pagedetails 给的差（孙权「中国澳门第58」vs「台北第99」），
-// 当前已掉榜的（戈娅）历史接口照样给得出来；而 honorTitle 为 null 的，pagedetails 实测也一律为空。
-// 顺带 #我的英雄 15 从十几秒（15 个英雄串行请求）降到 2 个请求。
-//
-// 「本赛季」列是 h5getherolist 的 heroFightPower（当前战力）。营地**不提供当前赛季的峰值**
-// （getseasonusaullyherolist 传当前赛季号时 maxHeroFightPower 恒 0），所以这一列只能显示当前值，
-// 不要改叫「赛季最高」。
-//
-// 两个接口靠 heroId 关联，主表必须用 h5getherolist：它有 winNum 能算总胜率，
-// playNum 也是营地那页的口径（孙权 2201），而历史接口的 playNum 是另一套（同英雄 1182），
-// 所以只从历史接口补 maxHeroFightPower 与称号两个字段。
-// 历史接口拿不到时（没绑角色 / 接口异常）历史列显示「—」，排序退回当前战力，保证图还能出。
+// 我的英雄读取营地主站菜单中的“全部赛季”，不再碰被限流的游戏侧全量接口。
+// 当前战力只补本赛季返回的英雄；没有真实胜场时不反推累计胜率。
 import puppeteer from '../utils/uiRender.js'
 import { getImgType, ApiService, readYamlFile, getLocalImage, Button, replyCampIdGuide, CAMP_ID_GUIDE_HINT, CAMP_ID_SUFFIX_HINT, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote } from '#utils'
+import { getMyHeroRoster } from '../utils/myHeroRoster.js'
 import path from 'path'
 import { PluginData, PluginPath } from '#components'
 
@@ -94,7 +78,7 @@ export class MyHeroList extends plugin {
 
     let res
     try {
-      res = await ApiService.getGameHeroList(ID, String(e.user_id))
+      res = await getMyHeroRoster(ApiService, ID, String(e.user_id))
     } catch (error) {
       logger.error(`[我的英雄] 查询 ${ID} 失败: ${error.message}`)
       await e.reply(ApiService.formatUserFacingError(error, {
@@ -104,32 +88,13 @@ export class MyHeroList extends plugin {
       return
     }
 
-    // 没打过的英雄场次为 0，营地那个页面也不展示，这里同样过滤掉
-    const played = (res?.data?.heroList || []).filter(hero => Number(hero.playNum) > 0)
+    // 仅过滤无对局的英雄；列表与场次口径来自服务端“全部赛季”，不是当前赛季top5。
+    const played = res.heroes.filter(hero => Number(hero.playNum) > 0)
     if (!played.length) {
-      await e.reply('未获取到英雄数据，请前往王者营地开启「陌生人可见」后重试')
+      await e.reply('营地全部赛季中暂无英雄对局记录')
       return
     }
-
-    // 历史最高战力 + 历史口径称号，一次请求拿全；失败不抛错，下面自动退回当前战力
-    const history = await this.fetchHistoryPower(ID, userId, String(e.user_id))
-
-    const merged = played.map(hero => {
-      const hit = history.byHero.get(String(hero.heroId))
-      const maxPower = Number(hit?.maxPower) || 0
-      return {
-        ...hero,
-        // 历史最高（营地「历史赛季」口径）。0 = 接口没取到，图上显示「—」，
-        // 不能拿当前值冒充历史值 —— 两列会变成一模一样。
-        historyPower: maxPower,
-        // 本赛季战力：h5getherolist 的 heroFightPower（当前值）。
-        // 营地当前赛季不返回赛季峰值（maxHeroFightPower 恒 0），只能给当前值。
-        seasonPower: Number(hero.heroFightPower) || 0,
-        // 排序用：历史值优先，取不到时按当前值排，保证图还能正常出
-        displayPower: maxPower || Number(hero.heroFightPower) || 0,
-        honorText: hit?.honor || ''
-      }
-    })
+    const merged = played
 
     // 默认按战力降序（营地那页「最高战力」列排序），战力相同的场次多的排前面
     const sorted = [...merged].sort(
@@ -140,7 +105,6 @@ export class MyHeroList extends plugin {
     const heroes = await Promise.all(picked.map(hero => this.buildHeroCard(hero)))
 
     const totalPlay = played.reduce((sum, hero) => sum + Number(hero.playNum || 0), 0)
-    const totalWin = played.reduce((sum, hero) => sum + Number(hero.winNum || 0), 0)
 
     const img = await puppeteer.screenshot('MyHeroList', {
       imgType: getImgType(),
@@ -148,56 +112,19 @@ export class MyHeroList extends plugin {
       _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
       ydId: String(ID),
       heroCount: played.length,
-      ownCount: Number(res?.data?.hasData?.heroNum) || played.length,
+      ownCount: res.ownCount,
       shownCount: heroes.length,
       totalPlay,
-      totalRate: totalPlay ? `${((totalWin / totalPlay) * 100).toFixed(1)}%` : '—',
+      totalRate: res.totalRate,
+      dataScopeLabel: res.dataScopeLabel,
+      playScopeLabel: res.playScopeLabel,
+      previewNote: res.previewNote,
       heroes
     })
 
     // ⚠️ screenshot 失败返回 false 而不抛错，不判空会把 false 当文本发进群（2026-10-06 修）
     if (!img) return e.reply('我的英雄出图失败，稍后再试', shouldQuote())
     await e.reply([img, Button.heroList(msg ? ID : '')], shouldQuote())
-  }
-
-  /**
-   * 拉「历史最高战力」与配套的历史口径称号，一次请求拿全。
-   * seasonId 传 0 就是营地那页的「历史赛季」（-1 是当前赛季，只回本赛季用过的几个英雄）。
-   * 取不到时不抛错：返回空 Map，调用方退回当前战力、模板列名也跟着变，保证图还能出。
-   * @param {string} ID 营地ID
-   * @param {string|number} userId 发起查询的机器人用户ID
-   * @returns {Promise<{ok: boolean, byHero: Map<string, {maxPower: number, honor: string}>}>}
-   */
-  async fetchHistoryPower(ID, userId, requester) {
-    const result = { ok: false, byHero: new Map() }
-
-    // roleId 只能从 profile 拿，不是营地ID
-    let roleId = ''
-    try {
-      const profile = await ApiService.getProfile(ID, requester)
-      roleId = profile?.data?.targetRoleId || ''
-    } catch (error) {
-      logger.error(`[我的英雄] 取角色信息失败，战力退回当前值: ${error.message}`)
-      return result
-    }
-    if (!roleId) return result
-
-    try {
-      const res = await ApiService.getSeasonUsuallyHeroList(roleId, requester, 0)
-      for (const item of res?.data?.list || []) {
-        const heroId = String(item?.heroId ?? '')
-        if (!heroId) continue
-        result.byHero.set(heroId, {
-          maxPower: Number(item.maxHeroFightPower) || 0,
-          honor: String(item?.honorTitle?.desc?.full || '')
-        })
-      }
-      result.ok = result.byHero.size > 0
-    } catch (error) {
-      logger.error(`[我的英雄] 历史最高战力获取失败，战力退回当前值: ${error.message}`)
-    }
-
-    return result
   }
 
   /** 整理成模板要的结构，头像转 base64 防截图时外链加载失败 */
@@ -215,7 +142,7 @@ export class MyHeroList extends plugin {
       honorText: hero.honorText || '',
       imgUrl: await this.resolveHeroImage(hero),
       playNum: Number(hero.playNum) || 0,
-      // 这个接口的 winRate 已经是 "53.8%" 这种字符串，不用再换算
+      // 胜率直接使用营地返回的字符串，不从百分比反推胜场
       winRate: hero.winRate || '—',
       fightPower: hero.displayPower,
       fightColor: fightColor(hero.displayPower),

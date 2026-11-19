@@ -1751,7 +1751,7 @@ class CampTransport {
     // 一个请求都不打（批量任务会连着查很多号，不能每次白撞一轮）。
     const endpointCooldown = this.#rateLimiter.endpointCooldownLeft(endpoint)
     if (endpointCooldown > 0) {
-      throw new RateLimitError(`接口请求太频繁，约 ${describeWait(endpointCooldown)}后恢复，请稍后再试`)
+      throw new RateLimitError(`营地暂时限制了这个接口，插件约 ${describeWait(endpointCooldown)}后允许重试；实际恢复时间以营地为准`)
     }
 
     let lastError = null
@@ -1833,7 +1833,7 @@ class CampTransport {
           // 别再拿剩下的候选去撞同一面墙（那只会把风控拖长）。
           if (decision.scope === 'endpoint') {
             const cooldown = this.#rateLimiter.markEndpointRateLimited(endpoint)
-            lastError = new RateLimitError(`接口请求太频繁，约 ${describeWait(cooldown)}后恢复，请稍后再试`)
+            lastError = new RateLimitError(`营地暂时限制了这个接口，插件约 ${describeWait(cooldown)}后允许重试；实际恢复时间以营地为准`)
             break
           }
 
@@ -2471,7 +2471,7 @@ class ApiService {
    * 获取「我的英雄 · 历史赛季」页数据（营地 App 那页右上角可切赛季，含历史最高战力）。
    * 注意路径里的 usaully 是营地自己的拼写（不是 usually），别当笔误改掉。
    * seasonId：0=「历史赛季」（跨赛季峰值，实测一个号 90 个英雄里 32 个有值），
-   * -1=当前赛季（只回本赛季用过的几个英雄），再往前的负数服务端一律返回 0。
+   * -1=当前赛季；其他选项应按响应的season菜单选择，不能猜测负数含义。
    * 单条含 heroFightPower（当前战力）/ maxHeroFightPower（历史最高战力）/ honorTitle（拿历史最高时的荣耀称号）。
    * 和 getGameHeroList 的差别：那边是「当前」战力且没有称号、没有 winNum 之外的口径差异，
    * 这边一次请求就能拿到全部英雄的历史峰值称号，不用逐英雄拉 pagedetails。
