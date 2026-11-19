@@ -8,7 +8,7 @@
  * 推送时间是配置项 `skinNewsCron`（锅巴面板「皮肤上新检查时间」），
  * 留空 = 不自动推送，只保留指令。改完需重启（cron 在 constructor 注册）。
  */
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { getImgType, Button, shouldQuote, pickGroupSafe, AT_HEAD } from '#utils'
 import { Config } from '#components'
 import {
@@ -194,7 +194,7 @@ export class SkinNews extends plugin {
       }
 
       try {
-        await group.sendMsg([`🎨 皮肤上新 · ${summary}`, img])
+        await group.sendMsg([img, `🎨 皮肤上新 · ${summary}`])
         sent += 1
       } catch (error) {
         logger.error(`[皮肤上新] 推送到群 ${groupId} 失败: ${error.message}`)

@@ -11,7 +11,7 @@
  */
 import fs from 'node:fs'
 import path from 'path'
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { PluginPath } from '#components'
 import ApiService from './api.js'
 import { getImgType } from './imageType.js'
@@ -343,6 +343,7 @@ export async function renderBattleDetail ({ head, battle, redTeam, blueTeam, red
   return puppeteer.screenshot('QueryGameRecordDetails', {
     imgType: getImgType(),
     tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordDetails.html',
+    _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
     gameResult: head.gameResult ? '胜利' : '失败',
     gameResultEn: head.gameResult ? 'VICTORY' : 'DEFEAT',
     myTeamColor: isBlue ? '蓝' : '红',

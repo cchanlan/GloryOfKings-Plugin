@@ -23,7 +23,7 @@
  *    被删的实现见 git 历史（`apps/campCoin.js` 的 `mall` 方法 +
  *    `utils/campMall.js` 的 `parseGoodsList` / `utils/api.js` 的 `getMallGoods`）。
  */
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { shouldQuote, getImgType, AT_HEAD, AT_TAIL } from '#utils'
 import authStore from '../utils/authStore.js'
 import apiService from '../utils/api.js'

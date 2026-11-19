@@ -6,8 +6,11 @@
   <!-- 基础样式在 BattleReport.css，开黑特有的一套在 TeamUp.css（列表图与播报图共用） -->
   <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
   <link rel="stylesheet" href="{{_res_path}}css/TeamUp.css">
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
+<style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
 </head>
-<body>
+<body data-gok-page="TeamList"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>开黑<em>列表</em></h1></div></header>
+<div class="gok-content-panel">
 <!-- 分路图标的 SVG 雪碧图。定义在 utils/teamIcons.js，两个模板共用那一份 -->
 {{@laneIcons}}
 
@@ -97,6 +100,8 @@
     发 <b>#发起开黑 打野 缺辅助 3排 20:30</b> 来开一个
   </div>
   {{/if}}
+</div>
+
 </div>
 </body>
 </html>

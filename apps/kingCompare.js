@@ -14,7 +14,7 @@
  * 胜负判定见 ITEMS，段位不按星数硬比（星耀 1 星和王者 1 星不是一个量级），走 compareRank
  * 的两级判据。渲染失败时回落到逐行文字（renderCompare），判定口径两边完全一致。
  */
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import {
   getImgType,
   ApiService, resolveCurrentId, getBoundIds, Button, shouldQuote,

@@ -20,7 +20,7 @@
  * 段位星数与巅峰分变化复用 pushStore 的 formatStarChange / formatScoreDelta，
  * 和收工总结同一套判据 —— 那里面的坑（小编号回绕、赛季切换、0 星是真实值）已经踩平了。
  */
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { collectBattles } from '../utils/battleArchive.js'
 import {
   summarizeReport,

@@ -6,139 +6,142 @@
     <title>王者公告</title>
     <style>
         * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+            margin:0;
+            padding:0;
+            box-sizing:border-box;
         }
 
         body {
-            font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
-            width: 1000px;
-            background: linear-gradient(160deg, #0f1420 0%, #1a2133 100%);
-            color: #fff;
-            padding: 36px;
+            font-family:"PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+            width:1000px;
+            background:linear-gradient(160deg, #101112 0%, #1b1a17 100%);
+            color:#eee8dc;
+            padding:36px;
         }
 
         .page-head {
-            display: flex;
-            align-items: baseline;
-            gap: 14px;
-            margin-bottom: 22px;
+            display:flex;
+            align-items:baseline;
+            gap:14px;
+            margin-bottom:22px;
         }
 
         .page-title {
-            font-size: 32px;
-            font-weight: bold;
-            color: #eef2f8;
+            font-size:32px;
+            font-weight:bold;
+            color:#eee8dc;
         }
 
         .page-sub {
-            font-size: 16px;
-            color: #9aa7bd;
+            font-size:20px;
+            color:#aaa499;
         }
 
         .stats-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            padding: 22px 24px;
+            background:rgba(238,232,220,0.05);
+            border:1px solid rgba(238,232,220,0.1);
+            border-radius:5px;
+            padding:22px 24px;
         }
 
         /* 一条公告：左边横版配图，右边标题与分类 */
         .news {
-            display: flex;
-            gap: 16px;
-            padding: 14px;
-            background: rgba(0, 0, 0, 0.22);
-            border: 1px solid rgba(255, 255, 255, 0.07);
-            border-radius: 12px;
-            margin-bottom: 12px;
+            display:flex;
+            gap:16px;
+            padding:14px;
+            background:rgba(238,232,220,0.1);
+            border:1px solid rgba(238,232,220,0.07);
+            border-radius:5px;
+            margin-bottom:12px;
         }
 
         .news:last-child {
-            margin-bottom: 0;
+            margin-bottom:0;
         }
 
         /* 置顶的加金边，扫一眼就知道官方在强推哪条 */
         .news.is-top {
-            background: rgba(245, 215, 110, 0.08);
-            border-color: rgba(245, 215, 110, 0.45);
+            background:rgba(216,185,123,0.08);
+            border-color:rgba(216,185,123,0.45);
         }
 
         .news-cover {
-            width: 180px;
-            height: 101px;
-            border-radius: 10px;
-            object-fit: cover;
-            background: rgba(0, 0, 0, 0.35);
-            flex-shrink: 0;
+            width:180px;
+            height:101px;
+            border-radius:5px;
+            object-fit:cover;
+            background:rgba(238,232,220,0.1);
+            flex-shrink:0;
         }
 
         .news-body {
-            flex: 1;
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
+            flex:1;
+            min-width:0;
+            display:flex;
+            flex-direction:column;
+            justify-content:center;
         }
 
         .news-top {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
+            display:flex;
+            align-items:center;
+            gap:10px;
+            flex-wrap:wrap;
         }
 
         /* 分类色块，颜色由 JS 按类别给（CATEGORIES），兜底是「公告」蓝 */
         .news-category {
-            font-size: 13px;
-            font-weight: bold;
-            border-radius: 6px;
-            padding: 2px 9px;
-            background: rgba(255, 255, 255, 0.08);
-            flex-shrink: 0;
+            font-size:20px;
+            font-weight:bold;
+            border-radius:5px;
+            padding:2px 9px;
+            background:rgba(238,232,220,0.08);
+            flex-shrink:0;
         }
 
         .news-top-flag {
-            font-size: 13px;
-            font-weight: bold;
-            border-radius: 6px;
-            padding: 2px 9px;
-            color: #f5d76e;
-            background: rgba(245, 215, 110, 0.14);
-            flex-shrink: 0;
+            font-size:20px;
+            font-weight:bold;
+            border-radius:5px;
+            padding:2px 9px;
+            color:#d8b97b;
+            background:rgba(216,185,123,0.14);
+            flex-shrink:0;
         }
 
         .news-time {
-            font-size: 14px;
-            color: #9aa7bd;
-            margin-left: auto;
-            flex-shrink: 0;
+            font-size:20px;
+            color:#aaa499;
+            margin-left:auto;
+            flex-shrink:0;
         }
 
         .news-title {
-            font-size: 19px;
-            font-weight: bold;
-            color: #eef2f8;
-            line-height: 1.4;
-            margin-top: 9px;
+            font-size:22px;
+            font-weight:bold;
+            color:#eee8dc;
+            line-height:1.4;
+            margin-top:9px;
         }
 
         .empty {
-            font-size: 16px;
-            color: #8b97ab;
+            font-size:20px;
+            color:#aaa499;
         }
 
         .footer {
-            margin-top: 22px;
-            text-align: center;
-            font-size: 14px;
-            color: #6b7688;
+            margin-top:22px;
+            text-align:center;
+            font-size:20px;
+            color:#aaa499;
         }
     </style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
+<style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
 </head>
 
-<body>
+<body data-gok-page="GameNews"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>王者<em>公告</em></h1></div></header>
+<div class="gok-content-panel">
     <div class="page-head">
         <span class="page-title">王者公告</span>
         <span class="page-sub">{{if pushMode}}新公告提醒{{else}}官网最新{{/if}}</span>
@@ -166,7 +169,9 @@
     </div>
     {{/if}}
 
-    <div class="footer">GloryOfKings-Plugin · 数据来自王者荣耀官网</div>
+
+</div>
+<div class="footer">GloryOfKings-Plugin · 数据来自王者荣耀官网</div>
 </body>
 
 </html>

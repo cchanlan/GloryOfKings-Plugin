@@ -27,7 +27,7 @@
  *    所以多档改动要先回一句「正在改」，并提醒「别反复发」——
  *    反复发容易撞频控，命中一次这个号静默 12 小时。
  */
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { shouldQuote, getImgType, AT_HEAD, AT_TAIL } from '#utils'
 import authStore from '../utils/authStore.js'
 import apiService from '../utils/api.js'

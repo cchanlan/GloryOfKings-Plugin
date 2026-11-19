@@ -18,7 +18,7 @@
  *
  * 服务没起来 / 没装 ffmpeg 时，这条指令会给出人话提示，而不是抛栈。
  */
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { AT_HEAD, stripAtText } from '../utils/atTarget.js'
 import { Button, getImgType, shouldQuote } from '#utils'
 import { Config } from '#components'

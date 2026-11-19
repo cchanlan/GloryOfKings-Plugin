@@ -12,7 +12,7 @@ import {
   shouldQuote
 } from '#utils'
 import { PluginPath } from '#components'
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 
 // 元流之子的 5 个分身统一用缩写：元法/元射/元辅/元坦/元刺
 const YUAN_ABBR = { 法: '法师', 射: '射手', 辅: '辅助', 坦: '坦克', 刺: '刺客' }

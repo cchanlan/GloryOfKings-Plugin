@@ -1,4 +1,4 @@
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { Config } from '#components'
 import authStore from './authStore.js'
 import { getImgType } from './imageType.js'

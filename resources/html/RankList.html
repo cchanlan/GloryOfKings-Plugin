@@ -5,385 +5,387 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{title}}</title>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
+<style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
 </head>
 
 <style>
     @font-face {
-        font-family: 'HYWenHei';
-        src: url('{{_res_path}}font/HYWH-65W.woff') format('woff');
-        font-weight: normal;
+        font-family:'HYWenHei';
+        src:url('{{_res_path}}font/HYWH-65W.woff') format('woff');
+        font-weight:normal;
     }
 
     @font-face {
-        font-family: 'tttgbnumber';
-        src: url('{{_res_path}}font/tttgbnumber.woff') format('woff');
-        font-weight: normal;
+        font-family:'tttgbnumber';
+        src:url('{{_res_path}}font/tttgbnumber.woff') format('woff');
+        font-weight:normal;
     }
 
     :root {
-        --c-primary: #e4bea0;
-        --c-bg: #0d1118;
-        --c-card: rgba(255, 255, 255, 0.045);
-        --c-border: rgba(228, 190, 160, 0.22);
-        --c-border-soft: rgba(255, 255, 255, 0.07);
-        --c-text: #eef0f4;
-        --c-text-muted: rgba(238, 240, 244, 0.55);
-        --c-text-dim: rgba(238, 240, 244, 0.42);
-        --c-gold: #f5d76e;
-        --c-silver: #cfd6e2;
-        --c-bronze: #d79a6a;
+        --c-primary:#d8b97b;
+        --c-bg:#101112;
+        --c-card:rgba(238,232,220,0.045);
+        --c-border:rgba(216,185,123,0.22);
+        --c-border-soft:rgba(238,232,220,0.07);
+        --c-text:#eee8dc;
+        --c-text-muted:rgba(238,232,220,0.55);
+        --c-text-dim:rgba(238,232,220,0.42);
+        --c-gold:#d8b97b;
+        --c-silver:#eee8dc;
+        --c-bronze:#d8b97b;
     }
 
     * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
+        box-sizing:border-box;
+        margin:0;
+        padding:0;
     }
 
     /*
      * 整页缩放基准：所有尺寸都写成 rem，这里的根字号就是唯一的倍率开关。
-     * 原先用 zoom: 2，但部分渲染服务（如 snapka）取元素盒尺寸时不计 zoom，
+     * 原先用 zoom:2，但部分渲染服务（如 snapka）取元素盒尺寸时不计 zoom，
      * 截图会按缩放前的 860 宽裁切，只截到左上角一小块。rem 没有这个问题。
      */
     html {
-        font-size: 2px;
-        background: #05070b;
+        font-size:2px;
+        background:#101112;
     }
 
     body {
-        color: var(--c-text);
-        background: #05070b;
-        font-family: 'HYWenHei', 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
-        -webkit-font-smoothing: antialiased;
-        text-rendering: geometricPrecision;
+        color:var(--c-text);
+        background:#101112;
+        font-family:'HYWenHei', 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
+        -webkit-font-smoothing:antialiased;
+        text-rendering:geometricPrecision;
     }
 
     #container {
-        width: 860rem;
-        padding: 24rem;
+        width:860rem;
+        padding:24rem;
     }
 
     .page {
-        position: relative;
-        border-radius: 26rem;
-        overflow: hidden;
-        border: 1rem solid var(--c-border);
-        box-shadow: 0 18rem 52rem rgba(0, 0, 0, 0.65);
-        background:
-            linear-gradient(180deg, rgba(11, 15, 23, 0.88) 0%, rgba(10, 14, 21, 0.95) 45%, rgba(8, 11, 17, 0.985) 100%),
+        position:relative;
+        border-radius:5px;
+        overflow:hidden;
+        border:1rem solid var(--c-border);
+        box-shadow:none;
+        background:linear-gradient(180deg, #101112 0%, #101112 45%, #101112 100%),
             var(--c-bg) url('{{_res_path}}img/background.jpg') no-repeat center top / cover;
     }
 
     .glow {
-        position: absolute;
-        top: -180rem;
-        right: -120rem;
-        width: 520rem;
-        height: 520rem;
-        border-radius: 50%;
-        background: radial-gradient(circle, rgba(228, 190, 160, 0.16) 0%, rgba(228, 190, 160, 0) 70%);
+        position:absolute;
+        top:-180rem;
+        right:-120rem;
+        width:520rem;
+        height:520rem;
+        border-radius:50%;
+        background:radial-gradient(circle, rgba(216,185,123,0.16) 0%, rgba(216,185,123,0.0) 70%);
     }
 
     .inner {
-        position: relative;
-        padding: 34rem 36rem 28rem;
+        position:relative;
+        padding:34rem 36rem 28rem;
     }
 
     /* ---------- 头部 ---------- */
     .header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding-bottom: 20rem;
-        border-bottom: 1rem solid var(--c-border-soft);
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        padding-bottom:20rem;
+        border-bottom:1rem solid var(--c-border-soft);
     }
 
     .brand {
-        display: flex;
-        align-items: center;
-        gap: 14rem;
+        display:flex;
+        align-items:center;
+        gap:14rem;
     }
 
     .brand-mark {
-        width: 52rem;
-        height: 52rem;
-        border-radius: 15rem;
-        overflow: hidden;
-        border: 1rem solid var(--c-border);
-        background: rgba(255, 255, 255, 0.05);
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        width:52rem;
+        height:52rem;
+        border-radius:5px;
+        overflow:hidden;
+        border:1rem solid var(--c-border);
+        background:rgba(238,232,220,0.05);
+        display:flex;
+        align-items:center;
+        justify-content:center;
     }
 
     .brand-mark img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
+        width:100%;
+        height:100%;
+        object-fit:cover;
     }
 
     .brand-text h1 {
-        font-size: 25rem;
-        letter-spacing: 1rem;
-        color: var(--c-primary);
+        font-size:25rem;
+        letter-spacing:1rem;
+        color:var(--c-primary);
     }
 
     .brand-sub {
-        margin-top: 4rem;
-        font-size: 12rem;
-        color: var(--c-text-dim);
-        letter-spacing: 0.5rem;
+        margin-top:4rem;
+        font-size:12rem;
+        color:var(--c-text-dim);
+        letter-spacing:0.5rem;
     }
 
     .header-meta {
-        text-align: right;
-        font-size: 12rem;
-        color: var(--c-text-muted);
-        line-height: 1.8;
+        text-align:right;
+        font-size:12rem;
+        color:var(--c-text-muted);
+        line-height:1.8;
     }
 
     .header-meta b {
-        font-family: 'tttgbnumber', sans-serif;
-        color: var(--c-primary);
-        font-size: 15rem;
+        font-family:'tttgbnumber', sans-serif;
+        color:var(--c-primary);
+        font-size:15rem;
     }
 
     /* ---------- 前三名领奖台 ---------- */
     .podium {
-        display: flex;
-        align-items: flex-end;
-        justify-content: center;
-        gap: 16rem;
-        margin: 26rem 0 22rem;
+        display:flex;
+        align-items:flex-end;
+        justify-content:center;
+        gap:16rem;
+        margin:26rem 0 22rem;
     }
 
     .podium-item {
-        flex: 1;
-        max-width: 220rem;
-        border-radius: 18rem;
-        border: 1rem solid var(--c-border-soft);
-        background: var(--c-card);
-        padding: 18rem 14rem 16rem;
-        text-align: center;
-        position: relative;
+        flex:1;
+        max-width:220rem;
+        border-radius:5px;
+        border:1rem solid var(--c-border-soft);
+        background:var(--c-card);
+        padding:18rem 14rem 16rem;
+        text-align:center;
+        position:relative;
     }
 
     .podium-item.p1 {
-        border-color: rgba(245, 215, 110, 0.45);
-        background: linear-gradient(180deg, rgba(245, 215, 110, 0.14) 0%, rgba(255, 255, 255, 0.04) 100%);
-        padding-top: 24rem;
-        padding-bottom: 22rem;
+        border-color:rgba(216,185,123,0.45);
+        background:linear-gradient(180deg, rgba(216,185,123,0.14) 0%, rgba(238,232,220,0.04) 100%);
+        padding-top:24rem;
+        padding-bottom:22rem;
         /* 冠军居中，亚军在左、季军在右 */
-        order: 2;
+        order:2;
     }
 
     .podium-item.p2 {
-        border-color: rgba(207, 214, 226, 0.32);
-        background: linear-gradient(180deg, rgba(207, 214, 226, 0.1) 0%, rgba(255, 255, 255, 0.035) 100%);
-        order: 1;
+        border-color:rgba(238,232,220,0.32);
+        background:linear-gradient(180deg, rgba(238,232,220,0.1) 0%, rgba(238,232,220,0.035) 100%);
+        order:1;
     }
 
     .podium-item.p3 {
-        border-color: rgba(215, 154, 106, 0.32);
-        background: linear-gradient(180deg, rgba(215, 154, 106, 0.1) 0%, rgba(255, 255, 255, 0.035) 100%);
-        order: 3;
+        border-color:rgba(216,185,123,0.32);
+        background:linear-gradient(180deg, rgba(216,185,123,0.1) 0%, rgba(238,232,220,0.035) 100%);
+        order:3;
     }
 
     .medal {
-        position: absolute;
-        top: -12rem;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 30rem;
-        height: 30rem;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-family: 'tttgbnumber', sans-serif;
-        font-size: 15rem;
-        color: #1a1206;
-        box-shadow: 0 4rem 12rem rgba(0, 0, 0, 0.45);
+        position:absolute;
+        top:-12rem;
+        left:50%;
+        transform:translateX(-50%);
+        width:30rem;
+        height:30rem;
+        border-radius:50%;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        font-family:'tttgbnumber', sans-serif;
+        font-size:15rem;
+        color:#d8b97b;
+        box-shadow:none;
     }
 
     .p1 .medal {
-        background: linear-gradient(135deg, #ffe89a 0%, #f5d76e 100%);
+        background:linear-gradient(135deg, #262116 0%, #262116 100%);
     }
 
     .p2 .medal {
-        background: linear-gradient(135deg, #eef1f6 0%, #cfd6e2 100%);
+        background:linear-gradient(135deg, #1b1a17 0%, #1b1a17 100%);
     }
 
     .p3 .medal {
-        background: linear-gradient(135deg, #f0bd93 0%, #d79a6a 100%);
+        background:linear-gradient(135deg, #262116 0%, #262116 100%);
     }
 
     .podium-avatar {
-        width: 62rem;
-        height: 62rem;
-        margin: 6rem auto 10rem;
-        border-radius: 50%;
-        overflow: hidden;
-        border: 2rem solid var(--c-border);
-        background: rgba(255, 255, 255, 0.06);
+        width:62rem;
+        height:62rem;
+        margin:6rem auto 10rem;
+        border-radius:50%;
+        overflow:hidden;
+        border:2rem solid var(--c-border);
+        background:rgba(238,232,220,0.06);
     }
 
     .p1 .podium-avatar {
-        width: 74rem;
-        height: 74rem;
-        border-color: rgba(245, 215, 110, 0.6);
+        width:74rem;
+        height:74rem;
+        border-color:#655333;
     }
 
     .podium-avatar img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
+        width:100%;
+        height:100%;
+        object-fit:cover;
     }
 
     .podium-name {
-        font-size: 15rem;
-        font-weight: bold;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        font-size:15rem;
+        font-weight:bold;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
     }
 
     .podium-value {
-        margin-top: 8rem;
-        font-family: 'tttgbnumber', sans-serif;
-        font-size: 21rem;
-        color: var(--c-gold);
-        letter-spacing: 0.5rem;
+        margin-top:8rem;
+        font-family:'tttgbnumber', sans-serif;
+        font-size:21rem;
+        color:var(--c-gold);
+        letter-spacing:0.5rem;
     }
 
     .p2 .podium-value {
-        color: var(--c-silver);
+        color:var(--c-silver);
     }
 
     .p3 .podium-value {
-        color: var(--c-bronze);
+        color:var(--c-bronze);
     }
 
     .podium-sub {
-        margin-top: 5rem;
-        font-size: 11rem;
-        color: var(--c-text-dim);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        margin-top:5rem;
+        font-size:11rem;
+        color:var(--c-text-dim);
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
     }
 
     /* ---------- 榜单列表 ---------- */
     .list {
-        display: flex;
-        flex-direction: column;
+        display:flex;
+        flex-direction:column;
     }
 
     .row {
-        display: flex;
-        align-items: center;
-        gap: 10rem;
-        padding: 11rem 14rem;
-        border-radius: 13rem;
-        border: 1rem solid var(--c-border-soft);
-        background: var(--c-card);
-        margin-bottom: 7rem;
+        display:flex;
+        align-items:center;
+        gap:10rem;
+        padding:11rem 14rem;
+        border-radius:5px;
+        border:1rem solid var(--c-border-soft);
+        background:var(--c-card);
+        margin-bottom:7rem;
     }
 
     .row.is-self {
-        border-color: rgba(228, 190, 160, 0.5);
-        background: linear-gradient(90deg, rgba(228, 190, 160, 0.14) 0%, rgba(255, 255, 255, 0.05) 100%);
+        border-color:rgba(216,185,123,0.5);
+        background:linear-gradient(90deg, rgba(216,185,123,0.14) 0%, rgba(238,232,220,0.05) 100%);
     }
 
     .row-index {
-        width: 30rem;
-        flex-shrink: 0;
-        font-family: 'tttgbnumber', sans-serif;
-        font-size: 17rem;
-        color: var(--c-text-muted);
-        text-align: center;
+        width:30rem;
+        flex-shrink:0;
+        font-family:'tttgbnumber', sans-serif;
+        font-size:17rem;
+        color:var(--c-text-muted);
+        text-align:center;
     }
 
     /* 第 4 名起的游戏头像（营地头像 roleIcon），与前三名头像统一成圆形 */
     .row-avatar {
-        width: 28rem;
-        height: 28rem;
-        flex-shrink: 0;
-        border-radius: 50%;
-        overflow: hidden;
-        background: rgba(255, 255, 255, 0.08);
-        border: 1rem solid var(--c-border-soft);
+        width:28rem;
+        height:28rem;
+        flex-shrink:0;
+        border-radius:50%;
+        overflow:hidden;
+        background:rgba(238,232,220,0.08);
+        border:1rem solid var(--c-border-soft);
     }
 
     .row-avatar img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
+        width:100%;
+        height:100%;
+        object-fit:cover;
+        display:block;
     }
 
     .row-name {
-        flex: 1;
-        min-width: 0;
-        font-size: 15rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        flex:1;
+        min-width:0;
+        font-size:15rem;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
     }
 
     /* 双列后单行只有约 390rem，区服名太长挤掉昵称，故列表里不展示 */
     .row-value {
-        flex-shrink: 0;
-        min-width: 104rem;
-        text-align: right;
-        font-family: 'tttgbnumber', sans-serif;
-        font-size: 16rem;
-        color: var(--c-primary);
+        flex-shrink:0;
+        min-width:104rem;
+        text-align:right;
+        font-family:'tttgbnumber', sans-serif;
+        font-size:16rem;
+        color:var(--c-primary);
     }
 
     .row-value .unit {
-        font-family: 'HYWenHei', sans-serif;
-        font-size: 11rem;
-        color: var(--c-text-dim);
-        margin-left: 3rem;
+        font-family:'HYWenHei', sans-serif;
+        font-size:11rem;
+        color:var(--c-text-dim);
+        margin-left:3rem;
     }
 
     /* ---------- 自己的名次 ---------- */
     .self-block {
-        margin-top: 14rem;
-        padding-top: 14rem;
-        border-top: 1rem dashed var(--c-border-soft);
+        margin-top:14rem;
+        padding-top:14rem;
+        border-top:1rem dashed var(--c-border-soft);
     }
 
     .self-tip {
-        margin-bottom: 7rem;
-        font-size: 11rem;
-        color: var(--c-text-dim);
-        letter-spacing: 0.5rem;
+        margin-bottom:7rem;
+        font-size:11rem;
+        color:var(--c-text-dim);
+        letter-spacing:0.5rem;
     }
 
     /* ---------- 空态 / 页脚 ---------- */
     .footer {
-        margin-top: 22rem;
-        padding-top: 16rem;
-        border-top: 1rem solid var(--c-border-soft);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        font-size: 11rem;
-        color: var(--c-text-dim);
+        margin-top:22rem;
+        padding-top:16rem;
+        border-top:1rem solid var(--c-border-soft);
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        font-size:11rem;
+        color:var(--c-text-dim);
     }
 
     .footer b {
-        color: var(--c-primary);
+        color:var(--c-primary);
     }
 </style>
 
-<body>
+<body data-gok-page="RankList">
     <div id="container">
         <div class="page">
             <div class="glow"></div>
-            <div class="inner">
+            <div class="inner"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>王者<em>排行</em></h1></div></header>
+<div class="gok-content-panel">
                 <div class="header">
                     <div class="brand">
                         <div class="brand-mark"><img src="{{_res_path}}img/app_logo.png" /></div>
@@ -449,7 +451,9 @@
                 </div>
                 {{/if}}
 
-                <div class="footer">
+
+</div>
+<div class="footer">
                     <div>数据来源：王者营地 · 仅统计已绑定营地ID的用户 · 发送 <b>#{{if isPeak}}巅峰{{else}}排位{{/if}}排名 刷新</b> 可强制更新</div>
                     <div>更新于 {{updatedAt}}</div>
                 </div>

@@ -35,7 +35,7 @@ import { sendMaster } from './masterMsg.js'
 import { qlogoUrl } from './avatar.js'
 import { extractImages, photoMark } from './campImImage.js'
 import { getLocalImage } from './fileUtils.js'
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { getImgType } from './imageType.js'
 
 // ⚠️ `segment` 是云崽的全局变量（lib/plugins/loader.js 里 global.segment = segment），

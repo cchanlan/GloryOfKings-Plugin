@@ -6,171 +6,174 @@
     <title>王者公告详情</title>
     <style>
         * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+            margin:0;
+            padding:0;
+            box-sizing:border-box;
         }
 
         body {
-            font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
-            width: 900px;
-            background: linear-gradient(160deg, #0f1420 0%, #1a2133 100%);
-            color: #fff;
-            padding: 32px;
+            font-family:"PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+            width:900px;
+            background:linear-gradient(160deg, #101112 0%, #1b1a17 100%);
+            color:#eee8dc;
+            padding:32px;
         }
 
         .page-head {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 18px;
+            display:flex;
+            align-items:center;
+            gap:12px;
+            margin-bottom:18px;
         }
 
         .page-title {
-            font-size: 26px;
-            font-weight: bold;
-            color: #eef2f8;
+            font-size:26px;
+            font-weight:bold;
+            color:#eee8dc;
         }
 
         /* 分页角标：多页时才出现，让人知道还有后续 */
         .page-no {
-            font-size: 15px;
-            color: #9aa7bd;
-            margin-left: auto;
+            font-size:20px;
+            color:#aaa499;
+            margin-left:auto;
         }
 
         .card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            padding: 26px 28px;
+            background:rgba(238,232,220,0.05);
+            border:1px solid rgba(238,232,220,0.1);
+            border-radius:5px;
+            padding:26px 28px;
         }
 
         .news-meta {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-bottom: 14px;
+            display:flex;
+            align-items:center;
+            gap:10px;
+            flex-wrap:wrap;
+            margin-bottom:14px;
         }
 
         .news-category {
-            font-size: 13px;
-            font-weight: bold;
-            border-radius: 6px;
-            padding: 3px 10px;
-            background: rgba(255, 255, 255, 0.08);
+            font-size:20px;
+            font-weight:bold;
+            border-radius:5px;
+            padding:3px 10px;
+            background:rgba(238,232,220,0.08);
         }
 
         .news-time {
-            font-size: 14px;
-            color: #9aa7bd;
+            font-size:20px;
+            color:#aaa499;
         }
 
         .news-title {
-            font-size: 24px;
-            font-weight: bold;
-            color: #eef2f8;
-            line-height: 1.4;
-            margin-bottom: 18px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-size:24px;
+            font-weight:bold;
+            color:#eee8dc;
+            line-height:1.4;
+            margin-bottom:18px;
+            padding-bottom:16px;
+            border-bottom:1px solid rgba(238,232,220,0.1);
         }
 
         .head-cover {
-            width: 100%;
-            border-radius: 10px;
-            margin-bottom: 18px;
+            width:100%;
+            border-radius:5px;
+            margin-bottom:18px;
         }
 
         /* ---- 正文。样式全由这里给：官网原文的内联 style 在数据层已剥掉 ---- */
         .content {
-            font-size: 17px;
-            line-height: 1.85;
-            color: #ccd5e2;
+            font-size:22px;
+            line-height:1.85;
+            color:#eee8dc;
         }
 
         .content p {
-            margin: 0 0 12px 0;
+            margin:0 0 12px 0;
         }
 
         .content p:last-child {
-            margin-bottom: 0;
+            margin-bottom:0;
         }
 
         .content h1,
         .content h2,
         .content h3,
         .content h4 {
-            font-size: 19px;
-            color: #eef2f8;
-            margin: 20px 0 10px 0;
+            font-size:22px;
+            color:#eee8dc;
+            margin:20px 0 10px 0;
         }
 
         .content strong,
         .content b {
-            color: #eef2f8;
-            font-weight: bold;
+            color:#eee8dc;
+            font-weight:bold;
         }
 
         /* 官网用纯红 #ff0000 标关键信息（更新时间、数值改动），深色底上换成浅金红 */
         .content em.hl {
-            color: #ff9f6b;
-            font-style: normal;
-            font-weight: bold;
+            color:#d8b97b;
+            font-style:normal;
+            font-weight:bold;
         }
 
         .content ul,
         .content ol {
-            margin: 0 0 12px 22px;
+            margin:0 0 12px 22px;
         }
 
         .content li {
-            margin-bottom: 6px;
+            margin-bottom:6px;
         }
 
         .content img {
-            max-width: 100%;
-            border-radius: 8px;
-            margin: 10px 0;
-            display: block;
+            max-width:100%;
+            border-radius:5px;
+            margin:10px 0;
+            display:block;
         }
 
         .content table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 12px 0;
-            font-size: 15px;
+            width:100%;
+            border-collapse:collapse;
+            margin:12px 0;
+            font-size:20px;
         }
 
         .content td,
         .content th {
-            border: 1px solid rgba(255, 255, 255, 0.14);
-            padding: 7px 10px;
+            border:1px solid rgba(238,232,220,0.14);
+            padding:7px 10px;
         }
 
         .notice {
-            margin-top: 18px;
-            padding: 12px 14px;
-            border-radius: 10px;
-            background: rgba(245, 215, 110, 0.1);
-            border: 1px solid rgba(245, 215, 110, 0.3);
-            font-size: 14px;
-            line-height: 1.6;
-            color: #f0d79a;
-            word-break: break-all;
+            margin-top:18px;
+            padding:12px 14px;
+            border-radius:5px;
+            background:rgba(216,185,123,0.1);
+            border:1px solid rgba(216,185,123,0.3);
+            font-size:20px;
+            line-height:1.6;
+            color:#d8b97b;
+            word-break:break-all;
         }
 
         .footer {
-            margin-top: 20px;
-            text-align: center;
-            font-size: 13px;
-            color: #6b7688;
+            margin-top:20px;
+            text-align:center;
+            font-size:20px;
+            color:#aaa499;
         }
     </style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
+<style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
 </head>
 
-<body>
+<body data-gok-page="GameNewsDetail"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>公告<em>详情</em></h1></div></header>
+<div class="gok-content-panel">
     <div class="page-head">
         <span class="page-title">王者公告</span>
         {{if pageCount > 1}}<span class="page-no">{{pageNo}} / {{pageCount}}</span>{{/if}}
@@ -195,7 +198,9 @@
         {{/if}}
     </div>
 
-    <div class="footer">GloryOfKings-Plugin · 数据来自王者荣耀官网</div>
+
+</div>
+<div class="footer">GloryOfKings-Plugin · 数据来自王者荣耀官网</div>
 </body>
 
 </html>

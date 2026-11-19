@@ -1551,7 +1551,7 @@ export class GameRecordPush extends plugin {
       return false
     }
 
-    const message = [text]
+    const message = []
 
     if (image) {
       message.push(image)
@@ -1560,6 +1560,9 @@ export class GameRecordPush extends plugin {
       const icon = await getLocalImage(iconUrl)
       if (icon) message.push(segment.image(icon))
     }
+
+    // 图片是主体，文案放在图片下方；无图时仍只发送原文案。
+    message.push(text)
 
     let ok = 0
     for (const groupId of groups) {

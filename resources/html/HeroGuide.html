@@ -6,417 +6,420 @@
     <title>英雄攻略</title>
     <style>
         * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+            margin:0;
+            padding:0;
+            box-sizing:border-box;
         }
 
         body {
-            font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
-            width: 1000px;
-            background: linear-gradient(160deg, #0f1420 0%, #1a2133 100%);
-            color: #fff;
-            padding: 36px;
-            position: relative;
-            z-index: 0;
+            font-family:"PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+            width:1000px;
+            background:linear-gradient(160deg, #101112 0%, #1b1a17 100%);
+            color:#eee8dc;
+            padding:36px;
+            position:relative;
+            z-index:0;
         }
 
         /* 背景：英雄封面模糊铺底，跟战绩详情图同一套做法（图挂了就退回上面的渐变） */
         body::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background-image: var(--hero-bg);
-            background-size: cover;
-            background-position: center 20%;
-            filter: blur(26px) brightness(0.34) saturate(1.1);
-            z-index: -1;
+            content:'';
+            position:absolute;
+            inset:0;
+            background-image:var(--hero-bg);
+            background-size:cover;
+            background-position:center 20%;
+            filter:blur(26px) brightness(0.34) saturate(1.1);
+            z-index:-1;
         }
 
         .hero-head {
-            display: flex;
-            align-items: center;
-            gap: 22px;
-            padding: 22px 26px;
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            margin-bottom: 20px;
+            display:flex;
+            align-items:center;
+            gap:22px;
+            padding:22px 26px;
+            background:rgba(238,232,220,0.06);
+            border:1px solid rgba(238,232,220,0.1);
+            border-radius:5px;
+            margin-bottom:20px;
         }
 
         .hero-head img {
-            width: 96px;
-            height: 96px;
-            border-radius: 14px;
-            object-fit: cover;
-            background: rgba(0, 0, 0, 0.3);
-            flex-shrink: 0;
+            width:96px;
+            height:96px;
+            border-radius:5px;
+            object-fit:cover;
+            background:rgba(238,232,220,0.1);
+            flex-shrink:0;
         }
 
         .hero-title {
-            flex: 1;
-            min-width: 0;
+            flex:1;
+            min-width:0;
         }
 
         .hero-name {
-            font-size: 32px;
-            font-weight: bold;
-            color: #eef2f8;
-            display: flex;
-            align-items: baseline;
-            gap: 12px;
+            font-size:32px;
+            font-weight:bold;
+            color:#eee8dc;
+            display:flex;
+            align-items:baseline;
+            gap:12px;
         }
 
         .hero-role {
-            font-size: 17px;
-            font-weight: normal;
-            color: #f5d76e;
+            font-size:22px;
+            font-weight:normal;
+            color:#d8b97b;
         }
 
         .hero-intro {
-            font-size: 16px;
-            color: #9aa7bd;
-            margin-top: 8px;
-            line-height: 1.5;
+            font-size:20px;
+            color:#aaa499;
+            margin-top:8px;
+            line-height:1.5;
         }
 
         .stats-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            padding: 22px 24px;
-            margin-bottom: 20px;
+            background:rgba(238,232,220,0.05);
+            border:1px solid rgba(238,232,220,0.1);
+            border-radius:5px;
+            padding:22px 24px;
+            margin-bottom:20px;
         }
 
         .section-title {
-            font-size: 20px;
-            font-weight: 600;
-            color: #eef2f8;
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            font-size:24px;
+            font-weight:600;
+            color:#eee8dc;
+            margin-bottom:16px;
+            display:flex;
+            align-items:center;
+            gap:10px;
         }
 
         .section-title::before {
-            content: '';
-            width: 4px;
-            height: 18px;
-            background: #f5d76e;
-            border-radius: 2px;
+            content:'';
+            width:4px;
+            height:18px;
+            background:#262116;
+            border-radius:5px;
         }
 
         /* 一套出装：6 件装备横排 + 官方 Tips。装备名放图下方，
            两套之间用一条淡分割线隔开，比再套一层卡片省高度 */
         .build {
-            padding-bottom: 16px;
-            margin-bottom: 16px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom:16px;
+            margin-bottom:16px;
+            border-bottom:1px solid rgba(238,232,220,0.08);
         }
 
         .build:last-child {
-            padding-bottom: 0;
-            margin-bottom: 0;
-            border-bottom: none;
+            padding-bottom:0;
+            margin-bottom:0;
+            border-bottom:none;
         }
 
         .build-head {
-            font-size: 16px;
-            color: #7ee0a8;
-            margin-bottom: 10px;
+            font-size:20px;
+            color:#b8a78a;
+            margin-bottom:10px;
         }
 
         .item-row {
-            display: flex;
-            gap: 12px;
+            display:flex;
+            gap:12px;
         }
 
         .item {
-            width: 92px;
-            text-align: center;
+            width:92px;
+            text-align:center;
         }
 
         .item img {
-            width: 62px;
-            height: 62px;
-            border-radius: 10px;
-            object-fit: cover;
-            background: rgba(0, 0, 0, 0.35);
+            width:62px;
+            height:62px;
+            border-radius:5px;
+            object-fit:cover;
+            background:rgba(238,232,220,0.1);
         }
 
         .item span {
-            display: block;
-            font-size: 13px;
-            color: #c8d0dd;
-            margin-top: 5px;
-            line-height: 1.3;
+            display:block;
+            font-size:20px;
+            color:#eee8dc;
+            margin-top:5px;
+            line-height:1.3;
         }
 
         .build-tips {
-            font-size: 15px;
-            color: #9aa7bd;
-            margin-top: 12px;
-            line-height: 1.55;
+            font-size:20px;
+            color:#aaa499;
+            margin-top:12px;
+            line-height:1.55;
         }
 
         /* 营地官方的核心装备：横排三件，每件带真实胜率/出场率。
            和上面官网那两套「成套出装」是互补的两回事，所以单独一块 */
         .core-row {
-            display: flex;
-            gap: 14px;
+            display:flex;
+            gap:14px;
         }
 
         .core-item {
-            flex: 1;
-            min-width: 0;
-            display: flex;
-            gap: 12px;
-            padding: 12px 14px;
-            background: rgba(0, 0, 0, 0.25);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
+            flex:1;
+            min-width:0;
+            display:flex;
+            gap:12px;
+            padding:12px 14px;
+            background:rgba(238,232,220,0.1);
+            border:1px solid rgba(238,232,220,0.08);
+            border-radius:5px;
         }
 
         .core-item img {
-            width: 56px;
-            height: 56px;
-            border-radius: 10px;
-            object-fit: cover;
-            background: rgba(0, 0, 0, 0.35);
-            flex-shrink: 0;
+            width:56px;
+            height:56px;
+            border-radius:5px;
+            object-fit:cover;
+            background:rgba(238,232,220,0.1);
+            flex-shrink:0;
         }
 
         .core-body {
-            flex: 1;
-            min-width: 0;
+            flex:1;
+            min-width:0;
         }
 
         .core-name {
-            font-size: 17px;
-            font-weight: bold;
-            color: #eef2f8;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            font-size:22px;
+            font-weight:bold;
+            color:#eee8dc;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
         }
 
         .core-rate {
-            font-size: 14px;
-            margin-top: 3px;
+            font-size:20px;
+            margin-top:3px;
         }
 
-        .core-rate .win { color: #7ee0a8; font-weight: bold; }
-        .core-rate .show { color: #9aa7bd; }
+        .core-rate .win { color:#b8a78a; font-weight:bold; }
+        .core-rate .show { color:#aaa499; }
 
         .core-label {
-            font-size: 13px;
-            color: #8b97ab;
-            margin-top: 3px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            font-size:20px;
+            color:#aaa499;
+            margin-top:3px;
+            white-space:nowrap;
+            overflow:hidden;
+            text-overflow:ellipsis;
         }
 
         /* 铭文：一套一行，左边胜率/出场率，右边铭文条目 */
         .rune-set {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            padding: 12px 14px;
-            background: rgba(0, 0, 0, 0.25);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
-            margin-bottom: 10px;
+            display:flex;
+            align-items:center;
+            gap:16px;
+            padding:12px 14px;
+            background:rgba(238,232,220,0.1);
+            border:1px solid rgba(238,232,220,0.08);
+            border-radius:5px;
+            margin-bottom:10px;
         }
 
         .rune-set:last-child {
-            margin-bottom: 0;
+            margin-bottom:0;
         }
 
         .rune-meta {
-            width: 116px;
-            flex-shrink: 0;
+            width:116px;
+            flex-shrink:0;
         }
 
         .rune-meta .win {
-            font-size: 17px;
-            font-weight: bold;
-            color: #7ee0a8;
+            font-size:22px;
+            font-weight:bold;
+            color:#b8a78a;
         }
 
         .rune-meta .show {
-            font-size: 13px;
-            color: #8b97ab;
-            margin-top: 2px;
+            font-size:20px;
+            color:#aaa499;
+            margin-top:2px;
         }
 
         .rune-list {
-            flex: 1;
-            min-width: 0;
-            display: flex;
-            gap: 14px;
-            flex-wrap: wrap;
+            flex:1;
+            min-width:0;
+            display:flex;
+            gap:14px;
+            flex-wrap:wrap;
         }
 
         .rune-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            display:flex;
+            align-items:center;
+            gap:8px;
         }
 
         .rune-item img {
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
-            object-fit: cover;
-            background: rgba(0, 0, 0, 0.35);
-            flex-shrink: 0;
+            width:40px;
+            height:40px;
+            border-radius:5px;
+            object-fit:cover;
+            background:rgba(238,232,220,0.1);
+            flex-shrink:0;
         }
 
         .rune-name {
-            font-size: 15px;
-            font-weight: bold;
+            font-size:20px;
+            font-weight:bold;
         }
 
         .rune-attr {
-            font-size: 12px;
-            color: #8b97ab;
-            margin-top: 1px;
+            font-size:20px;
+            color:#aaa499;
+            margin-top:1px;
         }
 
         /* 英雄关系：三块并排（最佳搭档 / 压制 / 被压制），
            块数是官网给的，不写死三列，用 flex:1 均分 */
         .relation-row {
-            display: flex;
-            gap: 16px;
-            align-items: stretch;
+            display:flex;
+            gap:16px;
+            align-items:stretch;
         }
 
         .relation-card {
-            flex: 1;
-            min-width: 0;
-            padding: 16px;
-            background: rgba(0, 0, 0, 0.25);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
+            flex:1;
+            min-width:0;
+            padding:16px;
+            background:rgba(238,232,220,0.1);
+            border:1px solid rgba(238,232,220,0.08);
+            border-radius:5px;
         }
 
         .relation-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 12px;
+            font-size:20px;
+            font-weight:600;
+            margin-bottom:12px;
         }
 
         /* 三块各用一个语义色：搭档绿 / 压制金 / 被压制红 */
-        .relation-card.good .relation-title { color: #7ee0a8; }
-        .relation-card.strong .relation-title { color: #f5d76e; }
-        .relation-card.weak .relation-title { color: #ff8fa8; }
+        .relation-card.good .relation-title { color:#b8a78a; }
+        .relation-card.strong .relation-title { color:#d8b97b; }
+        .relation-card.weak .relation-title { color:#bd928c; }
 
         .relation-hero {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 12px;
+            display:flex;
+            gap:10px;
+            margin-bottom:12px;
         }
 
         .relation-hero:last-child {
-            margin-bottom: 0;
+            margin-bottom:0;
         }
 
         .relation-hero img {
-            width: 46px;
-            height: 46px;
-            border-radius: 10px;
-            object-fit: cover;
-            background: rgba(0, 0, 0, 0.35);
-            flex-shrink: 0;
+            width:46px;
+            height:46px;
+            border-radius:5px;
+            object-fit:cover;
+            background:rgba(238,232,220,0.1);
+            flex-shrink:0;
         }
 
         .relation-hero .rh-body {
-            flex: 1;
-            min-width: 0;
+            flex:1;
+            min-width:0;
         }
 
         .relation-hero .rh-name {
-            font-size: 15px;
-            font-weight: bold;
-            color: #eef2f8;
+            font-size:20px;
+            font-weight:bold;
+            color:#eee8dc;
         }
 
         .relation-hero .rh-desc {
-            font-size: 13px;
-            color: #8b97ab;
-            line-height: 1.45;
-            margin-top: 3px;
+            font-size:20px;
+            color:#aaa499;
+            line-height:1.45;
+            margin-top:3px;
         }
 
         /* 技能：图标 + 名字 + 冷却/消耗标签 + 描述，一行一个 */
         .skill {
-            display: flex;
-            gap: 14px;
-            padding-bottom: 14px;
-            margin-bottom: 14px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            display:flex;
+            gap:14px;
+            padding-bottom:14px;
+            margin-bottom:14px;
+            border-bottom:1px solid rgba(238,232,220,0.06);
         }
 
         .skill:last-child {
-            padding-bottom: 0;
-            margin-bottom: 0;
-            border-bottom: none;
+            padding-bottom:0;
+            margin-bottom:0;
+            border-bottom:none;
         }
 
         .skill img {
-            width: 54px;
-            height: 54px;
-            border-radius: 50%;
-            object-fit: cover;
-            background: rgba(0, 0, 0, 0.35);
-            flex-shrink: 0;
+            width:54px;
+            height:54px;
+            border-radius:50%;
+            object-fit:cover;
+            background:rgba(238,232,220,0.1);
+            flex-shrink:0;
         }
 
         .skill-body {
-            flex: 1;
-            min-width: 0;
+            flex:1;
+            min-width:0;
         }
 
         .skill-head {
-            display: flex;
-            align-items: baseline;
-            gap: 10px;
-            flex-wrap: wrap;
+            display:flex;
+            align-items:baseline;
+            gap:10px;
+            flex-wrap:wrap;
         }
 
         .skill-name {
-            font-size: 17px;
-            font-weight: bold;
-            color: #eef2f8;
+            font-size:22px;
+            font-weight:bold;
+            color:#eee8dc;
         }
 
         .skill-tag {
-            font-size: 13px;
-            color: #9aa7bd;
-            background: rgba(255, 255, 255, 0.07);
-            border-radius: 6px;
-            padding: 1px 8px;
+            font-size:20px;
+            color:#aaa499;
+            background:rgba(238,232,220,0.07);
+            border-radius:5px;
+            padding:1px 8px;
         }
 
         .skill-desc {
-            font-size: 14px;
-            color: #b6c0d0;
-            line-height: 1.55;
-            margin-top: 5px;
+            font-size:20px;
+            color:#eee8dc;
+            line-height:1.55;
+            margin-top:5px;
         }
 
         .footer {
-            margin-top: 22px;
-            text-align: center;
-            font-size: 14px;
-            color: #6b7688;
+            margin-top:22px;
+            text-align:center;
+            font-size:20px;
+            color:#aaa499;
         }
     </style>
 
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
+<style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
 </head>
 
-<body style="--hero-bg: url('{{heroCover}}');">
+<body style="--hero-bg:url('{{heroCover}}');" data-gok-page="HeroGuide"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>英雄<em>攻略</em></h1></div></header>
+<div class="gok-content-panel">
     <div class="hero-head">
         <img src="{{heroAvatar}}" alt="{{heroName}}" onerror="this.style.visibility='hidden'">
         <div class="hero-title">
@@ -456,9 +459,9 @@
                     <div class="core-name">{{it.name}}</div>
                     <div class="core-rate">
                         {{if it.winRate}}<span class="win">胜率 {{it.winRate}}</span>{{/if}}
-                        {{if it.showRate}}<span class="show"> · 出场 {{it.showRate}}</span>{{/if}}
+                        {{if it.showRate}}<span class="show">出场 {{it.showRate}}</span>{{/if}}
                     </div>
-                    <div class="core-label">{{it.label}}{{if it.money}} · {{it.money}} 金{{/if}}</div>
+                    <div class="core-label">{{if it.label}}<span>{{it.label}}</span>{{/if}}{{if it.money}}<span>{{it.money}} 金</span>{{/if}}</div>
                 </div>
             </div>
             {{/each}}
@@ -531,7 +534,9 @@
     </div>
     {{/if}}
 
-    <div class="footer">GloryOfKings-Plugin · 出装/关系/技能来自官网资料库{{if coreEquips.length || runeSets.length}} · 实战数据来自王者营地{{/if}}</div>
+
+</div>
+<div class="footer">GloryOfKings-Plugin · 出装/关系/技能来自官网资料库{{if coreEquips.length || runeSets.length}} · 实战数据来自王者营地{{/if}}</div>
 </body>
 
 </html>

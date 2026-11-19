@@ -6,181 +6,184 @@
     <title>皮肤上新</title>
     <style>
         * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+            margin:0;
+            padding:0;
+            box-sizing:border-box;
         }
 
         body {
-            font-family: "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
-            width: 1000px;
-            background: linear-gradient(160deg, #0f1420 0%, #1a2133 100%);
-            color: #fff;
-            padding: 36px;
+            font-family:"PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+            width:1000px;
+            background:linear-gradient(160deg, #101112 0%, #1b1a17 100%);
+            color:#eee8dc;
+            padding:36px;
         }
 
         .page-head {
-            display: flex;
-            align-items: baseline;
-            gap: 14px;
-            margin-bottom: 22px;
+            display:flex;
+            align-items:baseline;
+            gap:14px;
+            margin-bottom:22px;
         }
 
         .page-title {
-            font-size: 32px;
-            font-weight: bold;
-            color: #eef2f8;
+            font-size:32px;
+            font-weight:bold;
+            color:#eee8dc;
         }
 
         .page-sub {
-            font-size: 16px;
-            color: #9aa7bd;
+            font-size:20px;
+            color:#aaa499;
         }
 
         .stats-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            padding: 22px 24px;
-            margin-bottom: 20px;
+            background:rgba(238,232,220,0.05);
+            border:1px solid rgba(238,232,220,0.1);
+            border-radius:5px;
+            padding:22px 24px;
+            margin-bottom:20px;
         }
 
         .section-title {
-            font-size: 20px;
-            font-weight: 600;
-            color: #eef2f8;
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            font-size:24px;
+            font-weight:600;
+            color:#eee8dc;
+            margin-bottom:16px;
+            display:flex;
+            align-items:center;
+            gap:10px;
         }
 
         .section-title::before {
-            content: '';
-            width: 4px;
-            height: 18px;
-            background: #f5d76e;
-            border-radius: 2px;
+            content:'';
+            width:4px;
+            height:18px;
+            background:#262116;
+            border-radius:5px;
         }
 
-        .section-title.soon::before { background: #7ee0a8; }
-        .section-title.today::before { background: #ff5b7c; }
+        .section-title.soon::before { background:#262116; }
+        .section-title.today::before { background:#262116; }
 
         /* 一条皮肤：左边横版封面（官网 fmlb_4536 是 16:9 的横图），右边文字 */
         .skin {
-            display: flex;
-            gap: 16px;
-            padding: 14px;
-            background: rgba(0, 0, 0, 0.22);
-            border: 1px solid rgba(255, 255, 255, 0.07);
-            border-radius: 12px;
-            margin-bottom: 12px;
+            display:flex;
+            gap:16px;
+            padding:14px;
+            background:rgba(238,232,220,0.1);
+            border:1px solid rgba(238,232,220,0.07);
+            border-radius:5px;
+            margin-bottom:12px;
         }
 
         .skin:last-child {
-            margin-bottom: 0;
+            margin-bottom:0;
         }
 
         /* 今天上线的那条加金边，扫一眼就知道「今天能买」 */
         .skin.is-today {
-            background: rgba(245, 215, 110, 0.08);
-            border-color: rgba(245, 215, 110, 0.45);
+            background:rgba(216,185,123,0.08);
+            border-color:rgba(216,185,123,0.45);
         }
 
         .skin-cover {
-            width: 200px;
-            height: 112px;
-            border-radius: 10px;
-            object-fit: cover;
-            background: rgba(0, 0, 0, 0.35);
-            flex-shrink: 0;
+            width:200px;
+            height:112px;
+            border-radius:5px;
+            object-fit:cover;
+            background:rgba(238,232,220,0.1);
+            flex-shrink:0;
         }
 
         .skin-body {
-            flex: 1;
-            min-width: 0;
+            flex:1;
+            min-width:0;
         }
 
         .skin-top {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
+            display:flex;
+            align-items:center;
+            gap:10px;
+            flex-wrap:wrap;
         }
 
         .skin-hero-avatar {
-            width: 30px;
-            height: 30px;
-            border-radius: 7px;
-            object-fit: cover;
-            background: rgba(0, 0, 0, 0.35);
-            flex-shrink: 0;
+            width:30px;
+            height:30px;
+            border-radius:5px;
+            object-fit:cover;
+            background:rgba(238,232,220,0.1);
+            flex-shrink:0;
         }
 
         .skin-name {
-            font-size: 20px;
-            font-weight: bold;
-            color: #eef2f8;
+            font-size:24px;
+            font-weight:bold;
+            color:#eee8dc;
         }
 
         .skin-hero {
-            font-size: 15px;
-            color: #9aa7bd;
+            font-size:20px;
+            color:#aaa499;
         }
 
         /* 品质用行内色块，颜色由 JS 按品质给（QUALITY_COLOR），未知品质回落成灰 */
         .skin-quality {
-            font-size: 13px;
-            font-weight: bold;
-            border-radius: 6px;
-            padding: 2px 9px;
-            background: rgba(255, 255, 255, 0.08);
+            font-size:20px;
+            font-weight:bold;
+            border-radius:5px;
+            padding:2px 9px;
+            background:rgba(238,232,220,0.08);
         }
 
         .skin-date {
-            font-size: 15px;
-            font-weight: bold;
-            color: #f5d76e;
-            margin-left: auto;
-            flex-shrink: 0;
+            font-size:20px;
+            font-weight:bold;
+            color:#d8b97b;
+            margin-left:auto;
+            flex-shrink:0;
         }
 
         .skin-date .tag {
-            font-size: 13px;
-            font-weight: normal;
-            color: #9aa7bd;
-            margin-right: 5px;
+            font-size:20px;
+            font-weight:normal;
+            color:#aaa499;
+            margin-right:5px;
         }
 
         .skin-intro {
-            font-size: 15px;
-            color: #b6c0d0;
-            line-height: 1.5;
-            margin-top: 8px;
+            font-size:20px;
+            color:#eee8dc;
+            line-height:1.5;
+            margin-top:8px;
         }
 
         .skin-get {
-            font-size: 14px;
-            color: #8b97ab;
-            line-height: 1.45;
-            margin-top: 6px;
+            font-size:20px;
+            color:#aaa499;
+            line-height:1.45;
+            margin-top:6px;
         }
 
         .empty {
-            font-size: 16px;
-            color: #8b97ab;
+            font-size:20px;
+            color:#aaa499;
         }
 
         .footer {
-            margin-top: 22px;
-            text-align: center;
-            font-size: 14px;
-            color: #6b7688;
+            margin-top:22px;
+            text-align:center;
+            font-size:20px;
+            color:#aaa499;
         }
     </style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
+<style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
 </head>
 
-<body>
+<body data-gok-page="SkinNews"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>皮肤<em>资讯</em></h1></div></header>
+<div class="gok-content-panel">
     <div class="page-head">
         <span class="page-title">皮肤上新</span>
         <span class="page-sub">{{dateText}}{{if pushMode}} · 上新提醒{{/if}}</span>
@@ -258,7 +261,9 @@
     </div>
     {{/if}}
 
-    <div class="footer">GloryOfKings-Plugin · 数据来自王者荣耀官网资料库</div>
+
+</div>
+<div class="footer">GloryOfKings-Plugin · 数据来自王者荣耀官网资料库</div>
 </body>
 
 </html>

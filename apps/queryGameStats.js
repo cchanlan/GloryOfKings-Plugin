@@ -25,13 +25,20 @@
  */
 import fs from 'node:fs'
 import path from 'path'
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { PluginData, PluginPath } from '#components'
 import { getImgType, ApiService, readYamlFile, getUserAvatar, isQQNumber, Button, replyCampIdGuide, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote, resolveMemberName } from '#utils'
 import { estimateRequestSeconds } from '../utils/api.js'
 // 详情图与评价图标解析被战绩推送共用，抽到了 utils/battleDetailImage.js
 import { fetchBattleDetail, renderBattleDetail, resolveMvp, resolveEvaluate, buildKillTags } from '../utils/battleDetailImage.js'
 import { resolveHero } from '../utils/heroName.js'
+import { createBattleEquipmentService } from '../utils/battleEquipment.js'
+
+const battleEquipment = createBattleEquipmentService({
+  fetchDetail: fetchBattleDetail,
+  cachePath: path.join(PluginData, 'BattleEquipmentCache.json'),
+  logger: globalThis.logger
+})
 
 /**
  * 战绩模式 → 服务端 `option` 参数。
@@ -222,6 +229,7 @@ export class QueryGameStats extends plugin {
       const emptyImg = await puppeteer.screenshot('QueryGameRecordList', {
         imgType: getImgType(),
         tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordList.html',
+        _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
         data: [],
         qqAvatar,
         nickname,
@@ -244,11 +252,12 @@ export class QueryGameStats extends plugin {
     const totalWins = shown.filter(item => Number(item.gameresult) === 1).length
     const winRate = Math.round((totalWins / totalGames) * 100)
 
-    const processedData = shown.map(this.toListItem)
+    const processedData = await battleEquipment.hydrate(ID, shown, String(e.user_id), shown.map(this.toListItem))
 
     const listImg = await puppeteer.screenshot('QueryGameRecordList', {
       imgType: getImgType(),
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordList.html',
+        _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
       data: processedData,
       qqAvatar,
       nickname,
@@ -324,6 +333,7 @@ export class QueryGameStats extends plugin {
       const emptyImg = await puppeteer.screenshot('QueryGameRecordList', {
         imgType: getImgType(),
         tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordList.html',
+        _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
         data: [],
         qqAvatar,
         nickname,
@@ -363,11 +373,12 @@ export class QueryGameStats extends plugin {
       return
     }
 
-    const processedData = battleList.list.map(this.toListItem)
+    const processedData = await battleEquipment.hydrate(ID, battleList.list, String(e.user_id), battleList.list.map(this.toListItem))
 
     const listImg = await puppeteer.screenshot('QueryGameRecordList', {
       imgType: getImgType(),
       tplFile: 'plugins/GloryOfKings-Plugin/resources/html/QueryGameRecordList.html',
+        _res_path: '../../../plugins/GloryOfKings-Plugin/resources/',
       data: processedData,
       qqAvatar,
       nickname,

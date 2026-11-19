@@ -1,0 +1,34 @@
+@import url('./ui-surfaces.css');
+/* 只保留一层磨砂背景。模糊/压亮度仅作用于独立背景层，前景文字和素材不参与。 */
+html body[data-gok-page], html body:not([data-gok-page]) > #container {
+  position:relative!important;
+  isolation:isolate;
+  overflow:hidden!important;
+  background:#101112!important;
+}
+html body[data-gok-page]::before, html body:not([data-gok-page]) > #container::before {
+  content:''!important;
+  display:block!important;
+  position:absolute!important;
+  inset:-36px!important;
+  width:auto!important;
+  height:auto!important;
+  z-index:-1!important;
+  pointer-events:none!important;
+  background-image:var(--gok-custom-background,none),var(--gok-page-art,url('../img/background.jpg'))!important;
+  background-size:cover!important;
+  background-position:center top!important;
+  background-repeat:no-repeat!important;
+  filter:blur(var(--gok-background-blur,12px)) brightness(.28) saturate(.88)!important;
+  opacity:1!important;
+  transform:none!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+}
+body:is([data-gok-page="AllSeasonPerformance"],[data-gok-page="BattleReport"],[data-gok-page="HeroDetail"],[data-gok-page="HeroMedalWall"],[data-gok-page="MyKingHomepage"],[data-gok-page="KingCompare"],[data-gok-page="PeakPerformance"],[data-gok-page="RankTrend"],[data-gok-page="ScoreTrend"],[data-gok-page="SeasonPage"],[data-gok-page="SkinMissing"],[data-gok-page="TeamBroadcast"],[data-gok-page="TeamList"],[data-gok-page="WatchBattle"],[data-gok-page="WhoIsPlaying"],[data-gok-page="campFriend"],[data-gok-page="campImMsg"]) {
+  --gok-page-art:url('https://game.gtimg.cn/images/yxzj/img201606/skin/hero-info/152/152-bigskin-8.jpg'),url('../img/background.jpg');
+}
+body:is([data-gok-page="accountManage"],[data-gok-page="authPoolOverview"]) { --gok-page-art:url('../img/bgImgV2.png'); }
+body[data-gok-page="HeroGuide"] { --gok-page-art:var(--hero-bg,url('../img/background.jpg')); }
+body[data-gok-page] :is(.gok-overlay,.gok-veil),body[data-gok-page="RankList"] #container { background:transparent!important; }

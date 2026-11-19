@@ -1,5 +1,5 @@
 // 皮肤墙功能：营地皮肤列表接口调用逻辑参考自 https://github.com/KimigaiiWuyi/WzryUID
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import common from '../../../lib/common/common.js'
 import { getImgType, ApiService, readYamlFile, getLocalImage, sniffImageMime, getUserAvatar, getPvpSkinCover, Button, replyCampIdGuide, CAMP_ID_GUIDE_HINT, CAMP_ID_SUFFIX_HINT, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote, resolveMemberName, isQQNumber, SZ_ORDER, normalizeSzClass, tierRank, pickTierText, QUALITY_STATS, countQuality, cleanImageCache, resolveCacheMaxBytes } from '#utils'
 import path from 'path'

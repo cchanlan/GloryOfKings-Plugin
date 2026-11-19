@@ -7,122 +7,125 @@
   <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
   <style>
     /* 一人一行：QQ头像 + 昵称/状态 + 右侧英雄 */
-    .who-list { display: flex; flex-direction: column; gap: 9px; }
+    .who-list { display:flex; flex-direction:column; gap:9px; }
     .who-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 12px;
-      padding: 9px 14px;
+      display:flex;
+      align-items:center;
+      gap:12px;
+      background:rgba(238,232,220,0.04);
+      border:1px solid rgba(238,232,220,0.08);
+      border-radius:5px;
+      padding:9px 14px;
     }
     /* 对局中那组给一条金色左边框，扫一眼就知道这几个人在打 */
     .who-row.playing {
-      border-color: rgba(245,215,110,0.32);
-      background: linear-gradient(100deg, rgba(245,215,110,0.1), rgba(255,255,255,0.03));
+      border-color:rgba(216,185,123,0.32);
+      background:linear-gradient(100deg, rgba(216,185,123,0.1), rgba(238,232,220,0.03));
     }
     .who-avatar {
-      width: 44px; height: 44px;
-      border-radius: 50%;
-      border: 2px solid rgba(255,255,255,0.16);
-      object-fit: cover;
-      flex-shrink: 0;
-      background: rgba(255,255,255,0.06);
+      width:44px; height:44px;
+      border-radius:50%;
+      border:2px solid rgba(238,232,220,0.16);
+      object-fit:cover;
+      flex-shrink:0;
+      background:rgba(238,232,220,0.06);
     }
-    .who-row.playing .who-avatar { border-color: rgba(245,215,110,0.5); }
+    .who-row.playing .who-avatar { border-color:rgba(216,185,123,0.5); }
     /* 昵称可能很长（营地昵称最多十几个字），别把右边的英雄挤出卡片 */
-    .who-main { flex: 1; min-width: 0; }
+    .who-main { flex:1; min-width:0; }
     .who-name {
-      font-size: 15px;
-      margin-bottom: 4px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      font-size:20px;
+      margin-bottom:4px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
-    .who-meta { font-size: 12px; color: rgba(255,255,255,0.38); }
+    .who-meta { font-size:20px; color:rgba(238,232,220,0.38); }
     /* 时长 / 段位标签：靠间隔和颜色区分 */
-    .who-meta .dur { color: rgba(245,215,110,0.75); }
-    .who-meta .rank { color: rgba(255,255,255,0.55); }
-    .who-meta .ended-tag { color: #6fd39b; }
+    .who-meta .dur { color:#d8b97b; }
+    .who-meta .rank { color:rgba(238,232,220,0.55); }
+    .who-meta .ended-tag { color:#b8a78a; }
     /* 「数据较旧」：这条是盘上的旧快照，不是刚刷到的（见 apps/whoIsPlaying.js 的 STALE_MS）。
        文案回落（:549/:565/:574）一直有这个标记，图上原来漏了 —— 注释三处都写着「图上会带」 */
-    .who-meta .stale-tag { color: rgba(245,180,110,0.85); }
+    .who-meta .stale-tag { color:#d8b97b; }
     .who-state {
-      font-size: 13px;
-      padding: 3px 11px;
-      border-radius: 9px;
-      flex-shrink: 0;
-      background: rgba(255,255,255,0.08);
-      color: rgba(255,255,255,0.6);
+      font-size:20px;
+      padding:3px 11px;
+      border-radius:5px;
+      flex-shrink:0;
+      background:rgba(238,232,220,0.08);
+      color:#eee8dc;
     }
-    .who-state.on { background: rgba(111,211,155,0.16); color: #6fd39b; }
-    .who-state.gaming { background: rgba(245,215,110,0.18); color: #f5d76e; }
-    .who-state.ended-s { background: rgba(111,211,155,0.14); color: rgba(111,211,155,0.85); }
-    .who-state.lobby { background: rgba(122,168,255,0.14); color: rgba(122,168,255,0.9); }
+    .who-state.on { background:rgba(216,185,123,0.16); color:#b8a78a; }
+    .who-state.gaming { background:rgba(216,185,123,0.18); color:#d8b97b; }
+    .who-state.ended-s { background:rgba(216,185,123,0.14); color:#b8a78a; }
+    .who-state.lobby { background:rgba(216,185,123,0.14); color:#d8b97b; }
     /* 刚打完的行：绿色左边框，和「正在对局」的金色区分开 */
     .who-row.ended {
-      border-color: rgba(111,211,155,0.3);
-      background: linear-gradient(100deg, rgba(111,211,155,0.08), rgba(255,255,255,0.03));
+      border-color:rgba(216,185,123,0.3);
+      background:linear-gradient(100deg, rgba(216,185,123,0.08), rgba(238,232,220,0.03));
     }
-    .who-row.ended .who-avatar { border-color: rgba(111,211,155,0.45); }
+    .who-row.ended .who-avatar { border-color:rgba(216,185,123,0.45); }
     /* 客户端在线（游戏开着但没在对局）：冷色，跟金色「对局中」和绿色「刚打完」都分得开 */
     .who-row.lobby {
-      border-color: rgba(122,168,255,0.26);
-      background: linear-gradient(100deg, rgba(122,168,255,0.07), rgba(255,255,255,0.03));
+      border-color:rgba(216,185,123,0.26);
+      background:linear-gradient(100deg, rgba(216,185,123,0.07), rgba(238,232,220,0.03));
     }
-    .who-row.lobby .who-avatar { border-color: rgba(122,168,255,0.4); }
+    .who-row.lobby .who-avatar { border-color:rgba(216,185,123,0.4); }
     /* 右侧英雄：头像 + 名字 */
-    .who-hero { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .who-hero { display:flex; align-items:center; gap:8px; flex-shrink:0; }
     .who-hero img {
-      width: 38px; height: 38px;
-      border-radius: 50%;
-      border: 2px solid rgba(245,215,110,0.35);
-      object-fit: cover;
+      width:38px; height:38px;
+      border-radius:50%;
+      border:2px solid rgba(216,185,123,0.35);
+      object-fit:cover;
     }
-    .who-hero span { font-size: 14px; color: #f5d76e; }
+    .who-hero span { font-size:20px; color:#d8b97b; }
 
     /* 离线 / 待采集：只要名字，铺成标签流，几十个人也不会把图拉长 */
-    .name-flow { display: flex; flex-wrap: wrap; gap: 8px; }
+    .name-flow { display:flex; flex-wrap:wrap; gap:8px; }
     .name-chip {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 999px;
-      padding: 4px 12px 4px 5px;
-      font-size: 13px;
-      color: rgba(255,255,255,0.5);
-      max-width: 240px;
+      display:flex;
+      align-items:center;
+      gap:7px;
+      background:rgba(238,232,220,0.04);
+      border:1px solid rgba(238,232,220,0.07);
+      border-radius:5px;
+      padding:4px 12px 4px 5px;
+      font-size:20px;
+      color:rgba(238,232,220,0.5);
+      max-width:240px;
     }
     .name-chip img {
-      width: 26px; height: 26px;
-      border-radius: 50%;
-      object-fit: cover;
-      flex-shrink: 0;
-      background: rgba(255,255,255,0.06);
-      filter: grayscale(1);
-      opacity: 0.7;
+      width:26px; height:26px;
+      border-radius:50%;
+      object-fit:cover;
+      flex-shrink:0;
+      background:rgba(238,232,220,0.06);
+      filter:grayscale(1);
+      opacity:0.7;
     }
     .name-chip b {
-      font-weight: 400;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      font-weight:400;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
 
     .empty-tip {
-      padding: 26px 0;
-      text-align: center;
-      font-size: 15px;
-      color: rgba(255,255,255,0.4);
+      padding:26px 0;
+      text-align:center;
+      font-size:20px;
+      color:rgba(238,232,220,0.4);
     }
-    .footer { padding: 14px 26px; font-size: 12px; color: rgba(255,255,255,0.3); text-align: center; }
+    .footer { padding:14px 26px; font-size:20px; color:rgba(238,232,220,0.3); text-align:center; }
   </style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
+<style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
 </head>
-<body>
-<div class="card">
+<body data-gok-page="WhoIsPlaying">
+<div class="card"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>谁在<em>打游戏</em></h1></div></header>
+<div class="gok-content-panel">
   <div class="card-header">
     <img class="avatar" src="{{avatar}}" alt="" onerror="this.style.display='none'">
     <div class="user-info">
@@ -281,7 +284,9 @@
   </div>
   {{/if}}
 
-  {{if footText}}<div class="footer">{{footText}}</div>{{/if}}
+
+</div>
+{{if footText}}<div class="footer">{{footText}}</div>{{/if}}
 </div>
 </body>
 </html>

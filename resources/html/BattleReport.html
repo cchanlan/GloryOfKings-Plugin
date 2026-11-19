@@ -4,9 +4,12 @@
   <meta charset="UTF-8">
   <title>{{title}}</title>
   <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
+<style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
 </head>
-<body>
-<div class="card">
+<body data-gok-page="BattleReport">
+<div class="card"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>战绩<em>报告</em></h1></div></header>
+<div class="gok-content-panel">
   <!-- 头部 -->
   <div class="card-header">
     {{if roleIcon}}<img src="{{roleIcon}}" class="avatar" alt="" onerror="this.style.display='none'">{{/if}}
@@ -31,7 +34,7 @@
       <div class="stat-key">胜 / 负</div>
     </div>
     <div class="stat-cell {{winRateClass}}">
-      <div class="stat-val">{{winRate}}%</div>
+      <div class="stat-val gok-rate-value">{{winRate}}%</div>
       <div class="stat-key">胜率</div>
     </div>
     <div class="stat-cell">
@@ -57,7 +60,7 @@
       <span class="tip">共 {{byDay.length}} 天有对局</span>
     </div>
     <div class="chart-wrap">
-      <canvas id="dayCanvas" width="2910" height="620"></canvas>
+      <canvas id="dayCanvas" width="1472" height="560"></canvas>
     </div>
   </div>
   {{/if}}
@@ -72,7 +75,6 @@
     <div class="hero-list">
       {{each heroes h}}
       <div class="hero-row">
-        <div class="hero-rank">{{h.rank}}</div>
         <img class="hero-icon" src="{{h.icon}}" alt="">
         <div class="hero-main">
           <div class="hero-name">{{h.name}}</div>
@@ -125,7 +127,9 @@
   </div>
   {{/if}}
 
-  <div class="footer">{{footText}}</div>
+
+</div>
+<div class="footer">{{footText}}</div>
 </div>
 
 <script>
@@ -137,16 +141,16 @@ if (byDay && byDay.length > 1) {
   const c = document.getElementById('dayCanvas')
   const ctx = c.getContext('2d')
   const W = c.width, H = c.height
-  const pad = { t: 40, b: 92, l: 96, r: 96 }
+  const pad = { t: 70, b: 112, l: 96, r: 96 }
   const plotH = H - pad.t - pad.b
   const plotW = W - pad.l - pad.r
   const maxCount = Math.max(...byDay.map(d => d.count), 1)
   const slot = plotW / byDay.length
   const barW = Math.min(slot * 0.52, 150)
-  const step = byDay.length > 16 ? 3 : byDay.length > 10 ? 2 : 1
+  const step = byDay.length > 24 ? 5 : byDay.length > 16 ? 4 : byDay.length > 10 ? 3 : byDay.length > 7 ? 2 : 1
 
   // 背景网格
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+  ctx.strokeStyle = 'rgba(238,232,220,0.06)'
   ctx.lineWidth = 2
   for (let i = 0; i <= 4; i++) {
     const y = pad.t + i * plotH / 4
@@ -161,27 +165,27 @@ if (byDay && byDay.length > 1) {
     const yTop = pad.t + plotH - total
 
     // 负场在下、胜场在上，堆起来就是当天总场次
-    ctx.fillStyle = 'rgba(233,110,110,0.72)'
+    ctx.fillStyle = '#ed7897'
     ctx.fillRect(x, pad.t + plotH - (total - winH), barW, total - winH)
-    ctx.fillStyle = 'rgba(245,215,110,0.86)'
+    ctx.fillStyle = '#64d2a3'
     ctx.fillRect(x, yTop, barW, winH)
 
     // 当天总场次。天数多时抽稀，但最高的那天一定标
     if (step === 1 || i % step === 0 || d.count === maxCount) {
-      ctx.fillStyle = '#fff'
-      ctx.font = '600 34px sans-serif'
+      ctx.fillStyle = '#eee8dc'
+      ctx.font = '600 44px sans-serif'
       ctx.textAlign = 'center'
       ctx.fillText(String(d.count), cx, yTop - 14)
     }
 
     // 日期 + 星期
     if (i % step === 0) {
-      ctx.fillStyle = 'rgba(255,255,255,0.62)'
-      ctx.font = '30px sans-serif'
+      ctx.fillStyle = '#eee8dc'
+      ctx.font = '40px sans-serif'
       ctx.textAlign = 'center'
       ctx.fillText(d.date, cx, H - pad.b + 42)
-      ctx.fillStyle = 'rgba(255,255,255,0.34)'
-      ctx.font = '26px sans-serif'
+      ctx.fillStyle = 'rgba(238,232,220,0.34)'
+      ctx.font = '38px sans-serif'
       ctx.fillText('周' + d.weekday, cx, H - pad.b + 78)
     }
   })

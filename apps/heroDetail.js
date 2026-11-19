@@ -9,7 +9,7 @@
  * 所以链路是 profile → pagedetails 两次请求，和其他 roleId 系接口一样。
  */
 import path from 'path'
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import {
   getImgType,
   ApiService, Button, replyCampIdGuide, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData,

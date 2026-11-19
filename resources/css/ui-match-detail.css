@@ -1,0 +1,138 @@
+@import url('./ui-background.css');
+@font-face{font-family:GokMatch;src:url('../font/HYWH-65W.woff') format('woff');font-display:block}
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--gold:#d8b97b;--text:#eef1f6;--muted:#a7b3c7;--line:#354157}
+body{margin:0;background:#101521;color:var(--text);font:18px/1.45 GokMatch,'Noto Sans CJK SC',sans-serif;font-variant-numeric:tabular-nums}
+#container{width:1160px;padding:0 28px 24px;position:relative;overflow:hidden}
+.ui-header{padding:24px 0 20px;border-bottom:1px solid var(--line)}
+.ui-eyebrow{display:flex;gap:10px;align-items:center;font:700 16px Arial,sans-serif;letter-spacing:2px;color:#aaa598}
+.ui-eyebrow:before{content:'';width:25px;height:3px;background:var(--gold)}
+.ui-title{display:flex;align-items:center;gap:15px;margin-top:18px}
+.ui-logo{width:56px;height:56px;border-radius:12px}
+.ui-title h1{font-size:44px;line-height:1.25;letter-spacing:1px}
+.ui-title em{font-style:normal;color:var(--gold)}
+.ui-subtitle{font-size:18px;color:var(--muted);margin-top:12px}
+.ui-footer{display:flex;justify-content:space-between;gap:24px;border-top:1px solid var(--line);margin-top:24px;padding-top:16px;color:#99a5ba;font-size:16px}
+/* 原版分区与双队排版；状态色只表达胜负，金色用于标题与本人。 */
+.match-header{border-radius:13px;padding:20px 24px;margin-bottom:14px;border:1px solid}
+.match-header.victory{background:linear-gradient(115deg,#204137,#1c2d35);border-color:#396956}
+.match-header.defeat{background:linear-gradient(115deg,#452637,#2c2534);border-color:#784354}
+.victory-text{display:flex;align-items:baseline;gap:18px}
+.result-cn{font-size:46px;font-weight:700;line-height:1.2}
+.victory .result-cn{color:var(--gok-success)}
+.defeat .result-cn{color:var(--gok-failure)}
+.result-meta{font-size:18px;color:#c2ccd9}
+.result-meta .en{font:16px Arial,sans-serif;letter-spacing:2px;color:#a7b6c4}
+.match-desc{margin-top:10px;font-size:18px;line-height:1.45;color:#c3cddd;overflow-wrap:anywhere}
+.stats-card{background:var(--gok-section-fill);border:1px solid var(--gok-panel-edge);border-radius:14px;padding:18px;margin-bottom:18px;box-shadow:var(--gok-panel-glow)}
+.section-title{font-size:21px;font-weight:600;color:#eef1f6;margin-bottom:15px;display:flex;align-items:center;gap:10px}
+.section-title:before{content:'';width:4px;height:18px;background:var(--gold);border-radius:2px;flex-shrink:0}
+.economy-bar{height:36px;border-radius:8px;overflow:hidden;display:flex;margin-bottom:18px}
+.economy-progress,.economy-remaining{height:100%;display:flex;align-items:center;padding:0 14px;font:700 18px Arial,sans-serif;color:#122021;min-width:64px}
+.economy-progress{background:linear-gradient(90deg,#398267,var(--gok-success));justify-content:flex-end}
+.economy-remaining{flex:1;background:linear-gradient(90deg,var(--gok-failure),#ae4464);justify-content:flex-start}
+.resources-title{font-size:17px;color:var(--muted);margin-bottom:12px}
+.resource-items{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.resource-item{background:var(--gok-panel-fill);border:1px solid var(--gok-panel-edge);border-radius:9px;padding:12px 6px;text-align:center}
+.resource-icon{font-size:17px;color:#b4bfd0;margin-bottom:7px}
+.resource-score{font:700 24px Arial,sans-serif;color:#e5c880}
+.resource-score .divider{color:#93a0b5;margin:0 5px;font-weight:400}
+/* 头像、战力胶囊、KDA、评分；右侧五格评级和三组同行行为。 */
+.me-body{display:flex;gap:18px;align-items:stretch}
+.me-profile{width:180px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;padding:16px 8px;background:var(--gok-inset-fill);border:1px solid #2d394e;border-radius:11px}
+.me-avatar{width:68px;height:68px;border-radius:50%;border:2px solid #6d798e;object-fit:cover}
+.me-power{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#273650;border:1px solid #465d83;font:600 17px/1.35 GokMatch,sans-serif;white-space:nowrap;color:#edf1f8}
+.me-power .label{color:#b0c1db;font-weight:400}
+.me-power .delta{font-weight:700}
+.delta.up{color:var(--gok-success)}.delta.down{color:var(--gok-failure)}
+.me-kda{font:600 22px Arial,sans-serif;letter-spacing:.6px}
+.me-grade{font:700 34px/1 Arial,sans-serif}
+.grade-s,.tier-S{color:#f16f91}.grade-a,.tier-A{color:#e7c879}.grade-b,.tier-B{color:#829ff5}.grade-c,.tier-C{color:#a8b6cb}
+.me-detail{flex:1;min-width:0}
+.rating-row{display:flex;gap:10px;margin-bottom:14px}
+.rating-item{flex:1;min-width:0;text-align:center;padding:10px 0;background:var(--gok-inset-fill);border:1px solid #2d394e;border-radius:9px}
+.rating-tier{font:700 25px/1.1 Arial,sans-serif}
+.rating-name{font-size:16px;color:var(--muted);margin-top:4px}
+.behavior-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.behavior-card{min-width:0;padding:12px;background:var(--gok-inset-fill);border:1px solid #2d394e;border-radius:9px}
+.behavior-title{font-size:18px;font-weight:600;color:#e4eaf4;margin-bottom:10px}
+.behavior-item{display:flex;align-items:baseline;gap:6px;font-size:16px;line-height:1.6;margin-bottom:4px;white-space:nowrap}
+.bi-name{flex:1;min-width:0;color:#a9b6cb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bi-value{font-family:Arial,GokMatch,sans-serif;font-weight:700;color:#dce4f1;flex-shrink:0}
+.bi-note{font-size:14px;color:#9ba9bd;flex-shrink:0}
+.bi-value.hl{color:#e7c879}.bi-note.hl{color:var(--gok-success)}
+/* 禁用区镜像，玩家卡不翻转；与旧版一致，左右均为头像+评分在左。 */
+.ban-container{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.ban-card{min-width:0}
+.ban-title.my{color:var(--gok-success)}.ban-title.enemy{color:var(--gok-failure)}
+.ban-card.enemy .section-title{flex-direction:row-reverse}
+.ban-row{display:flex;align-items:flex-start;gap:13px;flex-wrap:wrap}
+.ban-card.enemy .ban-row{flex-direction:row-reverse}
+.ban-hero{position:relative;width:54px;text-align:center}
+.ban-hero img{width:54px;height:54px;border-radius:8px;object-fit:cover;display:block;filter:grayscale(1) brightness(.8)}
+.ban-hero:after{content:'';position:absolute;left:0;top:52px;width:74px;height:2px;background:#ec6d8a;transform:rotate(-45deg);transform-origin:left center}
+.ban-card.enemy .ban-hero:after{left:auto;right:0;transform:rotate(45deg);transform-origin:right center}
+.ban-hero span{display:block;margin-top:6px;font-size:15px;line-height:1.25;color:#aab7ca;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stats-container{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:stretch}
+.team-container{min-width:0;padding:14px;display:flex;flex-direction:column}
+.team-header-container{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:10px;margin-bottom:12px;border:1px solid}
+.team-header-container.victory{background:#263e40;border-color:#3e665f}
+.team-header-container.defeat{background:#402c40;border-color:#6d4157}
+.team-header{font-size:20px;font-weight:600;white-space:nowrap}
+.team-header.victory{color:var(--gok-success)}.team-header.defeat{color:var(--gok-failure)}
+.team-header.stats{font:18px Arial,sans-serif;color:#c7d0df}
+.player-list,.player-column{min-width:0}
+.player-card{display:grid;grid-template-columns:126px minmax(0,1fr);gap:12px;align-items:center;background:var(--gok-panel-fill);border:1px solid #43516a;border-radius:11px;padding:13px 11px;margin-bottom:10px;box-shadow:0 1px 0 #ffffff06 inset}
+.player-card:last-child{margin-bottom:0}
+.player-card.is-me{background:#343b43;border-color:#9c895c;box-shadow:0 0 10px #d8b97b18,inset 0 1px 0 #ffffff08}
+.player-left{min-width:0;display:flex;flex-direction:column;gap:12px}
+.avatar-row{display:flex;align-items:center;gap:9px}
+.avatar-wrap{position:relative;flex-shrink:0}
+.player-avatar{width:70px;height:70px;border-radius:10px;object-fit:cover;display:block}
+.me-badge{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);font-size:12px;font-weight:700;background:#e7c879;color:#283041;border:1px solid #9e8449;border-radius:7px;padding:0 5px}
+.score{font:700 27px Arial,sans-serif;min-width:44px;text-align:center}
+.player-info{min-width:0;display:flex;flex-direction:column;gap:6px;align-self:stretch}
+.player-top-info{display:flex;align-items:center;gap:6px;min-height:25px;white-space:nowrap}
+.player-name{font-size:19px;font-weight:600;color:#eef1f7;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mvp-badge{font:700 12px Arial,sans-serif;color:#263040;background:#e7c879;border-radius:5px;padding:2px 5px;flex-shrink:0}
+.eval-icon{height:19px;width:auto;max-width:85px;object-fit:contain;flex-shrink:0}
+.economy-display{font:700 17px Arial,GokMatch,sans-serif;color:#e5c880;white-space:nowrap;margin-left:auto;flex-shrink:0}
+.economy-display .label,.damage-display .label{font-family:GokMatch,sans-serif;font-size:15px;font-weight:400;color:#a9b6cb;margin-right:4px}
+.player-stats{display:flex;align-items:baseline;gap:8px;white-space:nowrap;font:600 19px Arial,sans-serif}
+.damage-display{margin-left:auto;font:700 18px Arial,GokMatch,sans-serif;color:#ef8ca6;white-space:nowrap}
+.damage-display .rate{margin-left:5px;font-size:16px;font-weight:400}
+.share-top{color:#f27899}.share-high{color:#e7c879}.share-mid{color:#829ff5}.share-low{color:#a8b6cb}
+.player-extra{display:flex;align-items:baseline;gap:9px;font-size:14px;white-space:nowrap;color:#aab7ca}
+.player-extra .item{display:flex;align-items:baseline;gap:3px}.player-extra .item:empty{display:none}
+.player-extra .val{color:#d1dbea;font-family:Arial,GokMatch,sans-serif;font-weight:600}
+.top-star{color:#e7c879;font-size:12px}
+/* 英雄与本场皮肤名回到头像下；不占用右侧数据和装备的位置。 */
+.max-tags{display:flex;align-items:center;gap:5px;min-width:0}
+.player-left .hero-name{display:block;width:100%;font-size:14px;line-height:1.4;color:#acb9cd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.max-tags img{height:18px;width:auto;flex-shrink:0;object-fit:contain}
+.max-tags:empty{display:none}
+.equipment-list{display:flex;align-items:center;gap:5px;flex-wrap:nowrap;margin-top:auto}
+.equipment-item{width:34px;height:34px;flex:0 0 34px;border:1px solid #4a5366;background:#121c2c;border-radius:7px;overflow:hidden}
+.equipment-item:first-child{border-radius:50%;margin-right:4px;border-color:#9d8754}
+.equipment-item img{width:100%;height:100%;object-fit:cover;display:block}
+
+/* Both teams share row tracks: extra badges expand the matching row, not the whole column. */
+@supports (grid-template-rows: subgrid) {
+  .stats-container{grid-template-rows:repeat(var(--team-row-count),auto);row-gap:10px}
+  .team-container{display:grid;grid-template-rows:subgrid;grid-row:1 / span var(--team-row-count);row-gap:10px}
+  .team-container:first-child{grid-column:1}
+  .team-container:last-child{grid-column:2}
+  .team-header-container{margin-bottom:2px}
+  .team-container .player-list,.team-container .player-column{display:contents}
+  .player-card,.player-card:last-child{margin-bottom:0}
+}
+
+/* 头像下完整保留英雄/皮肤名；评分不因固定侧栏挤出。 */
+.player-card{grid-template-columns:166px minmax(0,1fr)}
+.score{flex:0 0 58px;min-width:58px}
+.max-tags{flex-wrap:wrap}
+
+/* MVP、金银牌属于昵称旁的身份信息；经济空间不足时整项换行，不拆散姓名与牌子。 */
+.player-top-info{flex-wrap:wrap;row-gap:3px}
+.player-identity{display:flex;align-items:center;gap:6px;flex:0 0 auto;max-width:100%;min-width:0}
+.player-identity .player-name{flex:0 1 auto}

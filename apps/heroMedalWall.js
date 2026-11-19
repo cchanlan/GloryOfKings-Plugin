@@ -13,7 +13,7 @@
  *
  * 出图走 HeroMedalWall.html（视觉与战报同源），渲染失败时回落到纯文字清单。
  */
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import {
   getImgType,
   ApiService, resolveCurrentId, readUserData, Button, shouldQuote, getUserAvatar,

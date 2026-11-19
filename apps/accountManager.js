@@ -21,7 +21,7 @@
  */
 import path from 'path'
 import { getImgType, writeYamlFile, readYamlFile, Button, replyCampIdGuide, AT_HEAD, AT_TAIL, stripAtText, resolveTargetUserId, shouldQuote, invalidateShareCache, querySharedBind, listHiddenProfiles, clearHiddenProfile, clearAllHiddenProfiles } from '#utils'
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { PluginData, PluginPath } from '#components'
 import authStore from '../utils/authStore.js'
 import { syncUserBind } from '../utils/shareUsers.js'
@@ -637,8 +637,8 @@ export class AccountManager extends plugin {
         const html = await this.#renderAccountManageCard('查询', currentId, idList, nameMap[currentId])
 
         return e.reply([
-          '这些是从共享库拿到的，本机还没绑（推送类功能要本机绑一次）',
           html,
+          '这些是从共享库拿到的，本机还没绑（推送类功能要本机绑一次）',
           Button.bind()
         ], shouldQuote())
       }

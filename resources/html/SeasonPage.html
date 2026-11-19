@@ -4,9 +4,12 @@
   <meta charset="UTF-8">
   <title>赛季表现</title>
   <link rel="stylesheet" href="{{_res_path}}css/SeasonPage.css">
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
+<style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
 </head>
-<body>
-<div class="card">
+<body data-gok-page="SeasonPage">
+<div class="card"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>赛季<em>表现</em></h1></div></header>
+<div class="gok-content-panel">
   <!-- 头部 -->
   <div class="card-header">
     <img src="{{roleIcon}}" class="avatar" alt="">
@@ -36,7 +39,7 @@
       <div class="stat-key">综合得分</div>
     </div>
     <div class="stat-cell">
-      <div class="stat-val">{{winRate}}</div>
+      <div class="stat-val gok-rate-value">{{winRate}}</div>
       <div class="stat-key">胜率</div>
     </div>
     <div class="stat-cell">
@@ -54,7 +57,7 @@
   <div class="section">
     <div class="section-title">{{rankTag}}上分趋势</div>
     <div class="trend-wrap">
-      <canvas id="trendCanvas" width="2910" height="780"></canvas>
+      <canvas id="trendCanvas" width="1472" height="560"></canvas>
     </div>
   </div>
   {{/if}}
@@ -68,7 +71,7 @@
       <div class="hero-card">
         <img src="{{h.heroIcon}}" class="hero-icon" alt="">
         <div class="hero-name">{{h.heroName}}</div>
-        <div class="hero-stats"><span class="hl">{{h.winRate}}</span> 胜率 &nbsp; <span class="hl">{{h.gameCnt}}</span> 场</div>
+        <div class="hero-stats"><span class="hl gok-rate-value">{{h.winRate}}</span> 胜率 &nbsp; <span class="hl">{{h.gameCnt}}</span> 场</div>
       </div>
       {{/each}}
     </div>
@@ -88,9 +91,9 @@
         </div>
       </div>
       <div class="branch-list">
-        {{each branches b}}
+        {{each branches b branchIndex}}
         <div class="branch-item">
-          <span class="branch-dot" style="background:{{b.color}}"></span>
+          <span class="branch-dot" style="background:{{['#d8b97b','#9cabc1','#b38f88','#8faaa0','#b6a2bb'][branchIndex % 5]}}"></span>
           <span class="branch-name">{{b.name}}</span>
           <span class="branch-cnt">{{b.gameCnt}}场（{{b.winNum}}胜{{b.loseNum}}负）</span>
           <span class="branch-rate">胜率{{b.winRate}}</span>
@@ -109,7 +112,7 @@
       <canvas id="radarCanvas" width="780" height="780" style="width:260px;height:260px;align-self:center"></canvas>
       <div class="radar-stats">
         <div class="rs-item"><span class="hl">{{gameCnt}}</span><div class="rs-label">场次</div></div>
-        <div class="rs-item"><span class="hl">{{winRate}}</span><div class="rs-label">胜率</div></div>
+        <div class="rs-item"><span class="hl gok-rate-value">{{winRate}}</span><div class="rs-label">胜率</div></div>
         <div class="rs-item"><span class="hl">{{score}}</span><div class="rs-label">平均得分</div></div>
       </div>
     </div>
@@ -124,7 +127,7 @@
       {{each lanes lane idx}}
       <div class="lane-card">
         <div class="lane-head">
-          <span class="lane-dot" style="background:{{lane.color}}"></span>
+          <span class="lane-dot" style="background:{{['#d8b97b','#9cabc1','#b38f88','#8faaa0','#b6a2bb'][idx % 5]}}"></span>
           <span class="lane-name">{{lane.name}}</span>
           <span class="lane-meta">{{lane.gameCnt}}场 · 胜率{{lane.winRate}}</span>
         </div>
@@ -166,7 +169,7 @@
       <div class="hero-card">
         <img src="{{h.heroIcon}}" class="hero-icon" alt="">
         <div class="hero-name">{{h.heroName}}</div>
-        <div class="hero-stats"><span class="hl">{{h.winRate}}</span> 胜率 &nbsp; <span class="hl">{{h.gameCnt}}</span> 场</div>
+        <div class="hero-stats"><span class="hl gok-rate-value">{{h.winRate}}</span> 胜率 &nbsp; <span class="hl">{{h.gameCnt}}</span> 场</div>
       </div>
       {{/each}}
     </div>
@@ -184,9 +187,9 @@
         </div>
       </div>
       <div class="branch-list">
-        {{each masterBranches b}}
+        {{each masterBranches b branchIndex}}
         <div class="branch-item">
-          <span class="branch-dot" style="background:{{b.color}}"></span>
+          <span class="branch-dot" style="background:{{['#d8b97b','#9cabc1','#b38f88','#8faaa0','#b6a2bb'][branchIndex % 5]}}"></span>
           <span class="branch-name">{{b.name}}</span>
           <span class="branch-cnt">{{b.gameCnt}}场（{{b.winNum}}胜{{b.loseNum}}负）</span>
           <span class="branch-rate">胜率{{b.winRate}}</span>
@@ -198,16 +201,20 @@
   {{/if}}
   {{/if}}
 
-  <div class="footer">GloryOfKings-Plugin · {{titleLabel || '排位表现'}}</div>
+
+</div>
+<div class="footer">GloryOfKings-Plugin · {{titleLabel || '排位表现'}}</div>
 </div>
 
 <script>
-const BRANCH_COLORS = ['#f5d76e','#f0932b','#6ab0f5','#57c98a','#c97bdb']
-const branches = {{@ branchesJson}}
-const masterBranches = {{@ masterBranchesJson || '[]'}}
+const UI_SERIES = ['#d8b97b','#9cabc1','#b38f88','#8faaa0','#b6a2bb']
+
+const BRANCH_COLORS = ['#d8b97b','#9cabc1','#b38f88','#8faaa0','#b6a2bb']
+const branches = ({{@ branchesJson}}).map((entry, index) => ({...entry, color:UI_SERIES[index % UI_SERIES.length]}))
+const masterBranches = ({{@ masterBranchesJson || '[]'}}).map((entry, index) => ({...entry, color:UI_SERIES[index % UI_SERIES.length]}))
 const radar = {{@ radarJson}}
 const trend = {{@ trendJson}}
-const lanes = {{@ lanesJson}}
+const lanes = ({{@ lanesJson}}).map((entry, index) => ({...entry, color:UI_SERIES[index % UI_SERIES.length]}))
 const DPR = 3  // body scale(3)
 
 // 上分趋势折线图
@@ -215,7 +222,7 @@ if (trend && trend.length > 1) {
   const c = document.getElementById('trendCanvas')
   const ctx = c.getContext('2d')
   const W = c.width, H = c.height
-  const pad = { t: 70, b: 96, l: 190, r: 70 }
+  const pad = { t: 70, b: 96, l: 280, r: 70 }
   const plotH = H - pad.t - pad.b
   const stars = trend.map(t => t.star)
   const dataMin = Math.min(...stars), dataMax = Math.max(...stars)
@@ -229,7 +236,7 @@ if (trend && trend.length > 1) {
   const ys = stars.map(s => pad.t + (1 - (s - axisMin) / range) * plotH)
 
   // 背景网格
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+  ctx.strokeStyle = 'rgba(238,232,220,0.06)'
   ctx.lineWidth = 2
   for (let i = 0; i <= 4; i++) {
     const y = pad.t + i * plotH / 4
@@ -253,8 +260,8 @@ if (trend && trend.length > 1) {
   // 填充渐变。底边要走画布底边：先 moveTo 到底边再画曲线会把路径切成两段，
   // closePath 就从右下角直接连回曲线起点，填充区里多出一条斜穿全图的线（星数有涨有跌时很明显）
   const grad = ctx.createLinearGradient(0, pad.t, 0, H - pad.b)
-  grad.addColorStop(0, 'rgba(245,215,110,0.32)')
-  grad.addColorStop(1, 'rgba(245,215,110,0.02)')
+  grad.addColorStop(0, 'rgba(216,185,123,0.32)')
+  grad.addColorStop(1, 'rgba(216,185,123,0.02)')
   ctx.beginPath()
   buildSmoothPath()
   ctx.lineTo(xs[xs.length - 1], H - pad.b)
@@ -265,19 +272,19 @@ if (trend && trend.length > 1) {
   // 折线（平滑）
   ctx.beginPath()
   buildSmoothPath()
-  ctx.strokeStyle = '#f5d76e'; ctx.lineWidth = 5
+  ctx.strokeStyle = '#d8b97b'; ctx.lineWidth = 5
   ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke()
 
   // 点
   xs.forEach((x, i) => {
     ctx.beginPath(); ctx.arc(x, ys[i], 7, 0, Math.PI * 2)
-    ctx.fillStyle = '#f5d76e'; ctx.fill()
+    ctx.fillStyle = '#d8b97b'; ctx.fill()
   })
 
   // Y轴段位标签：最低、最高、以及中间一档参考
   const rankLabel = t => (t.jobName || '').replace('最强', '') + (t.stars != null ? ' ' + t.stars + '星' : '')
   const minIdx = stars.indexOf(dataMin), maxIdx = stars.indexOf(dataMax)
-  ctx.font = '30px YS,sans-serif'
+  ctx.font = '44px YS,sans-serif'
   ctx.textAlign = 'right'
 
   // 中间参考线：取数据中位星数所在的点，画一条淡横线 + 标签
@@ -286,20 +293,20 @@ if (trend && trend.length > 1) {
     let midT = trend[0], best = Infinity
     trend.forEach(t => { const d = Math.abs(t.star - midStar); if (d < best) { best = d; midT = t } })
     const midY = pad.t + (1 - (midStar - axisMin) / range) * plotH
-    ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 2
+    ctx.strokeStyle = 'rgba(238,232,220,0.12)'; ctx.lineWidth = 2
     ctx.setLineDash([8, 8])
     ctx.beginPath(); ctx.moveTo(pad.l, midY); ctx.lineTo(W - pad.r, midY); ctx.stroke()
     ctx.setLineDash([])
-    ctx.fillStyle = 'rgba(255,255,255,0.4)'
+    ctx.fillStyle = 'rgba(238,232,220,0.4)'
     ctx.fillText(rankLabel(midT), pad.l - 14, midY + 10)
   }
 
-  ctx.fillStyle = 'rgba(255,255,255,0.6)'
+  ctx.fillStyle = '#eee8dc'
   ctx.fillText(rankLabel(trend[minIdx]), pad.l - 14, ys[minIdx] + 10)
   if (minIdx !== maxIdx) ctx.fillText(rankLabel(trend[maxIdx]), pad.l - 14, ys[maxIdx] + 10)
 
   // X轴日期：首点左对齐、尾点右对齐，避免文字被画布左右边缘截断
-  ctx.fillStyle = 'rgba(255,255,255,0.5)'
+  ctx.fillStyle = 'rgba(238,232,220,0.5)'
   const fmtDate = i => {
     const d = new Date(Number(trend[i].time) * 1000)
     return `${d.getMonth()+1}-${d.getDate()}`
@@ -315,7 +322,7 @@ function drawDonut (canvasId, list) {
   const c = document.getElementById(canvasId)
   if (!c || !list || !list.length) return
   const ctx = c.getContext('2d')
-  const cx = 180, cy = 180, r = 153, inner = 99
+  const cx = 180, cy = 180, r = 153, inner = 122
   const total = list.reduce((s, b) => s + b.gameCnt, 0) || 1
   let angle = -Math.PI / 2
   list.forEach((b, i) => {
@@ -328,7 +335,7 @@ function drawDonut (canvasId, list) {
     angle += slice
   })
   ctx.beginPath(); ctx.arc(cx, cy, inner, 0, Math.PI * 2)
-  ctx.fillStyle = '#141929'; ctx.fill()
+  ctx.fillStyle = '#101112'; ctx.fill()
 }
 
 drawDonut('donutCanvas', branches)
@@ -338,7 +345,7 @@ drawDonut('masterDonutCanvas', masterBranches)
 if (radar.length && document.getElementById('radarCanvas')) {
   const c = document.getElementById('radarCanvas')
   const ctx = c.getContext('2d')
-  const cx = 390, cy = 390, R = 285, N = radar.length
+  const cx = 390, cy = 390, R = 245, N = radar.length
   const angles = radar.map((_, i) => (i / N) * Math.PI * 2 - Math.PI / 2)
 
   for (let ring = 1; ring <= 4; ring++) {
@@ -349,13 +356,13 @@ if (radar.length && document.getElementById('radarCanvas')) {
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
     })
     ctx.closePath()
-    ctx.strokeStyle = ring === 4 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)'
+    ctx.strokeStyle = ring === 4 ? 'rgba(238,232,220,0.2)' : 'rgba(238,232,220,0.1)'
     ctx.lineWidth = 2; ctx.stroke()
   }
   angles.forEach(a => {
     ctx.beginPath(); ctx.moveTo(cx, cy)
     ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R)
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 2; ctx.stroke()
+    ctx.strokeStyle = 'rgba(238,232,220,0.1)'; ctx.lineWidth = 2; ctx.stroke()
   })
 
   ctx.beginPath()
@@ -365,11 +372,11 @@ if (radar.length && document.getElementById('radarCanvas')) {
     i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
   })
   ctx.closePath()
-  ctx.fillStyle = 'rgba(245,215,110,0.22)'; ctx.fill()
-  ctx.strokeStyle = '#f5d76e'; ctx.lineWidth = 5; ctx.stroke()
+  ctx.fillStyle = 'rgba(216,185,123,0.22)'; ctx.fill()
+  ctx.strokeStyle = '#d8b97b'; ctx.lineWidth = 5; ctx.stroke()
 
-  ctx.fillStyle = 'rgba(255,255,255,0.75)'
-  ctx.font = 'bold 36px YS,sans-serif'
+  ctx.fillStyle = '#eee8dc'
+  ctx.font = 'bold 54px YS,sans-serif'
   ctx.textAlign = 'center'
   angles.forEach((a, i) => {
     const dist = R + 55
@@ -383,7 +390,7 @@ function drawLaneRadar(canvas, laneRadar, color) {
   const ctx = canvas.getContext('2d')
   const W = canvas.width, H = canvas.height
   const cx = W / 2, cy = H / 2
-  const R = Math.min(W, H) / 2 - W * 0.14
+  const R = Math.min(W, H) / 2 - W * 0.24
   const N = laneRadar.length
   const angles = laneRadar.map((_, i) => (i / N) * Math.PI * 2 - Math.PI / 2)
 
@@ -395,13 +402,13 @@ function drawLaneRadar(canvas, laneRadar, color) {
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
     })
     ctx.closePath()
-    ctx.strokeStyle = ring === 4 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)'
+    ctx.strokeStyle = ring === 4 ? 'rgba(238,232,220,0.2)' : 'rgba(238,232,220,0.1)'
     ctx.lineWidth = 2; ctx.stroke()
   }
   angles.forEach(a => {
     ctx.beginPath(); ctx.moveTo(cx, cy)
     ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R)
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 2; ctx.stroke()
+    ctx.strokeStyle = 'rgba(238,232,220,0.1)'; ctx.lineWidth = 2; ctx.stroke()
   })
 
   ctx.beginPath()
@@ -414,11 +421,11 @@ function drawLaneRadar(canvas, laneRadar, color) {
   ctx.fillStyle = hexToRgba(color, 0.25); ctx.fill()
   ctx.strokeStyle = color; ctx.lineWidth = Math.max(W / 160, 2); ctx.stroke()
 
-  ctx.fillStyle = 'rgba(255,255,255,0.78)'
-  ctx.font = 'bold ' + Math.round(W / 22) + 'px YS,sans-serif'
+  ctx.fillStyle = '#eee8dc'
+  ctx.font = 'bold ' + Math.round(W / 9) + 'px YS,sans-serif'
   ctx.textAlign = 'center'
   angles.forEach((a, i) => {
-    const dist = R + W * 0.11
+    const dist = R + W * 0.10
     ctx.fillText(laneRadar[i].label, cx + Math.cos(a) * dist, cy + Math.sin(a) * dist + W / 60)
   })
 }
@@ -434,7 +441,7 @@ function hexToRgba(hex, alpha) {
 document.querySelectorAll('.lane-radar').forEach(canvas => {
   const idx = Number(canvas.dataset.idx)
   const lane = lanes[idx]
-  if (lane) drawLaneRadar(canvas, lane.radar, lane.color || '#f5d76e')
+  if (lane) drawLaneRadar(canvas, lane.radar, lane.color || '#d8b97b')
 })
 </script>
 </body>

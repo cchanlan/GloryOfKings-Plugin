@@ -13,7 +13,7 @@
  * 开关限群主 / 管理员 / 主人：这是全群可见的定时推送，不该让任何人随手开。
  * 手动查（#群日报）不限权限。
  */
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { resolveRange, buildGroupView, isMonthlyPushDay } from '../utils/reportStore.js'
 import {
   collectGroupReport,

@@ -1,0 +1,173 @@
+@import url('./ui-background.css');
+@font-face{font-family:GokBlackgold;src:url('../font/HYWH-65W.woff') format('woff');font-display:block}
+:root{--gok-gold:#d8b97b;--gok-deep:#101112;--gok-card:#1b1a17;--gok-surface:#1b1a17;--gok-ink:#eee8dc;--gok-ink-dim:#aaa499;--gok-line:#363128;--gok-edge:#363128;--gok-blue:#d8b97b;--gok-ok:#d8b97b;--gok-bad:#bd928c;--gok-warn:#c5ac7a;--primary-color:#d8b97b;--secondary-color:#b8a78a;--background-color:#101112;--surface-color:#1b1a17;--on-surface-color:#eee8dc}
+html{background:#101112!important}body[data-gok-page]{box-sizing:border-box!important;width:1100px!important;max-width:none!important;margin:0!important;padding:0 40px 26px!important;transform:none!important;position:relative;color:#eee8dc!important;background:#101112!important;font-family:GokBlackgold,'Noto Sans CJK SC',sans-serif!important;font-variant-numeric:tabular-nums;line-height:1.6}body[data-gok-page]:before,body[data-gok-page]:after{display:none!important}body[data-gok-page] *{box-sizing:border-box}body[data-gok-page] :is(.card,.gok-card,.gok-page,.page,.gok-overlay,.gok-veil,.inner){box-shadow:none}body[data-gok-page]>.card,body[data-gok-page]>.gok-card,body[data-gok-page]>.gok-page,body[data-gok-page]>.container{width:100%;max-width:none;border:0;border-radius:0;padding:0;background:transparent;overflow:visible}body[data-gok-page] :is(.glow,.header-decor,.decor-cube,.hero-art){display:none!important}body[data-gok-page] :is(.card-header,.gok-card-head,.gok-header,.gok-head){border-radius:0;background:transparent;border-top:0;border-left:0;border-right:0;border-bottom:1px solid #363128;padding:22px 0;margin-bottom:22px}body[data-gok-page] :is(.header,.page-head){margin:20px 0 24px}body[data-gok-page] :is(.header h1,.page-title,.gok-skin-head){font-size:27px;color:#d8b97b;background:none;-webkit-text-fill-color:currentColor;letter-spacing:1px}body[data-gok-page] :is(.stat-grid,.stats,.gok-stats,.gok-summary-grid){border-radius:5px;overflow:hidden;background:#242017;border-color:#403627}body[data-gok-page] :is(.section-title,.gok-section-title){color:#eee8dc;font-weight:400}body[data-gok-page] :is(.section-title,.gok-section-title):before{background:#d8b97b}body[data-gok-page] :is(.footer,.gok-footer){color:#aaa499;border-top:1px solid #363128;margin-top:26px;padding-top:17px;line-height:1.8}body[data-gok-page] :is(.label,.sub,.meta,.tip,.stat-key,.gok-stat-label){color:#aaa499}body[data-gok-page] :is(.username,.name,.hero-name,.gok-username){overflow-wrap:anywhere;min-width:0}body[data-gok-page] :is(.gold,.win,.up,.positive,.highlight){color:#d8b97b}body[data-gok-page] :is(.lose,.loss,.down,.negative){color:#bd928c}
+.gok-ui-brand{display:block;padding:32px 0 28px!important;min-height:195px;border:0!important;border-bottom:1px solid #363128!important;margin:0 0 25px!important;position:relative;background:none!important;text-align:left!important;box-shadow:none!important}.gok-ui-eyebrow{display:flex;align-items:center;gap:12px;font:700 20px Arial,sans-serif;letter-spacing:2.5px;color:#9a9387}.gok-ui-eyebrow:before{content:'';width:28px;height:4px;background:#d8b97b}.gok-ui-title{display:flex;align-items:center;gap:18px;margin-top:24px}.gok-ui-logo{width:72px!important;height:72px!important;border-radius:16px!important;object-fit:contain;border:none!important;filter:none!important;flex-shrink:0}.gok-ui-title h1{font-family:GokBlackgold,sans-serif;font-size:58px!important;line-height:1.25!important;letter-spacing:1px!important;font-weight:900!important;color:#eee8dc!important;margin:0!important;background:none!important;-webkit-text-fill-color:initial!important}.gok-ui-title em{color:#d8b97b;font-style:normal}
+body[data-gok-page="HeroSkin"],body[data-gok-page="SkinWall"]{width:1400px!important}body[data-gok-page="HeroGuide"]{width:1200px!important}body[data-gok-page="HeroFightingCapacit"] .gok-hero-banner{background:none;text-align:left;border:0;border-bottom:1px solid #363128;padding:18px 0 24px;margin:0 0 24px;border-radius:0}body[data-gok-page="HeroFightingCapacit"] .gok-hero-banner h1{font-size:25px;color:#d8b97b}body[data-gok-page="HeroFightingCapacit"] .gok-container{padding:0;max-width:none}body[data-gok-page="RankList"]{padding:0!important}body[data-gok-page="RankList"] #container{width:1100px;background:#101112}body[data-gok-page="RankList"] .page{background:none;border:0;border-radius:0}body[data-gok-page="RankList"] .inner{padding:0 40px 26px}body[data-gok-page="RankList"] .brand-mark,body[data-gok-page="RankList"] .brand-sub{display:none}body[data-gok-page="RankList"] .brand-text h1{font-size:27px}body[data-gok-page="RankList"] .header{padding:0 0 20px;min-height:0}
+
+body[data-gok-page="CampPrivacy"] .pv-row{align-items:flex-start}body[data-gok-page="CampPrivacy"] .pv-tags{flex:1 1 0;width:auto;min-width:0}body[data-gok-page="CampPrivacy"] .pv-tag{max-width:100%;overflow-wrap:anywhere}
+body[data-gok-page="HeroFightingCapacit"] .gok-hero-banner{background:#191814!important;border:0;border-bottom:1px solid #363128;border-radius:0}
+body[data-gok-page="helpConfig"] .gok-hero{background:#191814!important;padding:20px 26px;border-bottom:1px solid #363128}body[data-gok-page="helpConfig"] .gok-overlay{padding:0}
+body[data-gok-page="accountManage"] .gok-overlay,body[data-gok-page="authPoolOverview"] .gok-veil{padding:0}body[data-gok-page="accountManage"] .gok-panel,body[data-gok-page="authPoolOverview"] .gok-panel{background:#1b1a17}
+body[data-gok-page="HeroDetail"] .rs-bar{overflow:hidden}
+
+/* 正文恢复适中宽度，保留有效字号，不使用 transform/zoom 压缩内容。 */
+body[data-gok-page]{width:1000px!important;padding:0 28px 22px!important;font-size:20px;line-height:1.5}
+.gok-ui-brand{padding:24px 0 22px!important;min-height:0;margin-bottom:20px!important}
+.gok-ui-title{margin-top:18px;gap:16px}
+.gok-ui-title h1{font-size:48px!important}
+.gok-ui-logo{width:64px!important;height:64px!important;border-radius:14px!important}
+.gok-ui-eyebrow{font-size:16px;letter-spacing:1.5px}
+body[data-gok-page="HeroSkin"]{width:1000px!important}
+body[data-gok-page="SkinWall"]{width:1400px!important}
+body[data-gok-page="HeroGuide"]{width:1000px!important}
+body[data-gok-page="RankList"]{padding:0!important}
+body[data-gok-page="RankList"] #container{width:1000px}
+body[data-gok-page="RankList"] .inner{padding:0 28px 22px}
+/* 必须与 skinWall.js 的 GRID_COLS=6 和显式 row/col 坐标一致，避免生成宽窄不一的隐式列。 */
+body[data-gok-page="SkinWall"] .skin-grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:16px}
+body[data-gok-page] :is(.section){padding:18px}
+body[data-gok-page] :is(.section-title,.gok-section-title){font-size:26px}
+body[data-gok-page] :is(.stat-cell){padding:16px 12px}
+body[data-gok-page] :is(.branch-wrap){gap:24px}
+body[data-gok-page] :is(.branch-list){min-width:0}
+body[data-gok-page] :is(.branch-item){gap:10px;font-size:20px}
+body[data-gok-page] :is(.branch-name){width:68px;flex-shrink:0}
+body[data-gok-page] :is(.donut-wrap){width:160px;height:160px;flex-shrink:0}
+body[data-gok-page] :is(#donutCanvas,#masterDonutCanvas){width:160px!important;height:160px!important}
+body[data-gok-page] :is(.donut-center .hl){font-size:28px}
+body[data-gok-page] :is(.donut-sub){font-size:18px;line-height:1.3}
+body[data-gok-page] :is(.lane-grid){grid-template-columns:repeat(2,minmax(0,1fr))}
+body[data-gok-page] :is(.lane-radar){width:180px!important;height:180px!important}
+body[data-gok-page] :is(.lane-head){flex-wrap:wrap}
+body[data-gok-page] :is(.lane-meta){font-size:20px}
+body[data-gok-page] :is(.hero-card){min-width:0;padding:14px 8px}
+
+body[data-gok-page="HeroDetail"] .match-kda{width:162px}
+body[data-gok-page="HeroDetail"] .match-tags{width:140px}
+body[data-gok-page="HeroGuide"] .item{width:95px}
+body[data-gok-page="HeroGuide"] .item-row{gap:10px;flex-wrap:wrap}
+
+/* 窄画布下保留文字，不以省略号或极小字换取塞进一行。 */
+body[data-gok-page] :is(.stat-key,.hero-stats,.branch-cnt,.rs-label,.lane-meta,.match-meta,.honor-key){color:#aaa499}
+body[data-gok-page="CampSign"] .gift-desc{white-space:normal;overflow:visible;text-overflow:clip}
+body[data-gok-page="GroupReport"] .rank-row{display:grid;grid-template-columns:24px 38px minmax(0,1fr);gap:8px 12px}
+body[data-gok-page="GroupReport"] .rank-main{grid-column:3;grid-row:1}
+body[data-gok-page="GroupReport"] .rank-no,body[data-gok-page="GroupReport"] .rank-avatar{grid-row:1 / span 2}
+body[data-gok-page="GroupReport"] .rank-nums{grid-column:3;grid-row:2;flex-wrap:wrap;gap:8px 20px}
+body[data-gok-page="GroupReport"] .rank-nums>span{width:auto;min-width:56px}
+body[data-gok-page="GroupReport"] .rank-top{flex-wrap:wrap}
+body[data-gok-page="GroupReport"] :is(.rank-name,.ghero-name){white-space:normal;overflow:visible;overflow-wrap:anywhere}
+body[data-gok-page="GroupReport"] .ghero-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+body[data-gok-page="HeroGuide"] .core-label{white-space:normal;overflow:visible;overflow-wrap:anywhere}
+body[data-gok-page="RankList"] #container{padding:0}
+body[data-gok-page="RankList"] .podium-item{min-width:0;max-width:none;padding:20px 12px}
+body[data-gok-page="RankList"] .podium-name{font-size:24px;white-space:normal;overflow:visible;overflow-wrap:anywhere}
+body[data-gok-page="SkinMissing"] .skin-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+body[data-gok-page="SkinMissing"] :is(.skin-card .nm,.skin-card .sub){white-space:normal;overflow:visible;overflow-wrap:anywhere}
+body[data-gok-page="SkinMissing"] .skin-card .pic{height:auto;aspect-ratio:9/14}
+body[data-gok-page] .seat-hero{display:grid;grid-template-columns:22px minmax(0,1fr);gap:5px 6px;width:100%;line-height:1.3}
+body[data-gok-page] .seat-hero .hero-ico{width:22px;height:22px}
+body[data-gok-page] .seat-hero .hero-name{font-size:20px;white-space:normal;overflow:visible;line-height:1.3;overflow-wrap:anywhere}
+body[data-gok-page] .seat-hero .hero-power{grid-column:2;line-height:1.3}
+
+/* 全量验收：按内容加宽，保持原字号；窄消息页不空扩，帮助独立主题不受影响。 */
+body:is([data-gok-page="campImMsg"],[data-gok-page="campFriend"],[data-gok-page="WatchBattle"]){width:840px!important}
+
+/* 英雄战力恢复旧版：顶部汇总四格 + 两列平台卡，而不是四张纵向长卡。 */
+body[data-gok-page="HeroFightingCapacit"]{width:1050px!important}
+body[data-gok-page="HeroFightingCapacit"] .gok-hero-banner{text-align:center;padding:24px 18px;margin-bottom:24px;border-radius:12px}
+body[data-gok-page="HeroFightingCapacit"] .gok-hero-banner h1{font-size:30px;margin-bottom:18px}
+body[data-gok-page="HeroFightingCapacit"] .gok-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:24px}
+body[data-gok-page="HeroFightingCapacit"] .gok-summary-item{min-width:0;padding:16px 8px}
+body[data-gok-page="HeroFightingCapacit"] .gok-summary-label{font-size:20px;white-space:nowrap}
+body[data-gok-page="HeroFightingCapacit"] .gok-platform-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin:24px 0}
+body[data-gok-page="HeroFightingCapacit"] .gok-platform-card{min-width:0;padding:20px}
+body[data-gok-page="HeroFightingCapacit"] .gok-data-row{gap:12px}
+body[data-gok-page="HeroFightingCapacit"] .gok-data-label{flex-shrink:0}
+body[data-gok-page="HeroFightingCapacit"] .gok-data-value{min-width:0;justify-content:flex-end;flex-wrap:wrap;gap:8px}
+body[data-gok-page="HeroFightingCapacit"] .gok-guobiao .gok-data-value{justify-content:center}
+
+/* 梯度卡：姓名与头像在上，三项完整指标共享整行，不挤在头像右边。 */
+body[data-gok-page="HeroTierList"]{width:1100px!important}
+body[data-gok-page="HeroTierList"].compact{width:1400px!important}
+body[data-gok-page="HeroTierList"] .tier-label{flex-basis:76px}
+body[data-gok-page="HeroTierList"] .tier-heroes{min-width:0;padding:14px;gap:12px}
+body[data-gok-page="HeroTierList"] .hero-card{display:grid;grid-template-columns:52px minmax(0,1fr);gap:12px;padding:14px 12px}
+body[data-gok-page="HeroTierList"].compact .hero-card{grid-template-columns:46px minmax(0,1fr)}
+body[data-gok-page="HeroTierList"] .name-row{white-space:normal;overflow:visible;flex-wrap:wrap;line-height:1.35}
+body[data-gok-page="HeroTierList"] .hero-name{overflow:visible;text-overflow:clip}
+body[data-gok-page="HeroTierList"] .tier-stats{grid-column:1 / -1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:0}
+body[data-gok-page="HeroTierList"] .stat{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;line-height:1.3}
+body[data-gok-page="HeroTierList"] .stat :is(.lbl,.val){white-space:nowrap;font-size:20px}
+
+/* 控制台：去掉套娃留白；说明使用整行，禁止被长指令挤成竖条。 */
+body[data-gok-page="helpConfig"]{width:1200px!important}
+body[data-gok-page="helpConfig"] .gok-veil{padding:8px}
+body[data-gok-page="helpConfig"] .gok-head{flex-direction:column;align-items:flex-start;gap:10px;margin-bottom:20px;padding-bottom:16px}
+body[data-gok-page="helpConfig"] .gok-head-title h1{font-size:30px;margin:0}
+body[data-gok-page="helpConfig"] .gok-head-meta{text-align:left}
+body[data-gok-page="helpConfig"] :is(.gok-status-grid,.gok-cmd-grid){grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+body[data-gok-page="helpConfig"] .gok-card{min-width:0;padding:18px}
+body[data-gok-page="helpConfig"] .gok-card h2{gap:8px;flex-wrap:wrap}
+body[data-gok-page="helpConfig"] .gok-card-tag{font-size:18px;white-space:nowrap}
+body[data-gok-page="helpConfig"] .gok-list-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;padding:12px}
+body[data-gok-page="helpConfig"] .gok-row-main{display:contents}
+body[data-gok-page="helpConfig"] .gok-row-label{grid-column:1;grid-row:1;margin:0}
+body[data-gok-page="helpConfig"] .gok-row-value{grid-column:2;grid-row:1;margin:0;max-width:none;overflow:visible;text-overflow:clip}
+body[data-gok-page="helpConfig"] .gok-row-note{grid-column:1 / -1;grid-row:2;line-height:1.5;overflow-wrap:anywhere}
+body[data-gok-page="helpConfig"] .gok-cmd-row{flex-direction:column;align-items:flex-start;gap:6px;padding:12px}
+body[data-gok-page="helpConfig"] .gok-cmd-name{white-space:normal;overflow-wrap:anywhere}
+body[data-gok-page="helpConfig"] .gok-cmd-note{text-align:left;margin:0;line-height:1.5;align-self:stretch;min-width:0}
+
+/* 账号池：概览三列、归属两列铺满可用宽度，计数徽标保持一行。 */
+body[data-gok-page="authPoolOverview"] .gok-overlay{padding:24px}
+body[data-gok-page="authPoolOverview"] .gok-header{flex-wrap:wrap;gap:12px;align-items:flex-start}
+body[data-gok-page="authPoolOverview"] .gok-header-meta{text-align:left}
+body[data-gok-page="authPoolOverview"] .gok-summary-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+body[data-gok-page="authPoolOverview"] .gok-summary-card{min-width:0}
+body[data-gok-page="authPoolOverview"] .gok-summary-label{white-space:nowrap}
+body[data-gok-page="authPoolOverview"] .gok-panel{padding:20px}
+body[data-gok-page="authPoolOverview"] .gok-panel-head{flex-wrap:wrap;gap:12px}
+body[data-gok-page="authPoolOverview"] .gok-owner-grid{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+body[data-gok-page="authPoolOverview"] .gok-owner-card{min-width:0}
+body[data-gok-page="authPoolOverview"] .gok-owner-head{gap:12px}
+body[data-gok-page="authPoolOverview"] .gok-owner-head>div:first-child{min-width:0;flex:1;overflow-wrap:anywhere}
+body[data-gok-page="authPoolOverview"] .gok-count-col{flex:0 0 auto}
+body[data-gok-page="authPoolOverview"] :is(.gok-count-pill,.gok-badge){white-space:nowrap;flex-shrink:0}
+body[data-gok-page="authPoolOverview"] .gok-shared-list{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+
+/* 全量内部排版审计：短标签、数字单位保持一行，空间让给内容而不是缩字号。 */
+body:is([data-gok-page="ScoreTrend"],[data-gok-page="RankTrend"]) .day-date{width:132px;white-space:nowrap}
+body:is([data-gok-page="ScoreTrend"],[data-gok-page="RankTrend"]) :is(.day-cnt,.day-wl,.day-score,.day-rank,.day-delta,.match-res,.match-score,.match-rank,.match-delta){white-space:nowrap}
+body:is([data-gok-page="ScoreTrend"],[data-gok-page="RankTrend"]) .day-cnt{width:auto;min-width:64px}
+body:is([data-gok-page="ScoreTrend"],[data-gok-page="RankTrend"]) .match-res{width:48px}
+body[data-gok-page="ScoreTrend"] :is(.day-delta,.match-delta){width:88px}
+body[data-gok-page="RankTrend"] :is(.day-rank,.match-rank){width:164px}
+body[data-gok-page="BattleReport"] .hero-nums>span{width:auto;white-space:nowrap;flex-shrink:0}
+body[data-gok-page="BattleReport"] .hero-wr{min-width:72px}
+body[data-gok-page="BattleReport"] .hero-grade{min-width:88px}
+body[data-gok-page="CampSign"] .total-status{width:auto;min-width:110px;flex-shrink:0;white-space:nowrap}
+body[data-gok-page="RankList"] .footer{flex-wrap:wrap;gap:8px 24px}
+body[data-gok-page="RankList"] .footer>div:last-child{flex-shrink:0;white-space:nowrap}
+
+/* 攻略：六件装备平分整行；统计和说明不再困在图标旁的窄栏。 */
+body[data-gok-page="HeroGuide"] .item-row{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+body[data-gok-page="HeroGuide"] .item{width:auto;min-width:0}
+body[data-gok-page="HeroGuide"] .item span{white-space:nowrap}
+body[data-gok-page="HeroGuide"] .core-item{display:grid;grid-template-columns:56px minmax(0,1fr);gap:8px 12px;align-content:start;align-items:center}
+body[data-gok-page="HeroGuide"] .core-body{display:contents}
+body[data-gok-page="HeroGuide"] .core-name{grid-column:2;white-space:normal;overflow:visible}
+body[data-gok-page="HeroGuide"] :is(.core-rate,.core-label){grid-column:1 / -1;margin-top:0;display:flex;flex-wrap:wrap;gap:4px 12px;line-height:1.4}
+body[data-gok-page="HeroGuide"] :is(.core-rate,.core-label)>span{white-space:nowrap}
+body[data-gok-page="HeroGuide"] .rune-meta{width:166px;white-space:nowrap}
+body[data-gok-page="HeroGuide"] .relation-hero{display:grid;grid-template-columns:46px minmax(0,1fr);gap:6px 10px;align-items:center}
+body[data-gok-page="HeroGuide"] .relation-hero .rh-body{display:contents}
+body[data-gok-page="HeroGuide"] .relation-hero .rh-name{grid-column:2}
+body[data-gok-page="HeroGuide"] .relation-hero .rh-desc{grid-column:1 / -1;margin-top:0}
+
+/* 保持开黑双排/五排同尺寸，不把短昵称与英雄名省略。 */
+body:is([data-gok-page="TeamList"],[data-gok-page="TeamBroadcast"]) .seat{width:164px}
+body:is([data-gok-page="TeamList"],[data-gok-page="TeamBroadcast"]) .seat-hero{display:flex;flex-wrap:wrap;justify-content:center;gap:5px}
+body:is([data-gok-page="TeamList"],[data-gok-page="TeamBroadcast"]) .seat-hero .hero-name{white-space:nowrap}
+body:is([data-gok-page="TeamList"],[data-gok-page="TeamBroadcast"]) .seat-hero .hero-power{flex:0 0 100%;text-align:center}

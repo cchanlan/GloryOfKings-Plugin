@@ -1,5 +1,5 @@
 import path from 'path'
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { getImgType, readYamlFile, Button, getUserAvatar, shouldQuote, isShareReady, querySharedBind, fetchSharedRoster, uploadLocalBindings } from '#utils'
 import { collectRankData, buildRankList, getAllBindings, readSnapshot, SNAPSHOT_TTL } from '../utils/rankStore.js'
 import { getNickMap, nickOf, withGroupNick } from '../utils/groupNick.js'

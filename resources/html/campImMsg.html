@@ -5,114 +5,117 @@
   <title>营地消息</title>
   <style>
     @font-face {
-      font-family: YS;
-      src: url("{{_res_path}}font/HYWH-65W.woff") format("woff"),
+      font-family:YS;
+      src:url("{{_res_path}}font/HYWH-65W.woff") format("woff"),
            url("{{_res_path}}font/HYWH-65W.ttf") format("truetype");
     }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    * { margin:0; padding:0; box-sizing:border-box; }
     body {
-      font-family: YS, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      font-family:YS, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
       /* 一张完整消息卡片：头像+昵称+来源+正文；宽 420、缩放 2.5，webp <100k */
-      width: 420px;
-      padding: 26px;
-      background: linear-gradient(160deg, #0f1420 0%, #1a2133 100%);
-      transform: scale(2.5);
-      transform-origin: 0 0;
+      width:420px;
+      padding:26px;
+      background:linear-gradient(160deg, #101112 0%, #1b1a17 100%);
+      transform:scale(2.5);
+      transform-origin:0 0;
     }
     .card {
-      background: rgba(10,14,26,0.55);
-      border: 1px solid rgba(126,231,135,0.28);
-      border-radius: 20px;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.35);
-      padding: 22px 24px;
+      background:rgba(216,185,123,0.28);
+      border:1px solid rgba(216,185,123,0.28);
+      border-radius:5px;
+      box-shadow:none;
+      padding:22px 24px;
     }
     /* 顶部：头像 + 昵称/来源 + 营地消息标签 */
     .head {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      padding-bottom: 18px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
+      display:flex;
+      align-items:center;
+      gap:16px;
+      padding-bottom:18px;
+      border-bottom:1px solid rgba(238,232,220,0.08);
     }
     .avatar {
-      width: 72px; height: 72px;
-      border-radius: 50%;
-      border: 2.5px solid rgba(126,231,135,0.5);
-      object-fit: cover;
-      flex-shrink: 0;
-      background: rgba(255,255,255,0.06);
+      width:72px; height:72px;
+      border-radius:50%;
+      border:2.5px solid rgba(216,185,123,0.5);
+      object-fit:cover;
+      flex-shrink:0;
+      background:rgba(238,232,220,0.06);
     }
     /* 头像挂了露出底下的绿字占位，别开天窗 */
     .avatar-fallback {
-      width: 72px; height: 72px;
-      border-radius: 50%;
-      border: 2.5px solid rgba(126,231,135,0.5);
-      flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center;
-      background: rgba(126,231,135,0.12);
-      color: rgba(126,231,135,0.9);
-      font-size: 30px;
+      width:72px; height:72px;
+      border-radius:50%;
+      border:2.5px solid rgba(216,185,123,0.5);
+      flex-shrink:0;
+      display:flex; align-items:center; justify-content:center;
+      background:rgba(216,185,123,0.12);
+      color:#b8a78a;
+      font-size:30px;
     }
-    .info { flex: 1; min-width: 0; }
+    .info { flex:1; min-width:0; }
     .name {
-      font-size: 23px;
-      font-weight: 600;
-      color: #fff;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      font-size:24px;
+      font-weight:600;
+      color:#eee8dc;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
     .sub {
-      margin-top: 6px;
-      font-size: 13.5px;
-      color: rgba(255,255,255,0.42);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      margin-top:6px;
+      font-size:20px;
+      color:rgba(238,232,220,0.42);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
     .tag {
-      flex-shrink: 0;
-      font-size: 13.5px;
-      color: rgba(126,231,135,0.9);
-      background: rgba(126,231,135,0.12);
-      border: 1px solid rgba(126,231,135,0.3);
-      border-radius: 9px;
-      padding: 5px 12px;
+      flex-shrink:0;
+      font-size:20px;
+      color:#b8a78a;
+      background:rgba(216,185,123,0.12);
+      border:1px solid rgba(216,185,123,0.3);
+      border-radius:5px;
+      padding:5px 12px;
     }
     /* 正文气泡 */
     .body {
-      margin-top: 18px;
-      font-size: 19px;
-      line-height: 1.55;
-      color: #fff;
-      background: rgba(255,255,255,0.05);
-      border-radius: 14px;
-      padding: 15px 17px;
+      margin-top:18px;
+      font-size:22px;
+      line-height:1.55;
+      color:#eee8dc;
+      background:rgba(238,232,220,0.05);
+      border-radius:5px;
+      padding:15px 17px;
       /* 长消息自动换行，别撑破卡片 */
-      word-break: break-word;
-      white-space: pre-wrap;
+      word-break:break-word;
+      white-space:pre-wrap;
     }
     /* 对方发的图片：原图镶在卡片里，多张依次排开 */
     .photos {
-      margin-top: 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+      margin-top:18px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
     }
     .photo {
-      display: block;
-      width: 100%;
-      border-radius: 14px;
-      background: rgba(255,255,255,0.06);
+      display:block;
+      width:100%;
+      border-radius:5px;
+      background:rgba(238,232,220,0.06);
       /* 长得离谱的图（全景截图之类）封个顶，别把卡片拉成一条 */
-      max-height: 1400px;
-      object-fit: contain;
-      object-position: top;
+      max-height:1400px;
+      object-fit:contain;
+      object-position:top;
     }
   </style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
+<style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
 </head>
-<body>
-<div class="card">
+<body data-gok-page="campImMsg">
+<div class="card"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>营地<em>消息</em></h1></div></header>
+<div class="gok-content-panel">
   <div class="head">
     {{if avatar}}
     <img class="avatar" src="{{avatar}}" alt="">
@@ -135,6 +138,8 @@
   {{if message}}
   <div class="body">{{message}}</div>
   {{/if}}
+
+</div>
 </div>
 </body>
 </html>

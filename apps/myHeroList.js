@@ -17,7 +17,7 @@
 // playNum 也是营地那页的口径（孙权 2201），而历史接口的 playNum 是另一套（同英雄 1182），
 // 所以只从历史接口补 maxHeroFightPower 与称号两个字段。
 // 历史接口拿不到时（没绑角色 / 接口异常）历史列显示「—」，排序退回当前战力，保证图还能出。
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { getImgType, ApiService, readYamlFile, getLocalImage, Button, replyCampIdGuide, CAMP_ID_GUIDE_HINT, CAMP_ID_SUFFIX_HINT, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote } from '#utils'
 import path from 'path'
 import { PluginData, PluginPath } from '#components'

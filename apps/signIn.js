@@ -52,7 +52,7 @@
  * 「本来已签」「没绑王者角色」都是日常状态，**跳过**。
  * 一轮跑完在日志里留一行汇总，主人自查看日志就够。
  */
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { shouldQuote, getImgType, AT_HEAD, AT_TAIL } from '#utils'
 import { Config, PluginName } from '#components'
 import authStore from '../utils/authStore.js'

@@ -1,4 +1,4 @@
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { getImgType, shouldQuote, stripAtText, fetchSharedRoster, uploadLocalBindings } from '#utils'
 import fs from 'node:fs'
 import path from 'node:path'

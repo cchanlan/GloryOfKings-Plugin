@@ -1,4 +1,4 @@
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { renderMasterPanel } from '../utils/masterPanel.js'
 import { getImgType, Button, shouldQuote } from '#utils'
 

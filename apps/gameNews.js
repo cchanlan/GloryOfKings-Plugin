@@ -14,7 +14,7 @@
  * 推送时间是配置项 `gameNewsCron`（锅巴面板「公告检查时间」），
  * 留空 = 不自动推送，只保留指令。改完需重启（cron 在 constructor 注册）。
  */
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import common from '../../../lib/common/common.js'
 import { getImgType, Button, shouldQuote, pickGroupSafe, AT_HEAD } from '#utils'
 import { Config } from '#components'

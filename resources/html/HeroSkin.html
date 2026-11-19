@@ -8,107 +8,110 @@
     <style>
         /* 皮肤图鉴：顶部标题 + 款数，下面一列式大图，逐款一张立绘。 */
         :root {
-            --gok-page-bg: #1a1a1a;
-            --gok-card-bg: #2a2a2a;
-            --gok-ink: #ffffff;
-            --gok-line: #3a3a3a;
+            --gok-page-bg:#101112;
+            --gok-card-bg:#1b1a17;
+            --gok-ink:#eee8dc;
+            --gok-line:#363128;
         }
 
         body {
-            font-family: Arial, sans-serif;
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: var(--gok-page-bg);
-            color: var(--gok-ink);
+            font-family:Arial, sans-serif;
+            max-width:1400px;
+            margin:0 auto;
+            padding:20px;
+            background-color:var(--gok-page-bg);
+            color:var(--gok-ink);
         }
 
         .gok-skin-head {
-            text-align: center;
-            margin-bottom: 30px;
+            text-align:center;
+            margin-bottom:30px;
         }
 
         .gok-skin-grid {
-            display: grid;
-            gap: 20px;
-            grid-template-columns: 1fr;
+            display:grid;
+            gap:20px;
+            grid-template-columns:1fr;
         }
 
         .gok-skin-card {
-            position: relative;
-            background-color: var(--gok-card-bg);
-            border-radius: 10px;
-            padding: 15px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            position:relative;
+            background-color:var(--gok-card-bg);
+            border-radius:5px;
+            padding:15px;
+            box-shadow:none;
         }
 
         .gok-skin-pic {
-            width: 100%;
-            height: auto;
-            border-radius: 5px;
-            display: block;
+            width:100%;
+            height:auto;
+            border-radius:5px;
+            display:block;
         }
 
         .gok-skin-blank {
-            height: 180px;
-            border-radius: 5px;
-            border: 1px dashed var(--gok-line);
-            color: #7a7a7a;
-            font-size: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            height:180px;
+            border-radius:5px;
+            border:1px dashed var(--gok-line);
+            color:#aaa499;
+            font-size:20px;
+            display:flex;
+            align-items:center;
+            justify-content:center;
         }
 
         .gok-skin-total {
-            text-align: center;
-            margin: -20px 0 30px;
-            color: #9a9a9a;
-            font-size: 16px;
+            text-align:center;
+            margin:-20px 0 30px;
+            color:#aaa499;
+            font-size:20px;
         }
 
         .gok-skin-name {
-            display: block;
-            color: #ffffff !important;
-            font-size: 18px;
-            margin-bottom: 10px;
-            padding: 8px 20px;
-            background: linear-gradient(135deg, #3a3a3a 0%, #2a2a2a 100%);
-            border: 1px solid #4a4a4a;
-            width: fit-content;
-            position: relative;
-            border-radius: 0 15px 0 15px;
-            box-shadow: 3px 3px 5px rgba(0, 0, 0, 0.2);
+            display:block;
+            color:#eee8dc !important;
+            font-size:22px;
+            margin-bottom:10px;
+            padding:8px 20px;
+            background:linear-gradient(135deg, #1b1a17 0%, #1b1a17 100%);
+            border:1px solid #363128;
+            width:fit-content;
+            position:relative;
+            border-radius:5px;
+            box-shadow:none;
         }
 
         .gok-skin-name::before,
         .gok-skin-name::after {
-            content: '';
-            position: absolute;
-            width: 8px;
-            height: 8px;
-            background: #ffd700;
+            content:'';
+            position:absolute;
+            width:8px;
+            height:8px;
+            background:#262116;
         }
 
         .gok-skin-name::before {
-            top: -1px;
-            left: -1px;
-            border-radius: 0 0 3px 0;
+            top:-1px;
+            left:-1px;
+            border-radius:5px;
         }
 
         .gok-skin-name::after {
-            bottom: -1px;
-            right: -1px;
-            border-radius: 3px 0 0 0;
+            bottom:-1px;
+            right:-1px;
+            border-radius:5px;
         }
 
         .gok-skin-name:empty {
-            display: none;
+            display:none;
         }
     </style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
+<style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
 </head>
 
-<body>
+<body data-gok-page="HeroSkin"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>皮肤<em>图鉴</em></h1></div></header>
+<div class="gok-content-panel">
     <h1 class="gok-skin-head">{{heroName}}皮肤图鉴</h1>
     <div class="gok-skin-total">共 {{skinCount}} 款</div>
 
@@ -124,6 +127,8 @@
         </div>
         {{/each}}
     </div>
+
+</div>
 </body>
 
 </html>

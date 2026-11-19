@@ -221,6 +221,20 @@ export function supportGuoba () {
           component: 'Switch'
         },
         {
+          field: 'config.renderBackground',
+          label: '出图背景图',
+          bottomHelpMessage: '留空使用默认背景。填写 HTTP(S) 图片链接或本机图片路径（相对插件目录，PNG/JPG/WebP/GIF，最大 8 MiB）。',
+          component: 'Input',
+          componentProps: { placeholder: '图片链接或本机图片路径；留空恢复默认' }
+        },
+        {
+          field: 'config.renderBackgroundBlur',
+          label: '背景模糊（px）',
+          bottomHelpMessage: '默认 12px；0 关闭模糊，最大 30px。背景只做一层磨砂，文字、英雄立绘和图标保持清晰。',
+          component: 'InputNumber',
+          componentProps: { min: 0, max: 30, step: 1 }
+        },
+        {
           field: 'config.quoteReply',
           label: '引用触发消息',
           bottomHelpMessage: '开启后回复会引用触发指令那条消息。',

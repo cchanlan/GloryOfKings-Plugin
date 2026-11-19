@@ -1,5 +1,5 @@
 // 英雄梯度榜：数据来自官方营地 getdetailranklistbyid 接口，实时拉取
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { getImgType, ApiService, Button, shouldQuote, AT_HEAD, stripAtText } from '#utils'
 
 // 段位筛选：文字 → segment（对应接口 tabFilter 下标）

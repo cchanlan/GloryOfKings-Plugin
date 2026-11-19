@@ -2,17 +2,24 @@
 // 巅峰赛在 behavior.masterInfo.heros，两者各是当前赛季场次前 5 的英雄（营地自身的限制）。
 // 注意只有传具体 seasonId 时才带 heroFightPower/honorTitle，seasonId=0 的 historyList 里这两个字段是空的。
 // 生涯累计榜（/game/profile/herolist）作为赛季无数据时的兜底，字段参考自 https://github.com/KimigaiiWuyi/WzryUID
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
-import { getImgType, ApiService, readYamlFile, getLocalImage, Button, replyCampIdGuide, CAMP_ID_GUIDE_HINT, CAMP_ID_SUFFIX_HINT, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote } from '#utils'
+import puppeteer from '../utils/uiRender.js'
+import { getImgType, getCampHeroSkins, ApiService, readYamlFile, getLocalImage, Button, replyCampIdGuide, CAMP_ID_GUIDE_HINT, CAMP_ID_SUFFIX_HINT, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote } from '#utils'
 import path from 'path'
 import { PluginData, PluginPath } from '#components'
 import { reportHeroPowers } from '../utils/heroPowerShare.js'
 import { getNickMap, nickOf, withGroupNick } from '../utils/groupNick.js'
 
-// 英雄头像图（营地战斗页头像，裁成横图），比赛季页给的横版立绘更贴脸，优先用它
+// 横版立绘：优先官方完整原画；缺图先取营地横图，再回退同英雄经典皮肤。
 const HERO_IMG_BASE = 'https://game-1255653016.file.myqcloud.com/battle_skin_1250-326'
 // 展示数量：营地两个 tab 各给 5 个，合并去重后按战力取前 5
 const SHOW_COUNT = 5
+// 仅校准官方经典原画；营地横图、竖版回退不沿用另一张图的裁切位置。
+const CLASSIC_ART_POSITIONS = new Map([
+  ['苍', '100% 30%'],
+  ['艾琳', '15% 30%'],
+  ['元流之子:射手', '80% 30%']
+])
+const DEFAULT_ART_POSITION = '50% 30%'
 // 称号标（郡/城/省/国 冠名）
 const HONOR_ICON = {
   1: `file://${path.join(PluginPath, 'resources', 'img', 'icon_honor_county.png')}`,
@@ -256,13 +263,15 @@ export class HeroList extends plugin {
   /** 补齐渲染要用的头像（转 base64 防截图时加载失败）、配色和称号图标 */
   async buildHeroCard(hero) {
     const { name, subName } = splitHeroName(hero.rawName)
+    const artwork = await this.resolveHeroArtwork(hero)
     const honorType = hero.honorTitle?.type
     const honorDesc = hero.honorTitle?.desc
 
     return {
       name,
       subName,
-      imgUrl: await this.resolveHeroImage(hero),
+      imgUrl: artwork.imgUrl,
+      artPosition: artwork.artPosition,
       rankCnt: hero.rank ? hero.rank.gameCnt : (hero.career ? hero.career.gameCnt : ''),
       rankRate: hero.rank ? hero.rank.winRate : (hero.career ? hero.career.winRate : ''),
       peakCnt: hero.peak ? hero.peak.gameCnt : '',
@@ -275,20 +284,39 @@ export class HeroList extends plugin {
   }
 
   /**
-   * 头像优先用战斗页特写图（裁成脸部横图，辨识度高），取不到再用赛季页给的横版立绘。
+   * 优先官方完整原画，其次营地横图，最后才用同英雄经典皮肤竖图；横卡铺满并保留人物。
    * 下载成功的转 base64 内联，避免截图时外链加载失败。
    */
-  async resolveHeroImage(hero) {
-    const candidates = [
-      `${HERO_IMG_BASE}/${hero.heroId}00.jpg?imageMogr2/thumbnail/x170/crop/270x170/gravity/east`,
-      hero.imgUrl
-    ].filter(Boolean)
-
-    for (const url of candidates) {
+  async resolveHeroArtwork(hero) {
+    const inline = async url => {
+      if (!url) return ''
       const img = await getLocalImage(url)
-      if (Buffer.isBuffer(img)) return `data:image/jpeg;base64,${img.toString('base64')}`
+      return Buffer.isBuffer(img) ? `data:image/jpeg;base64,${img.toString('base64')}` : ''
+    }
+    const full = await inline(`https://game.gtimg.cn/images/yxzj/img201606/skin/hero-info/${hero.heroId}/${hero.heroId}-bigskin-1.jpg`)
+    if (full) {
+      const { name, subName } = splitHeroName(hero.rawName || hero.name)
+      const key = subName ? `${name}:${subName}` : name
+      return { imgUrl: full, artPosition: CLASSIC_ART_POSITIONS.get(key) || DEFAULT_ART_POSITION }
     }
 
-    return candidates[candidates.length - 1] || ''
+    const candidates = [hero.imgUrl, `${HERO_IMG_BASE}/${hero.heroId}00.jpg`].filter(Boolean)
+    for (const url of candidates) {
+      const image = await inline(url)
+      if (image) return { imgUrl: image, artPosition: DEFAULT_ART_POSITION }
+    }
+
+    // 横版来源均不可用时才读取共享皮肤表；仅取同英雄原皮，不拿竖图抢占可用横图。
+    try {
+      const skins = await getCampHeroSkins(hero.rawName || hero.name)
+      const classic = skins.find(skin => String(skin.iSkinId) === `${hero.heroId}00`)
+      for (const url of [classic?.szLargeIcon, classic?.bigCover]) {
+        const image = await inline(url)
+        if (image) return { imgUrl: image, artPosition: DEFAULT_ART_POSITION }
+      }
+    } catch (error) {
+      logger.debug(`[常用英雄] 完整立绘回退失败: ${error.message}`)
+    }
+    return { imgUrl: candidates[candidates.length - 1] || '', artPosition: DEFAULT_ART_POSITION }
   }
 }

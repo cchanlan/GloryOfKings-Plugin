@@ -20,7 +20,7 @@
  *   #段位趋势 1580886057 指定营地ID
  *   #段位趋势 2          第 2 个绑定账号（1-2 位数字优先当天数，3-4 位当序号）
  */
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import {
   getImgType,
   resolveCurrentId, getBoundIds, Button, shouldQuote, getUserAvatar,

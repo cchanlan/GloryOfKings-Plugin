@@ -49,7 +49,7 @@
  * 重启后只补还没收到的群 —— 群多的号一轮要播好几分钟，原来这期间一重启，
  * 前面收过的群会再收一遍（2026-10-16 主人报的「重启会重新发一遍已经发过的广播」）。
  */
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { ApiService, shouldQuote, pickGroupSafe, pickMemberSafe, AT_HEAD, stripAtText, getImgType } from '#utils'
 import { getCurrentId } from '../utils/localBind.js'
 import { resolveUserData } from '../utils/shareStore.js'

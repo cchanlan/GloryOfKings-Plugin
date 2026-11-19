@@ -33,7 +33,7 @@ import { getImgType, shouldQuote, getCurrentId } from '#utils'
 import * as client from '../utils/campImClient.js'
 import * as store from '../utils/campImStore.js'
 import authStore from '../utils/authStore.js'
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 
 /** 好友列表最多列几个（图太长没法看） */
 const MAX_ROWS = 20

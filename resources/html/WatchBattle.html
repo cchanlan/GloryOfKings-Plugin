@@ -7,81 +7,84 @@
   <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
   <style>
     /* 一行一个人：编号 + 头像 + 昵称/段位 + 右侧「可看」标记 */
-    .watch-list { display: flex; flex-direction: column; gap: 10px; }
+    .watch-list { display:flex; flex-direction:column; gap:10px; }
     .watch-row {
-      display: flex;
-      align-items: center;
-      gap: 13px;
-      background: linear-gradient(100deg, rgba(245,215,110,0.09), rgba(255,255,255,0.03));
-      border: 1px solid rgba(245,215,110,0.28);
-      border-radius: 13px;
-      padding: 11px 16px;
+      display:flex;
+      align-items:center;
+      gap:13px;
+      background:linear-gradient(100deg, rgba(216,185,123,0.09), rgba(238,232,220,0.03));
+      border:1px solid rgba(216,185,123,0.28);
+      border-radius:5px;
+      padding:11px 16px;
     }
     /* 编号是这张图的主角 —— 群友要照着它发指令，做得显眼一点 */
     .watch-idx {
-      width: 34px; height: 34px;
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 50%;
-      background: rgba(245,215,110,0.18);
-      border: 1.5px solid rgba(245,215,110,0.5);
-      color: #f5d76e;
-      font-size: 17px;
-      font-family: Number, YS, "PingFang SC", Arial, sans-serif;
-      line-height: 1;
+      width:34px; height:34px;
+      flex-shrink:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:50%;
+      background:rgba(216,185,123,0.18);
+      border:1.5px solid rgba(216,185,123,0.5);
+      color:#d8b97b;
+      font-size:22px;
+      font-family:Number, YS, "PingFang SC", Arial, sans-serif;
+      line-height:1;
     }
     .watch-avatar {
-      width: 46px; height: 46px;
-      border-radius: 50%;
-      border: 2px solid rgba(245,215,110,0.45);
-      object-fit: cover;
-      flex-shrink: 0;
-      background: rgba(255,255,255,0.06);
+      width:46px; height:46px;
+      border-radius:50%;
+      border:2px solid rgba(216,185,123,0.45);
+      object-fit:cover;
+      flex-shrink:0;
+      background:rgba(238,232,220,0.06);
     }
     /* 营地昵称最长的有十几个字，别把右边挤出去 */
-    .watch-main { flex: 1; min-width: 0; }
+    .watch-main { flex:1; min-width:0; }
     .watch-name {
-      font-size: 16px;
-      color: #fff;
-      margin-bottom: 5px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      font-size:20px;
+      color:#eee8dc;
+      margin-bottom:5px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
-    .watch-meta { font-size: 12.5px; color: rgba(255,255,255,0.4); display: flex; gap: 12px; }
-    .watch-meta .rank { color: rgba(255,255,255,0.58); }
-    .watch-meta .dur { color: rgba(245,215,110,0.78); }
+    .watch-meta { font-size:20px; color:rgba(238,232,220,0.4); display:flex; gap:12px; }
+    .watch-meta .rank { color:rgba(238,232,220,0.58); }
+    .watch-meta .dur { color:#d8b97b; }
     /* 「可观战」胶囊：金色 —— 这一行点了就能开播 */
     .watch-go {
-      flex-shrink: 0;
-      font-size: 13px;
-      color: rgba(245,215,110,0.85);
-      background: rgba(245,215,110,0.12);
-      border: 1px solid rgba(245,215,110,0.3);
-      border-radius: 8px;
-      padding: 4px 11px;
+      flex-shrink:0;
+      font-size:20px;
+      color:#d8b97b;
+      background:rgba(216,185,123,0.12);
+      border:1px solid rgba(216,185,123,0.3);
+      border-radius:5px;
+      padding:4px 11px;
     }
     /* 「已满」胶囊：压暗 —— 账号都被在播的占着，这一行现在开不了。
        不能做成和金的一样显眼，否则群友点了会以为坏了。 */
     .watch-go.full {
-      color: rgba(255,255,255,0.32);
-      background: rgba(255,255,255,0.05);
-      border-color: rgba(255,255,255,0.12);
+      color:rgba(238,232,220,0.32);
+      background:rgba(238,232,220,0.05);
+      border-color:rgba(238,232,220,0.12);
     }
-    .head-sub { font-size: 13px; color: rgba(255,255,255,0.42); }
+    .head-sub { font-size:20px; color:rgba(238,232,220,0.42); }
     .empty-tip {
-      padding: 30px 0;
-      text-align: center;
-      font-size: 15px;
-      color: rgba(255,255,255,0.4);
-      line-height: 2;
+      padding:30px 0;
+      text-align:center;
+      font-size:20px;
+      color:rgba(238,232,220,0.4);
+      line-height:2;
     }
   </style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
+<style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
 </head>
-<body>
-<div class="card">
+<body data-gok-page="WatchBattle">
+<div class="card"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>营地<em>观战</em></h1></div></header>
+<div class="gok-content-panel">
   <div class="card-header">
     <!-- ⚠️ 这里不摆群名/群头像：看的是**全局账号**的营地好友，
          不管从哪个群发指令都是同一份名单，摆群名只会误导人 -->
@@ -130,7 +133,9 @@
   </div>
   {{/if}}
 
-  {{if playing.length}}
+
+</div>
+{{if playing.length}}
   <div class="footer">发送 #营地观战 编号 就能开播，比分看各自的对局互不影响</div>
   {{else}}
   <div class="footer">稍后再发 #营地观战 看看</div>

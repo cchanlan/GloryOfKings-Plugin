@@ -1,5 +1,5 @@
 import path from 'path'
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { getImgType, ApiService, readYamlFile, Button, replyCampIdGuide, parsePerfArgs, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote } from '#utils'
 import { PluginData, PluginPath } from '#components'
 import { privacyScope } from '../utils/seasonFallback.js'

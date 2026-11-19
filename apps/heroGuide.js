@@ -17,7 +17,7 @@
  * （字母序第一个，campIm.js 的注释里踩过同款坑），两个优先级只能是两个文件。
  * 出图逻辑沉淀成下面的 `runHeroGuide` 共用，别复制两份。
  */
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import { getImgType, Button, shouldQuote, resolveCurrentId, AT_HEAD, stripAtText, ApiService } from '#utils'
 import { getHeroGuide, getCampBuild } from '../utils/heroGuide.js'
 

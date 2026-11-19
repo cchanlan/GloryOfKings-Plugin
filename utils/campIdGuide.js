@@ -13,7 +13,7 @@ function guideText(hint) {
 }
 /** Backward-compatible image/link fallback for callers outside the plugin. */
 export function campIdGuidePayload(hint = CAMP_ID_GUIDE_HINT) {
-  return [guideText(hint), segment.image(path.join(PluginPath, 'resources', 'img', CAMP_ID_GUIDE_IMG)), Button.bind()]
+  return [segment.image(path.join(PluginPath, 'resources', 'img', CAMP_ID_GUIDE_IMG)), guideText(hint), Button.bind()]
 }
 export async function replyCampIdGuide(e, hint = CAMP_ID_GUIDE_HINT, replyOptions) {
   const outcome = await sendCampMiniapp(e)

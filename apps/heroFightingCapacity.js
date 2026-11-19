@@ -1,4 +1,4 @@
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import api from '../utils/api.js'
 import { getImgType, Button, shouldQuote, AT_HEAD, stripAtText } from '#utils'
 

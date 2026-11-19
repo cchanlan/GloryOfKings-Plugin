@@ -4,9 +4,12 @@
   <meta charset="UTF-8">
   <title>全部赛季表现</title>
   <link rel="stylesheet" href="{{_res_path}}css/AllSeasonPerformance.css">
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
+<style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
 </head>
-<body>
-<div class="card">
+<body data-gok-page="AllSeasonPerformance">
+<div class="card"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>全部<em>赛季</em></h1></div></header>
+<div class="gok-content-panel">
   <!-- 头部 -->
   <div class="card-header">
     <img src="{{roleIcon}}" class="avatar" alt="">
@@ -39,7 +42,7 @@
       <div class="stat-key">全赛季排位场次</div>
     </div>
     <div class="stat-cell">
-      <div class="stat-val">{{totalWinRate}}</div>
+      <div class="stat-val gok-rate-value">{{totalWinRate}}</div>
       <div class="stat-key">全赛季排位胜率</div>
     </div>
     <div class="stat-cell">
@@ -56,7 +59,7 @@
       <span class="tip">按赛季结算，共 {{trend.length}} 个赛季</span>
     </div>
     <div class="trend-wrap">
-      <canvas id="trendCanvas" width="2910" height="780"></canvas>
+      <canvas id="trendCanvas" width="1472" height="560"></canvas>
     </div>
   </div>
   {{/if}}
@@ -91,7 +94,7 @@
             <div class="mini-key">最高连胜</div>
           </div>
           <div class="mini-cell gold">
-            <div class="mini-val">{{s.winRate}}</div>
+            <div class="mini-val gok-rate-value">{{s.winRate}}</div>
             <div class="mini-key">胜率</div>
           </div>
           <div class="mini-cell">
@@ -115,7 +118,7 @@
             <div class="hero-name">{{h.heroName}}</div>
             <div class="hero-stats">
               总 <span class="hl">{{h.gameCnt}}</span> · 胜 <span class="hl">{{h.winCnt}}</span><br>
-              胜率 <span class="hl">{{h.winRate}}</span>
+              胜率 <span class="hl gok-rate-value">{{h.winRate}}</span>
             </div>
           </div>
           {{/each}}
@@ -126,7 +129,9 @@
     </div>
   </div>
 
-  <div class="footer">GloryOfKings-Plugin · 全部赛季{{if isPeak}}巅峰{{else}}排位{{/if}}表现</div>
+
+</div>
+<div class="footer">GloryOfKings-Plugin · 全部赛季{{if isPeak}}巅峰{{else}}排位{{/if}}表现</div>
 </div>
 
 <script>
@@ -151,7 +156,7 @@ if (trend && trend.length > 1) {
   const ys = vals.map(v => pad.t + (1 - (v - axisMin) / range) * plotH)
 
   // 背景网格
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)'
+  ctx.strokeStyle = 'rgba(238,232,220,0.06)'
   ctx.lineWidth = 2
   for (let i = 0; i <= 4; i++) {
     const y = pad.t + i * plotH / 4
@@ -177,8 +182,8 @@ if (trend && trend.length > 1) {
   // 先 moveTo 到底边再画曲线会把这一笔切成两个子路径，closePath 直接从右下角连回曲线起点，
   // 填充区就多出一条穿过图中间的斜线（数据一路上升时看不出来，有涨有跌时特别明显）
   const grad = ctx.createLinearGradient(0, pad.t, 0, H - pad.b)
-  grad.addColorStop(0, 'rgba(245,215,110,0.32)')
-  grad.addColorStop(1, 'rgba(245,215,110,0.02)')
+  grad.addColorStop(0, 'rgba(216,185,123,0.32)')
+  grad.addColorStop(1, 'rgba(216,185,123,0.02)')
   ctx.beginPath()
   buildSmoothPath()
   ctx.lineTo(xs[xs.length - 1], H - pad.b)
@@ -189,37 +194,37 @@ if (trend && trend.length > 1) {
   // 折线
   ctx.beginPath()
   buildSmoothPath()
-  ctx.strokeStyle = '#f5d76e'; ctx.lineWidth = 5
+  ctx.strokeStyle = '#d8b97b'; ctx.lineWidth = 5
   ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke()
 
   // 数据点
   xs.forEach((x, i) => {
     ctx.beginPath(); ctx.arc(x, ys[i], 7, 0, Math.PI * 2)
-    ctx.fillStyle = '#f5d76e'; ctx.fill()
+    ctx.fillStyle = '#d8b97b'; ctx.fill()
   })
 
   // Y 轴：最低、最高，以及中间一条参考线
   const minIdx = vals.indexOf(dataMin), maxIdx = vals.indexOf(dataMax)
-  ctx.font = '30px YS,sans-serif'
+  ctx.font = '44px YS,sans-serif'
   ctx.textAlign = 'right'
   if (minIdx !== maxIdx) {
     const midVal = (dataMin + dataMax) / 2
     let midT = trend[0], best = Infinity
     trend.forEach(t => { const d = Math.abs(t.value - midVal); if (d < best) { best = d; midT = t } })
     const midY = pad.t + (1 - (midVal - axisMin) / range) * plotH
-    ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 2
+    ctx.strokeStyle = 'rgba(238,232,220,0.12)'; ctx.lineWidth = 2
     ctx.setLineDash([8, 8])
     ctx.beginPath(); ctx.moveTo(pad.l, midY); ctx.lineTo(W - pad.r, midY); ctx.stroke()
     ctx.setLineDash([])
-    ctx.fillStyle = 'rgba(255,255,255,0.4)'
+    ctx.fillStyle = 'rgba(238,232,220,0.4)'
     ctx.fillText(midT.tip, pad.l - 14, midY + 10)
   }
-  ctx.fillStyle = 'rgba(255,255,255,0.6)'
+  ctx.fillStyle = '#eee8dc'
   ctx.fillText(trend[minIdx].tip, pad.l - 14, ys[minIdx] + 10)
   if (minIdx !== maxIdx) ctx.fillText(trend[maxIdx].tip, pad.l - 14, ys[maxIdx] + 10)
 
   // X 轴：首尾赛季名，首点左对齐、尾点右对齐，避免被画布边缘截断
-  ctx.fillStyle = 'rgba(255,255,255,0.5)'
+  ctx.fillStyle = 'rgba(238,232,220,0.5)'
   ctx.textAlign = 'left'
   ctx.fillText(trend[0].label, xs[0], H - 20)
   ctx.textAlign = 'right'

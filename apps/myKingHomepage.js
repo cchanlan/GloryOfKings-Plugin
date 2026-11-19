@@ -1,4 +1,4 @@
-import puppeteer from '../../../lib/puppeteer/puppeteer.js'
+import puppeteer from '../utils/uiRender.js'
 import common from '../../../lib/common/common.js'
 import { getImgType, ApiService, readYamlFile, Button, replyCampIdGuide, AT_HEAD, AT_TAIL, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote } from '#utils'
 import path from 'path'

@@ -1,0 +1,219 @@
+/* 外层正文采用毛玻璃；分区、信息卡和数据槽保留不同明度的实体底，文字与素材不模糊。 */
+:root {
+  --gok-content-fill: #192131;
+  --gok-section-fill: #232c3d;
+  --gok-panel-fill: #2e394d;
+  --gok-inset-fill: #172032;
+  --gok-panel-edge: #3c4a62;
+  --gok-accent-edge: rgba(216, 185, 123, .28);
+  --gok-panel-glow: 0 1px 0 rgba(255, 255, 255, .035) inset, 0 3px 9px rgba(0, 0, 0, .12);
+  --gok-panel-radius: 12px;
+  --gok-success: #64d2a3;
+  --gok-failure: #ed7897;
+}
+
+/* 第一层：完整正文大框。先提供实体回退；不支持 backdrop-filter 时仍保证可读。 */
+html body[data-gok-page] .gok-content-panel,
+html body:not([data-gok-page]) #container .gok-content-panel {
+  display: flow-root;
+  position: relative;
+  background: linear-gradient(155deg, #1c2535, #182030) !important;
+  border: 1px solid #3b485e !important;
+  border-radius: 18px !important;
+  box-shadow: 0 0 14px rgba(114, 144, 187, .10), inset 0 1px 0 rgba(255, 255, 255, .045) !important;
+  backdrop-filter: none !important;
+  margin: 0 -12px;
+  padding: 16px 11px;
+  min-width: 0;
+}
+html body:not([data-gok-page]) #container .ui-header + .gok-content-panel { margin-top: 24px; }
+html body:not([data-gok-page]) #container .body-content.gok-content-panel {
+  margin: 0 16px 24px;
+  padding: 16px 11px 24px;
+}
+
+/* 外层底色 alpha .60（60% 不透明、40% 透明），仅背景透出；文字不降透明度，内卡实体，帮助和详情不变。 */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html body[data-gok-page] .gok-content-panel,
+  html body:not([data-gok-page]):not(.detail-page) #container .gok-content-panel {
+    background: linear-gradient(135deg, rgba(44, 57, 77, .60), rgba(25, 34, 49, .60)) !important;
+    border-color: rgba(182, 204, 229, .24) !important;
+    box-shadow: 0 0 18px rgba(114, 144, 187, .10), inset 0 1px 0 rgba(235, 244, 255, .11) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(1.2) brightness(1.12) !important;
+    backdrop-filter: blur(20px) saturate(1.2) brightness(1.12) !important;
+  }
+}
+
+/* 第二层：内容分区，深灰蓝底 + 中性细边，金色只保留给重点。 */
+html body[data-gok-page] :is(
+  .section, .gok-panel, .stats-card, .gok-platform-card, .season-card,
+  .team-room, .ex-group, .account-block, .tier-block, .hero-head,
+  .gok-hero-banner, .pv-body, .gok-status-grid > .gok-card
+),
+html body:not([data-gok-page]) #container :is(
+  .frequent-card, .team-container, .supply, .report-zone, .detail-section
+) {
+  background: var(--gok-section-fill) !important;
+  border: 1px solid var(--gok-panel-edge) !important;
+  border-radius: var(--gok-panel-radius) !important;
+  box-shadow: var(--gok-panel-glow) !important;
+  backdrop-filter: none !important;
+}
+html body[data-gok-page] .section { margin-bottom: 18px; }
+html body[data-gok-page] .stat-grid + .section { margin-top: 18px; }
+html body[data-gok-page] .gok-content-panel > .card {
+  background: transparent !important;
+  border: 0;
+  box-shadow: none;
+}
+html body[data-gok-page="GameNewsDetail"] .gok-content-panel > .card {
+  background: var(--gok-section-fill) !important;
+  border: 1px solid var(--gok-panel-edge);
+  border-radius: var(--gok-panel-radius);
+}
+
+/* 第三层：独立条目比所在分区略亮；避免以前所有框同色、只有分隔线的平板感。 */
+html body[data-gok-page] :is(
+  .stat-grid, .stats, .gok-summary-grid, .gok-summary, .gok-summary-card,
+  .honor-cell, .honor-item, .match-row, .gok-info-item, .gok-stat-card,
+  .gok-stat, .gok-summary-item, .stat-box, .summary-card, .summary-item,
+  .friend-card, .news-card, .news, .exchange-card, .ex-card, .privacy-card, .team-card,
+  .medal-card, .skin-card, .gok-skin-card, .hero-card, .pv-row, .camp-card,
+  .lane-card, .rank-row, .day-row, .fri-row, .watch-row, .who-row,
+  .award, .ghero, .fact, .gift-row, .total-row, .gok-owner-card,
+  .gok-uid-row, .gok-cmd-row, .core-item, .rune-set, .relation-card,
+  .skin, .full-row
+),
+html body:not([data-gok-page]) #container :is(
+  .summary-grid, .career-row, .battle-row
+) {
+  background: var(--gok-panel-fill) !important;
+  border: 1px solid var(--gok-panel-edge) !important;
+  border-radius: var(--gok-panel-radius) !important;
+  box-shadow: var(--gok-panel-glow) !important;
+  backdrop-filter: none !important;
+}
+/* 统计条本身已分组：内部不重复加大框，仅保留浅色竖分隔。 */
+html body[data-gok-page] :is(.stat-grid .stat-cell, .gok-stats, .gok-info),
+html body:not([data-gok-page]) #container :is(.frequent-content, .frequent-art, .hero) {
+  background: transparent !important;
+}
+html body[data-gok-page] .stat-grid .stat-cell {
+  border-color: var(--gok-panel-edge) !important;
+}
+html body[data-gok-page] :is(.stat-key, .hero-stats, .rs-label, .honor-key, .gok-stat-label) {
+  color: #b9bbc5 !important;
+}
+
+/* 内嵌信息槽采用更深的实体底，不借透明度制造层次。 */
+html body[data-gok-page] :is(.seat, .day-cell, .vs-mid, .cmp-key, .gok-guobiao),
+html body:not([data-gok-page]) #container .frequent-modes > div {
+  background: var(--gok-inset-fill) !important;
+  border-radius: 8px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .1);
+}
+html body[data-gok-page="campImMsg"] .body {
+  background: var(--gok-panel-fill) !important;
+  border-radius: var(--gok-panel-radius);
+}
+html body[data-gok-page="RankList"] .podium-item,
+html body[data-gok-page="HeroPowerRank"] .podium {
+  background: var(--gok-section-fill) !important;
+  border: 1px solid var(--gok-accent-edge);
+  border-radius: var(--gok-panel-radius);
+}
+html body[data-gok-page="HeroPowerRank"] .podium { padding-top: 18px; }
+html body[data-gok-page="HeroSkin"] .gok-skin-name {
+  background: var(--gok-panel-fill) !important;
+}
+
+/* 英雄横幅仍是原画铺满，左侧文字下保留原画，不加实体遮挡。 */
+html body[data-gok-page="HeroDetail"] .hero-hero {
+  border-radius: var(--gok-panel-radius);
+  box-shadow: 0 0 0 1px var(--gok-accent-edge), var(--gok-panel-glow);
+}
+html body[data-gok-page="HeroDetail"] .hero-hero.no-portrait .hh-body {
+  background: var(--gok-panel-fill);
+}
+html body:not([data-gok-page]) #container .frequent-card { overflow: hidden; }
+html body:not([data-gok-page]) #container .frequent-modes > div { padding: 10px; }
+html body:not([data-gok-page]) #container .frequent-modes > div > div {
+  display: grid;
+  grid-template-columns: max-content auto;
+  gap: 4px 8px;
+  align-items: baseline;
+}
+/* 数据行自然增高时原画跟随卡片铺满；不再留下固定高度图片后的空条。 */
+html body:not([data-gok-page]) #container .frequent-art {
+  height: auto;
+  min-height: 230px;
+  align-self: stretch;
+}
+html body:not([data-gok-page]) #container .frequent-art > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+html body:not([data-gok-page]) #container .battle-row {
+  padding: 18px 12px;
+  margin-bottom: 12px;
+}
+html body:not([data-gok-page]) #container .career-row {
+  padding-left: 10px;
+  padding-right: 10px;
+  margin-bottom: 8px;
+}
+
+/* 状态色与金色强调分开：胜利/增长为绿，失败/下降为红。 */
+html body[data-gok-page] { --gok-ok: var(--gok-success); --gok-bad: var(--gok-failure); }
+html body[data-gok-page] :is(.win, .up, .positive, .good),
+html body:not([data-gok-page]) #container :is(.win, .delta.up) { color: var(--gok-success) !important; }
+html body[data-gok-page] :is(.lose, .loss, .down, .negative),
+html body:not([data-gok-page]) #container :is(.loss, .delta.down) { color: var(--gok-failure) !important; }
+html body[data-gok-page="HeroDetail"] .match-row.win-bg::before { background: var(--gok-success); }
+html body[data-gok-page="HeroDetail"] .match-row.loss-bg::before { background: var(--gok-failure); }
+
+/* 恢复旧版的块面关系：资料头、统计带、内容分区、行项目不是同一种大灰框。 */
+html body[data-gok-page] :is(.card-header,.gok-card-head,.gok-header,.gok-head){
+  border-bottom-color:#3c4a62;
+}
+html body[data-gok-page] :is(.stat-grid,.stats,.gok-summary-grid),
+html body:not([data-gok-page]) #container .summary-grid{
+  background:linear-gradient(110deg,#303e52,#283448) !important;
+}
+html body[data-gok-page] :is(.section-title,.gok-section-title){color:#ecf0f7}
+html body[data-gok-page] :is(.stat-cell,.stat-box,.gok-stat-card) .stat-val{color:#e6c98b}
+html body[data-gok-page] :is(.win,.up,.positive,.good){color:var(--gok-success) !important}
+html body[data-gok-page] :is(.lose,.loss,.down,.negative){color:var(--gok-failure) !important}
+html body[data-gok-page] .match-row.win-bg{border-left:4px solid #64d2a3 !important;background:linear-gradient(100deg,#253f43,#2e394d) !important}
+html body[data-gok-page] .match-row.loss-bg{border-left:4px solid #ed7897 !important;background:linear-gradient(100deg,#443347,#2e394d) !important}
+html body[data-gok-page] :is(.match-row.win-bg,.match-row.loss-bg)::before{display:none}
+html body[data-gok-page="MyKingHomepage"] .gok-info-item{background:#253247 !important}
+html body[data-gok-page="MyKingHomepage"] .gok-stat-card{background:linear-gradient(135deg,#35435a,#2c374b) !important}
+html body[data-gok-page="KingCompare"] .vs-side{background:#253247;border:1px solid #3c4a62;border-radius:10px}
+html body[data-gok-page="KingCompare"] .cmp-key{background:#1a2335 !important}
+html body[data-gok-page="HeroPowerRank"] .podium,
+html body[data-gok-page="RankList"] .podium-item{background:linear-gradient(155deg,#2e3a50,#222b3e) !important}
+html body[data-gok-page="HeroSkin"] .gok-skin-name{border-bottom:1px solid #4c5b71}
+html body[data-gok-page] :is(.day-cell,.seat){border:1px solid #34445d}
+html body:not([data-gok-page]) #container .frequent-card{background:#29364a !important}
+html body:not([data-gok-page]) #container .frequent-modes>div{background:#1b2639 !important;border:1px solid #3c4c65}
+html body:not([data-gok-page]) #container .frequent-modes b:nth-of-type(2){color:var(--gok-success)}
+html body:not([data-gok-page]) #container .career-row:nth-of-type(even){background:#283449 !important}
+html body:not([data-gok-page]) #container .hero-num.rate{color:var(--gok-success)}
+html body:not([data-gok-page]) #container .battle-row.win-bg{background:linear-gradient(105deg,#244044,#2e394d 65%) !important;border-left:4px solid var(--gok-success) !important}
+html body:not([data-gok-page]) #container .battle-row.loss-bg{background:linear-gradient(105deg,#453146,#2e394d 65%) !important;border-left:4px solid var(--gok-failure) !important}
+html body:not([data-gok-page]) #container .battle-row.win-bg .battle-score{color:var(--gok-success)}
+html body:not([data-gok-page]) #container .battle-row.loss-bg .battle-score{color:var(--gok-failure)}
+html body:not([data-gok-page]) #container .summary-stat.rate strong{color:var(--gok-success)}
+
+/* 进度条恢复可见明暗，避免统一换色后填充与槽同色。 */
+html body[data-gok-page] :is(.rs-bar,.hero-bar,.total-bar,.prog-bar,.qua-track){background:#3b4961 !important}
+html body[data-gok-page] :is(.rs-bar i,.hero-bar-in,.total-bar-in,.prog-bar span,.qua-track span){background:linear-gradient(90deg,#9c8054,#dfc181) !important}
+html body[data-gok-page] .hour-bar.peak{background:linear-gradient(180deg,#dfc181,#927b54) !important}
+html body[data-gok-page="CampSign"] .total-row.reached .total-bar-in{background:linear-gradient(90deg,#438e75,#64d2a3) !important}
+html body[data-gok-page="KingCompare"] .cmp-bars .bar.a{background:linear-gradient(90deg,#586c97,#88a8d9) !important}
+html body[data-gok-page="KingCompare"] .cmp-bars .bar.b{background:linear-gradient(270deg,#9c8054,#dfc181) !important}
+html body[data-gok-page] :is(.gok-rate-value,.branch-rate,.stat-cell.good .stat-val){color:var(--gok-success) !important}
+html body[data-gok-page="MyKingHomepage"] .gok-rate-card :is(.gok-stat-content,.gok-stat-value){color:var(--gok-success) !important}
