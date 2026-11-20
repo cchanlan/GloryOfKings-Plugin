@@ -92,22 +92,24 @@ body{margin:0;background:#101521;color:var(--text);font:18px/1.45 GokMatch,'Noto
 .me-badge{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);font-size:12px;font-weight:700;background:#e7c879;color:#283041;border:1px solid #9e8449;border-radius:7px;padding:0 5px}
 .score{font:700 27px Arial,sans-serif;min-width:44px;text-align:center}
 .player-info{min-width:0;display:flex;flex-direction:column;gap:6px;align-self:stretch}
-.player-top-info{display:flex;align-items:center;gap:6px;min-height:25px;white-space:nowrap}
+.player-identity{display:flex;align-items:center;gap:6px;min-height:28px;min-width:0;white-space:nowrap}
 .player-name{font-size:19px;font-weight:600;color:#eef1f7;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mvp-badge{font:700 12px Arial,sans-serif;color:#263040;background:#e7c879;border-radius:5px;padding:2px 5px;flex-shrink:0}
 .eval-icon{height:19px;width:auto;max-width:85px;object-fit:contain;flex-shrink:0}
-.economy-display{font:700 17px Arial,GokMatch,sans-serif;color:#e5c880;white-space:nowrap;margin-left:auto;flex-shrink:0}
+.economy-display{display:flex;align-items:center;height:22px;font:700 17px/22px Arial,GokMatch,sans-serif;color:#e5c880;white-space:nowrap;margin-left:auto;flex-shrink:0}
 .economy-display .label,.damage-display .label{font-family:GokMatch,sans-serif;font-size:15px;font-weight:400;color:#a9b6cb;margin-right:4px}
-.player-stats{display:flex;align-items:baseline;gap:8px;white-space:nowrap;font:600 19px Arial,sans-serif}
-.damage-display{margin-left:auto;font:700 18px Arial,GokMatch,sans-serif;color:#ef8ca6;white-space:nowrap}
+/* 可选指标缺失时保留行位，避免后续数据错层。 */
+.player-stats{display:flex;align-items:center;gap:8px;height:26px;flex:none;white-space:nowrap;font:600 19px/24px Arial,sans-serif}
+.damage-display{display:flex;align-items:center;height:100%;margin-left:auto;font:700 18px/24px Arial,GokMatch,sans-serif;color:#ef8ca6;white-space:nowrap}
 .damage-display .rate{margin-left:5px;font-size:16px;font-weight:400}
 .share-top{color:#f27899}.share-high{color:#e7c879}.share-mid{color:#829ff5}.share-low{color:#a8b6cb}
-.player-extra{display:flex;align-items:baseline;gap:9px;font-size:14px;white-space:nowrap;color:#aab7ca}
-.player-extra .item{display:flex;align-items:baseline;gap:3px}.player-extra .item:empty{display:none}
+.player-extra{display:flex;gap:9px;height:22px;flex:none;font-size:14px;line-height:20px;white-space:nowrap;color:#aab7ca}
+.player-extra .item{display:flex;align-items:center;gap:3px}.player-extra .item:empty{display:none}
 .player-extra .val{color:#d1dbea;font-family:Arial,GokMatch,sans-serif;font-weight:600}
 .top-star{color:#e7c879;font-size:12px}
-/* 英雄与本场皮肤名回到头像下；不占用右侧数据和装备的位置。 */
-.max-tags{display:flex;align-items:center;gap:5px;min-width:0}
+/* 经济与昵称分行；额外徽章只向下扩展，不移动数据行。 */
+.player-awards{display:flex;align-items:flex-start;gap:10px}
+.max-tags{display:flex;flex-wrap:wrap;gap:4px 5px;min-width:0;padding:2px 0}
 .player-left .hero-name{display:block;width:100%;font-size:14px;line-height:1.4;color:#acb9cd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .max-tags img{height:18px;width:auto;flex-shrink:0;object-fit:contain}
 .max-tags:empty{display:none}
@@ -130,9 +132,3 @@ body{margin:0;background:#101521;color:var(--text);font:18px/1.45 GokMatch,'Noto
 /* 头像下完整保留英雄/皮肤名；评分不因固定侧栏挤出。 */
 .player-card{grid-template-columns:166px minmax(0,1fr)}
 .score{flex:0 0 58px;min-width:58px}
-.max-tags{flex-wrap:wrap}
-
-/* MVP、金银牌属于昵称旁的身份信息；经济空间不足时整项换行，不拆散姓名与牌子。 */
-.player-top-info{flex-wrap:wrap;row-gap:3px}
-.player-identity{display:flex;align-items:center;gap:6px;flex:0 0 auto;max-width:100%;min-width:0}
-.player-identity .player-name{flex:0 1 auto}
