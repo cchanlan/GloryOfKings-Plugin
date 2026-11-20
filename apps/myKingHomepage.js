@@ -1,4 +1,5 @@
 import puppeteer from '../utils/uiRender.js'
+import { heroPowerColor } from '../utils/heroPowerColor.js'
 import common from '../../../lib/common/common.js'
 import { getImgType, ApiService, readYamlFile, Button, replyCampIdGuide, AT_HEAD, AT_TAIL, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote } from '#utils'
 import path from 'path'
@@ -158,7 +159,9 @@ function buildHomepageData (profileData, roleData, headData, roleNameOverride = 
     ? { ...modePeakRace, param1: { ...peakParam, flagPag: parseFlagPag(peakParam.flagPag) } }
     : undefined
 
-  const mod = mods.filter(i => i.stype === 0)
+  const mod = mods.filter(i => i.stype === 0).map(i => ({
+    ...i, powerColor: Number(i.modId) === 601 ? heroPowerColor(i.content) : ''
+  }))
   const combat = mods.find(i => i.stype === 1)
 
   const { rankingStar, starImg } = v5Param

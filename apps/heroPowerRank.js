@@ -1,4 +1,5 @@
 import puppeteer from '../utils/uiRender.js'
+import { heroPowerColor } from '../utils/heroPowerColor.js'
 import { getImgType, shouldQuote, stripAtText, fetchSharedRoster, uploadLocalBindings } from '#utils'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -294,7 +295,7 @@ export class HeroPowerRank extends plugin {
         ? `${HERO_IMG_BASE}/${heroId}00.jpg?imageMogr2/thumbnail/x170/crop/270x170/gravity/east`
         : '',
       total: rows.length,
-      list: rows
+      list: rows.map(row => ({ ...row, powerColor: heroPowerColor(row.power) }))
     })
 
     if (!img) return e.reply('战力排名出图失败，稍后再试', shouldQuote())

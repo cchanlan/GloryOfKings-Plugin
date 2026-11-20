@@ -1,0 +1,39 @@
+/* 我的英雄：表头和行共用列宽，给曲线来源标记预留行尾空间。 */
+html body:not([data-gok-page]) #container.ui-hero-career :is(.hero-table-head, .career-row) {
+  grid-template-columns: minmax(0, 1fr) 144px 144px 144px 156px;
+  column-gap: 12px;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+.ui-hero-career .hero-table-head {
+  border-left: 1px solid transparent;
+  border-right: 1px solid transparent;
+}
+.ui-hero-career .career-row { min-height: 144px; }
+.ui-hero-career .hero-portrait {
+  display: block;
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  object-position: center;
+}
+.ui-hero-career .hero-num {
+  margin: 0;
+  font: 400 28px/1.2 Arial, HYWenHei, sans-serif;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ui-hero-career .hero-num.current,
+.ui-hero-career .hero-table-head > div:last-child { padding-right: 12px; }
+.ui-hero-career .hero-power-value {
+  position: relative;
+  display: inline-block;
+}
+.ui-hero-career .power-source {
+  position: absolute;
+  left: calc(100% + 3px);
+  top: -.15em;
+  margin: 0;
+  font: 400 14px/1 Arial, sans-serif;
+  color: #b5ac9b;
+}

@@ -10,6 +10,7 @@
  * （queryGameStats 的 toListItem）。
  */
 import fs from 'node:fs'
+import { heroPowerColor } from './heroPowerColor.js'
 import path from 'path'
 import puppeteer from '../utils/uiRender.js'
 import { PluginPath } from '#components'
@@ -502,6 +503,7 @@ function getMeData (myRoles, head) {
     meAssist: bs.assistCnt ?? 0,
     meGrade: bs.gradeGame || '',
     meFightPower: Number(bs.fightPower) || 0,
+    meFightPowerColor: heroPowerColor(bs.fightPower),
     meFightPowerDelta: delta,
     meFightPowerDeltaText: delta > 0 ? `+${delta}` : String(delta)
   }

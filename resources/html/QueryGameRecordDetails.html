@@ -54,7 +54,7 @@
         <div class="me-body">
             <div class="me-profile">
                 {{if meHeroIcon}}<img class="me-avatar" src="{{meHeroIcon}}" alt="{{meHeroName}}" onerror="this.style.visibility='hidden'">{{/if}}
-                {{if meFightPower}}<span class="me-power"><span class="label">战力</span>{{meFightPower}}{{if meFightPowerDelta}}<span class="delta {{meFightPowerDelta > 0 ? 'up' : 'down'}}">{{meFightPowerDeltaText}}</span>{{/if}}</span>{{/if}}
+                {{if meFightPower}}<span class="me-power"><span class="label">战力</span><span style="color:{{meFightPowerColor}}">{{meFightPower}}</span>{{if meFightPowerDelta}}<span class="delta {{meFightPowerDelta > 0 ? 'up' : 'down'}}">{{meFightPowerDeltaText}}</span>{{/if}}</span>{{/if}}
                 <div class="me-kda">{{meKill}} / {{meDead}} / {{meAssist}}</div>
                 {{if meGrade}}<div class="me-grade {{meGrade >= 10 ? 'grade-s' : meGrade >= 8 ? 'grade-a' : meGrade >= 6 ? 'grade-b' : 'grade-c'}}">{{meGrade}}</div>{{/if}}
             </div>

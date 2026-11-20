@@ -222,19 +222,19 @@
     <div class="gok-container">
         <div class="gok-summary">
             <div class="gok-summary-item">
-                <div class="gok-summary-value">{{minStats.guobiao}}</div>
+                <div class="gok-summary-value" style="color:{{minPowerColors.guobiao}}">{{minStats.guobiao}}</div>
                 <div class="gok-summary-label">最低国标分</div>
             </div>
             <div class="gok-summary-item">
-                <div class="gok-summary-value">{{minStats.provincePower}}</div>
+                <div class="gok-summary-value" style="color:{{minPowerColors.provincePower}}">{{minStats.provincePower}}</div>
                 <div class="gok-summary-label">最低省份战力</div>
             </div>
             <div class="gok-summary-item">
-                <div class="gok-summary-value">{{minStats.cityPower}}</div>
+                <div class="gok-summary-value" style="color:{{minPowerColors.cityPower}}">{{minStats.cityPower}}</div>
                 <div class="gok-summary-label">最低城市战力</div>
             </div>
             <div class="gok-summary-item">
-                <div class="gok-summary-value">{{minStats.areaPower}}</div>
+                <div class="gok-summary-value" style="color:{{minPowerColors.areaPower}}">{{minStats.areaPower}}</div>
                 <div class="gok-summary-label">最低地区战力</div>
             </div>
         </div>
@@ -247,7 +247,7 @@
                     <span class="gok-data-value">
                         <span>{{item.province}}</span>
                         <span class="gok-data-sep"></span>
-                        <span class="gok-data-strong">{{item.provincePower}}</span>
+                        <span class="gok-data-strong" style="color:{{item.powerColors.provincePower}}">{{item.provincePower}}</span>
                     </span>
                 </div>
                 <div class="gok-data-row">
@@ -255,7 +255,7 @@
                     <span class="gok-data-value">
                         <span>{{item.city}}</span>
                         <span class="gok-data-sep"></span>
-                        <span class="gok-data-strong">{{item.cityPower}}</span>
+                        <span class="gok-data-strong" style="color:{{item.powerColors.cityPower}}">{{item.cityPower}}</span>
                     </span>
                 </div>
                 <div class="gok-data-row">
@@ -263,12 +263,12 @@
                     <span class="gok-data-value">
                         <span>{{item.area}}</span>
                         <span class="gok-data-sep"></span>
-                        <span class="gok-data-strong">{{item.areaPower}}</span>
+                        <span class="gok-data-strong" style="color:{{item.powerColors.areaPower}}">{{item.areaPower}}</span>
                     </span>
                 </div>
                 <div class="gok-guobiao">
                     <div class="gok-data-label">国标分</div>
-                    <div class="gok-data-value">{{item.guobiao}}</div>
+                    <div class="gok-data-value" style="color:{{item.powerColors.guobiao}}">{{item.guobiao}}</div>
                 </div>
                 <div class="gok-data-row">
                     <span class="gok-data-label">更新时间：</span>

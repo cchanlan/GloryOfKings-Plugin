@@ -1,5 +1,30 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>我的英雄</title><link rel="stylesheet" href="{{_res_path}}css/ui-blackgold.css"><style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>我的英雄</title><link rel="stylesheet" href="{{_res_path}}css/ui-blackgold.css"><link rel="stylesheet" href="{{_res_path}}css/MyHeroList.css"><style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
 </head><body><main id="container" class="ui-hero-career"><header class="ui-header"><div class="ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="ui-title"><img class="ui-logo" src="{{_res_path}}img/app_logo.png"><h1>我的<em>英雄</em></h1></div><div class="ui-subtitle">营地 ID {{ydId}} · {{dataScopeLabel || '全部竞技模式 · 生涯累计'}}</div></header>
-<div class="gok-content-panel"><div class="summary-grid"><div class="summary-stat"><small>已解锁英雄</small><strong>{{ownCount}}</strong></div><div class="summary-stat"><small>有战绩英雄</small><strong>{{heroCount}}</strong></div><div class="summary-stat"><small>{{playScopeLabel || '生涯'}}总场次</small><strong>{{totalPlay}}</strong></div><div class="summary-stat rate"><small>{{playScopeLabel || '生涯'}}总胜率</small><strong>{{totalRate}}</strong></div></div><div class="section-heading"><h2>英雄战力</h2><small>历史缺失时按当前战力排序 · 前 {{shownCount}} 位</small></div><div class="hero-table-head"><div>英雄 / 荣誉称号</div><div>{{playScopeLabel || '生涯'}}场次</div><div>{{playScopeLabel || '生涯'}}胜率</div><div>历史最高战力</div><div>本赛季当前战力</div></div>{{each heroes hero index}}<article class="career-row"><div class="hero-info"><img class="hero-portrait" src="{{hero.imgUrl}}" alt="{{hero.name}}"><div><div class="hero-name">{{hero.name}}{{if hero.subName}}<span class="hero-sub">{{hero.subName}}</span>{{/if}}</div><div class="hero-meta">{{if hero.heroType}}<span>{{hero.heroType}}</span>{{/if}}{{if hero.skilledText}}<span>{{hero.skilledText}}</span>{{/if}}</div>{{if hero.honorText}}<div class="hero-honor">{{hero.honorText}}</div>{{/if}}</div></div><div class="hero-num">{{hero.playNum}}</div><div class="hero-num rate">{{hero.winRate}}</div><div class="hero-num power">{{hero.historyPower || '—'}}</div><div class="hero-num current">{{hero.seasonPower == null ? '—' : hero.seasonPower}}</div></article>{{/each}}<div class="ui-note">{{if previewNote}}{{previewNote}}<br>{{/if}}历史最高为历史赛季峰值，称号为取得该战力时的称号；本赛季列为当前战力，并非赛季峰值。<br>发送「#我的英雄 20」可调整展示数量。</div>
+<div class="gok-content-panel">
+  <div class="summary-grid">
+    <div class="summary-stat"><small>已解锁英雄</small><strong>{{ownCount}}</strong></div>
+    <div class="summary-stat"><small>有战绩英雄</small><strong>{{heroCount}}</strong></div>
+    <div class="summary-stat"><small>{{playScopeLabel}}总场次</small><strong>{{totalPlay}}</strong></div>
+    <div class="summary-stat rate">
+      {{if totalRate === '—' && profileRate}}<small>营地主页胜率</small><strong>{{profileRate}}</strong>
+      {{else}}<small>{{playScopeLabel}}总胜率</small><strong>{{totalRate}}</strong>{{/if}}
+    </div>
+  </div>
+  <div class="section-heading"><h2>英雄战力</h2><small>历史缺失时按当前战力排序 · 前 {{shownCount}} 位</small></div>
+  <div class="hero-table-head"><div>英雄 / 荣誉称号</div><div>{{playScopeLabel}}场次</div><div>{{playScopeLabel}}胜率</div><div>历史最高战力</div><div>本赛季当前战力</div></div>
+  {{each heroes hero}}
+  <article class="career-row">
+    <div class="hero-info"><img class="hero-portrait" src="{{hero.imgUrl}}" alt="{{hero.name}}"><div><div class="hero-name">{{hero.name}}{{if hero.subName}}<span class="hero-sub">{{hero.subName}}</span>{{/if}}</div><div class="hero-meta">{{if hero.heroType}}<span>{{hero.heroType}}</span>{{/if}}{{if hero.skilledText}}<span>{{hero.skilledText}}</span>{{/if}}</div>{{if hero.honorText}}<div class="hero-honor">{{hero.honorText}}</div>{{/if}}</div></div>
+    <div class="hero-num">{{hero.playNum}}</div><div class="hero-num rate">{{hero.winRate}}</div>
+    <div class="hero-num power"><span class="hero-power-value" {{if hero.historyColor}}style="color:{{hero.historyColor}}"{{/if}}>{{hero.historyPower || '—'}}</span></div>
+    <div class="hero-num current"><span class="hero-power-value" {{if hero.seasonColor}}style="color:{{hero.seasonColor}}"{{/if}}>{{hero.seasonPower == null ? '—' : hero.seasonPower}}{{if hero.fromTodayCurve}}<sup class="power-source">*</sup>{{/if}}</span></div>
+  </article>
+  {{/each}}
+  <div class="ui-note">
+    {{if hasCurvePower}}* 标注数字取自营地今日战力曲线的最后一笔。{{/if}}{{if hasMissingPower}} 未查到的当前战力显示为「—」。{{/if}}{{if hasCurvePower || hasMissingPower}}<br>{{/if}}
+    {{if totalRate === '—'}}营地未提供生涯总胜场。{{if profileRate}}主页胜率与生涯场次分别统计。{{/if}}<br>{{/if}}
+    {{if previewNote}}{{previewNote}}<br>{{/if}}历史最高为历史赛季峰值，称号为取得该战力时的称号。<br>
+    发送「#我的英雄 20」可调整展示数量。
+  </div>
 </div>
 <footer class="ui-footer"><span>王者荣耀插件 · GLORYOFKINGS-PLUGIN</span><span>我的英雄</span></footer></main></body></html>

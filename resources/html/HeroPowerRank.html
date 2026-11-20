@@ -363,7 +363,7 @@
             </div>
             <div class="champion-nick">{{item.nick}}</div>
             <div class="champion-area">{{item.area}}</div>
-            <div class="champion-power">{{item.power}}</div>
+            <div class="champion-power" style="color:{{item.powerColor}}">{{item.power}}</div>
         </div>
         {{/if}}
         {{/each}}
@@ -381,7 +381,7 @@
                     <div class="runner-nick">{{item.nick}}</div>
                     <div class="runner-area">{{item.area}}</div>
                 </div>
-                <div class="runner-power">{{item.power}}</div>
+                <div class="runner-power" style="color:{{item.powerColor}}">{{item.power}}</div>
             </div>
             {{/if}}
             {{/each}}
@@ -397,7 +397,7 @@
                     <div class="runner-nick">{{item.nick}}</div>
                     <div class="runner-area">{{item.area}}</div>
                 </div>
-                <div class="runner-power">{{item.power}}</div>
+                <div class="runner-power" style="color:{{item.powerColor}}">{{item.power}}</div>
             </div>
             {{/if}}
             {{/each}}
@@ -414,7 +414,7 @@
             <div class="col-avatar">{{if item.roleIcon}}<img src="{{item.roleIcon}}" onerror="this.style.display='none'">{{else}}{{item.nick.slice(0, 1)}}{{/if}}</div>
             <div class="col-nick">{{item.nick}}</div>
             <div class="col-area">{{item.area}}</div>
-            <div class="col-power">{{item.power}}</div>
+            <div class="col-power" style="color:{{item.powerColor}}">{{item.power}}</div>
         </div>
         {{/if}}
         {{/each}}

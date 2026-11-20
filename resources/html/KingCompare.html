@@ -172,12 +172,12 @@
       {{each items it}}
       <div class="cmp-row">
         <div class="cmp-val left {{if it.side === 'a'}}win{{/if}}">
-          {{it.leftText}}{{if it.side === 'a'}}<span class="mark">▲</span>{{/if}}
+          {{if it.leftHero}}{{it.leftHero.name}} <span style="color:{{it.leftHero.color}}">{{it.leftHero.power}}</span>{{else}}{{it.leftText}}{{/if}}{{if it.side === 'a'}}<span class="mark">▲</span>{{/if}}
           {{if it.barA}}<div class="cmp-bars"><span class="bar a" style="width:{{it.barA}}%"></span></div>{{/if}}
         </div>
         <div class="cmp-key">{{it.icon}} {{it.label}}</div>
         <div class="cmp-val right {{if it.side === 'b'}}win{{/if}}">
-          {{if it.side === 'b'}}<span class="mark">▲</span>{{/if}}{{it.rightText}}
+          {{if it.side === 'b'}}<span class="mark">▲</span>{{/if}}{{if it.rightHero}}{{it.rightHero.name}} <span style="color:{{it.rightHero.color}}">{{it.rightHero.power}}</span>{{else}}{{it.rightText}}{{/if}}
           {{if it.barB}}<div class="cmp-bars"><span class="bar b" style="width:{{it.barB}}%"></span></div>{{/if}}
         </div>
       </div>

@@ -160,7 +160,7 @@
           <div class="stat-key">总胜率</div>
         </div>
         <div class="stat-cell gold">
-          <div class="stat-val">{{power}}</div>
+          <div class="stat-val" {{if powerColor}}style="color:{{powerColor}}"{{/if}}>{{power}}</div>
           <div class="stat-key">荣耀战力</div>
         </div>
       </div>
@@ -193,7 +193,7 @@
     <div class="section">
       <div class="section-title">荣耀战力趋势</div>
       <div class="power-head">
-        <span class="power-val">{{power}}</span>
+        <span class="power-val" {{if powerColor}}style="color:{{powerColor}}"{{/if}}>{{power}}</span>
         <span class="power-tip">{{powerCurve[0].date}} 起 · 共 {{powerCurve.length}} 天</span>
       </div>
       <div class="chart-box">
@@ -328,10 +328,13 @@
 
       ctx.font = '44px YS,sans-serif'
       ctx.textAlign = 'right'
-      ctx.fillStyle = '#eee8dc'
       var minIdx = values.indexOf(dataMin), maxIdx = values.indexOf(dataMax)
+      ctx.fillStyle = '{{minPowerColor}}' || '#eee8dc'
       ctx.fillText(String(dataMin), pad.l - 16, ys[minIdx] + 10)
-      if (minIdx !== maxIdx) ctx.fillText(String(dataMax), pad.l - 16, ys[maxIdx] + 10)
+      if (minIdx !== maxIdx) {
+        ctx.fillStyle = '{{maxPowerColor}}' || '#eee8dc'
+        ctx.fillText(String(dataMax), pad.l - 16, ys[maxIdx] + 10)
+      }
 
       ctx.fillStyle = 'rgba(238,232,220,0.5)'
       ctx.textAlign = 'left'

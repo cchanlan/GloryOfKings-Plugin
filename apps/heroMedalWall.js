@@ -14,6 +14,7 @@
  * 出图走 HeroMedalWall.html（视觉与战报同源），渲染失败时回落到纯文字清单。
  */
 import puppeteer from '../utils/uiRender.js'
+import { heroPowerColor } from '../utils/heroPowerColor.js'
 import {
   getImgType,
   ApiService, resolveCurrentId, readUserData, Button, shouldQuote, getUserAvatar,
@@ -208,6 +209,7 @@ function groupMedals (picked, medals) {
         hero: parsed.hero || hero.name || '',
         heroIcon: heroIconUrl(hero.heroId),
         power: Number(hero.heroFightPower) || 0,
+        powerColor: heroPowerColor(hero.heroFightPower),
         playNum: Number(hero.playNum) || 0,
         text: parsed.text
       })

@@ -15,6 +15,7 @@
  * 的两级判据。渲染失败时回落到逐行文字（renderCompare），判定口径两边完全一致。
  */
 import puppeteer from '../utils/uiRender.js'
+import { heroPowerColor } from '../utils/heroPowerColor.js'
 import {
   getImgType,
   ApiService, resolveCurrentId, getBoundIds, Button, shouldQuote,
@@ -96,6 +97,8 @@ const ITEMS = [
   {
     icon: '🔥',
     label: '最高战力',
+    heroPower: s => s.topHero.power,
+    heroName: s => s.topHero.heroName || '英雄',
     has: s => Number(s.topHero?.power) > 0,
     text: s => `${s.topHero.heroName || '英雄'} ${s.topHero.power}`,
     num: s => Number(s.topHero?.power) || 0,
@@ -332,6 +335,8 @@ function buildCompareView (a, b) {
       label: item.label,
       leftText: item.text(a),
       rightText: item.text(b),
+      leftHero: item.heroPower ? { name: item.heroName(a), power: item.heroPower(a), color: heroPowerColor(item.heroPower(a)) } : null,
+      rightHero: item.heroPower ? { name: item.heroName(b), power: item.heroPower(b), color: heroPowerColor(item.heroPower(b)) } : null,
       side: diff > 0 ? 'a' : (diff < 0 ? 'b' : ''),
       barA,
       barB

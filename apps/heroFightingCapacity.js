@@ -1,5 +1,6 @@
 import puppeteer from '../utils/uiRender.js'
 import api from '../utils/api.js'
+import { heroPowerColor, parseHeroPower } from '../utils/heroPowerColor.js'
 import { getImgType, Button, shouldQuote, AT_HEAD, stripAtText } from '#utils'
 
 /**
@@ -35,22 +36,24 @@ function simplifyYuanName (text) {
  * 接口字段名直接当键用，所以这里同时是「字段名清单」。
  */
 const POWER_FIELDS = ['guobiao', 'provincePower', 'cityPower', 'areaPower']
+const powerColors = row => Object.fromEntries(POWER_FIELDS.map(field => [field, heroPowerColor(row[field])]))
 
 /**
  * 每个口径取所有区服里的最小值 —— 模板用它高亮「最低的那个区服」。
- * 数值化沿用 `Number(x || 0)`：接口偶尔给空串或 `null`，都要当 0 看。
+ * 空串、null 和无效值不参与最低值；整列缺失时显示 —，不伪造 0 战力。
  *
  * ⚠️ 形参名 `heroFightingCapacity` 是**故意**这么长的（不是 `rows`）：
  *    接口万一返回非数组，`.map` 抛的 TypeError 消息里带的就是这个形参名，
  *    会原样进 `logger.error`。日志文本属于行为，差分测试逐字节钉住了它。
  *
  * @param {object[]} heroFightingCapacity 接口返回的战力列表（调用方已确保非空）
- * @returns {{guobiao: number, provincePower: number, cityPower: number, areaPower: number}}
+ * @returns {Record<string, number|string>}
  */
 function pickMinPowers (heroFightingCapacity) {
   const mins = {}
   for (const field of POWER_FIELDS) {
-    mins[field] = Math.min(...heroFightingCapacity.map(row => Number(row[field] || 0)))
+    const values = heroFightingCapacity.map(row => parseHeroPower(row[field])).filter(value => value != null)
+    mins[field] = values.length ? Math.min(...values) : '—'
   }
   return mins
 }
@@ -94,6 +97,7 @@ export class HeroFightingCapacity extends plugin {
       // 首条同时提供英雄名、别名和头像，其余条目只是各平台的战力行
       const [first] = heroFightingCapacity
       const displayName = simplifyYuanName(first.name)
+      const minStats = pickMinPowers(heroFightingCapacity)
 
       const img = await puppeteer.screenshot('HeroFightingCapacit', {
         imgType: getImgType(),
@@ -101,8 +105,11 @@ export class HeroFightingCapacity extends plugin {
         photo: first.photo,
         name: displayName,
         alias: simplifyYuanName(first.alias),
-        data: heroFightingCapacity,
-        minStats: pickMinPowers(heroFightingCapacity)
+        data: heroFightingCapacity.map(row => ({ ...row,
+          ...Object.fromEntries(POWER_FIELDS.map(field => [field, parseHeroPower(row[field]) ?? '—'])),
+          powerColors: powerColors(row) })),
+        minStats,
+        minPowerColors: powerColors(minStats)
       })
 
       // ⚠️ screenshot 失败返回 false 而不抛错（2026-10-06 修）：外面那个 catch 接不到它，

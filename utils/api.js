@@ -2451,6 +2451,19 @@ class ApiService {
   }
 
   /**
+   * 营地原生英雄页：生涯场次/真实胜负场/当前战力，一次返回英雄总表。
+   * 必须用roleId；targetRoleId会被忽略并返回默认角色。响应heroData在顶层，
+   * 未拥有英雄也会返回（notOwnedFlag=1），调用者须校验frequencyHeroUrl里的角色。
+   */
+  async getCareerHeroList (ID, roleId, requesterBotUserId = '') {
+    if (!/^\d+$/.test(toText(roleId))) throw new Error('营地角色信息不完整，请稍后重试')
+    return this.#makeAuthRequest('/game/itempage/herolist', {
+      roleId: toText(roleId),
+      recommendPrivacy: 0
+    }, toText(ID), requesterBotUserId)
+  }
+
+  /**
    * 获取账号全量英雄列表（营地 App「我的英雄」页，全部竞技模式的生涯累计）。
    * 和皮肤墙同属游戏侧 form 接口。实测返回该账号拥有的全部英雄（一个号 132 条），
    * 单条含 playNum/winRate/heroFightPower/skilledLevel/heroTypes 等，一次请求就够，不用逐英雄拉。
@@ -2473,7 +2486,7 @@ class ApiService {
    * seasonId：0=「历史赛季」（跨赛季峰值，实测一个号 90 个英雄里 32 个有值），
    * -1=当前赛季；其他选项应按响应的season菜单选择，不能猜测负数含义。
    * 单条含 heroFightPower（当前战力）/ maxHeroFightPower（历史最高战力）/ honorTitle（拿历史最高时的荣耀称号）。
-   * 和 getGameHeroList 的差别：那边是「当前」战力且没有称号、没有 winNum 之外的口径差异，
+   * 场次、胜率的统计范围与生涯列表不同，且没有winNum，不能用来替代生涯统计；
    * 这边一次请求就能拿到全部英雄的历史峰值称号，不用逐英雄拉 pagedetails。
    * @param {string|number} roleId 角色 ID（来自 profile.data.targetRoleId，不是营地 ID）
    * @param {string} requesterBotUserId 发起查询的机器人用户 ID

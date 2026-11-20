@@ -7,6 +7,7 @@ import { getImgType, getCampHeroSkins, ApiService, readYamlFile, getLocalImage, 
 import path from 'path'
 import { PluginData, PluginPath } from '#components'
 import { reportHeroPowers } from '../utils/heroPowerShare.js'
+import { heroPowerColor } from '../utils/heroPowerColor.js'
 import { getNickMap, nickOf, withGroupNick } from '../utils/groupNick.js'
 
 // 横版立绘：优先官方完整原画；缺图先取营地横图，再回退同英雄经典皮肤。
@@ -33,16 +34,6 @@ const HONOR_ICON = {
 function simplifyHeroName(text) {
   if (!text) return text
   return text.replace(/元流之子\s*[（(]\s*(.)[^）)]*[）)]/g, '元$1')
-}
-
-// 战力配色，跟营地一致
-function fightColor(power) {
-  const p = Number(power) || 0
-  if (p <= 2500) return '#c8c8c8'
-  if (p <= 5000) return '#6f8ef5'
-  if (p <= 7500) return '#a24bff'
-  if (p <= 10000) return '#f5d76e'
-  return '#ff5b7c'
 }
 
 // 赛季页的胜率是 0~1 的小数，营地展示成一位小数百分比
@@ -277,7 +268,7 @@ export class HeroList extends plugin {
       peakCnt: hero.peak ? hero.peak.gameCnt : '',
       peakRate: hero.peak ? hero.peak.winRate : '',
       fightPower: hero.fightPower || '-',
-      fightColor: fightColor(hero.fightPower),
+      fightColor: heroPowerColor(hero.fightPower || null),
       honorIcon: honorType ? (HONOR_ICON[honorType] || '') : '',
       honorText: simplifyHeroName(honorDesc?.full || honorDesc?.name || honorDesc?.abbr || '')
     }

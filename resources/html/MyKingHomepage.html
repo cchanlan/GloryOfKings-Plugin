@@ -52,7 +52,7 @@
                             {{if v.icon}}
                             <img src="{{v.icon}}" alt="" class="gok-stat-icon">
                             {{/if}}
-                            <div class="gok-stat-content style{{v.showStyle}}">{{v.content}}</div>
+                            <div class="gok-stat-content style{{v.showStyle}}">{{if v.powerColor}}<span style="color:{{v.powerColor}}">{{v.content}}</span>{{else}}{{v.content}}{{/if}}</div>
                         </div>
                         <div class="gok-stat-label">{{v.name}}</div>
                     </div>

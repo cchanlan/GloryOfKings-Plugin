@@ -1,30 +1,17 @@
-// 我的英雄读取营地主站菜单中的“全部赛季”，不再碰被限流的游戏侧全量接口。
-// 当前战力只补本赛季返回的英雄；没有真实胜场时不反推累计胜率。
+// 我的英雄读取营地原生英雄页的生涯数据，不再碰被限流的游戏侧全量接口。
 import puppeteer from '../utils/uiRender.js'
-import { getImgType, ApiService, readYamlFile, getLocalImage, Button, replyCampIdGuide, CAMP_ID_GUIDE_HINT, CAMP_ID_SUFFIX_HINT, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote } from '#utils'
-import { getMyHeroRoster } from '../utils/myHeroRoster.js'
-import path from 'path'
-import { PluginData, PluginPath } from '#components'
+import { getImgType, ApiService, getLocalImage, Button, replyCampIdGuide, CAMP_ID_GUIDE_HINT, CAMP_ID_SUFFIX_HINT, AT_HEAD, stripAtText, resolveTargetUserId, resolveUserData, shouldQuote } from '#utils'
+import { getMyHeroRoster, DEFAULT_MY_HERO_COUNT, compareMyHeroRows } from '../utils/myHeroRoster.js'
+import { heroPowerColor } from '../utils/heroPowerColor.js'
 
-// 英雄头像图（营地战斗页头像，裁成横图），和常用英雄榜共用一套
+// 营地头像缺失时使用的战斗页立绘备用源
 const HERO_IMG_BASE = 'https://game-1255653016.file.myqcloud.com/battle_skin_1250-326'
 // 默认展示数量，指令后可跟数字改
-const SHOW_COUNT = 10
 const MAX_COUNT = 30
 
 // 熟练度等级 → 营地里的叫法。实测 8=神话 7=传说 6=巅峰 5=超凡（对着 pagedetails 的 skilledTitle 核过），
 // 4 及以下没实测到，直接显示 Lv.N，不猜。
 const SKILLED_NAME = { 8: '神话', 7: '传说', 6: '巅峰', 5: '超凡' }
-
-// 战力配色，跟营地一致（和 heroList.js 同一套阈值）
-function fightColor(power) {
-  const p = Number(power) || 0
-  if (p <= 2500) return '#c8c8c8'
-  if (p <= 5000) return '#6f8ef5'
-  if (p <= 7500) return '#a24bff'
-  if (p <= 10000) return '#f5d76e'
-  return '#ff5b7c'
-}
 
 // “元流之子(射手)” → { name: '元流之子', subName: '射手' }
 function splitHeroName(rawName) {
@@ -59,7 +46,7 @@ export class MyHeroList extends plugin {
 
     // 指令后可以混着写营地ID和展示数量：营地ID是 5 位以上，数量是 4 位以内
     let ID = ''
-    let limit = SHOW_COUNT
+    let limit = DEFAULT_MY_HERO_COUNT
     for (const tok of msg.split(/[\s,，、]+/).filter(Boolean)) {
       if (!/^\d+$/.test(tok)) continue
       if (tok.length >= 5) ID = tok
@@ -88,19 +75,14 @@ export class MyHeroList extends plugin {
       return
     }
 
-    // 仅过滤无对局的英雄；列表与场次口径来自服务端“全部赛季”，不是当前赛季top5。
+    // 仅过滤生涯无对局的英雄；场次、胜率来自同一份完整生涯列表。
     const played = res.heroes.filter(hero => Number(hero.playNum) > 0)
     if (!played.length) {
-      await e.reply('营地全部赛季中暂无英雄对局记录')
+      await e.reply('营地生涯记录中暂无英雄对局')
       return
     }
-    const merged = played
-
     // 默认按战力降序（营地那页「最高战力」列排序），战力相同的场次多的排前面
-    const sorted = [...merged].sort(
-      (a, b) => b.displayPower - a.displayPower || Number(b.playNum) - Number(a.playNum)
-    )
-    const picked = sorted.slice(0, limit)
+    const picked = played.sort(compareMyHeroRows).slice(0, limit)
 
     const heroes = await Promise.all(picked.map(hero => this.buildHeroCard(hero)))
 
@@ -116,6 +98,9 @@ export class MyHeroList extends plugin {
       shownCount: heroes.length,
       totalPlay,
       totalRate: res.totalRate,
+      profileRate: res.profileRate,
+      hasCurvePower: heroes.some(hero => hero.fromTodayCurve),
+      hasMissingPower: heroes.some(hero => hero.seasonPower == null),
       dataScopeLabel: res.dataScopeLabel,
       playScopeLabel: res.playScopeLabel,
       previewNote: res.previewNote,
@@ -144,21 +129,20 @@ export class MyHeroList extends plugin {
       playNum: Number(hero.playNum) || 0,
       // 胜率直接使用营地返回的字符串，不从百分比反推胜场
       winRate: hero.winRate || '—',
-      fightPower: hero.displayPower,
-      fightColor: fightColor(hero.displayPower),
       historyPower: hero.historyPower,
-      historyColor: fightColor(hero.historyPower),
+      historyColor: heroPowerColor(hero.historyPower || null),
       seasonPower: hero.seasonPower,
-      seasonColor: fightColor(hero.seasonPower)
+      seasonColor: heroPowerColor(hero.seasonPower),
+      fromTodayCurve: hero.seasonPowerSource === 'today-curve'
     }
   }
 
-  /** 头像优先用战斗页特写图，取不到再用接口给的横版图 */
+  /** 优先使用营地提供的方形头像，避免横向立绘被二次裁切。 */
   async resolveHeroImage(hero) {
     const candidates = [
-      `${HERO_IMG_BASE}/${hero.heroId}00.jpg?imageMogr2/thumbnail/x170/crop/270x170/gravity/east`,
       hero.url,
-      hero.heroIcon
+      hero.heroIcon,
+      `${HERO_IMG_BASE}/${hero.heroId}00.jpg?imageMogr2/thumbnail/x170/crop/270x170/gravity/east`
     ].filter(Boolean)
 
     for (const url of candidates) {

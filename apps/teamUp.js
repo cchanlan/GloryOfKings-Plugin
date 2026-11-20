@@ -50,6 +50,7 @@
  * 前面收过的群会再收一遍（2026-10-16 主人报的「重启会重新发一遍已经发过的广播」）。
  */
 import puppeteer from '../utils/uiRender.js'
+import { heroPowerColor } from '../utils/heroPowerColor.js'
 import { ApiService, shouldQuote, pickGroupSafe, pickMemberSafe, AT_HEAD, stripAtText, getImgType } from '#utils'
 import { getCurrentId } from '../utils/localBind.js'
 import { resolveUserData } from '../utils/shareStore.js'
@@ -156,6 +157,7 @@ function makeSeat (kind, lane, who, icon, hero = null) {
     // 最高战力英雄。缺了模板就不渲染那一行（老版本加入的成员没有这几个字段）
     heroName: hero?.name || '',
     heroPower: hero?.power ? Number(hero.power).toLocaleString('zh-CN') : '',
+    heroPowerColor: heroPowerColor(hero?.power),
     heroIcon: hero?.icon || ''
   }
 }
