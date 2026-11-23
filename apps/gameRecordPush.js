@@ -1125,7 +1125,7 @@ export class GameRecordPush extends plugin {
     // 也不能让用户完全不知道有人在打（2026-09-20 改，原先这里卡死了整整两天）。
     // ⚠️ 顺手把这一行的坐标（watcher/owners/userId/roleId）带出来给 sendHint，
     //    别让它只发 battleID —— 少了 owners 那边会裸查整个账号池（见 findFriend 注释）
-    const friend = await this.findFriend(sub.campId)
+    const friend = await this.findFriend(sub.campId, data.gaming?.battleId)
     if (friend === false) {
       logger.mark(`[王者推送] ${qq} 的营地 ${sub.campId} 不是任何全局账号的好友，不发开播提示`)
       // 开不了播，但开局这件事照说（同上：checkBattle 已经不发那一条了）
@@ -1300,7 +1300,7 @@ export class GameRecordPush extends plugin {
         //    当天 20:18 上线时观战服务还没部署（22:24 才创建），闸门从头到尾查不到。
         //    宁可发一条「可能开不了」的提示，也不能让用户完全不知道他在打。
         // ⚠️ 顺手把坐标带出来给 sendHint（同上，少了 owners 那边会裸查整个账号池）
-        const friend = await this.findFriend(sub.campId)
+        const friend = await this.findFriend(sub.campId, data.gaming?.battleId)
         if (friend === null) {
           if (now - S.lastFriendNullLogAt > 5 * 60 * 1000) {
             S.lastFriendNullLogAt = now
@@ -1358,14 +1358,15 @@ export class GameRecordPush extends plugin {
    *    这里本来就要调 `/api/friends`，返回里 `playing` 那几行**天然带着** watcher/owners，
    *    顺手捞出来交给 `sendHint` 就行 —— **零额外请求**。
    */
-  async findFriend (campId) {
+  async findFriend (campId, battleId) {
     const id = String(campId || '')
     if (!id) return false
     try {
       const data = await callWatchApi('/api/friends')
       if (!data?.ok) return null
       if (!(data.friendCampIds || []).includes(id)) return false
-      const record = (data.playing || []).find(p => String(p.campId) === id) || null
+      const record = (data.playing || []).find(p =>
+        String(p.campId) === id && Boolean(battleId) && String(p.battleId) === String(battleId)) || null
       return { record }
     } catch (error) {
       logger.debug(`[王者推送] 查好友失败（观战服务没起？）：${error.message}`)
@@ -1388,6 +1389,13 @@ export class GameRecordPush extends plugin {
    * @param {Record<string,string>} [heroMap] heroId -> 英雄名（合并文案里带英雄与场次胜率）
    */
   async sendHint (qq, sub, gaming, minutes, heroMap = {}, coord = null) {
+    const battleID = String(gaming?.battleId || '')
+    const campId = String(sub.campId || '')
+    if (!battleID || !campId) {
+      // 战绩缺少局号时只报开局，避免把好友缓存中的旧局记成当前局。
+      const name = await this.resolveDisplayName(qq, sub)
+      return this.send(qq, sub, formatGamingText(gaming, heroMap, name))
+    }
     // ⚠️⚠️ **名字优先用营地实时返回的角色名**（2026-10-05 修）。
     //    原先写的是 `sub.roleName || 群名片`，而 `#营地开播` 回话时用的是
     //    `/api/friends` 里那一行的 `nick`（= 营地实时 roleName）—— **两个不同源**：
@@ -1428,8 +1436,8 @@ export class GameRecordPush extends plugin {
           method: 'POST',
           body: {
             groupId: gid,
-            battleID: String(gaming?.battleId || coord?.battleId || ''),
-            campId: String(sub.campId || ''),
+            battleID,
+            campId,
             // ⚠️ 用洗净后的名字，和上面文案里显示的**完全一致**（引用开播按它匹配）
             nick: display,
             // ⚠️ 这四个是 `#营地开播` 复查/取流的关键：缺了 owners 它会退化成查全部账号

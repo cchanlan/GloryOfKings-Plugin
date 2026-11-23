@@ -26,7 +26,7 @@ import authStore from '../utils/authStore.js'
 import apiService from '../utils/api.js'
 import { LANES, MODE_NAME, matchLane, pickBattles } from '../utils/masterPool.js'
 import { reportRemoteAccounts } from '../utils/remoteAccounts.js'
-import { readQuoted } from '../utils/quoted.js'
+import { quotedId, readQuoted } from '../utils/quoted.js'
 // 待确认请求表要跨热重载共享，否则热重载会把用户还没点的确认吞掉（见 utils/hotState.js）
 import { hotBox } from '../utils/hotState.js'
 
@@ -490,12 +490,23 @@ export class WatchBattle extends plugin {
 
     if (!res?.ok) {
       // 账号都占着 → 问一句要不要中断上一路（只有一个登录态时这是唯一的办法）
+      if (res?.code === 'different-target') {
+        await e.reply(res.error, shouldQuote())
+        return false
+      }
       if (res?.code === 'no-account') {
         await this.askReplace(e, payload, res, label)
         return false
       }
       // 其余失败：服务端已经把人话原因带回来了（「这个人现在不能被观战」之类），原样转达
       await e.reply(`${res?.error || '这局取不到画面'}\n重发 #营地观战 换一个试试`, shouldQuote())
+      return false
+    }
+
+    // 旧服务仍可能返回同一局里另一位玩家的现有房间。
+    if (payload.strictTarget && (String(res.userID || '') !== String(payload.userID) ||
+      String(res.battleID || '') !== String(payload.battleID))) {
+      await e.reply('观战服务返回的房间与这条开播提示不一致，请发 #营地观战 在播 查看现有直播', shouldQuote())
       return false
     }
 
@@ -696,21 +707,14 @@ export class WatchBattle extends plugin {
       return e.reply('这个指令要在群里发（开的是本群最近提示的那一场）', shouldQuote())
     }
 
-    // ⚠️⚠️ **先看这条指令有没有引用那条开播提示**（2026-10-05 修）。
-    //    一个群里订阅了上下线提醒的人往往不止一个（实测群 575663150 就有 3 个），
-    //    于是「A 开局提示一条、B 开局又提示一条」，原先只认**最新**那条 ——
-    //    用户看着 A 的提示发 `#营地开播`，开出来的却是 B。
-    //    引用着提示发指令时，把原文里那个人名认出来，去服务端挑回**原来那一场**。
-    let wantNick = ''
-    const quoted = await readQuoted(e).catch(() => null)
-    if (quoted) {
-      // 提示原文形如「<名字> 已经开局 N 分钟了\n要不要开一路观战？发 #营地开播」
-      const m = quoted.match(/^(.+?)\s*已经开局\s*\d+\s*分钟/)
-      if (m) wantNick = m[1].trim()
-      if (!wantNick) {
-        // 认得出是我们的提示但取不出名字 → 说明一声，别默默开了别人那一场
-        logger.mark(`[营地观战] 引用的是开播提示但认不出人名：${quoted.slice(0, 40)}`)
-      }
+    const refId = quotedId(e)
+    const quoted = refId ? await readQuoted(e).catch(() => null) : null
+    if (refId && !quoted) {
+      return e.reply('读不到引用的开播提示，请重新引用，或发 #营地观战 看看现在谁在打', shouldQuote())
+    }
+    const wantNick = quoted?.match(/^(.+?)\s*已经开局\s*\d+\s*分钟/)?.[1]?.trim() || ''
+    if (quoted?.includes('发 #营地开播') && !wantNick) {
+      return e.reply('认不出这条开播提示，请发 #营地观战 列表选择要看的对局', shouldQuote())
     }
 
     let data
@@ -725,7 +729,12 @@ export class WatchBattle extends plugin {
     if (!data?.ok) return e.reply(`拿不到开播提示\n${data?.error || '稍后再试'}`, shouldQuote())
 
     const hint = data.hint
-    if (!hint?.battleID) {
+    // 兼容仍会把未命中的引用回退到最新提示的旧观战服务。
+    if (wantNick && (data.ambiguous || (data.list || []).some(h =>
+      h.nick === wantNick && h.campId && hint?.campId && String(h.campId) !== String(hint.campId)))) {
+      return e.reply(`有多个玩家叫「${wantNick}」，请发 #营地观战 列表选择要看的对局`, shouldQuote())
+    }
+    if (!hint?.battleID || (wantNick && hint.nick !== wantNick)) {
       // 引用着某条提示、但那条已经不在了（超时 40 分钟 / 服务重启过）—— 说清楚，
       // 别让人以为「本群还没有提示」是自己看错了
       if (wantNick) {
@@ -772,7 +781,20 @@ export class WatchBattle extends plugin {
       logger.error(`[营地观战] 开播前复查失败: ${error.message}`)
       return e.reply(this.serviceDownText(error), shouldQuote())
     }
-    const still = (now?.playing || []).find(p => String(p.battleId) === String(hint.battleID))
+    if (!now?.ok) {
+      return e.reply('营地暂时查不到这场对局，请稍后重试 #营地开播', shouldQuote())
+    }
+    const campId = String(hint.campId || '')
+    const roleId = String(hint.roleId || '')
+    const userId = String(hint.userID || '')
+    // 同一局里可能有多个营地好友。先锁玩家，再核对局号，昵称只用于显示。
+    const samePlayer = (row, allowMissingCampId = false) => {
+      if (campId && !(allowMissingCampId && !row.campId && roleId) && String(row.campId || '') !== campId) return false
+      if (roleId && String(row.roleId || '') !== roleId) return false
+      return Boolean(campId || roleId || (userId && String(row.userId || '') === userId))
+    }
+    const still = (now.playing || []).find(p =>
+      p.userId && samePlayer(p) && String(p.battleId) === String(hint.battleID))
     if (!still) {
       // ⚠️⚠️ 「复查查不到」≠「打完了」（2026-10-05 修）。现象：刚推完「开局 4 分钟」的
       //    提示，群友立刻发 #营地开播，却被回「这一局已经打完了」——4 分钟的排位不可能
@@ -790,9 +812,7 @@ export class WatchBattle extends plugin {
       }
       // 提示里那一场被预筛摘掉了 → 营地当前说「看不了」（隐私 / 非排位巅峰 / 接口抽风）
       const dropped = Array.isArray(now?.dropped) ? now.dropped : []
-      const dropHit = dropped.find(d =>
-        (hint.roleId && String(d.roleId) === String(hint.roleId)) ||
-        (hint.nick && String(d.nick || '') === String(hint.nick)))
+      const dropHit = dropped.find(d => samePlayer(d, true))
       if (dropHit) {
         logger.mark(`[营地观战] 复查时那一局被预筛摘掉（${dropHit.reason}），去流里决定（hint ${hint.battleID}）`)
         return e.reply(
@@ -801,9 +821,7 @@ export class WatchBattle extends plugin {
         )
       }
       // TA 还在打、只是已经换了一局（秒开下一把 / 提示太旧）→ 给句实话，别让人以为提示是假的
-      const next = (now?.playing || []).find(p =>
-        (hint.roleId && String(p.roleId) === String(hint.roleId)) ||
-        (hint.nick && (String(p.nick || '') === String(hint.nick) || String(p.campNick || '') === String(hint.nick))))
+      const next = (now?.playing || []).find(p => samePlayer(p))
       if (next) {
         return e.reply(
           `刚才那一局已经打完了，TA 现在开了新的一局\n发 #营地观战 列表 选「${next.nick || next.campNick || hint.nick}」开播，或等新的开播提示`,
@@ -821,6 +839,7 @@ export class WatchBattle extends plugin {
       watcher: still.watcher || hint.watcher,
       owners: still.owners || hint.owners || [],
       battleID: still.battleId,
+      strictTarget: true,
       // ⚠️ 两个 ID 都要发：服务端拿 userID 取流、拿 roleId 轮询「这局还在不在」
       userID: still.userId,
       roleId: still.roleId,
