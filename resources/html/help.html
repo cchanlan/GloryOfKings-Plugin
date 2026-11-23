@@ -11,7 +11,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8"><title>王者帮助 · 曜黑鎏金</title>
+<meta charset="UTF-8"><title>王者帮助 · 暗色原画</title>
 <style>
 @font-face{font-family:HYWenHei;src:url('{{_res_path}}font/HYWH-65W.woff') format('woff');font-weight:100 900;font-display:block}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -150,31 +150,48 @@ h2:before{content:'';position:absolute;width:8px;height:18px;background:var(--bl
 .detail-section.featured .command:nth-last-child(2):nth-child(odd){border-bottom:0}
 .detail .search-band{margin-top:29px}
 
-/* 黑金配色：只替换视觉，不删改指令。 */
-#container{background:#111214}
-.hero{background:radial-gradient(ellipse at 97% -10%,#393020 0,transparent 60%),linear-gradient(115deg,#111214 40%,#1c1914 100%)}
-.hero-art .cube{filter:grayscale(1) sepia(1) saturate(1.3) brightness(.95)}
-.hero-art .wings{opacity:.57}
-.hero-art .halo{border-color:#57482f}
-.hero-art .halo:before{border-color:#393329}
+/* 暗色原画背景：与其它出图主题隔离；指令、权限与排版不变。 */
+:root{--ink:#f3efe8;--blue:#dfbf83;--muted:#d3d1cf;--line:rgba(222,211,194,.18);--ice:rgba(18,22,32,.84)}
+#container{background:#121722;isolation:isolate}
+#container:before{content:'';position:absolute;inset:-20px;z-index:-2;background:#192338 url('{{_res_path}}img/background.jpg') center 35%/cover no-repeat;filter:blur(24px) saturate(.64) brightness(.64);pointer-events:none}
+#container:after{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(100deg,rgba(9,13,21,.82),rgba(12,17,29,.65) 55%,rgba(13,18,31,.6));pointer-events:none}
+.hero{background:transparent;isolation:isolate}
+.hero:before{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(12,17,27,.93) 0%,rgba(12,17,27,.76) 43%,rgba(12,17,27,.18) 76%),linear-gradient(0deg,rgba(14,19,30,.96),rgba(14,19,30,0) 52%),url('{{_res_path}}img/background.jpg') right 30%/1000px auto no-repeat;-webkit-mask-image:linear-gradient(to bottom,#000 55%,transparent);mask-image:linear-gradient(to bottom,#000 55%,transparent);pointer-events:none}
+.hero:after{display:none}
+.hero-art{display:none}
+.eyebrow{color:#beb7ab}
+.hero-desc{color:#d0ccc6}
+.args,.aliases,.alias-label,.section-note,.nav-caption{color:#b8b8bb}
+.login-card{background:var(--ice)}
+.login-card:first-child{background:#dfbf83}
 .login-card:first-child .card-label{color:#66502d}
 .login-card:first-child .command-text{color:#191610}
 .login-card:first-child .command-desc{color:#3c321f}
 .login-card:first-child:before{border-color:#a0824c}
-.login-card:nth-child(2){border:1px solid #463b2a}
-.supply{border:1px solid #493d2a;background:#1d1a15}
+.login-card:nth-child(2){border:1px solid rgba(224,191,131,.3)}
+.id-card{background:rgba(19,24,35,.82)}
+.id-card .id-label{color:#b9b8b7}
+.id-card .aliases{border-color:var(--line)}
+.supply{border:1px solid rgba(224,191,131,.24);background:rgba(27,25,26,.84)}
 .supply h2{color:#e7cc99}
-.entry-band{color:#1b170f}
+.supply .command-desc{color:#d3ccc0}
+.supply .aliases,.supply .alias-label{color:#bcb1a0}
+.report-zone{background:rgba(31,29,29,.84)}
+.report-zone .command-desc{color:#cbc3b4}
+.report-zone .nav-caption{color:#c8b28d}
+.entry-band{color:#1b170f;background:#dfbf83}
 .entry-band strong{color:#191610}
 .entry-band small{color:#66502d}
 .entry-band .entry-hint{color:#443720}
-.detail-section.featured{border:1px solid #493d2a;background:#1d1a15}
+.detail-section.featured{border:1px solid rgba(224,191,131,.24);background:rgba(27,25,26,.84)}
 .detail-section.featured h2{color:#e7cc99}
-.search-band{background:#191815}
+.search-band{background:rgba(17,22,32,.8);border-color:rgba(224,191,131,.35);border-left-color:var(--blue)}
+.search-band small,.search-band .hint,.footer{color:#bcb9b4}
+.footer-line{color:#aeadad}
 
 </style>
 </head>
-<!-- 帮助页保留已验收的黑金排版，不接入其他出图的背景与实体面板样式。 -->
+<!-- 帮助页使用独立暗色原画背景，保留黑金排版与完整指令，不接入其它出图主题。 -->
 <body class="gok-help-page">
 <main id="container" class="{{mode}}">
 <header class="hero">
@@ -220,6 +237,6 @@ h2:before{content:'';position:absolute;width:8px;height:18px;background:var(--bl
 </div></section>{{/each}}
 {{/if}}
 <aside class="search-band"><div><small>{{mode === 'main' ? '想直接找到一条指令？' : '返回功能导航'}}</small><strong>{{mode === 'main' ? '#王者帮助 关键词' : '#王者帮助'}}</strong></div><p class="hint">{{if mode === 'main'}}例如：#王者帮助 签到<br>支持按指令名、别名和说明搜索{{else}}按关键词搜索<br>#王者帮助 关键词{{/if}}</p></aside>
-<footer class="footer"><p>参数说明：[ ] 为选填，&lt; &gt; 为必填；发送指令时不需要输入括号。</p><p>账号操作已在主图完整列出；其他功能发送对应帮助指令查看。</p><div class="footer-line"><span>王者荣耀插件 · GLORYOFKINGS-PLUGIN</span><span>曜黑鎏金 · 设计预览</span></div></footer>
+<footer class="footer"><p>参数说明：[ ] 为选填，&lt; &gt; 为必填；发送指令时不需要输入括号。</p><p>账号操作已在主图完整列出；其他功能发送对应帮助指令查看。</p><div class="footer-line"><span>王者荣耀插件 · GLORYOFKINGS-PLUGIN</span><span>暗色原画 · 指令指南</span></div></footer>
 </div></main>
 </body></html>
