@@ -81,6 +81,18 @@ export async function sendMessage (opts) {
   return callApi('/api/send', { method: 'POST', body: opts, timeout: 20000 })
 }
 
+/** 只将营地明确的内容审核拒绝转成修改提示，不猜测具体敏感词。 */
+export function sendFailureText (res) {
+  const code = res?.raw?.retCode ?? res?.raw?.returnCode
+  let error = String(res?.error || res?.raw?.retMsg || res?.raw?.returnMsg || '')
+  // 兼容旧服务端尚未解码的业务错误；损坏的编码不影响兜底提示。
+  try { error = decodeURIComponent(error) } catch { /* 保留原文用于判断 */ }
+  if (String(code) === '-30099' || /您发送的信息非法[，,]?\s*请注意言行/.test(error)) {
+    return '没发出去：消息未通过营地内容审核，请修改措辞后再发'
+  }
+  return '没发出去，稍后再试'
+}
+
 /** 启动某些账号的 ws 连接 */
 export async function connectAccounts (userIds) {
   return callApi('/api/connect', { method: 'POST', body: { userIds } })

@@ -226,9 +226,8 @@ export class CampFriend extends plugin {
       return e.reply(`已发给 ${target.nick || '对方'}`, shouldQuote())
     }
 
-    // ⚠️ 服务端已经把 URL 编码的错误解开了，但「发送字数超过限制」这类还是别原样甩给用户
-    //    （插件端已经先拦过长度，走到这里多半是别的失败）。原因只进日志。
+    // 审核拒绝给出修改提示，详细错误和其他失败原因仍留在日志。
     logger.warn(`[${PluginName}] 营地私聊失败：${res?.error || '(无)'} ${JSON.stringify(res?.raw || {}).slice(0, 200)}`)
-    return e.reply('没发出去，稍后再试', shouldQuote())
+    return e.reply(client.sendFailureText(res), shouldQuote())
   }
 }

@@ -651,7 +651,7 @@ export class CampIm extends plugin {
     if (res?.ok) return e.reply('已回复', shouldQuote())
 
     logger.warn(`[营地消息] 回复失败：${JSON.stringify(res).slice(0, 200)}`)
-    return e.reply('没发出去，稍后再试', shouldQuote())
+    return e.reply(client.sendFailureText(res), shouldQuote())
   }
 
   /** 从服务端队列里找该账号最近一条「别人发来的」消息 */
