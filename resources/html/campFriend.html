@@ -79,6 +79,7 @@
   </style>
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 <body data-gok-page="campFriend">
 <div class="card"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>营地<em>好友</em></h1></div></header>
@@ -87,7 +88,7 @@
     <!-- ⚠️ 这里不摆群名/群头像：看的是**当前营地号**的好友，
          换 #切换营地 之后名单就变了，摆群名只会误导人 -->
     <div class="user-info">
-      <h2 class="username">在游戏里的好友</h2>
+      <h2 class="username gok-name">在游戏里的好友</h2>
       <div class="head-sub">营地号 {{selfUserId}} 的 {{total}} 位好友里，{{friends.length}} 位在游戏里</div>
     </div>
     <div class="report-label">
@@ -106,7 +107,7 @@
         <div class="fri-idx">{{row.idx}}</div>
         <img class="fri-avatar" src="{{row.avatar}}" alt="" onerror="this.style.visibility='hidden'">
         <div class="fri-main">
-          <div class="fri-name">{{row.name}}</div>
+          <div class="fri-name gok-name">{{row.name}}</div>
           <div class="fri-meta">
             {{if row.jobName}}<span class="rank">{{row.jobName}}</span>{{/if}}
           </div>

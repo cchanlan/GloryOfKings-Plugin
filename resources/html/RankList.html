@@ -7,6 +7,7 @@
     <title>{{title}}</title>
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 
 <style>
@@ -408,7 +409,7 @@
                             <img src="{{item.avatar || item.roleIcon}}"
                                 onerror="this.onerror=null;this.src='{{item.roleIcon}}'" />
                         </div>
-                        <div class="podium-name">{{item.roleName}}</div>
+                        <div class="podium-name gok-name">{{item.roleName}}</div>
                         <div class="podium-value">
                             {{if isPeak}}{{item.peakScore}}{{else}}{{item.rankStar}}<span
                                 style="font-size:12rem;font-family:'HYWenHei'"> 星</span>{{/if}}
@@ -424,7 +425,7 @@
                     <div class="row">
                         <div class="row-index">{{item.index}}</div>
                         <div class="row-avatar"><img src="{{item.roleIcon}}" onerror="this.style.display='none'"></div>
-                        <div class="row-name">{{item.roleName}}</div>
+                        <div class="row-name gok-name">{{item.roleName}}</div>
                         <div class="row-value">
                             {{if isPeak}}{{item.peakScore}}<span class="unit">分</span>{{else}}{{item.rankName}}
                             {{item.rankStar}}<span class="unit">星</span>{{/if}}
@@ -441,7 +442,7 @@
                         <div class="row is-self">
                             <div class="row-index">{{self.index}}</div>
                             <div class="row-avatar"><img src="{{self.roleIcon}}" onerror="this.style.display='none'"></div>
-                            <div class="row-name">{{self.roleName}}</div>
+                            <div class="row-name gok-name">{{self.roleName}}</div>
                             <div class="row-value">
                                 {{if isPeak}}{{self.peakScore}}<span class="unit">分</span>{{else}}{{self.rankName}}
                                 {{self.rankStar}}<span class="unit">星</span>{{/if}}

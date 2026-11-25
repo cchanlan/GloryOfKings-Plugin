@@ -1,5 +1,6 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>我的英雄</title><link rel="stylesheet" href="{{_res_path}}css/ui-blackgold.css"><link rel="stylesheet" href="{{_res_path}}css/MyHeroList.css"><style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
-</head><body><main id="container" class="ui-hero-career"><header class="ui-header"><div class="ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="ui-title"><img class="ui-logo" src="{{_res_path}}img/app_logo.png"><h1>我的<em>英雄</em></h1></div><div class="ui-subtitle">营地 ID {{ydId}} · {{dataScopeLabel || '全部竞技模式 · 生涯累计'}}</div></header>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
+</head><body data-gok-page="MyHeroList"><main id="container" class="ui-hero-career"><header class="ui-header"><div class="ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="ui-title"><img class="ui-logo" src="{{_res_path}}img/app_logo.png"><h1>我的<em>英雄</em></h1></div><div class="ui-subtitle">营地 ID {{ydId}} · {{dataScopeLabel || '全部竞技模式 · 生涯累计'}}</div></header>
 <div class="gok-content-panel">
   <div class="summary-grid">
     <div class="summary-stat"><small>已解锁英雄</small><strong>{{ownCount}}</strong></div>
@@ -14,7 +15,7 @@
   <div class="hero-table-head"><div>英雄 / 荣誉称号</div><div>{{playScopeLabel}}场次</div><div>{{playScopeLabel}}胜率</div><div>历史最高战力</div><div>本赛季当前战力</div></div>
   {{each heroes hero}}
   <article class="career-row">
-    <div class="hero-info"><img class="hero-portrait" src="{{hero.imgUrl}}" alt="{{hero.name}}"><div><div class="hero-name">{{hero.name}}{{if hero.subName}}<span class="hero-sub">{{hero.subName}}</span>{{/if}}</div><div class="hero-meta">{{if hero.heroType}}<span>{{hero.heroType}}</span>{{/if}}{{if hero.skilledText}}<span>{{hero.skilledText}}</span>{{/if}}</div>{{if hero.honorText}}<div class="hero-honor">{{hero.honorText}}</div>{{/if}}</div></div>
+    <div class="hero-info"><img class="hero-portrait" src="{{hero.imgUrl}}" alt="{{hero.name}}"><div><div class="hero-name gok-name">{{hero.name}}{{if hero.subName}}<span class="hero-sub">{{hero.subName}}</span>{{/if}}</div><div class="hero-meta">{{if hero.heroType}}<span>{{hero.heroType}}</span>{{/if}}{{if hero.skilledText}}<span>{{hero.skilledText}}</span>{{/if}}</div>{{if hero.honorText}}<div class="hero-honor">{{hero.honorText}}</div>{{/if}}</div></div>
     <div class="hero-num">{{hero.playNum}}</div><div class="hero-num rate">{{hero.winRate}}</div>
     <div class="hero-num power"><span class="hero-power-value" {{if hero.historyColor}}style="color:{{hero.historyColor}}"{{/if}}>{{hero.historyPower || '—'}}</span></div>
     <div class="hero-num current"><span class="hero-power-value" {{if hero.seasonColor}}style="color:{{hero.seasonColor}}"{{/if}}>{{hero.seasonPower == null ? '—' : hero.seasonPower}}{{if hero.fromTodayCurve}}<sup class="power-source">*</sup>{{/if}}</span></div>

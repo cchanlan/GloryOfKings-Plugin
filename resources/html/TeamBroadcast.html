@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="{{_res_path}}css/TeamUp.css">
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 <body data-gok-page="TeamBroadcast"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>开黑<em>招募</em></h1></div></header>
 <div class="gok-content-panel">
@@ -17,7 +18,7 @@
 <div class="card">
   <div class="card-header">
     <div class="user-info">
-      <h2 class="username">{{title}}</h2>
+      <h2 class="username gok-name">{{title}}</h2>
     </div>
     <div class="report-label">
       开黑组队
@@ -33,7 +34,7 @@
         <div class="team-head">
           <div class="team-code">{{room.code}}</div>
           <div class="team-who">
-            <div class="team-name">{{room.ownerName}}</div>
+            <div class="team-name gok-name">{{room.ownerName}}</div>
             <div class="team-sub">
               {{if room.ownerRank}}<span class="rank">{{room.ownerRank}}</span>{{/if}}
               {{if room.ownerRank}}<span class="sep">·</span>{{/if}}
@@ -63,11 +64,11 @@
               </span>
             </div>
             <div class="seat-lane">{{seat.lane}}</div>
-            <div class="seat-who">{{seat.who}}</div>
+            <div class="seat-who gok-name">{{seat.who}}</div>
             {{if seat.heroName}}
             <div class="seat-hero">
               <img class="hero-ico" src="{{seat.heroIcon}}" alt="" onerror="this.onerror=null;this.style.display='none'">
-              <span class="hero-name">{{seat.heroName}}</span>
+              <span class="hero-name gok-name">{{seat.heroName}}</span>
               {{if seat.heroPower}}<span class="hero-power" style="color:{{seat.heroPowerColor}}">{{seat.heroPower}}</span>{{/if}}
             </div>
             {{/if}}

@@ -127,13 +127,14 @@
   </style>
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 <body data-gok-page="KingCompare">
 <div class="card"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>王者<em>对比</em></h1></div></header>
 <div class="gok-content-panel">
   <div class="card-header">
     <div class="user-info">
-      <h2 class="username">{{leftName}} <span style="color:rgba(238,232,220,0.3)">VS</span> {{rightName}}</h2>
+      <h2 class="username compare-names"><span class="gok-name">{{leftName}}</span><span class="compare-vs">VS</span><span class="gok-name">{{rightName}}</span></h2>
       <span class="badge">{{compared}} 项可比</span>
       {{if skipped}}<span class="badge">{{skipped}} 项缺数据跳过</span>{{/if}}
     </div>
@@ -146,7 +147,7 @@
   <div class="vs-box">
     <div class="vs-side {{if winSide === 'a'}}winner{{/if}}">
       <img class="vs-face" src="{{leftIcon}}" alt="" onerror="this.style.visibility='hidden'">
-      <div class="vs-name">{{leftName}}</div>
+      <div class="vs-name gok-name">{{leftName}}</div>
       <div class="vs-sub">{{leftSub}}</div>
       <div class="vs-crown">{{if winSide === 'a'}}👑 胜出{{/if}}</div>
     </div>
@@ -156,7 +157,7 @@
     </div>
     <div class="vs-side {{if winSide === 'b'}}winner{{/if}}">
       <img class="vs-face" src="{{rightIcon}}" alt="" onerror="this.style.visibility='hidden'">
-      <div class="vs-name">{{rightName}}</div>
+      <div class="vs-name gok-name">{{rightName}}</div>
       <div class="vs-sub">{{rightSub}}</div>
       <div class="vs-crown">{{if winSide === 'b'}}👑 胜出{{/if}}</div>
     </div>
@@ -172,12 +173,12 @@
       {{each items it}}
       <div class="cmp-row">
         <div class="cmp-val left {{if it.side === 'a'}}win{{/if}}">
-          {{if it.leftHero}}{{it.leftHero.name}} <span style="color:{{it.leftHero.color}}">{{it.leftHero.power}}</span>{{else}}{{it.leftText}}{{/if}}{{if it.side === 'a'}}<span class="mark">▲</span>{{/if}}
+          {{if it.leftHero}}<div class="cmp-hero"><span class="gok-name">{{it.leftHero.name}}</span><span class="cmp-hero-power" style="color:{{it.leftHero.color}}">{{it.leftHero.power}}</span>{{if it.side === 'a'}}<span class="mark">▲</span>{{/if}}</div>{{else}}{{it.leftText}}{{if it.side === 'a'}}<span class="mark">▲</span>{{/if}}{{/if}}
           {{if it.barA}}<div class="cmp-bars"><span class="bar a" style="width:{{it.barA}}%"></span></div>{{/if}}
         </div>
         <div class="cmp-key">{{it.icon}} {{it.label}}</div>
         <div class="cmp-val right {{if it.side === 'b'}}win{{/if}}">
-          {{if it.side === 'b'}}<span class="mark">▲</span>{{/if}}{{if it.rightHero}}{{it.rightHero.name}} <span style="color:{{it.rightHero.color}}">{{it.rightHero.power}}</span>{{else}}{{it.rightText}}{{/if}}
+          {{if it.rightHero}}<div class="cmp-hero">{{if it.side === 'b'}}<span class="mark">▲</span>{{/if}}<span class="gok-name">{{it.rightHero.name}}</span><span class="cmp-hero-power" style="color:{{it.rightHero.color}}">{{it.rightHero.power}}</span></div>{{else}}{{if it.side === 'b'}}<span class="mark">▲</span>{{/if}}{{it.rightText}}{{/if}}
           {{if it.barB}}<div class="cmp-bars"><span class="bar b" style="width:{{it.barB}}%"></span></div>{{/if}}
         </div>
       </div>

@@ -108,17 +108,18 @@
     </style>
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 
 <body data-gok-page="HeroSkin"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>皮肤<em>图鉴</em></h1></div></header>
 <div class="gok-content-panel">
-    <h1 class="gok-skin-head">{{heroName}}皮肤图鉴</h1>
+    <h1 class="gok-skin-head gok-name-wrap">{{heroName}}皮肤图鉴</h1>
     <div class="gok-skin-total">共 {{skinCount}} 款</div>
 
     <div class="gok-skin-grid">
         {{each skinData skin}}
         <div class="gok-skin-card">
-            <span class="gok-skin-name">{{skin.name}}</span>
+            <span class="gok-skin-name gok-name">{{skin.name}}</span>
             {{if skin.url}}
             <img src="{{skin.url}}" alt="{{skin.name}}" class="gok-skin-pic">
             {{else}}

@@ -77,6 +77,7 @@
   </style>
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 <body data-gok-page="ScoreTrend">
 <div class="card"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>巅峰<em>趋势</em></h1></div></header>
@@ -85,7 +86,7 @@
   <div class="card-header">
     <img class="avatar" src="{{avatar}}" alt="" onerror="this.style.display='none'">
     <div class="user-info">
-      <h2 class="username">{{username}}</h2>
+      <h2 class="username gok-name">{{username}}</h2>
       <span class="badge">{{rangeText}}</span>
       <span class="badge">{{coverText}}</span>
       <span class="badge">{{count}} 场巅峰</span>
@@ -179,7 +180,7 @@
       <div class="match-row">
         <img class="match-icon" src="{{h.heroIcon}}" alt="" onerror="this.style.visibility='hidden'">
         <div class="match-main">
-          <div class="match-hero">{{h.heroName}}</div>
+          <div class="match-hero gok-name">{{h.heroName}}</div>
           <div class="match-meta">{{h.count}} 场 · 胜率 {{h.winRate}}%</div>
         </div>
         <span class="match-delta {{h.netClass}}">{{h.netText}}</span>
@@ -201,7 +202,7 @@
       <div class="match-row">
         <img class="match-icon" src="{{m.heroIcon}}" alt="" onerror="this.style.visibility='hidden'">
         <div class="match-main">
-          <div class="match-hero">{{m.heroName}}</div>
+          <div class="match-hero gok-name">{{m.heroName}}</div>
           <div class="match-meta">{{m.timeText}} · {{m.kda}}</div>
         </div>
         <span class="match-res {{m.resultClass}}">{{m.resultText}}</span>

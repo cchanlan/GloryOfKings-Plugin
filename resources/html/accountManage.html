@@ -166,6 +166,7 @@
 </style>
 
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 <body data-gok-page="accountManage">
     <div class="gok-page"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>账号<em>状态</em></h1></div></header>
 <div class="gok-content-panel">
@@ -175,14 +176,14 @@
                     <h1>账号状态看板 <span class="gok-tag tag-{{type}}">{{type}}操作</span></h1>
                 </div>
                 <div class="gok-header-meta">
-                    <div class="gok-header-time">{{timestamp}} | 目标: {{wzryId}}{{if wzryName}} <span class="gok-target-name">{{wzryName}}</span>{{/if}}</div>
+                    <div class="gok-header-time"><span class="gok-target-meta">{{timestamp}} | 目标: {{wzryId}}</span>{{if wzryName}} <span class="gok-target-name gok-name">{{wzryName}}</span>{{/if}}</div>
                 </div>
             </div>
 
             {{if idList}}
             <div class="gok-panel">
                 <h2>绑定的账号列表</h2>
-                <div class="gok-id-list">{{idList}}</div>
+                <div class="gok-id-list gok-name-wrap">{{idList}}</div>
                 {{if parsedFuncs && parsedFuncs.length}}
                 <div class="gok-tips">
                     <div class="gok-tips-grid">

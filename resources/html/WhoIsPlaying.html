@@ -122,6 +122,7 @@
   </style>
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 <body data-gok-page="WhoIsPlaying">
 <div class="card"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>谁在<em>打游戏</em></h1></div></header>
@@ -129,7 +130,7 @@
   <div class="card-header">
     <img class="avatar" src="{{avatar}}" alt="" onerror="this.style.display='none'">
     <div class="user-info">
-      <h2 class="username">{{scopeName}}</h2>
+      <h2 class="username gok-name">{{scopeName}}</h2>
     </div>
     <div class="report-label">
       {{title}}
@@ -147,7 +148,7 @@
       <div class="who-row playing">
         <img class="who-avatar" src="{{row.avatar}}" alt="" onerror="this.style.visibility='hidden'">
         <div class="who-main">
-          <div class="who-name">{{row.name}}</div>
+          <div class="who-name gok-name">{{row.name}}</div>
           <div class="who-meta">
             {{if row.gamingFor}}<span class="dur">已打 {{row.gamingFor}}</span>{{/if}}
             {{if row.rankText}}<span class="rank">{{row.rankText}}</span>{{/if}}
@@ -157,7 +158,7 @@
         {{if row.heroName}}
         <div class="who-hero">
           <img src="{{row.heroIcon}}" alt="" onerror="this.style.display='none'">
-          <span>{{row.heroName}}</span>
+          <span class="gok-name">{{row.heroName}}</span>
         </div>
         {{else}}
         <span class="who-state gaming">对局中</span>
@@ -179,7 +180,7 @@
       <div class="who-row ended">
         <img class="who-avatar" src="{{row.avatar}}" alt="" onerror="this.style.visibility='hidden'">
         <div class="who-main">
-          <div class="who-name">{{row.name}}</div>
+          <div class="who-name gok-name">{{row.name}}</div>
           <div class="who-meta">
             <span class="ended-tag">{{row.endedAgoText}}结束</span>
             {{if row.rankText}}<span class="rank">{{row.rankText}}</span>{{/if}}
@@ -188,7 +189,7 @@
         {{if row.heroName}}
         <div class="who-hero">
           <img src="{{row.heroIcon}}" alt="" onerror="this.style.display='none'">
-          <span>{{row.heroName}}</span>
+          <span class="gok-name">{{row.heroName}}</span>
         </div>
         {{else}}
         <span class="who-state ended-s">刚结束</span>
@@ -210,7 +211,7 @@
       <div class="who-row lobby">
         <img class="who-avatar" src="{{row.avatar}}" alt="" onerror="this.style.visibility='hidden'">
         <div class="who-main">
-          <div class="who-name">{{row.name}}</div>
+          <div class="who-name gok-name">{{row.name}}</div>
           <div class="who-meta">
             {{if row.rankText}}<span class="rank">{{row.rankText}}</span>{{/if}}
             {{if row.stale}}<span class="stale-tag">{{row.staleAgo}}</span>{{/if}}
@@ -234,7 +235,7 @@
       <div class="who-row">
         <img class="who-avatar" src="{{row.avatar}}" alt="" onerror="this.style.visibility='hidden'">
         <div class="who-main">
-          <div class="who-name">{{row.name}}</div>
+          <div class="who-name gok-name">{{row.name}}</div>
           <div class="who-meta">
             {{if row.onlineFor}}<span class="dur">在线 {{row.onlineFor}}</span>{{/if}}
             {{if row.rankText}}<span class="rank">{{row.rankText}}</span>{{/if}}
@@ -262,7 +263,7 @@
     <div class="name-flow">
       {{each offline row}}
       <span class="name-chip">
-        <img src="{{row.avatar}}" alt="" onerror="this.style.visibility='hidden'"><b>{{row.name}}</b>
+        <img src="{{row.avatar}}" alt="" onerror="this.style.visibility='hidden'"><b class="gok-name">{{row.name}}</b>
       </span>
       {{/each}}
     </div>
@@ -277,7 +278,7 @@
     <div class="name-flow">
       {{each unknown row}}
       <span class="name-chip">
-        <img src="{{row.avatar}}" alt="" onerror="this.style.visibility='hidden'"><b>{{row.name}}</b>
+        <img src="{{row.avatar}}" alt="" onerror="this.style.visibility='hidden'"><b class="gok-name">{{row.name}}</b>
       </span>
       {{/each}}
     </div>

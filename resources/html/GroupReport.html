@@ -6,9 +6,10 @@
   <!-- 两张表：BattleReport.css 提供卡片 / 四格 / 区块 / 活跃时段的基础样式，
        GroupReport.css 只写群榜特有的增量，视觉和个人日报保持一致 -->
   <link rel="stylesheet" href="{{_res_path}}css/BattleReport.css">
-  <link rel="stylesheet" href="{{_res_path}}css/GroupReport.css">
+  <link rel="stylesheet" href="{{_res_path}}css/GroupReport.css?v=20261125-name-metrics">
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 <body data-gok-page="GroupReport">
 <div class="card"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>群战<em>绩报告</em></h1></div></header>
@@ -21,7 +22,7 @@
       {{if groupAvatar}}<img class="group-avatar" src="{{groupAvatar}}" alt="" onerror="this.style.display='none'">{{/if}}
     </div>
     <div class="user-info">
-      <h2 class="username">{{groupName}}</h2>
+      <h2 class="username gok-name">{{groupName}}</h2>
       <span class="badge">{{rangeText}}</span>
       <span class="badge">{{scannedText}}</span>
     </div>
@@ -67,8 +68,11 @@
       <div class="award">
         {{if a.icon}}<img class="award-icon" src="{{a.icon}}" alt="" onerror="this.style.display='none'">{{/if}}
         <div class="award-main">
-          <div class="award-key">{{a.key}}</div>
-          <div class="award-val">{{a.val}}</div>
+          <div class="award-head">
+            <div class="award-key">{{a.key}}</div>
+            <div class="award-val">{{a.val}}</div>
+          </div>
+          <div class="award-name">{{a.name}}</div>
         </div>
       </div>
       {{/each}}
@@ -90,12 +94,12 @@
         {{if r.icon}}<img class="rank-avatar" src="{{r.icon}}" alt="" onerror="this.style.display='none'">{{/if}}
         <div class="rank-main">
           <div class="rank-top">
-            <span class="rank-name">{{r.name}}</span>
+            <span class="rank-name gok-name">{{r.name}}</span>
             {{if r.streakText}}<span class="streak {{r.streakClass}}">{{r.streakText}}</span>{{/if}}
             {{if r.topHero}}
             <span class="rank-hero">
               {{if r.topHeroIcon}}<img src="{{r.topHeroIcon}}" alt="" onerror="this.style.display='none'">{{/if}}
-              {{r.topHero.name}} ×{{r.topHero.count}}
+              <span class="gok-name">{{r.topHero.name}}</span><span class="rank-hero-count">×{{r.topHero.count}}</span>
             </span>
             {{/if}}
           </div>
@@ -141,7 +145,7 @@
       <div class="ghero">
         <img class="ghero-icon" src="{{h.icon}}" alt="">
         <div class="ghero-main">
-          <div class="ghero-name">{{h.name}}</div>
+          <div class="ghero-name gok-name">{{h.name}}</div>
           <div class="ghero-sub">{{h.count}} 场 · {{h.users}} 人</div>
           <div class="hero-bar">
             <div class="hero-bar-in" style="width:{{h.barWidth}}%"></div>

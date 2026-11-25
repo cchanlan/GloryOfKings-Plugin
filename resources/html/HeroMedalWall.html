@@ -92,6 +92,7 @@
   </style>
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 <body data-gok-page="HeroMedalWall">
 <div class="card"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>英雄<em>勋章</em></h1></div></header>
@@ -99,7 +100,7 @@
   <div class="card-header">
     <img class="avatar" src="{{avatar}}" alt="" onerror="this.style.display='none'">
     <div class="user-info">
-      <h2 class="username">{{username}}</h2>
+      <h2 class="username gok-name">{{username}}</h2>
       <span class="badge">扫了战力最高的 {{scanned}} / {{total}} 个英雄</span>
       {{if bestText}}<span class="badge">最好 {{bestText}}</span>{{/if}}
     </div>
@@ -141,7 +142,7 @@
         <img class="medal-icon" src="{{row.heroIcon}}" alt="" onerror="this.style.visibility='hidden'">
         <div class="medal-main">
           <div class="medal-text">{{row.text}}</div>
-          <div class="medal-meta">{{row.hero}}{{if row.playNum}} · {{row.playNum}} 场{{/if}}</div>
+          <div class="medal-meta gok-name-metric"><span class="gok-name">{{row.hero}}</span>{{if row.playNum}}<span class="gok-name-value">· {{row.playNum}} 场</span>{{/if}}</div>
         </div>
         {{if row.power}}
         <div class="medal-power"><b style="color:{{row.powerColor}}">{{row.power}}</b><i>战力</i></div>
@@ -170,7 +171,7 @@
     <div class="name-flow">
       {{each noneList row}}
       <span class="name-chip">
-        <img src="{{row.heroIcon}}" alt="" onerror="this.style.visibility='hidden'"><b>{{row.name}}</b>
+        <img src="{{row.heroIcon}}" alt="" onerror="this.style.visibility='hidden'"><b class="gok-name">{{row.name}}</b>
       </span>
       {{/each}}
     </div>

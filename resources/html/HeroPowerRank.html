@@ -340,6 +340,7 @@
     </style>
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 
 <body data-gok-page="HeroPowerRank"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>英雄<em>战力榜</em></h1></div></header>
@@ -347,7 +348,7 @@
     <div class="header">
         {{if heroIcon}}<img class="hero-icon" src="{{heroIcon}}" onerror="this.style.display='none'">{{/if}}
         <div class="title-box">
-            <h1>{{heroName}}</h1>
+            <h1 class="gok-name-wrap">{{heroName}}</h1>
             <div class="sub">本赛季战力总排名 · 共 <b>{{total}}</b> 人在榜</div>
         </div>
     </div>
@@ -361,7 +362,7 @@
             <div class="champion-avatar">
                 {{if item.roleIcon}}<img src="{{item.roleIcon}}" onerror="this.style.display='none'">{{else}}{{item.nick.slice(0, 1)}}{{/if}}
             </div>
-            <div class="champion-nick">{{item.nick}}</div>
+            <div class="champion-nick gok-name">{{item.nick}}</div>
             <div class="champion-area">{{item.area}}</div>
             <div class="champion-power" style="color:{{item.powerColor}}">{{item.power}}</div>
         </div>
@@ -378,7 +379,7 @@
                     {{if item.roleIcon}}<img src="{{item.roleIcon}}" onerror="this.style.display='none'">{{else}}{{item.nick.slice(0, 1)}}{{/if}}
                 </div>
                 <div class="runner-info">
-                    <div class="runner-nick">{{item.nick}}</div>
+                    <div class="runner-nick gok-name">{{item.nick}}</div>
                     <div class="runner-area">{{item.area}}</div>
                 </div>
                 <div class="runner-power" style="color:{{item.powerColor}}">{{item.power}}</div>
@@ -394,7 +395,7 @@
                     {{if item.roleIcon}}<img src="{{item.roleIcon}}" onerror="this.style.display='none'">{{else}}{{item.nick.slice(0, 1)}}{{/if}}
                 </div>
                 <div class="runner-info">
-                    <div class="runner-nick">{{item.nick}}</div>
+                    <div class="runner-nick gok-name">{{item.nick}}</div>
                     <div class="runner-area">{{item.area}}</div>
                 </div>
                 <div class="runner-power" style="color:{{item.powerColor}}">{{item.power}}</div>
@@ -412,7 +413,7 @@
         <div class="rank-row">
             <div class="col-rank">{{item.rank}}</div>
             <div class="col-avatar">{{if item.roleIcon}}<img src="{{item.roleIcon}}" onerror="this.style.display='none'">{{else}}{{item.nick.slice(0, 1)}}{{/if}}</div>
-            <div class="col-nick">{{item.nick}}</div>
+            <div class="col-nick gok-name">{{item.nick}}</div>
             <div class="col-area">{{item.area}}</div>
             <div class="col-power" style="color:{{item.powerColor}}">{{item.power}}</div>
         </div>

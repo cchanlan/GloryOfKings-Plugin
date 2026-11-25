@@ -230,6 +230,7 @@
     </style>
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 
 <body class="{{compact ? 'compact' : ''}}" data-gok-page="HeroTierList"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>英雄<em>梯度</em></h1></div></header>
@@ -255,7 +256,7 @@
                 <img class="avatar" src="{{hero.icon}}" onerror="this.style.visibility='hidden'">
                 <div class="info">
                     <div class="name-row">
-                        <span class="hero-name">{{hero.name}}</span>
+                        <span class="hero-name gok-name">{{hero.name}}</span>
                         {{if hero.sub}}<span class="hero-sub">{{hero.sub}}</span>{{/if}}
                     </div>
                     </div>

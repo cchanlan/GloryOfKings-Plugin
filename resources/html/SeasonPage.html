@@ -6,6 +6,7 @@
   <link rel="stylesheet" href="{{_res_path}}css/SeasonPage.css">
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 <body data-gok-page="SeasonPage">
 <div class="card"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>赛季<em>表现</em></h1></div></header>
@@ -14,7 +15,7 @@
   <div class="card-header">
     <img src="{{roleIcon}}" class="avatar" alt="">
     <div class="user-info">
-      <h2 class="username">{{roleName}}</h2>
+      <h2 class="username gok-name">{{roleName}}</h2>
       <span class="badge role">{{serverName}}</span>
     </div>
     <div class="season-label">
@@ -70,7 +71,7 @@
       {{each heros h}}
       <div class="hero-card">
         <img src="{{h.heroIcon}}" class="hero-icon" alt="">
-        <div class="hero-name">{{h.heroName}}</div>
+        <div class="hero-name gok-name">{{h.heroName}}</div>
         <div class="hero-stats"><span class="hl gok-rate-value">{{h.winRate}}</span> 胜率 &nbsp; <span class="hl">{{h.gameCnt}}</span> 场</div>
       </div>
       {{/each}}
@@ -168,7 +169,7 @@
       {{each masterHeros h}}
       <div class="hero-card">
         <img src="{{h.heroIcon}}" class="hero-icon" alt="">
-        <div class="hero-name">{{h.heroName}}</div>
+        <div class="hero-name gok-name">{{h.heroName}}</div>
         <div class="hero-stats"><span class="hl gok-rate-value">{{h.winRate}}</span> 胜率 &nbsp; <span class="hl">{{h.gameCnt}}</span> 场</div>
       </div>
       {{/each}}

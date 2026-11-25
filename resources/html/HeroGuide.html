@@ -416,6 +416,7 @@
 
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 
 <body style="--hero-bg:url('{{heroCover}}');" data-gok-page="HeroGuide"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>英雄<em>攻略</em></h1></div></header>
@@ -423,7 +424,7 @@
     <div class="hero-head">
         <img src="{{heroAvatar}}" alt="{{heroName}}" onerror="this.style.visibility='hidden'">
         <div class="hero-title">
-            <div class="hero-name">{{heroName}}{{if heroRole}}<span class="hero-role">{{heroRole}}</span>{{/if}}</div>
+            <div class="hero-name gok-name">{{heroName}}{{if heroRole}}<span class="hero-role">{{heroRole}}</span>{{/if}}</div>
             {{if heroIntro}}<div class="hero-intro">{{heroIntro}}</div>{{/if}}
         </div>
     </div>
@@ -438,7 +439,7 @@
                 {{each b.items it}}
                 <div class="item">
                     <img src="{{it.icon}}" alt="{{it.name}}" onerror="this.style.visibility='hidden'">
-                    <span>{{it.name || it.id}}</span>
+                    <span class="gok-name">{{it.name || it.id}}</span>
                 </div>
                 {{/each}}
             </div>
@@ -456,7 +457,7 @@
             <div class="core-item">
                 <img src="{{it.icon}}" alt="{{it.name}}" onerror="this.style.visibility='hidden'">
                 <div class="core-body">
-                    <div class="core-name">{{it.name}}</div>
+                    <div class="core-name gok-name">{{it.name}}</div>
                     <div class="core-rate">
                         {{if it.winRate}}<span class="win">胜率 {{it.winRate}}</span>{{/if}}
                         {{if it.showRate}}<span class="show">出场 {{it.showRate}}</span>{{/if}}
@@ -482,8 +483,8 @@
                 {{each rs.runes r}}
                 <div class="rune-item">
                     <img src="{{r.icon}}" alt="{{r.name}}" onerror="this.style.visibility='hidden'">
-                    <div>
-                        <div class="rune-name" style="color: {{r.colorCode}}">{{r.name}} ×{{r.num}}</div>
+                    <div class="rune-info">
+                        <div class="rune-name" style="color: {{r.colorCode}}"><span class="gok-name">{{r.name}}</span><span class="rune-count">×{{r.num}}</span></div>
                         {{if r.attr}}<div class="rune-attr">{{r.attr}}</div>{{/if}}
                     </div>
                 </div>
@@ -505,7 +506,7 @@
                 <div class="relation-hero">
                     <img src="{{h.avatar}}" alt="{{h.name}}" onerror="this.style.visibility='hidden'">
                     <div class="rh-body">
-                        <div class="rh-name">{{h.name}}</div>
+                        <div class="rh-name gok-name">{{h.name}}</div>
                         {{if h.desc}}<div class="rh-desc">{{h.desc}}</div>{{/if}}
                     </div>
                 </div>
@@ -524,7 +525,7 @@
             <img src="{{s.icon}}" alt="{{s.name}}" onerror="this.style.visibility='hidden'">
             <div class="skill-body">
                 <div class="skill-head">
-                    <span class="skill-name">{{s.name}}</span>
+                    <span class="skill-name gok-name">{{s.name}}</span>
                     {{each s.tags t}}<span class="skill-tag">{{t}}</span>{{/each}}
                 </div>
                 <div class="skill-desc">{{s.desc}}</div>

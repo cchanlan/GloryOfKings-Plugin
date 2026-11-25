@@ -189,6 +189,7 @@
   </style>
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 <body data-gok-page="CampSign">
 <div class="card"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>营地<em>签到</em></h1></div></header>
@@ -197,7 +198,7 @@
   <div class="card-header">
     <img class="avatar" src="{{avatar}}" alt="" onerror="this.style.display='none'">
     <div class="user-info">
-      <h2 class="username">{{username}}</h2>
+      <h2 class="username gok-name">{{username}}</h2>
       <span class="badge">{{dateText}}</span>
       <span class="badge">{{accountCount}} 个营地号</span>
     </div>
@@ -231,7 +232,7 @@
     {{each accounts a}}
     <div class="account-block">
       <div class="account-head">
-        <span class="account-name">{{a.name}}</span>
+        <span class="account-name gok-name">{{a.name}}</span>
         <span class="account-id">{{a.campId}}</span>
         <span class="account-state {{a.stateClass}}">{{a.stateText}}</span>
       </div>
@@ -254,13 +255,13 @@
         <!-- 今天的奖励明细（只在真签成功时才有） -->
         {{if a.gifts && a.gifts.length}}
         <div>
-          <div class="section-title" style="margin-bottom:11px;">今日奖励<span class="tip">{{a.roleName}}</span></div>
+          <div class="section-title" style="margin-bottom:11px;">今日奖励<span class="tip gok-name">{{a.roleName}}</span></div>
           <div class="gift-list">
             {{each a.gifts g}}
             <div class="gift-row">
               <img class="gift-icon" src="{{g.icon}}" alt="" onerror="this.style.visibility='hidden'">
               <div class="gift-main">
-                <div class="gift-name">{{g.name}}</div>
+                <div class="gift-name gok-name">{{g.name}}</div>
                 <div class="gift-desc">{{g.desc}}</div>
               </div>
               <div class="gift-num">{{g.num}}<i>个</i></div>
@@ -280,7 +281,7 @@
               <span class="total-days">{{t.days}} 天</span>
               <div class="total-bar"><div class="total-bar-in" style="width:{{t.percent}}%"></div></div>
               <div class="gift-main">
-                <div class="gift-name">{{t.name}}</div>
+                <div class="gift-name gok-name">{{t.name}}</div>
                 <div class="gift-desc">{{t.desc}}</div>
               </div>
               <span class="total-status {{t.statusClass}}">{{t.statusText}}</span>

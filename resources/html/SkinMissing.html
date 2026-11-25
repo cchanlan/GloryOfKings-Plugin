@@ -100,6 +100,7 @@
   </style>
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 <body data-gok-page="SkinMissing">
 <div class="card"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>未拥<em>有皮肤</em></h1></div></header>
@@ -107,7 +108,7 @@
   <div class="card-header">
     <img class="avatar" src="{{avatar}}" alt="" onerror="this.style.display='none'">
     <div class="user-info">
-      <h2 class="username">{{username}}</h2>
+      <h2 class="username gok-name">{{username}}</h2>
       <span class="badge">{{scopeText}}</span>
       {{if worthText}}<span class="badge">{{worthText}}</span>{{/if}}
     </div>
@@ -172,7 +173,7 @@
           <span class="flag">{{if s.owned}}已有{{else}}未拥有{{/if}}</span>
         </div>
         <div class="txt">
-          <div class="nm">{{s.name}}</div>
+          <div class="nm gok-name">{{s.name}}</div>
           <!-- 品质名可能取不到（部分老皮肤 classTypeName 是空的），分隔符要跟着一起省，别留个孤立的「·」 -->
           <div class="sub">{{s.sub}}{{if s.price}}{{if s.sub}} · {{/if}}<b>{{s.price}}</b>{{/if}}</div>
         </div>
@@ -191,7 +192,7 @@
     </div>
     <div class="name-flow">
       {{each heroTop h}}
-      <span class="name-chip">{{h.hero}}<b>{{h.num}}</b></span>
+      <span class="name-chip"><span class="gok-name">{{h.hero}}</span><b>{{h.num}}</b></span>
       {{/each}}
     </div>
   </div>

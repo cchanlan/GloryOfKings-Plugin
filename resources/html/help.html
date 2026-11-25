@@ -190,9 +190,10 @@ h2:before{content:'';position:absolute;width:8px;height:18px;background:var(--bl
 .footer-line{color:#aeadad}
 
 </style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 <!-- 帮助页使用独立暗色原画背景，保留黑金排版与完整指令，不接入其它出图主题。 -->
-<body class="gok-help-page">
+<body data-gok-page="help" class="gok-help-page">
 <main id="container" class="{{mode}}">
 <header class="hero">
   <p class="eyebrow">GLORY OF KINGS / {{mode === 'main' ? '指令指南' : '模块指南'}}</p>

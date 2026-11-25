@@ -1,5 +1,6 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>对局详情</title><link rel="stylesheet" href="{{_res_path}}css/ui-match-detail.css?v=20261120-metric-rows"><style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
-</head><body class="detail-page {{gameResult === '胜利' ? 'is-victory' : 'is-defeat'}}"><main id="container"><header class="ui-header"><div class="ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="ui-title"><img class="ui-logo" src="{{_res_path}}img/app_logo.png"><h1>对局<em>详情</em></h1></div><div class="ui-subtitle">{{mapName}} · {{startTime}} · {{usedTime}} 分钟</div></header>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
+</head><body data-gok-page="QueryGameRecordDetails" class="detail-page {{gameResult === '胜利' ? 'is-victory' : 'is-defeat'}}"><main id="container"><header class="ui-header"><div class="ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="ui-title"><img class="ui-logo" src="{{_res_path}}img/app_logo.png"><h1>对局<em>详情</em></h1></div><div class="ui-subtitle">{{mapName}} · {{startTime}} · {{usedTime}} 分钟</div></header>
 <div class="gok-content-panel">
     <div class="match-header {{gameResult === '胜利' ? 'victory' : 'defeat'}}">
         <div class="victory-text">
@@ -50,7 +51,7 @@
 
     {{if hasMeDetail}}
     <div class="stats-card">
-        <div class="section-title">我的本场表现{{if meHeroName}} · {{meHeroName}}{{/if}}</div>
+        <div class="section-title me-title"><span>我的本场表现</span>{{if meHeroName}}<span class="gok-name"> · {{meHeroName}}</span>{{/if}}</div>
         <div class="me-body">
             <div class="me-profile">
                 {{if meHeroIcon}}<img class="me-avatar" src="{{meHeroIcon}}" alt="{{meHeroName}}" onerror="this.style.visibility='hidden'">{{/if}}
@@ -98,7 +99,7 @@
                 {{each myBanHeros h}}
                 <div class="ban-hero">
                     <img src="{{h.heroIcon}}" alt="{{h.heroName}}" onerror="this.style.visibility='hidden'">
-                    <span>{{h.heroName}}</span>
+                    <span class="gok-name">{{h.heroName}}</span>
                 </div>
                 {{/each}}
             </div>
@@ -109,7 +110,7 @@
                 {{each enemyBanHeros h}}
                 <div class="ban-hero">
                     <img src="{{h.heroIcon}}" alt="{{h.heroName}}" onerror="this.style.visibility='hidden'">
-                    <span>{{h.heroName}}</span>
+                    <span class="gok-name">{{h.heroName}}</span>
                 </div>
                 {{/each}}
             </div>
@@ -137,11 +138,11 @@
                                 </div>
                                 <div class="score {{item.battleStats.gradeGame >= 10 ? 'grade-s' : item.battleStats.gradeGame >= 8 ? 'grade-a' : item.battleStats.gradeGame >= 6 ? 'grade-b' : 'grade-c'}}">{{item.battleStats.gradeGame}}</div>
                             </div>
-                            <div class="hero-name" title="{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
+                            <div class="hero-name gok-name" title="{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
                         </div>
                         <div class="player-info">
                             <div class="player-identity">
-                                <span class="player-name">{{item.basicInfo.roleName}}</span>
+                                <span class="player-name gok-name">{{item.basicInfo.roleName}}</span>
                                 {{if item.battleStats.mvpIcon}}<img class="eval-icon" src="{{item.battleStats.mvpIcon}}" alt="{{item.battleStats.mvpTag}}" onerror="this.style.display='none'">
                                 {{else if item.battleStats.mvp}}<span class="mvp-badge">{{item.battleStats.mvpTag || 'MVP'}}</span>{{/if}}
                                 {{if item.battleStats.evalIcon}}<img class="eval-icon" src="{{item.battleStats.evalIcon}}" alt="{{item.battleStats.evalTag}}" onerror="this.style.display='none'">{{/if}}
@@ -195,11 +196,11 @@
                                 </div>
                                 <div class="score {{item.battleStats.gradeGame >= 10 ? 'grade-s' : item.battleStats.gradeGame >= 8 ? 'grade-a' : item.battleStats.gradeGame >= 6 ? 'grade-b' : 'grade-c'}}">{{item.battleStats.gradeGame}}</div>
                             </div>
-                            <div class="hero-name" title="{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
+                            <div class="hero-name gok-name" title="{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}">{{!item.battleRecords.usedSkin ? item.battleRecords.usedHero.heroName : item.battleRecords.usedHero.heroName + ' - ' + item.battleRecords.usedSkin.skinName}}</div>
                         </div>
                         <div class="player-info">
                             <div class="player-identity">
-                                <span class="player-name">{{item.basicInfo.roleName}}</span>
+                                <span class="player-name gok-name">{{item.basicInfo.roleName}}</span>
                                 {{if item.battleStats.mvpIcon}}<img class="eval-icon" src="{{item.battleStats.mvpIcon}}" alt="{{item.battleStats.mvpTag}}" onerror="this.style.display='none'">
                                 {{else if item.battleStats.mvp}}<span class="mvp-badge">{{item.battleStats.mvpTag || 'MVP'}}</span>{{/if}}
                                 {{if item.battleStats.evalIcon}}<img class="eval-icon" src="{{item.battleStats.evalIcon}}" alt="{{item.battleStats.evalTag}}" onerror="this.style.display='none'">{{/if}}

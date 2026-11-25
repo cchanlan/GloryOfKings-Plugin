@@ -81,6 +81,7 @@
   </style>
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 <body data-gok-page="WatchBattle">
 <div class="card"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>营地<em>观战</em></h1></div></header>
@@ -89,7 +90,7 @@
     <!-- ⚠️ 这里不摆群名/群头像：看的是**全局账号**的营地好友，
          不管从哪个群发指令都是同一份名单，摆群名只会误导人 -->
     <div class="user-info">
-      <h2 class="username">营地好友</h2>
+      <h2 class="username gok-name">营地好友</h2>
       <div class="head-sub">共 {{total}} 位{{if online}}，{{online}} 人在线{{/if}}{{if free}}，还能开 {{free}} 路{{/if}}</div>
     </div>
     <div class="report-label">
@@ -109,7 +110,7 @@
         <div class="watch-idx">{{row.idx}}</div>
         <img class="watch-avatar" src="{{row.avatar}}" alt="" onerror="this.style.visibility='hidden'">
         <div class="watch-main">
-          <div class="watch-name">{{row.name}}</div>
+          <div class="watch-name gok-name">{{row.name}}</div>
           <div class="watch-meta">
             {{if row.jobName}}<span class="rank">{{row.jobName}}</span>{{/if}}
             {{if row.minsText}}<span class="dur">{{row.minsText}}</span>{{/if}}

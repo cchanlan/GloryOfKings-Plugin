@@ -7,6 +7,7 @@
     <title>王者主页</title>
     <link rel="stylesheet" href="{{_res_path}}css/MyKingHomepage.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 
 <body data-gok-page="MyKingHomepage">
@@ -15,7 +16,7 @@
         <div class="gok-card-head">
             <img src="{{roleIcon}}" alt="用户头像" class="gok-avatar">
             <div class="gok-user">
-                <h2 class="gok-username">{{roleName}}</h2>
+                <h2 class="gok-username gok-name">{{roleName}}</h2>
                 <span class="gok-badge gok-badge--level">等级 {{gameLevel}}</span>
                 <span class="gok-badge gok-badge--role">{{roleText}}</span>
                 <span class="gok-badge gok-badge--online{{isOffline ? " is-offline" : "" }}">{{gameOnline}}</span>

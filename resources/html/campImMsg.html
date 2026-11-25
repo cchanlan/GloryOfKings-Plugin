@@ -112,6 +112,7 @@
   </style>
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 <body data-gok-page="campImMsg">
 <div class="card"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>营地<em>消息</em></h1></div></header>
@@ -123,7 +124,7 @@
     <div class="avatar-fallback">🎮</div>
     {{/if}}
     <div class="info">
-      <div class="name">{{name}}</div>
+      <div class="name gok-name">{{name}}</div>
       {{if sub}}<div class="sub">{{sub}}</div>{{/if}}
     </div>
     <div class="tag">营地消息</div>

@@ -133,6 +133,7 @@
   </style>
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 <body data-gok-page="CampPrivacy">
   <div class="card"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>隐私<em>设置</em></h1></div></header>
@@ -141,7 +142,7 @@
       {{if avatar}}<img class="avatar" src="{{avatar}}" onerror="this.style.display='none'">{{/if}}
       <div class="pv-head-text">
         <div class="name">营地隐私设置</div>
-        <div class="sub">{{who}}　·　{{campId}}</div>
+        <div class="sub"><span class="gok-name">{{who}}</span><span class="privacy-camp-id">· {{campId}}</span></div>
       </div>
     </div>
 

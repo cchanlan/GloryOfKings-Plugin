@@ -1,0 +1,135 @@
+/** Shared name layout: shorten identities, never the adjacent scores or state. */
+body[data-gok-page] .gok-name,
+body[data-gok-page] .seat-hero .gok-name {
+  display:block;
+  min-width:0;
+  max-width:100%;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  overflow-wrap:normal;
+}
+body[data-gok-page] .gok-name-wrap {
+  min-width:0;
+  max-width:100%;
+  overflow-wrap:anywhere;
+}
+body[data-gok-page] .gok-name-metric {
+  display:flex;
+  align-items:baseline;
+  gap:6px;
+  min-width:0;
+}
+body[data-gok-page] .gok-name-metric > .gok-name { flex:0 1 auto; }
+body[data-gok-page] .gok-name-metric > .gok-name-value { flex:0 0 auto; white-space:nowrap; }
+
+/* A shrinking parent is required for ellipsis to work inside flex/grid. */
+body[data-gok-page] :is(.user-info,.gok-user,.profile-line,.team-who,.runner-info,.fri-main,.watch-main,.who-main) { min-width:0; }
+body[data-gok-page] :is(.user-info,.gok-user) { flex:1 1 0; }
+body[data-gok-page] .report-label { flex-shrink:0; }
+body[data-gok-page] .profile-line { min-width:0; max-width:100%; }
+body[data-gok-page] .profile-line img { flex-shrink:0; }
+body[data-gok-page] .profile-line .gok-name { flex:0 1 auto; }
+
+/* Battle filters are independent from the nickname: keep hero/rank/mode visible. */
+body[data-gok-page="QueryGameRecordList"] .profile-line { flex-wrap:wrap; }
+body[data-gok-page="QueryGameRecordList"] .profile-line .profile-name { flex:1 1 0; }
+body[data-gok-page="QueryGameRecordList"] .profile-filters { flex:0 0 100%; overflow-wrap:anywhere; }
+
+body[data-gok-page="MyHeroList"] .hero-info > div { flex:1 1 0; min-width:0; }
+body[data-gok-page="HeroList"] .frequent-heading > div:first-child { flex:1 1 0; min-width:0; }
+body[data-gok-page="HeroList"] .frequent-power { flex-shrink:0; }
+body[data-gok-page="QueryGameRecordDetails"] .player-identity { min-width:0; }
+body[data-gok-page="QueryGameRecordDetails"] .player-identity .player-name { flex:0 1 auto; }
+body[data-gok-page="QueryGameRecordDetails"] .player-identity :is(.eval-icon,.mvp-badge) { flex-shrink:0; }
+
+body[data-gok-page="RankList"] .podium-item { min-width:0; }
+body[data-gok-page="RankList"] :is(.podium-name,.row-name) { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+body[data-gok-page="RankList"] .row-value { flex-shrink:0; }
+body[data-gok-page="HeroPowerRank"] :is(.champion,.runners) { min-width:0; }
+body[data-gok-page="HeroPowerRank"] :is(.runner-power,.col-power) { flex-shrink:0; }
+
+body:is([data-gok-page="WhoIsPlaying"],[data-gok-page="HeroMedalWall"],[data-gok-page="SkinMissing"]) .name-chip { min-width:0; max-width:240px; }
+body[data-gok-page] .name-chip img { flex-shrink:0; }
+body[data-gok-page="WhoIsPlaying"] .who-hero { max-width:34%; min-width:0; }
+body[data-gok-page="WhoIsPlaying"] .who-hero img { flex-shrink:0; }
+body[data-gok-page="WhoIsPlaying"] .who-hero .gok-name { flex:0 1 auto; }
+body[data-gok-page="SkinMissing"] .name-chip { display:inline-flex; align-items:center; gap:6px; }
+body[data-gok-page="SkinMissing"] .name-chip > b { flex-shrink:0; }
+body[data-gok-page="HeroMedalWall"] .medal-meta .gok-name { font:inherit; color:inherit; }
+
+body:is([data-gok-page="TeamList"],[data-gok-page="TeamBroadcast"]) .seat-hero .gok-name { flex:0 1 auto; max-width:calc(100% - 27px); }
+body:is([data-gok-page="TeamList"],[data-gok-page="TeamBroadcast"]) .seat-hero .hero-power { flex:0 0 100%; }
+body:is([data-gok-page="TeamList"],[data-gok-page="TeamBroadcast"]) :is(.team-note,.join-note) { overflow-wrap:anywhere; }
+
+body[data-gok-page="CampSign"] .account-head { flex-wrap:wrap; }
+body[data-gok-page="CampSign"] .account-name { flex:1 1 0; }
+body[data-gok-page="CampSign"] :is(.account-id,.account-state) { flex-shrink:0; white-space:nowrap; }
+body[data-gok-page="CampSign"] .section-title > .gok-name { flex:0 1 auto; margin-left:auto; }
+body[data-gok-page="accountManage"] .gok-header-time { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px; }
+body[data-gok-page="accountManage"] .gok-target-meta { flex-shrink:0; }
+body[data-gok-page="accountManage"] .gok-target-name { flex:0 1 auto; }
+body[data-gok-page="accountManage"] .gok-id-list { overflow-wrap:anywhere; }
+
+/* Both opponents and the VS marker stay visible, even with two long names. */
+body[data-gok-page="KingCompare"] .compare-names { display:flex; align-items:center; gap:10px; min-width:0; }
+body[data-gok-page="KingCompare"] .compare-names > .gok-name { flex:0 1 auto; max-width:calc((100% - 60px) / 2); }
+body[data-gok-page="KingCompare"] .compare-vs { flex-shrink:0; color:rgba(238,232,220,.3); }
+body[data-gok-page="KingCompare"] .cmp-hero { display:flex; align-items:baseline; gap:6px; min-width:0; }
+body[data-gok-page="KingCompare"] .cmp-val.left .cmp-hero { justify-content:flex-end; }
+body[data-gok-page="KingCompare"] .cmp-hero > .gok-name { flex:0 1 auto; }
+body[data-gok-page="KingCompare"] .cmp-hero > :is(.cmp-hero-power,.mark) { flex-shrink:0; white-space:nowrap; }
+
+body[data-gok-page="HeroFightingCapacit"] .gok-player-info { flex:1 1 0; min-width:0; }
+body[data-gok-page="HeroFightingCapacit"] .gok-player-avatar { flex-shrink:0; }
+body[data-gok-page="HeroFightingCapacit"] .gok-data-value > .gok-name { flex:0 1 auto; }
+body[data-gok-page="HeroFightingCapacit"] .gok-data-strong { flex-shrink:0; white-space:nowrap; }
+
+body[data-gok-page="HeroGuide"] :is(.rune-info,.core-body,.skill-main) { min-width:0; }
+body[data-gok-page="HeroGuide"] .rune-info { flex:1 1 0; }
+body[data-gok-page="HeroGuide"] .rune-name { display:flex; align-items:baseline; gap:6px; min-width:0; }
+body[data-gok-page="HeroGuide"] .rune-name > .gok-name { flex:0 1 auto; font:inherit; color:inherit; }
+body[data-gok-page="HeroGuide"] .rune-count { flex-shrink:0; white-space:nowrap; }
+body[data-gok-page="HeroGuide"] .item .gok-name { width:100%; }
+body[data-gok-page="HeroGuide"] .skill-name { flex:0 1 auto; }
+body[data-gok-page="SkinWall"] .nick { flex:0 1 auto; }
+
+body[data-gok-page="CampExchange"] .ex-who { flex:1 1 0; min-width:0; }
+body[data-gok-page="CampExchange"] .ex-who img { flex-shrink:0; }
+body[data-gok-page="CampExchange"] .ex-coin { flex-shrink:0; }
+body[data-gok-page="CampPrivacy"] .pv-head-text { flex:1 1 0; min-width:0; }
+body[data-gok-page="CampPrivacy"] .pv-head-text .sub { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; min-width:0; }
+body[data-gok-page="CampPrivacy"] .pv-head-text .gok-name { flex:0 1 auto; }
+body[data-gok-page="CampPrivacy"] .privacy-camp-id { flex-shrink:0; white-space:nowrap; }
+body[data-gok-page="GroupReport"] .rank-hero { display:inline-flex; align-items:center; gap:5px; min-width:0; max-width:100%; }
+body[data-gok-page="GroupReport"] .rank-hero img { flex-shrink:0; }
+body[data-gok-page="GroupReport"] .rank-hero > .gok-name { flex:0 1 auto; }
+body[data-gok-page="GroupReport"] .rank-hero-count { flex-shrink:0; white-space:nowrap; }
+body[data-gok-page="HeroGuide"] .skill-body { flex:1 1 0; min-width:0; }
+body[data-gok-page="SkinNews"] .skin-top { min-width:0; }
+body[data-gok-page="SkinNews"] :is(.skin-name,.skin-hero) { flex:0 1 auto; }
+body[data-gok-page="SkinNews"] :is(.skin-date,.skin-quality) { flex-shrink:0; }
+
+body[data-gok-page="QueryGameRecordDetails"] .ban-hero { min-width:0; }
+body[data-gok-page="QueryGameRecordDetails"] .ban-hero .gok-name { width:100%; }
+
+/* Bound the full flex/grid chain, not just the innermost name. */
+body[data-gok-page="GroupReport"] .rank-top .rank-hero { flex:0 1 auto; min-width:0; max-width:34%; }
+body[data-gok-page="GroupReport"] .rank-top .rank-name { flex:1 1 0; }
+body[data-gok-page="HeroGuide"] .rune-list .rune-item { flex:1 1 180px; min-width:0; max-width:100%; }
+body[data-gok-page="HeroDetail"] .report-label { min-width:0; max-width:36%; }
+body[data-gok-page="HeroDetail"] .report-label .sub.gok-name { width:100%; }
+body[data-gok-page="SkinMissing"] .skin-card .nm.gok-name { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+body[data-gok-page="CampExchange"] .ex-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+body[data-gok-page="CampExchange"] .ex-grid .ex-card { min-width:0; }
+body[data-gok-page="CampExchange"] .ex-card .ex-name.gok-name { width:100%; }
+body[data-gok-page="authPoolOverview"] .gok-uid-row { min-width:0; gap:12px; }
+body[data-gok-page="authPoolOverview"] .gok-uid-row > div:first-child { flex:1 1 0; min-width:0; }
+body[data-gok-page="authPoolOverview"] .gok-uid-row > .gok-badge { flex:0 0 auto; }
+
+body[data-gok-page="HeroDetail"] .hh-name { display:flex; align-items:baseline; min-width:0; }
+body[data-gok-page="HeroDetail"] .hh-name > .gok-name { flex:0 1 auto; }
+body[data-gok-page="HeroDetail"] .hh-name > .hh-alias { flex-shrink:0; }
+body[data-gok-page="QueryGameRecordDetails"] .me-title { display:flex; align-items:baseline; min-width:0; }
+body[data-gok-page="QueryGameRecordDetails"] .me-title > span:first-child { flex-shrink:0; }
+body[data-gok-page="QueryGameRecordDetails"] .me-title > .gok-name { flex:0 1 auto; }

@@ -207,14 +207,15 @@
 </style>
 
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 <body data-gok-page="HeroFightingCapacit"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>英雄<em>战力</em></h1></div></header>
 <div class="gok-content-panel">
     <header class="gok-hero-banner">
         <h1>英雄最低战力区域查询</h1>
         <div class="gok-player">
             <img src="{{photo}}" alt="{{name}}" class="gok-player-avatar">
-            <div>
-                <div class="gok-player-name">{{name}}</div>
+            <div class="gok-player-info">
+                <div class="gok-player-name gok-name">{{name}}</div>
                 <div class="gok-player-alias">{{alias}}</div>
             </div>
         </div>
@@ -245,7 +246,7 @@
                 <div class="gok-data-row">
                     <span class="gok-data-label">省份：</span>
                     <span class="gok-data-value">
-                        <span>{{item.province}}</span>
+                        <span class="gok-name">{{item.province}}</span>
                         <span class="gok-data-sep"></span>
                         <span class="gok-data-strong" style="color:{{item.powerColors.provincePower}}">{{item.provincePower}}</span>
                     </span>
@@ -253,7 +254,7 @@
                 <div class="gok-data-row">
                     <span class="gok-data-label">城市：</span>
                     <span class="gok-data-value">
-                        <span>{{item.city}}</span>
+                        <span class="gok-name">{{item.city}}</span>
                         <span class="gok-data-sep"></span>
                         <span class="gok-data-strong" style="color:{{item.powerColors.cityPower}}">{{item.cityPower}}</span>
                     </span>
@@ -261,7 +262,7 @@
                 <div class="gok-data-row">
                     <span class="gok-data-label">地区：</span>
                     <span class="gok-data-value">
-                        <span>{{item.area}}</span>
+                        <span class="gok-name">{{item.area}}</span>
                         <span class="gok-data-sep"></span>
                         <span class="gok-data-strong" style="color:{{item.powerColors.areaPower}}">{{item.areaPower}}</span>
                     </span>

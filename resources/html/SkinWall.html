@@ -214,6 +214,7 @@
     </style>
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 
 <body data-gok-page="SkinWall"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>皮肤<em>收藏</em></h1></div></header>
@@ -222,7 +223,7 @@
         <h1>皮 肤 墙</h1>
         <div class="user">
             <img src="{{avatar}}" onerror="this.style.display='none'">
-            <span class="nick">{{nickname}}</span>
+            <span class="nick gok-name">{{nickname}}</span>
         </div>
         <div class="yd-id">营地ID: {{ydId}}{{if pageInfo}} · {{pageInfo}}{{/if}}</div>
     </div>
@@ -254,8 +255,8 @@
             {{if skin.labelUrl}}<img class="label-tag" src="{{skin.labelUrl}}" onerror="var t=this.parentNode.querySelector('.label-text');if(t){t.style.display='block';}this.style.display='none';">{{/if}}
             {{if skin.tierText}}<span class="label-text"{{if skin.labelUrl}} style="display:none"{{/if}}>{{skin.tierText}}</span>{{/if}}
             {{if skin.imgUrl}}<img class="skin-pic" src="{{skin.imgUrl}}" alt="{{skin.skinName}}" onerror="this.style.visibility='hidden';">{{/if}}            <div class="info">
-                <div class="skin-name">{{skin.skinName}}</div>
-                <div class="hero-name">{{skin.heroName}}</div>
+                <div class="skin-name gok-name">{{skin.skinName}}</div>
+                <div class="hero-name gok-name">{{skin.heroName}}</div>
             </div>
         </div>
         {{/each}}

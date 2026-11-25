@@ -180,6 +180,7 @@
     </style>
 <link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-blackgold-legacy.css">
 <style id="gok-ui-custom">{{@_gokUiStyle || ''}}</style>
+<link rel="stylesheet" href="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}css/ui-name-layout.css?v=20261125-name-data-r3">
 </head>
 
 <body data-gok-page="SkinNews"><header class="gok-ui-brand"><div class="gok-ui-eyebrow">GLORY OF KINGS / 王者荣耀</div><div class="gok-ui-title"><img class="gok-ui-logo" src="{{_res_path || '../../../plugins/GloryOfKings-Plugin/resources/'}}img/app_logo.png" alt="王者荣耀 App"><h1>皮肤<em>资讯</em></h1></div></header>
@@ -198,8 +199,8 @@
             <div class="skin-body">
                 <div class="skin-top">
                     {{if s.heroAvatar}}<img class="skin-hero-avatar" src="{{s.heroAvatar}}" alt="" onerror="this.style.visibility='hidden'">{{/if}}
-                    <span class="skin-name">{{s.name}}</span>
-                    <span class="skin-hero">{{s.hero}}</span>
+                    <span class="skin-name gok-name">{{s.name}}</span>
+                    <span class="skin-hero gok-name">{{s.hero}}</span>
                     {{if s.quality}}<span class="skin-quality" style="color: {{s.color}}">{{s.quality}}</span>{{/if}}
                     <span class="skin-date"><span class="tag">上线</span>{{s.dateText}}</span>
                 </div>
@@ -220,8 +221,8 @@
             <div class="skin-body">
                 <div class="skin-top">
                     {{if s.heroAvatar}}<img class="skin-hero-avatar" src="{{s.heroAvatar}}" alt="" onerror="this.style.visibility='hidden'">{{/if}}
-                    <span class="skin-name">{{s.name}}</span>
-                    <span class="skin-hero">{{s.hero}}</span>
+                    <span class="skin-name gok-name">{{s.name}}</span>
+                    <span class="skin-hero gok-name">{{s.hero}}</span>
                     {{if s.quality}}<span class="skin-quality" style="color: {{s.color}}">{{s.quality}}</span>{{/if}}
                     <span class="skin-date"><span class="tag">{{s.countdown}}</span>{{s.dateText}}</span>
                 </div>
@@ -242,8 +243,8 @@
             <div class="skin-body">
                 <div class="skin-top">
                     {{if s.heroAvatar}}<img class="skin-hero-avatar" src="{{s.heroAvatar}}" alt="" onerror="this.style.visibility='hidden'">{{/if}}
-                    <span class="skin-name">{{s.name}}</span>
-                    <span class="skin-hero">{{s.hero}}</span>
+                    <span class="skin-name gok-name">{{s.name}}</span>
+                    <span class="skin-hero gok-name">{{s.hero}}</span>
                     {{if s.quality}}<span class="skin-quality" style="color: {{s.color}}">{{s.quality}}</span>{{/if}}
                     <span class="skin-date"><span class="tag">{{s.countdown}}</span>{{s.dateText}}</span>
                 </div>

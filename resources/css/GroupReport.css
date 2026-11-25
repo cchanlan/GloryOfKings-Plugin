@@ -65,8 +65,24 @@
   flex-shrink:0;
 }
 .award-main { min-width:0; flex:1; }
-.award-key { font-size:20px; color:#d8b97b; margin-bottom:3px; }
+/* 成绩与称号同排，名字独占下一行；空间不足时成绩换行，不做截断。 */
+.award-head {
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:2px 12px;
+  min-width:0;
+  margin-bottom:3px;
+}
+.award-key { font-size:20px; color:#d8b97b; }
 .award-val {
+  font-size:20px;
+  color:#eee8dc;
+  max-width:100%;
+  overflow-wrap:anywhere;
+}
+.award-name {
   font-size:20px;
   color:#eee8dc;
   white-space:nowrap;
@@ -211,3 +227,12 @@
   color:#d8b97b;
 }
 .note + .footer { padding-top:9px; }
+
+/* 比后加载的黑金基础样式更具体：排行仅省略姓名，连胜和常用英雄不被挤掉。 */
+body[data-gok-page="GroupReport"] .rank-main .rank-top { flex-wrap:nowrap; }
+body[data-gok-page="GroupReport"] .rank-top .rank-name {
+  flex:0 1 auto;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}

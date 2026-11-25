@@ -922,17 +922,23 @@ export function buildGroupView (group, {
 
   // 称号栏：只列存在的，空的不占位
   const awards = []
-  const award = (key, row, fmt) => row && awards.push({ key, val: fmt(row), icon: row.icon })
-  award('肝帝', group.topGrinder, r => `${r.displayName} · ${r.count} 场`)
-  award('胜场王', group.topWinner, r => `${r.displayName} · ${r.win} 胜`)
-  award('胜率王', group.topRate, r => `${r.displayName} · ${r.winRate}%（${r.count} 场）`)
-  award('MVP 收割机', group.topMvp, r => `${r.displayName} · ${r.mvp} 次`)
-  award('尽力局长', group.topLoseMvp, r => `${r.displayName} · 败方 MVP ${r.loseMvp} 次`)
-  award('连胜之星', group.topStreak, r => `${r.displayName} · ${r.streak.count} 连胜`)
-  award('上分之王', group.topRise, r => `${r.displayName} · ${riseAwardText(r)}`)
-  award('巅峰之王', group.topPeak, r => `${r.displayName} · 巅峰分 +${r.scoreDelta}`)
-  award('血亏之王', group.topDrop, r => `${r.displayName} · ${dropAwardText(r)}`)
-  award('升段之星', group.topRankUp, r => `${r.displayName} · ${r.rankUpText}`)
+  // 昵称和成绩分别交给模板，长名字只能省略名字，不能截掉称号数据。
+  const award = (key, row, fmt) => row && awards.push({
+    key,
+    name: row.displayName || row.name || '',
+    val: fmt(row),
+    icon: row.icon
+  })
+  award('肝帝', group.topGrinder, r => `${r.count} 场`)
+  award('胜场王', group.topWinner, r => `${r.win} 胜`)
+  award('胜率王', group.topRate, r => `${r.winRate}%（${r.count} 场）`)
+  award('MVP 收割机', group.topMvp, r => `${r.mvp} 次`)
+  award('尽力局长', group.topLoseMvp, r => `败方 MVP ${r.loseMvp} 次`)
+  award('连胜之星', group.topStreak, r => `${r.streak.count} 连胜`)
+  award('上分之王', group.topRise, r => `${riseAwardText(r)}`)
+  award('巅峰之王', group.topPeak, r => `巅峰分 +${r.scoreDelta}`)
+  award('血亏之王', group.topDrop, r => `${dropAwardText(r)}`)
+  award('升段之星', group.topRankUp, r => `${r.rankUpText}`)
 
   const heroTop = group.heroes?.[0]?.count || 1
   const heroes = (group.heroes || []).slice(0, heroLimit).map((h, idx) => ({
